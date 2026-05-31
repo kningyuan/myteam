@@ -244,6 +244,13 @@ function handleThinking(ev, msg, contentEl, tb, ts, rootEl) {
     case 'text':
       msg.content += d.content;
       if (contentEl) contentEl.textContent = msg.content;
+      // 同时将文本添加到思考过程区域
+      if (tb && d.content) {
+        const textDiv = document.createElement('div');
+        textDiv.className = 'thinking-text';
+        textDiv.textContent = d.content;
+        tb.appendChild(textDiv);
+      }
       break;
     case 'tool_use':
       msg.thinking.push(d);
