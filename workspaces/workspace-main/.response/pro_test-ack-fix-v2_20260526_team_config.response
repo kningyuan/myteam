@@ -1,0 +1,7 @@
+{
+  "agents": [
+    "developer",
+    "tester",
+    "ops"
+  ]
+}

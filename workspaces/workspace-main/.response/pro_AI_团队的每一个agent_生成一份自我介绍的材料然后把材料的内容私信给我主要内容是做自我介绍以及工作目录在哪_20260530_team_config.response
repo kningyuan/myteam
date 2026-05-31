@@ -1,0 +1,10 @@
+{
+  "agents": [
+    "researcher",
+    "product",
+    "developer",
+    "designer",
+    "docs",
+    "coordinator"
+  ]
+}

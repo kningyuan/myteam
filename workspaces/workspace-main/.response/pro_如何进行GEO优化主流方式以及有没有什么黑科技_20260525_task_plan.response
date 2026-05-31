@@ -1,0 +1,56 @@
+{
+  "tasks": [
+    {
+      "id": "task_001",
+      "name": "GEO优化主流方式调研",
+      "agent": "researcher",
+      "task_type": "research",
+      "reviewer": "consultation",
+      "description": "调研GEO（Generative Engine Optimization）优化的主流方法和最佳实践，包括搜索引擎优化、内容结构优化、关键词策略等",
+      "dependencies": []
+    },
+    {
+      "id": "task_002",
+      "name": "GEO黑科技与前沿技术调研",
+      "agent": "researcher",
+      "task_type": "research",
+      "reviewer": "consultation",
+      "description": "调研GEO优化中的黑科技、前沿技术和创新方法，包括AI生成内容优化、语义理解、大模型友好型内容策略等",
+      "dependencies": []
+    },
+    {
+      "id": "task_003",
+      "name": "GEO优化策略制定",
+      "agent": "consultation",
+      "task_type": "strategy",
+      "reviewer": "seo",
+      "description": "基于调研结果，制定完整的GEO优化策略方案，包括主流方式与黑科技的应用场景、优先级和风险评估",
+      "dependencies": [
+        "task_001",
+        "task_002"
+      ]
+    },
+    {
+      "id": "task_004",
+      "name": "GEO优化实施方案",
+      "agent": "seo",
+      "task_type": "seo-plan",
+      "reviewer": "consultation",
+      "description": "制定可执行的GEO优化实施方案，包含关键词策略、内容优化、技术优化和效果预期指标",
+      "dependencies": [
+        "task_003"
+      ]
+    },
+    {
+      "id": "task_005",
+      "name": "GEO优化内容撰写",
+      "agent": "content",
+      "task_type": "content",
+      "reviewer": "seo",
+      "description": "撰写GEO优化相关的完整内容文档，包括主流方式详解、黑科技介绍、实操指南等",
+      "dependencies": [
+        "task_004"
+      ]
+    }
+  ]
+}

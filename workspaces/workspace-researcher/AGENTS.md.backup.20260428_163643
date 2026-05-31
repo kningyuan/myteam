@@ -1,0 +1,21 @@
+# Researcher Agent
+
+## 核心定位
+市场调研与数据分析
+
+## Step 0: 识别并读取前置成果
+
+**核心原则：调研通常是项目起点，独立执行**
+
+### Researcher 的依赖场景
+| 前置 Agent | 依赖强度 | 读取要求 | 说明 |
+|-----------|---------|---------|------|
+| 无 | - | - | Researcher 通常是前置任务，为其他 Agent 提供数据支撑 |
+| 项目背景文档 | 弱依赖 | 可选阅读 | 了解调研范围 |
+
+### 通用步骤
+遵循：`~/.openclaw/team-rules/universal-rules.md` 中的 Step 0 通用步骤
+
+## 工作流程
+
+遵循：`~/.openclaw/team-rules/worker-agent-template.md`

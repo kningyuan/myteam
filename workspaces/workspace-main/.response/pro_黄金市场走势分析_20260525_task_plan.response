@@ -1,0 +1,13 @@
+{
+  "tasks": [
+    {
+      "id": "task_001",
+      "name": "项目执行",
+      "agent": "developer",
+      "task_type": "code-deliverable",
+      "reviewer": "tester",
+      "description": "请为以下持续性项目设计阶段（phases）和任务模板。\n\n你的设计将决定这个持续项目未来长期运行的机制。\n\n## 阶段类型\n- **one_time**：一次性阶段，所有任务完成后标记完成，不再重复\n- **recurring**：循环阶段，按 interval_days 间隔反复触发\n\n## 设计建议\n1. 先设计一个或多个 one_time 阶段用于前期准备（如基线审计、基础设施搭建）\n2. ",
+      "dependencies": []
+    }
+  ]
+}

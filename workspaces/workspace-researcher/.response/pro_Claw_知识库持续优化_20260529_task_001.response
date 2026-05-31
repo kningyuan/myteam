@@ -1,0 +1,50 @@
+{
+  "phase": "evaluate",
+  "task_id": "task_001",
+  "should_split": true,
+  "reason": "Claw知识库内容规模大、类型多、跨多个独立模块，按主题/质量/时效性三维分类工作量超过4小时，且各模块内容来源和更新频率差异显著，拆分后便于并行处理和质量控制",
+  "sub_tasks": [
+    {
+      "id": "task_001_1",
+      "name": "工作区Agent内容盘点",
+      "description": "盘点13个工作区（consultation/content/coordinator/deputy/designer/developer/docs/email/main/ops/product/researcher/seo/social/tester）的AGENTS.md、IDENTITY.md、MEMORY.md、USER.md、SOUL.md、TOOLS.md、HEARTBEAT.md等核心文件，按主题分类并评估内容质量与时效性",
+      "dependencies": []
+    },
+    {
+      "id": "task_001_2",
+      "name": "技能库（SKILL.md）盘点",
+      "description": "盘点skills目录下的所有SKILL.md文件（agent-browser、team-ok等），评估技能完整性、文档质量、与当前系统架构的兼容性",
+      "dependencies": []
+    },
+    {
+      "id": "task_001_3",
+      "name": "团队规则与通用规则盘点",
+      "description": "盘点team-rules目录（brainstorming-guide.md、universal-rules.md、worker-template.md）及workspace内嵌入的规则文件，评估规则一致性、冲突点和过时内容",
+      "dependencies": []
+    },
+    {
+      "id": "task_001_4",
+      "name": "项目与脚本内容盘点",
+      "description": "盘点projects/、scripts/、archive/、backups/目录下的内容，评估项目状态、脚本可用性和归档内容的保留价值",
+      "dependencies": []
+    },
+    {
+      "id": "task_001_5",
+      "name": "核心配置文件盘点",
+      "description": "盘点CLAUDE.md、TODOS.md、openclaw.json及各版本备份、tasks/storming历史记录等核心配置和会话数据，评估配置健康度和历史数据清理需求",
+      "dependencies": []
+    },
+    {
+      "id": "task_001_6",
+      "name": "汇总报告与分类清单",
+      "description": "整合前5个子任务的盘点结果，生成按主题/质量/时效性三维分类的完整内容清单，标注问题项和优化建议",
+      "dependencies": [
+        "task_001_1",
+        "task_001_2",
+        "task_001_3",
+        "task_001_4",
+        "task_001_5"
+      ]
+    }
+  ]
+}

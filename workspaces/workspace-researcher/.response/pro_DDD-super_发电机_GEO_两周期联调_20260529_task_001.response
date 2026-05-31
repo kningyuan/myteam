@@ -1,0 +1,26 @@
+{
+  "phase": "evaluate",
+  "task_id": "task_001",
+  "should_split": true,
+  "reason": "任务涉及多个独立技能领域（数据收集、数据分析、业务洞察），需要调研多个GEO数据源，预估工时超过4小时，且包含多个独立产出物",
+  "sub_tasks": [
+    {
+      "id": "task_001_1",
+      "name": "GEO数据源盘点与接入",
+      "description": "识别所有GEO相关数据源，建立数据接入通道，确保数据完整性",
+      "dependencies": []
+    },
+    {
+      "id": "task_001_2",
+      "name": "基线表现分析",
+      "description": "基于收集的数据计算关键指标基线，识别异常波动和趋势",
+      "dependencies": ["task_001_1"]
+    },
+    {
+      "id": "task_001_3",
+      "name": "优化空间识别与优先级排序",
+      "description": "基于基线分析结果，识别可优化环节，按影响力和可行性排序",
+      "dependencies": ["task_001_2"]
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+"""
+OpenClaw OpenCode Adapter 版本信息
+"""
+VERSION = "2.0.0"

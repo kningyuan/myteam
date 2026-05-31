@@ -1,0 +1,153 @@
+{
+  "phases": [
+    {
+      "name": "基础设施搭建",
+      "type": "one_time",
+      "description": "搭建黄金市场数据分析基础设施，包括数据源接入、分析模型开发、验证机制建立",
+      "interval_days": null,
+      "tasks": [
+        {
+          "id": "task_001",
+          "name": "黄金市场数据源调研与接入",
+          "agent": "researcher",
+          "task_type": "research",
+          "reviewer": "main",
+          "description": "调研可用的黄金价格数据源（API、交易所数据等），评估数据质量、更新频率、成本，确定最终接入方案",
+          "dependencies": [],
+          "can_output_adjustments": false
+        },
+        {
+          "id": "task_002",
+          "name": "自动化分析系统开发",
+          "agent": "developer",
+          "task_type": "code-deliverable",
+          "reviewer": "main",
+          "description": "开发每小时自动运行黄金市场趋势分析脚本，集成数据获取、技术指标计算、价格预测功能",
+          "dependencies": [
+            "task_001"
+          ],
+          "can_output_adjustments": false
+        },
+        {
+          "id": "task_003",
+          "name": "交叉验证机制设计",
+          "agent": "analyst",
+          "task_type": "research",
+          "reviewer": "main",
+          "description": "设计多agent交叉验证机制，定义不同分析视角（技术分析、基本面分析、市场情绪等）的验证规则",
+          "dependencies": [
+            "task_001"
+          ],
+          "can_output_adjustments": false
+        },
+        {
+          "id": "task_004",
+          "name": "监控系统与告警配置",
+          "agent": "ops",
+          "task_type": "strategy",
+          "reviewer": "main",
+          "description": "配置数据分析系统的监控告警，确保每小时任务正常运行，异常时及时通知",
+          "dependencies": [
+            "task_002"
+          ],
+          "can_output_adjustments": false
+        },
+        {
+          "id": "task_005",
+          "name": "黄金市场分析框架建立",
+          "agent": "consultation",
+          "task_type": "research",
+          "reviewer": "main",
+          "description": "建立黄金市场分析的专业框架，包括宏观经济因素、地缘政治、供需关系等分析维度",
+          "dependencies": [],
+          "can_output_adjustments": false
+        }
+      ]
+    },
+    {
+      "name": "每小时自动化分析循环",
+      "type": "recurring",
+      "description": "每小时自动执行黄金市场趋势分析，输出实时价格预测",
+      "interval_days": 1,
+      "tasks": [
+        {
+          "id": "task_006",
+          "name": "实时数据获取与清洗",
+          "agent": "developer",
+          "task_type": "code-deliverable",
+          "reviewer": "main",
+          "description": "每小时自动获取最新黄金价格数据，进行数据清洗和异常值检测",
+          "dependencies": [],
+          "can_output_adjustments": false
+        },
+        {
+          "id": "task_007",
+          "name": "技术指标分析",
+          "agent": "analyst",
+          "task_type": "research",
+          "reviewer": "main",
+          "description": "基于技术指标（均线、RSI、MACD、布林带等）分析当前走势，计算短期价格预测区间",
+          "dependencies": [
+            "task_006"
+          ],
+          "can_output_adjustments": false
+        },
+        {
+          "id": "task_008",
+          "name": "交叉验证与价格建议",
+          "agent": "analyst",
+          "task_type": "research",
+          "reviewer": "main",
+          "description": "综合多指标交叉验证，输出买入价格建议及置信度评分",
+          "dependencies": [
+            "task_007"
+          ],
+          "can_output_adjustments": true
+        }
+      ]
+    },
+    {
+      "name": "每周综合分析循环",
+      "type": "recurring",
+      "description": "每周执行一次全面的黄金市场分析，结合基本面和技术面给出深度买入建议",
+      "interval_days": 7,
+      "tasks": [
+        {
+          "id": "task_009",
+          "name": "本周市场数据汇总",
+          "agent": "researcher",
+          "task_type": "research",
+          "reviewer": "main",
+          "description": "汇总本周黄金市场数据，包括价格走势、交易量、相关新闻事件",
+          "dependencies": [],
+          "can_output_adjustments": false
+        },
+        {
+          "id": "task_010",
+          "name": "基本面因素分析",
+          "agent": "consultation",
+          "task_type": "research",
+          "reviewer": "main",
+          "description": "分析影响黄金价格的基本面因素，包括美元走势、利率政策、通胀预期、地缘政治等",
+          "dependencies": [
+            "task_009"
+          ],
+          "can_output_adjustments": false
+        },
+        {
+          "id": "task_011",
+          "name": "综合评估与买入建议",
+          "agent": "analyst",
+          "task_type": "research",
+          "reviewer": "main",
+          "description": "综合技术和基本面分析结果，进行交叉验证，给出买入价格区间建议及置信度评估",
+          "dependencies": [
+            "task_009",
+            "task_010"
+          ],
+          "can_output_adjustments": true
+        }
+      ]
+    }
+  ]
+}

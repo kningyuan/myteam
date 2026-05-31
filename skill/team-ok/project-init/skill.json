@@ -1,0 +1,10 @@
+{
+  "id": "team-project-init",
+  "name": "项目初始化",
+  "version": "1.0.0",
+  "description": "创建标准化项目目录结构",
+  "author": "openclaw-team",
+  "tags": ["project", "init"],
+  "requiredTools": ["shell"],
+  "whenToUse": "用户发起新项目协作时"
+}

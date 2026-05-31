@@ -1,0 +1,130 @@
+{
+  "tasks": [
+    {
+      "id": "task_001",
+      "name": "Researcher自我介绍",
+      "agent": "researcher",
+      "task_type": "research",
+      "reviewer": "coordinator",
+      "description": "调研并撰写自我介绍文档，包含调研背景、调研方法、核心发现、结论建议",
+      "dependencies": []
+    },
+    {
+      "id": "task_002",
+      "name": "Product自我介绍",
+      "agent": "product",
+      "task_type": "prd",
+      "reviewer": "coordinator",
+      "description": "撰写产品介绍文档，包含背景与目标、需求描述、验收标准、范围界定",
+      "dependencies": []
+    },
+    {
+      "id": "task_003",
+      "name": "Developer自我介绍",
+      "agent": "developer",
+      "task_type": "code-deliverable",
+      "reviewer": "coordinator",
+      "description": "撰写开发自我介绍文档，包含方案设计、实现说明、测试覆盖",
+      "dependencies": []
+    },
+    {
+      "id": "task_004",
+      "name": "Designer自我介绍",
+      "agent": "designer",
+      "task_type": "design-review",
+      "reviewer": "coordinator",
+      "description": "撰写设计自我介绍文档，包含一致性、可访问性、响应式设计说明",
+      "dependencies": []
+    },
+    {
+      "id": "task_005",
+      "name": "Ops自我介绍",
+      "agent": "ops",
+      "task_type": "docs",
+      "reviewer": "coordinator",
+      "description": "撰写运维自我介绍文档，包含文档目标、内容结构、使用说明、更新日志",
+      "dependencies": []
+    },
+    {
+      "id": "task_006",
+      "name": "SEO自我介绍",
+      "agent": "seo",
+      "task_type": "seo-plan",
+      "reviewer": "coordinator",
+      "description": "撰写SEO自我介绍文档，包含关键词策略、技术优化、内容优化、效果预期",
+      "dependencies": []
+    },
+    {
+      "id": "task_007",
+      "name": "Content自我介绍",
+      "agent": "content",
+      "task_type": "content",
+      "reviewer": "coordinator",
+      "description": "撰写内容自我介绍文档，包含目标读者、内容框架、正文内容、来源引用",
+      "dependencies": []
+    },
+    {
+      "id": "task_008",
+      "name": "Social自我介绍",
+      "agent": "social",
+      "task_type": "content",
+      "reviewer": "coordinator",
+      "description": "撰写社交自我介绍文档，包含目标读者、内容框架、正文内容、来源引用",
+      "dependencies": []
+    },
+    {
+      "id": "task_009",
+      "name": "Email自我介绍",
+      "agent": "email",
+      "task_type": "content",
+      "reviewer": "coordinator",
+      "description": "撰写邮件自我介绍文档，包含目标读者、内容框架、正文内容、来源引用",
+      "dependencies": []
+    },
+    {
+      "id": "task_010",
+      "name": "Docs自我介绍",
+      "agent": "docs",
+      "task_type": "docs",
+      "reviewer": "coordinator",
+      "description": "撰写文档自我介绍文档，包含文档目标、内容结构、使用说明、更新日志",
+      "dependencies": []
+    },
+    {
+      "id": "task_011",
+      "name": "Consultation自我介绍",
+      "agent": "consultation",
+      "task_type": "strategy",
+      "reviewer": "coordinator",
+      "description": "撰写咨询自我介绍文档，包含问题定义、方案对比、推荐方案、风险评估",
+      "dependencies": []
+    },
+    {
+      "id": "task_012",
+      "name": "Coordinator自我介绍",
+      "agent": "coordinator",
+      "task_type": "task-handoff",
+      "reviewer": "main",
+      "description": "撰写协调员自我介绍文档，包含交接摘要、交付物清单、依赖关系",
+      "dependencies": []
+    },
+    {
+      "id": "task_013",
+      "name": "Tester自我介绍",
+      "agent": "tester",
+      "task_type": "test-plan",
+      "reviewer": "coordinator",
+      "description": "撰写测试自我介绍文档，包含测试范围、测试用例、正常/边界/异常路径",
+      "dependencies": []
+    },
+    {
+      "id": "task_014",
+      "name": "Deputy自我介绍",
+      "agent": "deputy",
+      "task_type": "task-handoff",
+      "reviewer": "main",
+      "description": "撰写副协调员自我介绍文档，包含交接摘要、交付物清单、依赖关系",
+      "dependencies": []
+    }
+  ]
+}

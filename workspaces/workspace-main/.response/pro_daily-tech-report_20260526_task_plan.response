@@ -1,0 +1,88 @@
+{
+  "phases": [
+    {
+      "name": "资讯收集系统搭建",
+      "type": "one_time",
+      "description": "配置技术资讯来源、摘要模板和分发渠道",
+      "interval_days": null,
+      "tasks": [
+        {
+          "id": "task_001",
+          "name": "资讯来源定义",
+          "agent": "researcher",
+          "task_type": "research",
+          "reviewer": "main",
+          "description": "确定每日技术资讯的收集来源，包括RSS订阅、技术博客、新闻网站、GitHub趋势等",
+          "dependencies": [],
+          "can_output_adjustments": false
+        },
+        {
+          "id": "task_002",
+          "name": "摘要模板设计",
+          "agent": "content",
+          "task_type": "content",
+          "reviewer": "main",
+          "description": "设计每日技术简报的摘要模板，包括标题、分类、摘要要点、原文链接等格式",
+          "dependencies": [
+            "task_001"
+          ],
+          "can_output_adjustments": false
+        },
+        {
+          "id": "task_003",
+          "name": "分发渠道配置",
+          "agent": "social",
+          "task_type": "strategy",
+          "reviewer": "main",
+          "description": "配置简报分发渠道，包括社交媒体账号、邮件列表、即时通讯工具等",
+          "dependencies": [
+            "task_002"
+          ],
+          "can_output_adjustments": false
+        }
+      ]
+    },
+    {
+      "name": "每日资讯简报",
+      "type": "recurring",
+      "description": "每日收集技术资讯并生成摘要简报，分发至指定渠道",
+      "interval_days": 1,
+      "tasks": [
+        {
+          "id": "task_004",
+          "name": "资讯收集",
+          "agent": "researcher",
+          "task_type": "research",
+          "reviewer": "main",
+          "description": "从预设来源收集当日最新技术资讯，筛选重要内容",
+          "dependencies": [],
+          "can_output_adjustments": true
+        },
+        {
+          "id": "task_005",
+          "name": "摘要撰写",
+          "agent": "content",
+          "task_type": "content",
+          "reviewer": "main",
+          "description": "将收集的资讯整理成每日技术简报，按照预设模板生成摘要内容",
+          "dependencies": [
+            "task_004"
+          ],
+          "can_output_adjustments": false
+        },
+        {
+          "id": "task_006",
+          "name": "简报分发",
+          "agent": "email",
+          "task_type": "content",
+          "reviewer": "main",
+          "description": "将当日技术简报发送至指定邮件列表和社交媒体渠道",
+          "dependencies": [
+            "task_005"
+          ],
+          "can_output_adjustments": true
+        }
+      ]
+    }
+  ]
+}

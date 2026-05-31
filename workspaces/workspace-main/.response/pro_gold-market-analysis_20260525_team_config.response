@@ -1,0 +1,9 @@
+{
+  "agents": [
+    "researcher",
+    "analyst",
+    "developer",
+    "ops",
+    "consultation"
+  ]
+}

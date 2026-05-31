@@ -1,0 +1,127 @@
+{
+  "event": "request_cycle_plan",
+  "project_id": "pro_DDD-super_发电机_GEO_两周期联调_20260529",
+  "cycle_number": 1,
+  "is_first_recurring_cycle": true,
+  "project_summary": {
+    "current_state": "one_time 已跳过（联调加速），recurring 已激活",
+    "accumulated_learnings": "",
+    "goal": "针对 DDD-super 发电机持续 GEO 优化：基线审计、内容优化、效果跟踪；两周期联调验证 Deputy cycle_review"
+  },
+  "last_closed_cycle": {},
+  "last_review": {},
+  "due_phases": [
+    "双周优化循环",
+    "月度综合评估"
+  ],
+  "templates": [
+    {
+      "template_id": "task_005",
+      "name": "内容优化执行",
+      "agent": "content",
+      "task_type": "content",
+      "description": "根据效果数据优化GEO相关内容",
+      "dependencies": [],
+      "phase_name": "双周优化循环"
+    },
+    {
+      "template_id": "task_006",
+      "name": "效果数据分析",
+      "agent": "analyst",
+      "task_type": "research",
+      "description": "分析优化效果，输出数据报告和洞察",
+      "dependencies": [
+        "task_005"
+      ],
+      "phase_name": "双周优化循环"
+    },
+    {
+      "template_id": "task_007",
+      "name": "联调验证执行",
+      "agent": "tester",
+      "task_type": "test-plan",
+      "description": "执行两周期联调验证，验证Deputy cycle_review机制",
+      "dependencies": [
+        "task_006"
+      ],
+      "phase_name": "双周优化循环"
+    },
+    {
+      "template_id": "task_008",
+      "name": "月度综合评估报告",
+      "agent": "analyst",
+      "task_type": "research",
+      "description": "汇总月度数据，评估整体GEO优化效果",
+      "dependencies": [],
+      "phase_name": "月度综合评估"
+    },
+    {
+      "template_id": "task_009",
+      "name": "策略调整建议",
+      "agent": "researcher",
+      "task_type": "strategy",
+      "description": "基于评估结果提出策略调整建议",
+      "dependencies": [
+        "task_008"
+      ],
+      "phase_name": "月度综合评估"
+    }
+  ],
+  "message": "请为第 1 轮持续项目制定本轮任务列表。\n\n这是 recurring 的**第 1 轮**，尚无 last_review；请按项目目标与模板直接规划。\n周期性例行运维/健康检查类任务请分配给 **ops**，不要分配给 deputy。\n领域 skill 用 agent 工作区路径写入 required_skills（非公共 skill 目录）。\n\n返回 JSON：{\"tasks\": [{\"template_id\": \"...\", \"name\": \"...\", \"agent\": \"...\", \"task_type\": \"...\", \"reviewer\": \"main\", \"description\": \"...\", \"dependencies\": [], \"required_skills\": [\"/path/to/workspace-agent/skills/.../SKILL.md\"], \"can_output_adjustments\": false}]}\n",
+  "expected_format": {
+    "tasks": [
+      {
+        "template_id": "task_005",
+        "name": "内容优化执行",
+        "agent": "content",
+        "task_type": "content",
+        "description": "根据效果数据优化GEO相关内容",
+        "dependencies": [],
+        "phase_name": "双周优化循环"
+      },
+      {
+        "template_id": "task_006",
+        "name": "效果数据分析",
+        "agent": "analyst",
+        "task_type": "research",
+        "description": "分析优化效果，输出数据报告和洞察",
+        "dependencies": [
+          "task_005"
+        ],
+        "phase_name": "双周优化循环"
+      },
+      {
+        "template_id": "task_007",
+        "name": "联调验证执行",
+        "agent": "tester",
+        "task_type": "test-plan",
+        "description": "执行两周期联调验证，验证Deputy cycle_review机制",
+        "dependencies": [
+          "task_006"
+        ],
+        "phase_name": "双周优化循环"
+      },
+      {
+        "template_id": "task_008",
+        "name": "月度综合评估报告",
+        "agent": "analyst",
+        "task_type": "research",
+        "description": "汇总月度数据，评估整体GEO优化效果",
+        "dependencies": [],
+        "phase_name": "月度综合评估"
+      },
+      {
+        "template_id": "task_009",
+        "name": "策略调整建议",
+        "agent": "researcher",
+        "task_type": "strategy",
+        "description": "基于评估结果提出策略调整建议",
+        "dependencies": [
+          "task_008"
+        ],
+        "phase_name": "月度综合评估"
+      }
+    ]
+  },
+  "created_at": "2026-05-29T11:54:39.019008"
+}

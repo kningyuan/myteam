@@ -1,0 +1,64 @@
+{
+  "phases": [
+    {
+      "name": "ACK修复v2验证",
+      "type": "one_time",
+      "description": "完成ACK模式v2修复的基线测试和验证",
+      "interval_days": null,
+      "tasks": [
+        {
+          "id": "task_001",
+          "name": "v2修复方案设计",
+          "agent": "developer",
+          "task_type": "code-deliverable",
+          "reviewer": "main",
+          "description": "设计ACK模式v2修复方案，实现gateway超时后的response等待机制",
+          "dependencies": [],
+          "can_output_adjustments": false
+        },
+        {
+          "id": "task_002",
+          "name": "ACK超时v2验证测试",
+          "agent": "tester",
+          "task_type": "test-plan",
+          "reviewer": "main",
+          "description": "验证gateway超时后能否正常等待response文件，覆盖正常超时、异常超时、response延迟等场景",
+          "dependencies": [
+            "task_001"
+          ],
+          "can_output_adjustments": true
+        }
+      ]
+    },
+    {
+      "name": "持续监控验证",
+      "type": "recurring",
+      "description": "定期验证ACK模式v2稳定性和gateway超时行为",
+      "interval_days": 7,
+      "tasks": [
+        {
+          "id": "task_003",
+          "name": "ACK稳定性巡检",
+          "agent": "tester",
+          "task_type": "test-plan",
+          "reviewer": "main",
+          "description": "每周执行ACK超时等待验证，检查是否存在回归问题",
+          "dependencies": [],
+          "can_output_adjustments": true
+        },
+        {
+          "id": "task_004",
+          "name": "gateway超时监控",
+          "agent": "ops",
+          "task_type": "strategy",
+          "reviewer": "main",
+          "description": "监控gateway超时日志，分析超时分布和response等待成功率",
+          "dependencies": [
+            "task_003"
+          ],
+          "can_output_adjustments": false
+        }
+      ]
+    }
+  ]
+}

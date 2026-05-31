@@ -1,0 +1,35 @@
+{
+  "phases": [
+    {
+      "name": "基线测试",
+      "type": "one_time",
+      "description": "验证 ACK 模式修复是否生效",
+      "tasks": [
+        {
+          "id": "task_001",
+          "name": "环境检查",
+          "agent": "ops",
+          "task_type": "strategy",
+          "description": "检查 openclaw agent 网关状态",
+          "dependencies": []
+        },
+        {
+          "id": "task_002",
+          "name": "ACK 模式验证",
+          "agent": "developer",
+          "task_type": "code-deliverable",
+          "description": "验证 notify_agent.py execute --ack-timeout 参数是否正常工作",
+          "dependencies": ["task_001"]
+        },
+        {
+          "id": "task_003",
+          "name": "gateway 超时测试",
+          "agent": "tester",
+          "task_type": "test-plan",
+          "description": "测试 gateway 超时后 continuous-executor 能否正常等待 response",
+          "dependencies": ["task_002"]
+        }
+      ]
+    }
+  ]
+}

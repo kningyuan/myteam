@@ -1,0 +1,12 @@
+{
+  "event": "request_team_config",
+  "project_id": "pro_AI团队中的每一个agent给我发一条私信介绍一下自己包括能力以及工作目录_20260530",
+  "message": "请根据以下项目描述，返回参与项目的 agent 列表。基于项目类型和需求推断需要的角色，\n不需要局限于描述中出现的词。\n\n可用角色：researcher(调研)、product(产品)、developer(开发)、designer(设计)、\nops(运维)、seo(SEO)、content(内容)、social(社交)、email(邮件)、docs(文档)、\nconsultation(咨询)、coordinator(合规)、tester(测试)、deputy(副协调)\n\n规则：严格按照下方 JSON 格式返回，不要包含其他文字，不要用 markdown 包裹。\nagent 名称必须是英文小写。\n\n项目描述：\n",
+  "expected_format": {
+    "agents": [
+      "agent_1",
+      "agent_2"
+    ]
+  },
+  "created_at": "2026-05-30T22:33:04.897138"
+}

@@ -1,0 +1,159 @@
+{
+  "event": "request_cycle_plan",
+  "project_id": "pro_DDD-super_发电机_GEO_两周期联调_20260529",
+  "cycle_number": 2,
+  "is_first_recurring_cycle": false,
+  "project_summary": {
+    "current_state": "one_time 已跳过（联调加速），recurring 已激活",
+    "accumulated_learnings": "",
+    "goal": "针对 DDD-super 发电机持续 GEO 优化：基线审计、内容优化、效果跟踪；两周期联调验证 Deputy cycle_review"
+  },
+  "last_closed_cycle": {
+    "cycle_id": 1,
+    "closed_at": "2026-05-29T12:42:48.331549",
+    "tasks": [
+      "GEO内容优化执行",
+      "GEO效果数据分析",
+      "两周期联调验证",
+      "周期健康检查"
+    ],
+    "task_ids": [
+      "task_005_001",
+      "task_006_001",
+      "task_007_001",
+      "task_010_001"
+    ],
+    "deliverable_refs": [],
+    "hypotheses": "",
+    "baseline_metrics": "",
+    "outcome_metrics": ""
+  },
+  "last_review": {
+    "cycle_id": 1,
+    "reviewed_at": "2026-05-29T12:45:01.577641",
+    "effectiveness": "partial",
+    "evidence_summary": "Cycle 1 completed all 4 tasks. Content optimization (task_005_001) has quality gate issues - missing '关键词研究' and '目标受众'. Effectiveness data is simulated/projected, not actual measured metrics. Deputy cycle_review mechanism verified and operational. Infrastructure (monitoring, data pipeline, report generation) validated.",
+    "planning_hints": [
+      "补充task_005_001缺失的关键词研究和目标受众分析",
+      "接入真实数据源(GA4/Perplexity Analytics)替代模拟数据",
+      "调整周期间隔从1天至7-14天",
+      "建立真实数据监测仪表盘",
+      "延长观察周期至4-6周期验证长期效果"
+    ],
+    "deliverable_path": "deliverables/cycle-001/cycle-001-review.md"
+  },
+  "due_phases": [
+    "双周优化循环",
+    "月度综合评估"
+  ],
+  "templates": [
+    {
+      "template_id": "task_005",
+      "name": "内容优化执行",
+      "agent": "content",
+      "task_type": "content",
+      "description": "根据效果数据优化GEO相关内容",
+      "dependencies": [],
+      "phase_name": "双周优化循环"
+    },
+    {
+      "template_id": "task_006",
+      "name": "效果数据分析",
+      "agent": "analyst",
+      "task_type": "research",
+      "description": "分析优化效果，输出数据报告和洞察",
+      "dependencies": [
+        "task_005"
+      ],
+      "phase_name": "双周优化循环"
+    },
+    {
+      "template_id": "task_007",
+      "name": "联调验证执行",
+      "agent": "tester",
+      "task_type": "test-plan",
+      "description": "执行两周期联调验证，验证Deputy cycle_review机制",
+      "dependencies": [
+        "task_006"
+      ],
+      "phase_name": "双周优化循环"
+    },
+    {
+      "template_id": "task_008",
+      "name": "月度综合评估报告",
+      "agent": "analyst",
+      "task_type": "research",
+      "description": "汇总月度数据，评估整体GEO优化效果",
+      "dependencies": [],
+      "phase_name": "月度综合评估"
+    },
+    {
+      "template_id": "task_009",
+      "name": "策略调整建议",
+      "agent": "researcher",
+      "task_type": "strategy",
+      "description": "基于评估结果提出策略调整建议",
+      "dependencies": [
+        "task_008"
+      ],
+      "phase_name": "月度综合评估"
+    }
+  ],
+  "message": "请为第 2 轮持续项目制定本轮任务列表。\n\n这是第 2 轮，**必须**依据 last_review 的 effectiveness 与 planning_hints 调整本轮任务。\n勿忽略 Deputy 评审结论。例行运维仍用 ops。\n\n返回 JSON：{\"tasks\": [{\"template_id\": \"...\", \"name\": \"...\", \"agent\": \"...\", \"task_type\": \"...\", \"reviewer\": \"main\", \"description\": \"...\", \"dependencies\": [], \"required_skills\": [\"/path/to/workspace-agent/skills/.../SKILL.md\"], \"can_output_adjustments\": false}]}\n",
+  "expected_format": {
+    "tasks": [
+      {
+        "template_id": "task_005",
+        "name": "内容优化执行",
+        "agent": "content",
+        "task_type": "content",
+        "description": "根据效果数据优化GEO相关内容",
+        "dependencies": [],
+        "phase_name": "双周优化循环"
+      },
+      {
+        "template_id": "task_006",
+        "name": "效果数据分析",
+        "agent": "analyst",
+        "task_type": "research",
+        "description": "分析优化效果，输出数据报告和洞察",
+        "dependencies": [
+          "task_005"
+        ],
+        "phase_name": "双周优化循环"
+      },
+      {
+        "template_id": "task_007",
+        "name": "联调验证执行",
+        "agent": "tester",
+        "task_type": "test-plan",
+        "description": "执行两周期联调验证，验证Deputy cycle_review机制",
+        "dependencies": [
+          "task_006"
+        ],
+        "phase_name": "双周优化循环"
+      },
+      {
+        "template_id": "task_008",
+        "name": "月度综合评估报告",
+        "agent": "analyst",
+        "task_type": "research",
+        "description": "汇总月度数据，评估整体GEO优化效果",
+        "dependencies": [],
+        "phase_name": "月度综合评估"
+      },
+      {
+        "template_id": "task_009",
+        "name": "策略调整建议",
+        "agent": "researcher",
+        "task_type": "strategy",
+        "description": "基于评估结果提出策略调整建议",
+        "dependencies": [
+          "task_008"
+        ],
+        "phase_name": "月度综合评估"
+      }
+    ]
+  },
+  "created_at": "2026-05-29T13:18:07.581386"
+}

@@ -1,0 +1,35 @@
+{
+  "event": "request_task_plan",
+  "project_id": "pro_AI_团队的每一个agent_给我发送私信做自我介绍以及工作目录在哪_20260530",
+  "team": [
+    "researcher",
+    "product",
+    "developer",
+    "designer",
+    "ops",
+    "seo",
+    "content",
+    "social",
+    "email",
+    "docs",
+    "consultation",
+    "coordinator",
+    "tester",
+    "deputy"
+  ],
+  "message": "请为团队中的 agent 规划任务列表和依赖关系。\n\n规则：\n1. 每个任务必须分配给团队中已有的 agent（当前团队成员：researcher、product、developer、designer、ops、seo、content、social、email、docs、consultation、coordinator、tester、deputy）\n2. 禁止分配给不在以上团队成员列表中的角色\n3. 严格按照下方 JSON 格式返回，不要包含其他文字，不要用 markdown 包裹\n4. task id 格式为 task_001, task_002...\n\n【agent 角色 → task_type 映射】根据 agent 角色选择对应的产出类型标准：\n- product → prd（需求分析文档：背景与目标、需求描述、验收标准、范围界定）\n- developer → code-deliverable（代码交付物：方案设计、实现说明、测试覆盖）\n- tester → test-plan（测试计划：测试范围、测试用例、正常/边界/异常路径）\n- researcher → research（调研报告：调研背景、调研方法、核心发现、结论建议）\n- consultation → strategy（策略建议：问题定义、方案对比、推荐方案、风险评估）\n- content → content（内容文案：目标读者、内容框架、正文内容、来源引用）\n- seo → seo-plan（SEO 方案：关键词策略、技术优化、内容优化、效果预期）\n- docs → docs（技术文档：文档目标、内容结构、使用说明、更新日志）\n- designer → design-review（设计方案：一致性、可访问性、响应式）\n- coordinator → task-handoff（交接文档：交接摘要、交付物清单、依赖关系）\n",
+  "expected_format": {
+    "tasks": [
+      {
+        "id": "task_001",
+        "name": "任务名称",
+        "agent": "researcher",
+        "task_type": "research | strategy | prd | code-deliverable | test-plan | content | seo-plan | docs | design-review | task-handoff",
+        "reviewer": "tester | developer | coordinator | product | consultation | seo | docs | main",
+        "description": "任务描述",
+        "dependencies": []
+      }
+    ]
+  },
+  "created_at": "2026-05-30T23:07:04.195211"
+}

@@ -1,0 +1,39 @@
+{
+  "event": "request_cycle_review",
+  "project_id": "pro_DDD-super_发电机_GEO_两周期联调_20260529",
+  "cycle_id": 1,
+  "project_summary": {
+    "current_state": "one_time 已跳过（联调加速），recurring 已激活",
+    "accumulated_learnings": "",
+    "goal": "针对 DDD-super 发电机持续 GEO 优化：基线审计、内容优化、效果跟踪；两周期联调验证 Deputy cycle_review"
+  },
+  "last_closed_cycle": {
+    "cycle_id": 1,
+    "closed_at": "2026-05-29T12:42:48.331549",
+    "tasks": [
+      "GEO内容优化执行",
+      "GEO效果数据分析",
+      "两周期联调验证",
+      "周期健康检查"
+    ],
+    "task_ids": [
+      "task_005_001",
+      "task_006_001",
+      "task_007_001",
+      "task_010_001"
+    ],
+    "deliverable_refs": [],
+    "hypotheses": "",
+    "baseline_metrics": "",
+    "outcome_metrics": ""
+  },
+  "deliverable_digest_paths": [],
+  "skill_path": "/Users/user/.openclaw/workspace-deputy/skills/cycle-review/SKILL.md",
+  "message": "请评审第 1 轮持续项目的**业务效果**（非任务交付物质量）。\n\n阅读 last_closed_cycle 中的假设、交付物路径与自报指标。\n按 workspace-deputy/skills/cycle-review/SKILL.md 输出 JSON 与 review 交付物。\n\n返回 JSON：\n{\"cycle_id\": N, \"effectiveness\": \"met|partial|missed|inconclusive\", \"evidence_summary\": \"...\", \"planning_hints\": [\"...\"], \"deliverable_path\": \"deliverables/cycle-NNN/cycle-NNN-review.md\"}\n",
+  "expected_format": {
+    "cycle_id": 1,
+    "effectiveness": "partial",
+    "planning_hints": []
+  },
+  "created_at": "2026-05-29T12:43:13.925881"
+}

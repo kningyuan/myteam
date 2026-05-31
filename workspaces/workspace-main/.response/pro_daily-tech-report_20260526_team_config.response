@@ -1,0 +1,8 @@
+{
+  "agents": [
+    "researcher",
+    "content",
+    "social",
+    "email"
+  ]
+}

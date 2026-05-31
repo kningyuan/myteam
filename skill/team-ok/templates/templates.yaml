@@ -1,0 +1,260 @@
+# OpenClaw 交付物模板配置
+# 每个 task_type 包含 deliverable_template（Agent 撰写指引）和 check_rules（质量门禁规则）
+# check_rules.required_sections 可从 sections 中 required=true 的自动推导，此处保留显式定义便于覆盖
+
+research:
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+      - name: "调研背景"
+        description: "说明本次调研的背景、目的、范围和方法论"
+        required: true
+        example: "随着AI生成式搜索引擎（如Perplexity、ChatGPT Search）的兴起，GEO（Generative Engine Optimization）成为新的优化领域。本报告系统调研了GEO的主流优化方式和前沿手段。"
+      - name: "信息来源"
+        description: "列出调研的数据来源，包括行业报告、官方文档、社区讨论等，评估每条来源的可信度"
+        required: true
+        example: "| 来源类型 | 具体来源 | 可信度 |\n|----------|----------|--------|\n| 行业报告 | Moz、Ahrefs | 高 |\n| 官方文档 | Perplexity Blog | 高 |"
+      - name: "关键发现"
+        description: "列出调研得出的核心发现，按重要性或主题分类，每个发现附证据"
+        required: true
+        example: "发现1：GEO优化在Perplexity中的引用率比传统SEO高3倍。依据：Moz 2024年研究报告显示..."
+      - name: "结论"
+        description: "总结调研结论，给出可操作的建议和下一步行动"
+        required: true
+        example: "GEO优化的核心在于内容质量+结构化数据+引用策略的三位一体。建议优先建立高质量内容库..."
+      - name: "风险评估"
+        description: "说明潜在局限、不确定性和建议关注的风险点"
+        required: false
+        example: "当前GEO领域变化较快，主流AI搜索的算法不透明，建议每季度更新一次策略。"
+    structure:
+      - "H1 标题作为报告主标题"
+      - "每个章节使用 H2 标题"
+      - "数据使用表格呈现"
+      - "引用来源标注出处和链接"
+  check_rules:
+    required_sections:
+      - "调研背景"
+      - "信息来源"
+      - "关键发现"
+      - "结论"
+    must_include:
+      - "数据来源"
+      - "可信度"
+    min_length: 500
+
+seo-plan:
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+      - name: "关键词研究"
+        description: "列出核心词、长尾词、竞品词的分布和策略"
+        required: true
+        example: "| 关键词类型 | 核心词 | 搜索量 | 竞争度 |\n|------------|--------|--------|--------|\n| 核心词 | GEO优化 | 2400/月 | 高 |\n| 长尾词 | GEO优化SEO区别 | 320/月 | 低 |"
+      - name: "技术优化"
+        description: "Core Web Vitals 优化建议、页面加载速度、移动端适配、结构化数据"
+        required: true
+        example: "Core Web Vitals 现状：LCP 2.8s（目标<2.5s），FID 85ms（达标），CLS 0.12（目标<0.1）。建议：图片WebP转换预计降低LCP至1.8s..."
+      - name: "内容策略"
+        description: "内容主题规划、更新频率、EEAT信号建设方案"
+        required: true
+        example: "内容主题集群：GEO基础（5篇）、GEO进阶（8篇）、行业案例（10篇）。EEAT建设：引入行业专家作者、建立引用库..."
+      - name: "效果预估"
+        description: "量化预期指标，包括排名变化、流量增长、转化提升"
+        required: true
+        example: "预期3个月内：AI搜索结果引用率提升50%，自然搜索流量增长30%，转化率提升15%。"
+    structure:
+      - "H1 标题作为方案主标题"
+      - "每个章节使用 H2 标题"
+      - "数据使用表格呈现"
+  check_rules:
+    required_sections:
+      - "关键词研究"
+      - "技术优化"
+      - "内容策略"
+      - "效果预估"
+    must_include:
+      - "核心词"
+      - "长尾词"
+      - "竞品词"
+      - "Core Web Vitals"
+    min_length: 400
+
+content:
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+      - name: "目标读者"
+        description: "明确内容的目标受众、阅读场景和核心需求"
+        required: true
+        example: "目标读者：SEO从业者（3-5年经验），正在寻找GEO优化实操方法。阅读场景：工作中遇到AI搜索流量问题，需要系统化解决方案。"
+      - name: "内容结构"
+        description: "展示全文的章节划分和逻辑流"
+        required: true
+        example: "引言：GEO与传统SEO的区别 / 主体：四大优化策略 + 实操步骤 / 结论：总结建议 + 下一步行动"
+      - name: "正文内容"
+        description: "核心内容，需包含关键词研究和目标受众分析"
+        required: true
+        example: "## 一、GEO优化基础\nGEO（Generative Engine Optimization）是针对AI生成式搜索引擎的优化实践。与传统SEO不同..."
+      - name: "引用来源"
+        description: "标注所有引用来源的具体出处和链接"
+        required: true
+        example: "1. Moz, 'The State of GEO 2024', https://moz.com/geo-report\n2. Perplexity AI, 'How Perplexity Sources Content', https://blog.perplexity.ai/sourcing"
+    structure:
+      - "H1 标题作为文章主标题"
+      - "每个章节使用 H2 标题"
+      - "引用使用序号标注"
+  check_rules:
+    required_sections:
+      - "目标读者"
+      - "内容结构"
+      - "正文内容"
+      - "引用来源"
+    must_include:
+      - "关键词研究"
+      - "目标读者"
+    min_length: 300
+
+test-plan:
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+      - name: "测试范围"
+        description: "说明本次测试的覆盖范围、被测功能和排除项"
+        required: true
+        example: "测试范围：GEO优化模块的AI搜索结果验证功能。包括：结果正确性、引用来源准确性、多语言支持。不包括：性能测试和安全测试。"
+      - name: "测试用例"
+        description: "列出具体测试用例，每个用例包含输入、操作步骤、预期结果"
+        required: true
+        example: "| 用例ID | 测试场景 | 输入 | 预期结果 |\n|--------|----------|------|----------|\n| TC-001 | 基础查询 | 'GEO优化怎么做' | 返回5条以上结果，含引用来源 |"
+      - name: "正常路径"
+        description: "描述核心功能的主流使用路径和验证点"
+        required: true
+        example: "用户输入查询→系统调用AI搜索→返回结构化结果→用户点击引用来源→跳转正常"
+      - name: "边界条件"
+        description: "测试输入的边界值、空值、异常值"
+        required: true
+        example: "空查询：返回友好提示；超长查询（>500字）：截断处理；特殊字符：HTML标签转义"
+      - name: "异常路径"
+        description: "测试网络中断、超时、服务不可用等异常场景"
+        required: true
+        example: "AI搜索超时：返回缓存结果+提示；API限流：降级到基础搜索；服务不可用：显示维护页面"
+    structure:
+      - "H1 标题作为测试计划主标题"
+      - "每个章节使用 H2 标题"
+      - "用例使用表格呈现"
+  check_rules:
+    required_sections:
+      - "测试范围"
+      - "测试用例"
+      - "正常路径"
+      - "边界条件"
+      - "异常路径"
+    must_include:
+      - "测试数据"
+      - "预期结果"
+    min_length: 300
+
+code-deliverable:
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+      - name: "方案设计"
+        description: "说明设计思路、选型理由、关键数据结构定义、API接口设计"
+        required: true
+        example: "设计方案：采用本地YAML模板+executor嵌入模式。选型理由：零网络依赖、确定性最高、版本可追溯。关键数据结构：{task_type: str, template: dict}。"
+      - name: "实现说明"
+        description: "核心逻辑说明、错误处理、边界条件、数据流"
+        required: true
+        example: "核心逻辑：executor.py新增_read_deliverable_template()方法，在state_execute()中调用。读取YAML后解析frontmatter，提取template字段嵌入trigger。错误处理：YAML解析失败时回退到当前行为。"
+    structure:
+      - "H1 标题作为文档主标题"
+      - "每个章节使用 H2 标题"
+      - "代码块标注语言类型"
+  check_rules:
+    required_sections:
+      - "方案设计"
+      - "实现说明"
+    must_include:
+      - "数据流"
+      - "API接口"
+    min_length: 200
+
+strategy:
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+      - name: "背景"
+        description: "说明战略的背景、触发因素和决策上下文"
+        required: true
+        example: "随着GEO成为SEO行业新热点，团队需要明确是否投入资源建设GEO能力以及投入优先级。"
+      - name: "分析"
+        description: "多维度分析，包括SWOT、竞品对比、资源评估"
+        required: true
+        example: "SWOT分析：优势（已有高质量内容库）、劣势（缺乏结构化数据）、机会（AI搜索流量增长300%）、威胁（竞品已布局）"
+      - name: "方案"
+        description: "列出多个可选方案，每个方案有清晰的优缺点和适用条件"
+        required: true
+        example: "方案A：全面铺开（3个月，预算50万）。方案B：试点先行（1个月，预算10万）。方案C：按兵不动（零投入）。"
+      - name: "建议"
+        description: "给出推荐方案和下一步行动计划"
+        required: true
+        example: "推荐方案B：以内容优化和结构化数据为切入点，1个月内完成试点，根据效果数据决定是否扩大投入。"
+    structure:
+      - "H1 标题作为报告主标题"
+      - "每个章节使用 H2 标题"
+      - "对比使用表格呈现"
+  check_rules:
+    required_sections:
+      - "背景"
+      - "分析"
+      - "方案"
+      - "建议"
+    must_include:
+      - "不确定性"
+    min_length: 300
+
+# 动作型任务：交付物 = 动作证据（已发布URL/截图），非纸面方案。
+# 质量门禁会真实访问「已发布URL」并校验页面含「帖子标题」，证明动作真发生。
+publish-post:
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+      - name: "发布平台"
+        description: "实际发布的平台名称与账号"
+        required: true
+        example: "平台：知乎专栏（zhuanlan.zhihu.com）"
+      - name: "帖子标题"
+        description: "已发布内容的真实标题（必须与线上页面一致，门禁据此校验）"
+        required: true
+        example: "GEO优化实战：如何让内容被AI搜索引用"
+      - name: "已发布URL"
+        description: "线上可访问的发布链接（http/https），门禁会真实访问校验"
+        required: true
+        example: "https://zhuanlan.zhihu.com/p/123456789"
+      - name: "证据截图"
+        description: "发布成功后的页面截图文件路径（相对交付物目录）"
+        required: true
+        example: "evidence/zhihu-post-20260529.png"
+      - name: "正文摘要"
+        description: "已发布正文的简要说明与关键词布局"
+        required: false
+        example: "围绕「GEO优化」核心词，覆盖长尾词3个，含1处结构化要点列表。"
+    structure:
+      - "H1 标题作为记录主标题"
+      - "每个章节使用 H2 标题"
+      - "已发布URL 单独成行，便于门禁提取"
+  check_rules:
+    required_sections:
+      - "发布平台"
+      - "帖子标题"
+      - "已发布URL"
+      - "证据截图"
+    must_include:
+      - "https://"
+    min_length: 20
+    # 动作证据校验：URL 须为发布页形态(/p/)+截图须存在；实时核对标题为加分项。
+    evidence_url:
+      host_contains: "zhihu.com"
+      url_must_match: "zhuanlan.zhihu.com/p/"
+      screenshot_field: "证据截图"
+      verify_title: true

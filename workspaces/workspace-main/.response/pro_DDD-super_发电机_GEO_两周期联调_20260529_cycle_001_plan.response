@@ -1,0 +1,60 @@
+{
+  "tasks": [
+    {
+      "template_id": "task_005",
+      "name": "GEO内容优化执行",
+      "agent": "content",
+      "task_type": "content",
+      "reviewer": "main",
+      "description": "根据基线审计结果，制定并执行GEO内容优化方案，包括关键词布局、内容结构调整、元数据优化",
+      "dependencies": [],
+      "required_skills": [
+        "/Users/user/.openclaw/workspace-main/agents/content/skills/gbrain/SKILL.md"
+      ],
+      "can_output_adjustments": true
+    },
+    {
+      "template_id": "task_006",
+      "name": "GEO效果数据分析",
+      "agent": "analyst",
+      "task_type": "research",
+      "reviewer": "main",
+      "description": "收集优化后效果数据，对比基线，分析流量、排名、转化率等核心指标变化，输出数据洞察报告",
+      "dependencies": [
+        "task_005"
+      ],
+      "required_skills": [
+        "/Users/user/.openclaw/workspace-main/agents/analyst/skills/gbrain/SKILL.md"
+      ],
+      "can_output_adjustments": true
+    },
+    {
+      "template_id": "task_007",
+      "name": "两周期联调验证",
+      "agent": "tester",
+      "task_type": "test-plan",
+      "reviewer": "main",
+      "description": "执行Deputy cycle_review联调验证，验证双周循环机制、数据流转、报告生成链路是否正常",
+      "dependencies": [
+        "task_006"
+      ],
+      "required_skills": [
+        "/Users/user/.openclaw/workspace-main/agents/tester/skills/gbrain/SKILL.md"
+      ],
+      "can_output_adjustments": false
+    },
+    {
+      "template_id": "task_010",
+      "name": "周期健康检查",
+      "agent": "ops",
+      "task_type": "strategy",
+      "reviewer": "main",
+      "description": "例行运维检查：监控系统健康、数据管道完整性、工具链可用性、日志异常排查",
+      "dependencies": [],
+      "required_skills": [
+        "/Users/user/.openclaw/workspace-main/agents/ops/skills/gbrain/SKILL.md"
+      ],
+      "can_output_adjustments": false
+    }
+  ]
+}

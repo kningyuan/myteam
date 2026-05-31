@@ -1,0 +1,12 @@
+{
+  "event": "request_team_config",
+  "project_id": "pro_DDD-super_发电机_GEO_两周期联调_20260529",
+  "message": "请根据以下持续项目描述，返回参与项目的 agent 列表。\n\n这是一个持续性项目（非一次性），请考虑需要长期参与的角色。\n可用角色：researcher(调研)、product(产品)、developer(开发)、designer(设计)、\nops(运维)、seo(SEO)、content(内容)、social(社交)、email(邮件)、docs(文档)、\nconsultation(咨询)、coordinator(合规)、tester(测试)、analyst(分析)\n\n规则：严格按照下方 JSON 格式返回，不要包含其他文字。\nagent 名称必须是英文小写。\n\n项目描述：\n针对 DDD-super 发电机持续 GEO 优化：基线审计、内容优化、效果跟踪；两周期联调验证 Deputy cycle_review",
+  "expected_format": {
+    "agents": [
+      "agent_1",
+      "agent_2"
+    ]
+  },
+  "created_at": "2026-05-29T11:46:00.820534"
+}

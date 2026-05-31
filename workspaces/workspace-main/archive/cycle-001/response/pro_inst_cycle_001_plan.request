@@ -1,0 +1,36 @@
+{
+  "event": "request_cycle_plan",
+  "project_id": "pro_inst",
+  "cycle_number": 1,
+  "project_summary": {},
+  "last_cycle": {},
+  "due_phases": [
+    "weekly"
+  ],
+  "templates": [
+    {
+      "template_id": "content",
+      "name": "内容",
+      "agent": "writer",
+      "task_type": "content",
+      "description": "写内容",
+      "dependencies": [],
+      "phase_name": "weekly"
+    }
+  ],
+  "message": "请为第 1 轮持续项目制定本轮任务列表。\n\n参考 project_summary 与 last_cycle，可调整任务描述、顺序或依赖；agent 必须来自已有团队；task_type 与角色映射同初规划。\n\n返回 JSON：{\"tasks\": [{\"template_id\": \"...\", \"name\": \"...\", \"agent\": \"...\", \"task_type\": \"...\", \"reviewer\": \"main\", \"description\": \"...\", \"dependencies\": [], \"can_output_adjustments\": false}]}\n",
+  "expected_format": {
+    "tasks": [
+      {
+        "template_id": "content",
+        "name": "内容",
+        "agent": "writer",
+        "task_type": "content",
+        "description": "写内容",
+        "dependencies": [],
+        "phase_name": "weekly"
+      }
+    ]
+  },
+  "created_at": "2026-05-29T10:00:41.435451"
+}

@@ -1,0 +1,17 @@
+{
+  "agent_id": "deputy",
+  "timestamp": "2026-05-29T09:20:00Z",
+  "status": "monitoring",
+  "projects_checked": 1,
+  "tasks_recovered": 0,
+  "errors": [],
+  "current_project": "pro_DDD-super_发电机_GEO_两周期联调_20260529",
+  "cycle_2_status": {
+    "all_tasks_completed": true,
+    "pending_review_count": 5,
+    "quality_gate_issues": 1
+  },
+  "alerts": [
+    {"type": "quality_gate_exhausted", "task_id": "task_005_001", "message": "需要Main审核确认"}
+  ]
+}
