@@ -28,9 +28,6 @@ class GateResult:
     skipped: bool = False  # True if gate was skipped (no standard page)
 
 
-# 超时：gbrain CLI 调用最多等 30 秒
-GBRAIN_TIMEOUT = 30
-
 from common.paths import templates_file
 
 # 本地模板文件路径
@@ -122,18 +119,12 @@ class QualityGate:
     # ── 读取标准 ──────────────────────────────────────────────
 
     def read_standards(self) -> Optional[dict]:
-        """读取 task_type 对应的校验规则。
+        """读取 task_type 对应的校验规则（只读本地注册表 templates.yaml）。
 
-        优先从本地模板文件读取，若不存在则回退到 gbrain CLI。
-        返回 None 表示标准和门禁不可用（跳过检查）。
+        返回 None 表示标准不存在 → 跳过检查。
+        （旧 gbrain CLI 回退已删除：本环境从未真正落地，标准统一走注册表。）
         """
-        # 1. 尝试本地模板
-        local = self._read_standards_from_local()
-        if local is not None:
-            return local
-
-        # 2. 回退到 gbrain CLI
-        return self._read_standards_from_gbrain()
+        return self._read_standards_from_local()
 
     def _read_standards_from_local(self) -> Optional[dict]:
         """从本地 templates.yaml 读取校验规则。"""
@@ -165,126 +156,6 @@ class QualityGate:
         except Exception:
             return None
 
-    def _read_standards_from_gbrain(self) -> Optional[dict]:
-        """从 collaboration KB 读取 task_type 对应的标准页面（gbrain CLI 回退）。"""
-        slug = f"standards/{self.task_type}"
-
-        # 尝试通过 gbrain CLI 读取
-        try:
-            rc, stdout, stderr = self._run_gbrain_get(slug)
-            if rc != 0:
-                # gbrain CLI 不可用或命令失败
-                return None
-
-            if not stdout.strip():
-                # 标准页面不存在（空返回）
-                return None
-
-            return self._parse_standards_page(stdout)
-
-        except FileNotFoundError:
-            # gbrain 二进制不在 PATH
-            return None
-        except subprocess.TimeoutExpired:
-            # 超时，返回空标准（等同于 pass）
-            return None
-
-    def _run_gbrain_get(self, slug: str) -> tuple[int, str, str]:
-        """执行 gbrain get <slug> 子进程调用。
-
-        设置 GBRAIN_HOME 指向 collaboration MCP 实例配置，
-        确保 gbrain CLI 使用与 MCP 一致的数据库连接。
-        """
-        env = os.environ.copy()
-        env["GBRAIN_HOME"] = str(Path.home() / ".gbrain-instances" / "collaboration")
-        result = subprocess.run(
-            ["gbrain", "get", slug],
-            capture_output=True, text=True,
-            timeout=GBRAIN_TIMEOUT,
-            env=env,
-        )
-        return result.returncode, result.stdout, result.stderr
-
-    def _parse_standards_page(self, raw: str) -> dict:
-        """解析 gbrain 返回的 markdown 页面，提取 frontmatter 中的规则。
-
-        格式:
-            ---
-            check_rules:
-              required_sections:
-                - "章节标题1"
-                - "章节标题2"
-              min_length: 500
-              must_include:
-                - "关键词"
-              file_exists:
-                - "refs/file.md"
-            ---
-            ... markdown 内容 ...
-        """
-        rules = {
-            "required_sections": [],
-            "min_length": 0,
-            "must_include": [],
-            "file_exists": [],
-        }
-
-        # 提取 YAML frontmatter（--- ... ---）
-        match = re.match(r"^---\s*\n(.*?)\n---", raw, re.DOTALL)
-        if not match:
-            return rules
-
-        frontmatter = match.group(1)
-
-        # 简易 YAML 解析（只提取 check_rules 部分）
-        try:
-            import yaml
-            parsed = yaml.safe_load(frontmatter) or {}
-        except ImportError:
-            # 无 yaml 库时的简易解析
-            parsed = self._simple_yaml_parse(frontmatter)
-
-        check_rules = parsed.get("check_rules", {})
-        rules["required_sections"] = check_rules.get("required_sections", [])
-        rules["min_length"] = check_rules.get("min_length", 0)
-        rules["must_include"] = check_rules.get("must_include", [])
-        rules["file_exists"] = check_rules.get("file_exists", [])
-
-        return rules
-
-    def _simple_yaml_parse(self, text: str) -> dict:
-        """无 PyYAML 时的简易 frontmatter 解析。"""
-        result = {}
-        current_section = None
-
-        for line in text.split("\n"):
-            line = line.rstrip()
-            # 跳过空行和注释
-            if not line or line.startswith("#"):
-                continue
-
-            # 检测列表项
-            list_match = re.match(r"^\s{2,}-\s+\"([^\"]+)\"", line)
-            if list_match and current_section:
-                result.setdefault("check_rules", {}).setdefault(
-                    current_section, []
-                ).append(list_match.group(1))
-                continue
-
-            # 检测 check_rules 字段
-            field_match = re.match(r"^\s+(\w+):\s*(\d+)", line)
-            if field_match:
-                key, val = field_match.group(1), int(field_match.group(2))
-                result.setdefault("check_rules", {})[key] = val
-                continue
-
-            # 检测 check_rules 下的列表开始
-            section_match = re.match(r"^\s+(\w+):", line)
-            if section_match:
-                current_section = section_match.group(1)
-
-        return result
-
     # ── 规则检查 ──────────────────────────────────────────────
 
     def check(self, deliverable_path: str, content: str = "") -> GateResult:
@@ -300,9 +171,9 @@ class QualityGate:
         # 读取标准
         standards = self.read_standards()
         if standards is None:
-            # gbrain 不可用或标准不存在 → 跳过门禁
+            # 本地注册表无此 task_type 标准 → 跳过门禁
             return GateResult(passed=True, skipped=True,
-                              feedback="标准页面不存在或 gbrain 不可用，门禁跳过")
+                              feedback="本地注册表无此 task_type 标准，门禁跳过")
 
         # 如果未提供 content，从文件读取
         content_to_check = content

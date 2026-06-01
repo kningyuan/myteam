@@ -3,32 +3,15 @@
 
 Covers:
   - 5 rule checks: required_sections, min_length, must_include, file_exists
-  - 3 error paths: gbrain unavailable, standard page not found, timeout
+  - read_standards local-registry path (gbrain fallback removed)
   - Skipped gate (no standard page)
   - Gate pass (all rules satisfied)
 """
 import json
-import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-
-# Fixture: minimal standards page with all rules
-SAMPLE_STANDARDS_PAGE = """---
-check_rules:
-  required_sections:
-    - "概述"
-    - "方案"
-  min_length: 100
-  must_include:
-    - "实施方案"
-  file_exists:
-    - "refs/data.csv"
----
-# 标准内容
-"""
 
 
 @pytest.fixture
@@ -39,51 +22,27 @@ def gate():
 
 
 class TestReadStandards:
-    """Test reading standards from gbrain CLI."""
+    """读取标准（只读本地注册表 templates.yaml；gbrain CLI 回退已删除）。"""
 
-    def test_gbrain_success(self, gate):
-        """read_standards returns parsed rules when gbrain returns valid page."""
-        with patch.object(gate, "_read_standards_from_local", return_value=None), \
-             patch.object(gate, "_run_gbrain_get",
-                          return_value=(0, SAMPLE_STANDARDS_PAGE, "")):
+    def test_local_standards_returned(self, gate):
+        """read_standards 返回本地注册表解析结果。"""
+        local = {
+            "required_sections": ["概述", "方案"],
+            "min_length": 100,
+            "must_include": ["实施方案"],
+            "file_exists": ["refs/data.csv"],
+            "evidence_url": {},
+        }
+        with patch.object(gate, "_read_standards_from_local", return_value=local):
             rules = gate.read_standards()
             assert rules is not None
             assert "概述" in rules["required_sections"]
-            assert "方案" in rules["required_sections"]
             assert rules["min_length"] == 100
-            assert "实施方案" in rules["must_include"]
-            assert "refs/data.csv" in rules["file_exists"]
 
-    def test_gbrain_not_found(self, gate):
-        """read_standards returns None when gbrain returns empty."""
-        with patch.object(gate, "_read_standards_from_local", return_value=None), \
-             patch.object(gate, "_run_gbrain_get", return_value=(0, "", "")):
-            rules = gate.read_standards()
-            assert rules is None
-
-    def test_gbrain_cli_unavailable(self, gate):
-        """read_standards returns None when gbrain binary not in PATH."""
-        with patch.object(gate, "_read_standards_from_local", return_value=None), \
-             patch.object(gate, "_run_gbrain_get",
-                          side_effect=FileNotFoundError("gbrain not found")):
-            rules = gate.read_standards()
-            assert rules is None
-
-    def test_gbrain_timeout(self, gate):
-        """read_standards returns None on subprocess timeout."""
-        with patch.object(gate, "_read_standards_from_local", return_value=None), \
-             patch.object(gate, "_run_gbrain_get",
-                          side_effect=subprocess.TimeoutExpired("gbrain", 30)):
-            rules = gate.read_standards()
-            assert rules is None
-
-    def test_gbrain_error(self, gate):
-        """read_standards returns None when gbrain returns non-zero."""
-        with patch.object(gate, "_read_standards_from_local", return_value=None), \
-             patch.object(gate, "_run_gbrain_get",
-                          return_value=(1, "", "error")):
-            rules = gate.read_standards()
-            assert rules is None
+    def test_none_when_local_missing(self, gate):
+        """本地无标准 → None（门禁跳过）。"""
+        with patch.object(gate, "_read_standards_from_local", return_value=None):
+            assert gate.read_standards() is None
 
 
 class TestGateCheck:
