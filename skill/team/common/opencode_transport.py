@@ -101,10 +101,6 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
                 lines.append(f"  - {s}")
         if spec and spec.outcome_kind == "action":
             lines.append("这是动作型任务：必须真实执行动作并在交付物中记录【已发布URL】与【证据截图】路径。")
-        if req.retry_feedback:
-            lines.append("\n【上一次未通过门禁，请逐条修正】")
-            for f in req.retry_feedback:
-                lines.append(f"  ❌ {f}")
         outcome_hint = (
             '{"kind":"artifact","artifact":{"path":"%s","format":"markdown","title":"..."}}' % rel
         )
@@ -120,6 +116,12 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
             if task_types:
                 lines.append(f"task_type 字段只能从以下取：{', '.join(task_types)}")
         result_hint = '"result": %s' % _RESULT_SKELETON.get(kind, "{ ... }")
+
+    if req.retry_feedback:
+        lines.append("")
+        lines.append("【上一次未通过校验，请逐条修正】")
+        for f in req.retry_feedback:
+            lines.append(f"  ❌ {f}")
 
     lines += [
         "",

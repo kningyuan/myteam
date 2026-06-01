@@ -89,6 +89,20 @@ def test_task_plan_prompt_has_concrete_schema():
     assert "research" in prompt  # 来自注册表的可用 task_type
 
 
+def test_retry_feedback_shown_for_decision_kinds():
+    """决策类（task_plan 等）也要把上一轮校验失败的 feedback 注入提示词。"""
+    from common.contracts import parse_request
+    req = parse_request({
+        "interaction_id": "p:task_plan:2", "kind": "task_plan", "project_id": "p",
+        "agent_id": "main", "intent": "规划",
+        "input": {"goal": "g", "team": ["researcher"]},
+        "retry_feedback": ["以下 agent 不在团队名册中：ghost；只能从 [researcher] 中选。"],
+    })
+    prompt = build_worker_prompt(req, Path("/tmp/x.response"), Path("/tmp/deliv"))
+    assert "逐条修正" in prompt
+    assert "ghost" in prompt
+
+
 def test_transport_forwards_events_and_meters_tokens(env):
     store, wcfg = env
 

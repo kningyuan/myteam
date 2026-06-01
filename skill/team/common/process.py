@@ -35,6 +35,7 @@ TERMINAL_BAD = {"failed", "blocked"}
 class ProcessConfig:
     mode: str = "one_shot"                 # one_shot | recurring
     max_gate_retries: int = 3              # 确定性门禁失败的重试上限（D18）
+    max_plan_retries: int = 2              # task_plan 指派团队外 agent 时的重试上限
     review_enabled: bool = False           # 是否走同行评审（暂为占位，质量归 Agent）
     quality_floor: float = 0.6             # 自评低于此 → needs_review
     needs_review_blocks: bool = False      # needs_review 是否阻塞依赖者（默认否，D18）
@@ -129,16 +130,32 @@ class Process:
         return res.response["result"]["agents"]
 
     def _task_plan(self, project_id: str, goal: str, agents: list[str]) -> list[dict]:
-        req = {
-            "interaction_id": f"{project_id}:task_plan",
-            "kind": "task_plan", "project_id": project_id, "agent_id": "main",
-            "intent": "规划任务与依赖", "input": {"goal": goal, "team": agents},
-            "response_schema": "task_plan.result@1.0",
-        }
-        res = self.port.run(req)
-        if res.status != "done":
-            raise RuntimeError(f"task_plan 失败：{res.status} {res.reason}")
-        return res.response["result"]["tasks"]
+        """规划任务 DAG。硬校验：每个任务的 agent 必须 ∈ team（team_config 选出的名册）；
+        越界则带 feedback 重试，耗尽仍越界则显式失败（不让漏网 agent 进调度）。"""
+        team = set(agents)
+        feedback: list[str] = []
+        bad: list[str] = []
+        for attempt in range(1, self.config.max_plan_retries + 1):
+            iid = f"{project_id}:task_plan" + ("" if attempt == 1 else f":{attempt}")
+            req = {
+                "interaction_id": iid,
+                "kind": "task_plan", "project_id": project_id, "agent_id": "main",
+                "intent": "规划任务与依赖", "input": {"goal": goal, "team": agents},
+                "response_schema": "task_plan.result@1.0",
+                "retry_feedback": feedback,
+            }
+            res = self.port.run(req)
+            if res.status != "done":
+                raise RuntimeError(f"task_plan 失败：{res.status} {res.reason}")
+            tasks = res.response["result"]["tasks"]
+            bad = sorted({t.get("agent", "") for t in tasks if t.get("agent", "") not in team})
+            if not bad:
+                return tasks
+            feedback = [f"以下 agent 不在团队名册中：{', '.join(bad)}；"
+                        f"每个任务的 agent 只能从 [{', '.join(agents)}] 中选，请重新规划。"]
+            self.store.append_run_event(iid, "plan_rejected", {"invalid_agents": bad})
+        raise RuntimeError(
+            f"task_plan 指派了团队外 agent {bad}（重试 {self.config.max_plan_retries} 次仍未修正）")
 
     # ── DAG 调度（串行，D12）──────────────────────────────────
 

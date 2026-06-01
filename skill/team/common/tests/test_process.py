@@ -234,3 +234,48 @@ def test_full_flow_team_config_and_task_plan(env):
     out = proc.run("pro_x", goal="GEO 优化")
     assert out.status == "completed"
     assert out.tasks["task_001"].status == "completed"
+
+
+def _plan_transport(team, agent_by_attempt):
+    """构造一个 transport：team_config 返回 team；task_plan 按 attempt 指派 agent。"""
+    calls = {"plan": 0}
+
+    def transport(ctx):
+        ctx.emit("step_start")
+        k = ctx.request.kind
+        rp = paths.response_dir(ctx.request.agent_id) / f"{ctx.request.interaction_id}.response"
+        if k == "team_config":
+            submit({"interaction_id": ctx.request.interaction_id, "kind": "team_config",
+                    "status": "ok", "result": {"agents": list(team)}}, rp)
+        elif k == "task_plan":
+            calls["plan"] += 1
+            agent = agent_by_attempt(calls["plan"])
+            submit({"interaction_id": ctx.request.interaction_id, "kind": "task_plan",
+                    "status": "ok", "result": {"tasks": [{
+                        "id": "t1", "name": "调研", "agent": agent, "task_type": "research",
+                        "description": "做调研", "dependencies": []}]}}, rp)
+        elif k == "execute":
+            _write_exec(ctx, valid_content("research"), GOOD_Q)
+
+    return transport, calls
+
+
+def test_task_plan_rejects_out_of_team_then_retry(env):
+    store, wcfg = env
+    # attempt 1 指派团队外 "ghost"，attempt 2 修正为 "researcher"
+    transport, calls = _plan_transport(
+        ["researcher"], lambda n: "ghost" if n == 1 else "researcher")
+    proc = Process(store, _port(store, wcfg, transport), ProcessConfig(max_plan_retries=2))
+    out = proc.run("pro_x", goal="GEO")
+    assert calls["plan"] == 2  # 越界后重试了一次
+    assert out.status == "completed"
+    assert store.get_task("pro_x", "t1")["agent"] == "researcher"
+
+
+def test_task_plan_out_of_team_exhausted_raises(env):
+    store, wcfg = env
+    transport, calls = _plan_transport(["researcher"], lambda n: "ghost")  # 永远越界
+    proc = Process(store, _port(store, wcfg, transport), ProcessConfig(max_plan_retries=2))
+    with pytest.raises(RuntimeError, match="团队外"):
+        proc.run("pro_x", goal="GEO")
+    assert calls["plan"] == 2  # 用尽重试上限
