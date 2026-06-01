@@ -73,6 +73,22 @@ def test_prompt_contains_key_constraints():
     assert "聊天" in prompt  # 明确禁止聊天返回
 
 
+def test_task_plan_prompt_has_concrete_schema():
+    from common.contracts import parse_request
+    req = parse_request({
+        "interaction_id": "p:task_plan", "kind": "task_plan", "project_id": "p",
+        "agent_id": "main", "intent": "规划",
+        "input": {"goal": "g", "team": ["researcher", "seo"]},
+    })
+    prompt = build_worker_prompt(req, Path("/tmp/x.response"), Path("/tmp/deliv"))
+    # 决策类必须给出具体 result 骨架，而非仅 schema 名（弱模型靠名字猜不出结构）
+    assert '"tasks"' in prompt
+    assert "task_type" in prompt
+    assert "dependencies" in prompt
+    assert "researcher" in prompt and "seo" in prompt  # 可用 agent 约束
+    assert "research" in prompt  # 来自注册表的可用 task_type
+
+
 def test_transport_forwards_events_and_meters_tokens(env):
     store, wcfg = env
 

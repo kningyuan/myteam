@@ -22,7 +22,18 @@ from common.paths import (
     response_dir,
     workspace_dir,
 )
-from common.registry import get_spec
+from common.registry import get_spec, load_registry
+
+# 决策类 kind 的 result 具体骨架（弱模型靠 response_schema 名字猜不出结构，须给样例，D11）。
+_RESULT_SKELETON = {
+    "team_config": '{"agents": ["<agent_id>", "..."]}',
+    "task_plan": ('{"tasks": [{"id": "t1", "name": "任务名", "agent": "<agent_id>", '
+                  '"task_type": "<task_type>", "description": "做什么", '
+                  '"reviewer": "", "dependencies": []}]}'),
+    "evaluate": '{"should_split": false, "reason": "理由", "sub_tasks": []}',
+    "review": '{"passed": true, "feedback": "评审意见", "checklist": []}',
+    "triage": '{"decision": "retry", "target_agent": "", "notes": "理由"}',
+}
 
 
 def _ensure_backend_importable() -> None:
@@ -101,13 +112,20 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
     else:
         lines.append("输入数据：")
         lines.append(json.dumps(req.input or {}, ensure_ascii=False))
-        result_hint = '"result": { ... 见 response_schema: %s ... }' % (req.response_schema or kind)
+        if kind == "task_plan":
+            team = (req.input or {}).get("team") or []
+            task_types = list(load_registry().keys())
+            if team:
+                lines.append(f"agent 字段只能从以下取：{', '.join(team)}")
+            if task_types:
+                lines.append(f"task_type 字段只能从以下取：{', '.join(task_types)}")
+        result_hint = '"result": %s' % _RESULT_SKELETON.get(kind, "{ ... }")
 
     lines += [
         "",
         "【提交结果（必须这样做）】",
         f"把结果 JSON 写入临时文件后，运行以下命令提交（会做契约校验并原子写回）：",
-        f"  python {submit_script} --out {resp_path} --file <你的结果json文件>",
+        f"  {sys.executable} {submit_script} --out {resp_path} --file <你的结果json文件>",
         "结果 JSON 必须形如：",
         "{",
         f'  "interaction_id": "{req.interaction_id}",',

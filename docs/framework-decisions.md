@@ -18,7 +18,7 @@
 
 > 新接手者先读本节，再读决策与代码地图。
 
-- **阶段**：**设计阶段完成（D1–D18）。抽象层五件套全部落地为可测试模块（Phase 1–7），全仓 137 例测试绿。** Phase 8 已完成真机端到端验证（单次 + 三任务 DAG）与 Hub 只读可观测接线（非破坏性）；余下仅 **旧引擎下线**（破坏性切换，需明确授权）。
+- **阶段**：**设计阶段完成（D1–D18）。抽象层五件套全部落地为可测试模块（Phase 1–7），全仓 140 例测试绿。** Phase 8 已完成真机端到端验证（单次 + 三任务 DAG + goal 驱动全流程）、Hub 只读可观测接线、新内核运行时入口 `run_kernel`（均非破坏性）；余下仅 **现网切换 + 旧引擎下线**（破坏性，需明确授权）。
 - **抽象层 → 新模块（全部位于 `skill/team/common/`，均可单测，旧引擎未动可回退）**：
   - Interaction 契约 → `contracts.py`（+ `submit_result.py`）
   - 存储真相 → `store.py`
@@ -29,6 +29,7 @@
   - 可观测 + Token 治理 → `observability.py`
   - AgentPort 真实传输 → `opencode_transport.py`（Phase 8 step 1）
   - Hub 只读可观测接线 → `backend/hub/api/observability_api.py`（Phase 8 step 2）
+  - 新内核运行时入口 → `common/run_kernel.py`（Phase 8 step 4）
 - **已决**：D1–D18（见下）。**抽象层五件套已闭合**：`Interaction`(D11) / `AgentPort`(D12) / `Gate`(D14) / `Process`(D10) / `Context-Memory`(D16)；支撑：存储(D13)、Outcome(D15)、可观测(D17)、失败语义(D18)。见上方「架构全景」。
 - **已落地代码**：
   - Phase 1：`skill/team/common/contracts.py`（Pydantic 信封 + Outcome）、`submit_result.py`（校验后原子写，拒绝不抢救）、`tests/test_contracts.py`（14 例）。JSON 抢救置于迁移开关 `INTERACTION_CONTRACTS=1` 之后（默认关，可回退）：`notify_agent._write_response_file`、`executor.state_execute_task`。
@@ -43,8 +44,9 @@
   1. ✅ **AgentPort 真实 Transport**：`common/opencode_transport.py`（`AdapterTransport` 驱动 `backend/adapters/opencode`，把 `AgentEvent` 流转发到 `ctx.emit` 作心跳；提示词约束 agent 用 `submit_result` 写回；适配器可注入便于测试/换 claude）。AgentPort 增 `cancel_event` 暴露 + `step_finish` token 计量（D17）。已加全栈集成测试 `test_integration.py`（Process→AgentPort→AdapterTransport(fake opencode)→Gate→Store→Observability 跑通一个 DAG）。
   2. ✅ **真实 opencode 跑通验证**：真机端到端跑通——单次 execute（17s）+ 三任务 DAG `research(researcher)→seo-plan(seo)→strategy(product)`（190s，含 `team_config` 决策、注册表驱动门禁一次通过、D16 上游摘要注入 t2/t3、D18 needs_review 不阻塞、跨任务 token 聚合 56k、可观测总览）。真机发现并修复 opencode 累计 token 计量 bug（`step_finish.tokens.total` + sum→max，见 `agent_port._extract_tokens`）。
   3. ✅ **可观测接线**：`backend/hub/api/observability_api.py`（只读 `/api/obs/...` 路由：overview/cost/fleet/task_detail/timeline + `run_event` SSE 增量推送，复用 Hub SSE 约定），`server.py` `include_router` 接入；`tests/test_observability_api.py`（TestClient 6 例）。**非破坏性**：新内核写、Hub 读同一 SQLite 真相库；运行中 Hub 需重启才生效。
-  4. ⏳ **下线（破坏性，验证后）**：删旧 `task-executor`/`continuous-executor` 双引擎、弃用 `notify-telegram`、删 `quality_gate` 的 gbrain 死回退、统一 config/path、更新 `ARCHITECTURE.md`、移除迁移开关 `INTERACTION_CONTRACTS`。
-- **测试**：全仓 **137 例绿**（含全栈集成 1 例 + Hub 可观测路由 6 例）。
+  4. ✅ **新内核运行时入口**：`common/run_kernel.py`（CLI + `run_project`，组装 Store+AgentPort(真实 opencode)+Process，启动对账 GC）——旧双引擎的统一替代执行入口。**关键发现**：此前 `process.py` 仅被测试引用、未接运行时（旧引擎仍是现网），故先补入口再谈下线。真机 goal 驱动跑通：`team_config→task_plan→3 任务 DAG` 全部 terminal-OK（326s/92k token）。真机发现并修复决策类提示词缺陷（`task_plan` 等只给 schema 名、弱模型产不出合法结构 → 注入具体 result 骨架 + 可用 agent/task_type 白名单）；并把 `submit_result` 调用改用 `sys.executable`（去掉对 agent 端 `python` 有依赖的假设）。`tests/test_run_kernel.py`（2 例）。
+  5. ⏳ **下线（破坏性，需授权 + 现网切换）**：把现网调度（continuous-executor 循环 / 各 SKILL.md）改为调用 `run_kernel`，验证后删旧 `task-executor`/`continuous-executor` 双引擎、弃用 `notify-telegram`、删 `quality_gate` 的 gbrain 死回退、统一 config/path、更新 `ARCHITECTURE.md`、移除迁移开关 `INTERACTION_CONTRACTS`。
+- **测试**：全仓 **140 例绿**（含全栈集成 1 例 + Hub 可观测路由 6 例 + 运行时入口 2 例）。
 - **工作约定（改动纪律）**：
   1. **先讨论后实现**：每个 Open 问题确认后才落代码。
   2. **保留不重写**（D1）：在现有 `backend/` + `skill/team/` 上加固。
