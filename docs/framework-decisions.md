@@ -27,6 +27,7 @@
   - Process 单内核 → `process.py`（one_shot/recurring + 失败语义 + triage）
   - Context-Memory → `memory.py`（+ process 上游摘要注入）
   - 可观测 + Token 治理 → `observability.py`
+  - AgentPort 真实传输 → `opencode_transport.py`（Phase 8 step 1）
 - **已决**：D1–D18（见下）。**抽象层五件套已闭合**：`Interaction`(D11) / `AgentPort`(D12) / `Gate`(D14) / `Process`(D10) / `Context-Memory`(D16)；支撑：存储(D13)、Outcome(D15)、可观测(D17)、失败语义(D18)。见上方「架构全景」。
 - **已落地代码**：
   - Phase 1：`skill/team/common/contracts.py`（Pydantic 信封 + Outcome）、`submit_result.py`（校验后原子写，拒绝不抢救）、`tests/test_contracts.py`（14 例）。JSON 抢救置于迁移开关 `INTERACTION_CONTRACTS=1` 之后（默认关，可回退）：`notify_agent._write_response_file`、`executor.state_execute_task`。
@@ -37,11 +38,12 @@
   - Phase 6：`memory.py`（`kb://` 可插拔后端，默认 SQLite；gbrain 仅留接口）、process 注入直接上游「摘要+引用」到 `context.upstream`（摘要由 agent 经响应 notes 写、存 task.meta）、`tests/test_memory.py`（3 例）。
   - Phase 7：`observability.py`（只读 API 形状：project_overview/task_detail/timeline/fleet_status/cost + 存活判定 liveness + 预算治理 check_budget 方案丙）、process 接 token 预算暂停、`tests/test_observability.py`（6 例）。
 - **新依赖**：`pydantic>=2`、`PyYAML>=6`（已写入 `requirements.txt`，venv 已安装）。
-- **Phase 8（未做，go-live 收尾，需运行中系统验证）**：
-  1. **live 接线**：实现 `AgentPort` 的真实 `Transport`（接 `backend/adapters/opencode` + Hub `/api/agents/{id}/notify`，把适配器 `AgentEvent` 流接到 `ctx.emit` 作心跳/计量）；agent 侧用 `submit_result` 写回。
-  2. **可观测接线**：Hub 暴露 `observability.py` 只读查询 + 复用现有 SSE 推 `run_event`。
-  3. **下线**：新内核 live 验证通过后，删旧 `task-executor`/`continuous-executor` 双引擎、弃用 `notify-telegram`、删 `quality_gate` 的 gbrain 死回退、统一 config/path 出处，更新 `ARCHITECTURE.md`。
-  4. 旧 `executor.py`/`notify_agent.py` 的迁移开关 `INTERACTION_CONTRACTS` 在切换后移除。
+- **Phase 8（go-live 收尾，进行中）**：
+  1. ✅ **AgentPort 真实 Transport**：`common/opencode_transport.py`（`AdapterTransport` 驱动 `backend/adapters/opencode`，把 `AgentEvent` 流转发到 `ctx.emit` 作心跳；提示词约束 agent 用 `submit_result` 写回；适配器可注入便于测试/换 claude）。AgentPort 增 `cancel_event` 暴露 + `step_finish` token 计量（D17）。已加全栈集成测试 `test_integration.py`（Process→AgentPort→AdapterTransport(fake opencode)→Gate→Store→Observability 跑通一个 DAG）。
+  2. ⏳ **真实 opencode 跑通验证**：需运行中系统（opencode CLI + 各 workspace）端到端验证一个真实项目。
+  3. ⏳ **可观测接线**：Hub 暴露 `observability.py` 只读查询 + 复用现有 SSE 推 `run_event`。
+  4. ⏳ **下线（破坏性，验证后）**：删旧 `task-executor`/`continuous-executor` 双引擎、弃用 `notify-telegram`、删 `quality_gate` 的 gbrain 死回退、统一 config/path、更新 `ARCHITECTURE.md`、移除迁移开关 `INTERACTION_CONTRACTS`。
+- **测试**：全仓 **130 例绿**（含全栈集成 1 例）。
 - **工作约定（改动纪律）**：
   1. **先讨论后实现**：每个 Open 问题确认后才落代码。
   2. **保留不重写**（D1）：在现有 `backend/` + `skill/team/` 上加固。

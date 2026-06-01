@@ -62,6 +62,11 @@ class DeliveryContext:
     def cancelled(self) -> bool:
         return self._cancel.is_set()
 
+    @property
+    def cancel_event(self) -> threading.Event:
+        """供适配器（如 opencode）订阅取消信号。"""
+        return self._cancel
+
 
 # Transport 协议：阻塞执行一次投递；通过 ctx.emit 回传事件；Agent 自行写 .response。
 Transport = Callable[[DeliveryContext], None]
@@ -124,10 +129,12 @@ class AgentPort:
         last_event = time.time()
         running = False
         soft_warned = False
+        event_tokens = 0
         cfg = self.config
 
         while True:
-            drained = self._drain(q, iid)
+            drained, tok = self._drain(q, iid)
+            event_tokens += tok
             if drained:
                 last_event = time.time()
                 if not running:
@@ -137,16 +144,18 @@ class AgentPort:
             resp = self._read_valid_response(resp_path, iid, req_mtime)
             if resp is not None:
                 ctx._cancel.set()
-                self._drain(q, iid)  # 收尾排空已入队事件
-                self._finalize_done(iid, resp_path, resp)
+                _, tok = self._drain(q, iid)  # 收尾排空已入队事件
+                event_tokens += tok
+                self._finalize_done(iid, resp_path, resp, event_tokens)
                 return AgentPortResult("done", resp, iid, attempt)
 
             if not th.is_alive():
                 # 传输结束：再排空一次队列 + 看一眼响应文件
-                self._drain(q, iid)
+                _, tok = self._drain(q, iid)
+                event_tokens += tok
                 resp = self._read_valid_response(resp_path, iid, req_mtime)
                 if resp is not None:
-                    self._finalize_done(iid, resp_path, resp)
+                    self._finalize_done(iid, resp_path, resp, event_tokens)
                     return AgentPortResult("done", resp, iid, attempt)
                 self.store.update_interaction(iid, status="failed")
                 return AgentPortResult("no_response", None, iid, attempt,
@@ -172,8 +181,10 @@ class AgentPort:
         except Exception as e:  # 传输异常归一为一个事件，主循环据此收尾
             q.put(("transport_error", {"error": str(e)}))
 
-    def _drain(self, q: "queue.Queue", iid: str) -> bool:
+    def _drain(self, q: "queue.Queue", iid: str) -> tuple[bool, int]:
+        """排空事件入库；返回 (是否有事件, 本次累计的 step_finish token 数)。"""
         drained = False
+        tokens = 0
         while True:
             try:
                 kind, payload = q.get_nowait()
@@ -181,7 +192,9 @@ class AgentPort:
                 break
             self.store.append_run_event(iid, kind, payload)
             drained = True
-        return drained
+            if kind in ("step_finish", "step-finish") and isinstance(payload, dict):
+                tokens += _extract_tokens(payload)
+        return drained, tokens
 
     def _read_valid_response(self, resp_path: Path, iid: str, req_mtime: float) -> Optional[dict]:
         """只采纳：存在 + mtime 晚于请求 + 合法信封 + interaction_id 匹配（D12 防残留误用）。"""
@@ -200,12 +213,15 @@ class AgentPort:
             return None
         return data
 
-    def _finalize_done(self, iid: str, resp_path: Path, resp: dict) -> None:
+    def _finalize_done(self, iid: str, resp_path: Path, resp: dict,
+                       event_tokens: int = 0) -> None:
+        # 计量优先级：适配器 step_finish 累计 > 响应 meta.tokens（D17）。
         meta = resp.get("meta") or {}
-        tokens = meta.get("tokens") if isinstance(meta, dict) else None
+        meta_tokens = meta.get("tokens") if isinstance(meta, dict) else None
+        tokens = event_tokens if event_tokens > 0 else (
+            meta_tokens if isinstance(meta_tokens, int) else None)
         self.store.update_interaction(
-            iid, status="done", response_ref=str(resp_path),
-            tokens=tokens if isinstance(tokens, int) else None,
+            iid, status="done", response_ref=str(resp_path), tokens=tokens,
         )
 
     @staticmethod
@@ -216,6 +232,20 @@ class AgentPort:
             pass
         except OSError:
             pass
+
+
+def _extract_tokens(payload: dict) -> int:
+    """从 step_finish 事件提取 token 数（兼容若干常见键）。"""
+    for key in ("tokens", "total_tokens", "totalTokens"):
+        v = payload.get(key)
+        if isinstance(v, (int, float)):
+            return int(v)
+    usage = payload.get("usage")
+    if isinstance(usage, dict):
+        v = usage.get("total_tokens") or usage.get("totalTokens")
+        if isinstance(v, (int, float)):
+            return int(v)
+    return 0
 
 
 def reconcile_on_start(store: Optional[Store] = None) -> int:
