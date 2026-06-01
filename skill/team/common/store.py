@@ -1,0 +1,458 @@
+#!/usr/bin/env python3
+"""SQLite 运行态真相库（D13 / O4）。
+
+运行态状态 = SQLite（零新依赖、单 .db 文件可移植、ACID 无半截写、可查询）。
+表：project / task / interaction / run_event / memory。
+
+- 人类产物仍是文件（deliverables/*.md、evidence/）。
+- 静态配置仍是 JSON（agents_config.json 等）。
+- task_data.json 退为**只读导出视图**（export_project），不再是真相。
+- 对现有 task_data.json 提供一次性导入器（import_task_data）。
+
+并发：当前串行（D12），但开启 WAL 为未来留余地。
+状态机（D18）：
+  interaction：pending → running → done | failed | cancelled | timed_out
+  task：pending → in_progress → completed | needs_review | failed | blocked
+"""
+from __future__ import annotations
+
+import json
+import sqlite3
+import sys
+import time
+from pathlib import Path
+from typing import Any, Optional
+
+if __package__ in (None, ""):  # 作为脚本直接运行时，确保 common 包可导入
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from common.paths import TASKS_DIR
+
+
+def default_db_path() -> Path:
+    return TASKS_DIR / "state.db"
+
+
+def _now() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
+
+
+def _dumps(v: Any) -> str:
+    return json.dumps(v, ensure_ascii=False) if v is not None else "null"
+
+
+def _loads(v: Optional[str]) -> Any:
+    if v is None:
+        return None
+    try:
+        return json.loads(v)
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+
+_SCHEMA = """
+CREATE TABLE IF NOT EXISTS project (
+    project_id  TEXT PRIMARY KEY,
+    title       TEXT DEFAULT '',
+    mode        TEXT DEFAULT 'one_shot',   -- one_shot | recurring
+    status      TEXT DEFAULT 'pending',
+    created_at  TEXT,
+    updated_at  TEXT,
+    meta        TEXT DEFAULT 'null'
+);
+
+CREATE TABLE IF NOT EXISTS task (
+    project_id    TEXT,
+    task_id       TEXT,
+    parent_id     TEXT DEFAULT NULL,       -- 子任务挂父任务
+    name          TEXT DEFAULT '',
+    agent         TEXT DEFAULT '',
+    reviewer      TEXT DEFAULT '',
+    task_type     TEXT DEFAULT '',
+    status        TEXT DEFAULT 'pending',
+    dependencies  TEXT DEFAULT '[]',
+    started_at    TEXT,
+    completed_at  TEXT,
+    updated_at    TEXT,
+    meta          TEXT DEFAULT 'null',
+    PRIMARY KEY (project_id, task_id)
+);
+
+CREATE TABLE IF NOT EXISTS interaction (
+    interaction_id TEXT PRIMARY KEY,
+    kind           TEXT,
+    project_id     TEXT,
+    task_id        TEXT,
+    agent_id       TEXT,
+    backend        TEXT DEFAULT '',
+    status         TEXT DEFAULT 'pending',
+    attempt        INTEGER DEFAULT 1,
+    started_at     TEXT,
+    last_event_at  TEXT,
+    response_ref   TEXT DEFAULT '',
+    tokens         INTEGER DEFAULT 0,
+    meta           TEXT DEFAULT 'null'
+);
+
+CREATE TABLE IF NOT EXISTS run_event (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    interaction_id TEXT,
+    seq            INTEGER,
+    kind           TEXT,
+    payload        TEXT DEFAULT 'null',
+    ts             TEXT
+);
+
+CREATE TABLE IF NOT EXISTS memory (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id  TEXT,
+    task_id     TEXT,
+    tags        TEXT DEFAULT '[]',
+    title       TEXT DEFAULT '',
+    content     TEXT DEFAULT '',
+    created_at  TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_task_project ON task(project_id);
+CREATE INDEX IF NOT EXISTS idx_interaction_task ON interaction(project_id, task_id);
+CREATE INDEX IF NOT EXISTS idx_run_event_iid ON run_event(interaction_id, seq);
+CREATE INDEX IF NOT EXISTS idx_memory_project ON memory(project_id);
+"""
+
+
+class Store:
+    """SQLite 真相库句柄。串行使用；同实例复用一条连接。"""
+
+    def __init__(self, db_path: str | Path | None = None):
+        self.db_path = Path(db_path) if db_path else default_db_path()
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
+        self._conn.row_factory = sqlite3.Row
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA synchronous=NORMAL")
+        self._conn.executescript(_SCHEMA)
+        self._conn.commit()
+
+    def close(self):
+        self._conn.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
+    # ── project ──────────────────────────────────────────────
+
+    def upsert_project(self, project_id: str, *, title: str = "", mode: str = "one_shot",
+                       status: str = "pending", meta: Optional[dict] = None) -> None:
+        now = _now()
+        with self._conn:
+            self._conn.execute(
+                """INSERT INTO project (project_id, title, mode, status, created_at, updated_at, meta)
+                   VALUES (?,?,?,?,?,?,?)
+                   ON CONFLICT(project_id) DO UPDATE SET
+                     title=excluded.title, mode=excluded.mode, status=excluded.status,
+                     updated_at=excluded.updated_at, meta=excluded.meta""",
+                (project_id, title, mode, status, now, now, _dumps(meta)),
+            )
+
+    def set_project_status(self, project_id: str, status: str) -> None:
+        with self._conn:
+            self._conn.execute(
+                "UPDATE project SET status=?, updated_at=? WHERE project_id=?",
+                (status, _now(), project_id),
+            )
+
+    def get_project(self, project_id: str) -> Optional[dict]:
+        row = self._conn.execute(
+            "SELECT * FROM project WHERE project_id=?", (project_id,)
+        ).fetchone()
+        return self._row(row) if row else None
+
+    # ── task ─────────────────────────────────────────────────
+
+    def upsert_task(self, project_id: str, task_id: str, *, name: str = "", agent: str = "",
+                    reviewer: str = "", task_type: str = "", status: str = "pending",
+                    dependencies: Optional[list] = None, parent_id: Optional[str] = None,
+                    meta: Optional[dict] = None) -> None:
+        now = _now()
+        with self._conn:
+            self._conn.execute(
+                """INSERT INTO task
+                     (project_id, task_id, parent_id, name, agent, reviewer, task_type,
+                      status, dependencies, updated_at, meta)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                   ON CONFLICT(project_id, task_id) DO UPDATE SET
+                     parent_id=excluded.parent_id, name=excluded.name, agent=excluded.agent,
+                     reviewer=excluded.reviewer, task_type=excluded.task_type,
+                     dependencies=excluded.dependencies, updated_at=excluded.updated_at,
+                     meta=excluded.meta""",
+                (project_id, task_id, parent_id, name, agent, reviewer, task_type,
+                 status, _dumps(dependencies or []), now, _dumps(meta)),
+            )
+
+    def set_task_status(self, project_id: str, task_id: str, status: str) -> None:
+        now = _now()
+        sets = ["status=?", "updated_at=?"]
+        vals: list[Any] = [status, now]
+        if status == "in_progress":
+            sets.append("started_at=COALESCE(started_at, ?)")
+            vals.append(now)
+        if status in ("completed", "failed"):
+            sets.append("completed_at=COALESCE(completed_at, ?)")
+            vals.append(now)
+        vals += [project_id, task_id]
+        with self._conn:
+            self._conn.execute(
+                f"UPDATE task SET {', '.join(sets)} WHERE project_id=? AND task_id=?", vals
+            )
+
+    def get_task(self, project_id: str, task_id: str) -> Optional[dict]:
+        row = self._conn.execute(
+            "SELECT * FROM task WHERE project_id=? AND task_id=?", (project_id, task_id)
+        ).fetchone()
+        return self._task_row(row) if row else None
+
+    def list_tasks(self, project_id: str) -> list[dict]:
+        rows = self._conn.execute(
+            "SELECT * FROM task WHERE project_id=? ORDER BY rowid", (project_id,)
+        ).fetchall()
+        return [self._task_row(r) for r in rows]
+
+    # ── interaction（D8/D12：幂等/恢复/GC/计量）────────────────
+
+    def create_interaction(self, interaction_id: str, kind: str, project_id: str, *,
+                           task_id: Optional[str] = None, agent_id: str = "",
+                           backend: str = "", attempt: int = 1,
+                           task_status: Optional[str] = None) -> None:
+        """建 interaction 记录；可在同一事务顺带改 task 状态（D13）。"""
+        now = _now()
+        with self._conn:
+            self._conn.execute(
+                """INSERT INTO interaction
+                     (interaction_id, kind, project_id, task_id, agent_id, backend,
+                      status, attempt, started_at, last_event_at)
+                   VALUES (?,?,?,?,?,?, 'pending', ?, ?, ?)
+                   ON CONFLICT(interaction_id) DO UPDATE SET
+                     attempt=excluded.attempt, status='pending',
+                     started_at=excluded.started_at, last_event_at=excluded.last_event_at""",
+                (interaction_id, kind, project_id, task_id, agent_id, backend, attempt, now, now),
+            )
+            if task_status and task_id:
+                self._conn.execute(
+                    "UPDATE task SET status=?, updated_at=? WHERE project_id=? AND task_id=?",
+                    (task_status, now, project_id, task_id),
+                )
+
+    def update_interaction(self, interaction_id: str, *, status: Optional[str] = None,
+                          response_ref: Optional[str] = None, tokens: Optional[int] = None,
+                          touch_event: bool = False, meta: Optional[dict] = None) -> None:
+        sets: list[str] = []
+        vals: list[Any] = []
+        if status is not None:
+            sets.append("status=?"); vals.append(status)
+        if response_ref is not None:
+            sets.append("response_ref=?"); vals.append(response_ref)
+        if tokens is not None:
+            sets.append("tokens=tokens+?"); vals.append(tokens)
+        if touch_event:
+            sets.append("last_event_at=?"); vals.append(_now())
+        if meta is not None:
+            sets.append("meta=?"); vals.append(_dumps(meta))
+        if not sets:
+            return
+        vals.append(interaction_id)
+        with self._conn:
+            self._conn.execute(
+                f"UPDATE interaction SET {', '.join(sets)} WHERE interaction_id=?", vals
+            )
+
+    def get_interaction(self, interaction_id: str) -> Optional[dict]:
+        row = self._conn.execute(
+            "SELECT * FROM interaction WHERE interaction_id=?", (interaction_id,)
+        ).fetchone()
+        return self._row(row) if row else None
+
+    def append_run_event(self, interaction_id: str, kind: str,
+                        payload: Optional[dict] = None) -> int:
+        """追加事件（自动 seq）+ 冗余更新 interaction.last_event_at（看门狗读取便宜）。"""
+        now = _now()
+        with self._conn:
+            cur = self._conn.execute(
+                "SELECT COALESCE(MAX(seq), 0)+1 FROM run_event WHERE interaction_id=?",
+                (interaction_id,),
+            )
+            seq = cur.fetchone()[0]
+            self._conn.execute(
+                "INSERT INTO run_event (interaction_id, seq, kind, payload, ts) VALUES (?,?,?,?,?)",
+                (interaction_id, seq, kind, _dumps(payload), now),
+            )
+            self._conn.execute(
+                "UPDATE interaction SET last_event_at=? WHERE interaction_id=?",
+                (now, interaction_id),
+            )
+        return seq
+
+    def list_run_events(self, interaction_id: str) -> list[dict]:
+        rows = self._conn.execute(
+            "SELECT * FROM run_event WHERE interaction_id=? ORDER BY seq", (interaction_id,)
+        ).fetchall()
+        return [self._row(r) for r in rows]
+
+    # ── memory（KB SQLite 默认后端，详见 Phase 6）──────────────
+
+    def memory_write(self, project_id: str, title: str, content: str, *,
+                    task_id: str = "", tags: Optional[list] = None) -> int:
+        with self._conn:
+            cur = self._conn.execute(
+                "INSERT INTO memory (project_id, task_id, tags, title, content, created_at) "
+                "VALUES (?,?,?,?,?,?)",
+                (project_id, task_id, _dumps(tags or []), title, content, _now()),
+            )
+        return cur.lastrowid
+
+    def memory_get(self, mem_id: int) -> Optional[dict]:
+        row = self._conn.execute("SELECT * FROM memory WHERE id=?", (mem_id,)).fetchone()
+        return self._mem_row(row) if row else None
+
+    def memory_search(self, *, tags: Optional[list] = None, text: str = "",
+                     project_id: Optional[str] = None) -> list[dict]:
+        rows = self._conn.execute("SELECT * FROM memory ORDER BY id DESC").fetchall()
+        out = []
+        for r in rows:
+            d = self._mem_row(r)
+            if project_id and d["project_id"] != project_id:
+                continue
+            if tags and not (set(tags) & set(d["tags"])):
+                continue
+            if text and text not in d["title"] and text not in d["content"]:
+                continue
+            out.append(d)
+        return out
+
+    # ── 只读导出视图（task_data.json 形状）─────────────────────
+
+    def export_project(self, project_id: str) -> dict:
+        """把 SQLite 状态导成 task_data.json 兼容形状（只读视图、供查看/搬迁）。"""
+        proj = self.get_project(project_id) or {"project_id": project_id}
+        tasks = self.list_tasks(project_id)
+        by_id = {t["task_id"]: t for t in tasks}
+        tops: list[dict] = []
+        for t in tasks:
+            view = {
+                "id": t["task_id"], "name": t["name"], "agent": t["agent"],
+                "reviewer": t["reviewer"], "task_type": t["task_type"],
+                "status": t["status"], "dependencies": t["dependencies"],
+                "started_at": t["started_at"], "completed_at": t["completed_at"],
+                "updated_at": t["updated_at"], "subtasks": [],
+            }
+            by_id[t["task_id"]]["_view"] = view
+        for t in tasks:
+            view = by_id[t["task_id"]]["_view"]
+            if t["parent_id"] and t["parent_id"] in by_id:
+                by_id[t["parent_id"]]["_view"]["subtasks"].append(view)
+            else:
+                tops.append(view)
+        return {
+            "project": {
+                "id": project_id, "title": proj.get("title", ""),
+                "mode": proj.get("mode", "one_shot"), "status": proj.get("status", "pending"),
+            },
+            "tasks": tops,
+            "exported_at": _now(),
+            "_source": "sqlite",
+        }
+
+    # ── 一次性导入器（迁移现有 task_data.json）─────────────────
+
+    def import_task_data(self, project_id: str, data: Optional[dict] = None) -> dict:
+        """把现有 task_data.json 导入 SQLite。返回导入计数。"""
+        if data is None:
+            from common.task_data_store import read_task_data
+            data = read_task_data(project_id)
+        proj = data.get("project", {}) or {}
+        self.upsert_project(
+            project_id, title=proj.get("title", proj.get("name", "")),
+            mode=proj.get("mode", "one_shot"), status=proj.get("status", "pending"),
+        )
+        n_tasks = n_subs = 0
+        for t in data.get("tasks", []):
+            tid = t.get("id")
+            if not tid:
+                continue
+            self._import_one(project_id, t, parent_id=None)
+            n_tasks += 1
+            for st in t.get("subtasks", []):
+                if st.get("id"):
+                    self._import_one(project_id, st, parent_id=tid)
+                    n_subs += 1
+        return {"tasks": n_tasks, "subtasks": n_subs}
+
+    def _import_one(self, project_id: str, t: dict, parent_id: Optional[str]) -> None:
+        self.upsert_task(
+            project_id, t["id"], name=t.get("name", ""), agent=t.get("agent", ""),
+            reviewer=t.get("reviewer", ""), task_type=t.get("task_type", ""),
+            status=t.get("status", "pending"), dependencies=t.get("dependencies", []),
+            parent_id=parent_id,
+        )
+
+    # ── 行转 dict ─────────────────────────────────────────────
+
+    @staticmethod
+    def _row(row: sqlite3.Row) -> dict:
+        d = dict(row)
+        if "meta" in d:
+            d["meta"] = _loads(d["meta"])
+        if "payload" in d:
+            d["payload"] = _loads(d["payload"])
+        return d
+
+    @classmethod
+    def _task_row(cls, row: sqlite3.Row) -> dict:
+        d = cls._row(row)
+        d["dependencies"] = _loads(d.get("dependencies")) or []
+        return d
+
+    @staticmethod
+    def _mem_row(row: sqlite3.Row) -> dict:
+        d = dict(row)
+        d["tags"] = _loads(d.get("tags")) or []
+        return d
+
+
+def _main(argv: list[str]) -> int:
+    """只读导出 / 一次性导入 CLI（D13 透明性）。
+
+    python store.py export <project_id> [--out file.json]
+    python store.py import <project_id>            # 从 task_data.json 导入
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(description="SQLite 真相库导出/导入")
+    sub = parser.add_subparsers(dest="cmd", required=True)
+    pe = sub.add_parser("export"); pe.add_argument("project_id"); pe.add_argument("--out")
+    pi = sub.add_parser("import"); pi.add_argument("project_id")
+    args = parser.parse_args(argv)
+
+    with Store() as s:
+        if args.cmd == "export":
+            view = s.export_project(args.project_id)
+            text = json.dumps(view, ensure_ascii=False, indent=2)
+            if args.out:
+                Path(args.out).write_text(text, encoding="utf-8")
+                print(f"[store] 已导出：{args.out}")
+            else:
+                print(text)
+        elif args.cmd == "import":
+            counts = s.import_task_data(args.project_id)
+            print(f"[store] 已导入 {args.project_id}：{counts}")
+    return 0
+
+
+if __name__ == "__main__":
+    import sys as _sys
+
+    from common.paths import ensure_team_importable
+    ensure_team_importable()
+    raise SystemExit(_main(_sys.argv[1:]))
