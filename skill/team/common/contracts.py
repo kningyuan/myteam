@@ -8,13 +8,11 @@
   - 结构进代码（这里的 Pydantic 模型 + 导出 JSON Schema 给 Agent）。
   - 内容约束进配置（格式注册表，见 templates.yaml / Phase 4）。
   - submit_result 在 Agent 侧按引用本地校验后才写回，框架侧用同一模型再校验
-    → 从根上消灭 JSON 抢救（D1/F1）。
-
-迁移开关：环境变量 INTERACTION_CONTRACTS=1 启用契约严格路径；默认关，旧路径可回退。
+    → 从根上消灭 JSON 抢救（D1/F1）。契约路径已是唯一路径，旧 JSON 抢救与
+    INTERACTION_CONTRACTS 迁移开关已删除。
 """
 from __future__ import annotations
 
-import os
 from typing import Annotated, Literal, Optional, Union
 
 from pydantic import BaseModel, Field, TypeAdapter, ValidationError, model_validator
@@ -22,11 +20,6 @@ from pydantic import BaseModel, Field, TypeAdapter, ValidationError, model_valid
 SCHEMA_VERSION = "1.0"
 
 Kind = Literal["team_config", "task_plan", "evaluate", "execute", "review", "triage"]
-
-
-def contracts_enabled() -> bool:
-    """迁移开关：是否启用契约严格路径（默认关，保证可回退）。"""
-    return os.environ.get("INTERACTION_CONTRACTS", "0") == "1"
 
 
 # ── 共享子结构 ───────────────────────────────────────────────
