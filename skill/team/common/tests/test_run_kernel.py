@@ -77,6 +77,31 @@ def test_run_project_goal_driven_end_to_end(env):
     assert {"team_config", "task_plan", "execute"} <= inter_kinds
 
 
+def test_main_cli_parses_and_dispatches(monkeypatch, capsys):
+    """CLI 入口（SKILL.md 现指向它）：argv → run_project，参数透传正确。"""
+    import common.run_kernel as rk
+    from common.process import ProjectOutcome, TaskOutcome
+
+    captured = {}
+
+    def fake_run_project(project_id, **kw):
+        captured["project_id"] = project_id
+        captured.update(kw)
+        return ProjectOutcome(project_id, "completed",
+                              {"t1": TaskOutcome("t1", "completed", "", 1)})
+
+    monkeypatch.setattr(rk, "run_project", fake_run_project)
+    rc = rk.main(["proj_x", "--goal", "做点事", "--title", "T",
+                  "--mode", "recurring", "--budget", "5000"])
+
+    assert rc == 0
+    assert captured["project_id"] == "proj_x"
+    assert captured["goal"] == "做点事"
+    assert captured["mode"] == "recurring"
+    assert captured["token_budget"] == 5000
+    assert '"status": "completed"' in capsys.readouterr().out
+
+
 def test_reconcile_runs_on_start(env):
     """启动对账：上次残留的 running interaction 被标 timed_out（D8）。"""
     store, wcfg = env
