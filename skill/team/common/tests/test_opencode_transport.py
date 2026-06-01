@@ -104,6 +104,35 @@ def test_transport_forwards_events_and_meters_tokens(env):
     assert store.get_interaction("i1")["tokens"] == 256
 
 
+def test_meters_cumulative_opencode_tokens(env):
+    """真实 opencode 形态：tokens 是 dict 且 total 为会话累计（单调递增）→ 取最大。"""
+    store, wcfg = env
+
+    def write_resp(run_request):
+        rel = "task_001_deliverable.md"
+        (paths.deliverables_dir("pro_x") / rel).write_text("# x\n## 调研背景\n足够内容。\n", "utf-8")
+        submit({
+            "interaction_id": "i1", "kind": "execute", "status": "ok",
+            "quality": {"score": 0.9, "known_gaps": [], "notes": ""},
+            "result": {"outcome": {"kind": "artifact", "artifact": {"path": rel, "title": "x"}}},
+        }, paths.response_dir("researcher") / "i1.response")
+
+    events = [
+        FakeEvent("step_finish", {"tokens": {"input": 10631, "output": 395, "total": 11026}}),
+        FakeEvent("step_finish", {"tokens": {"input": 2854, "output": 313, "total": 11359}}),
+        "_submit",
+        FakeEvent("step_finish", {"tokens": {"input": 3187, "output": 174, "total": 11553}}),
+    ]
+    adapter = FakeAdapter(events, on_run=write_resp)
+    transport = AdapterTransport(adapter=adapter, agents_config={"researcher": {"model": "m1"}},
+                                 request_factory=lambda **kw: types.SimpleNamespace(**kw))
+    port = AgentPort(transport, store=store, config=wcfg)
+    res = port.run(_req())
+    assert res.status == "done"
+    # 取累计最大值，而非三次相加
+    assert store.get_interaction("i1")["tokens"] == 11553
+
+
 def test_transport_cancel_event_wired(env):
     store, wcfg = env
     seen = {}

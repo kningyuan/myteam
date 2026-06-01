@@ -134,7 +134,7 @@ class AgentPort:
 
         while True:
             drained, tok = self._drain(q, iid)
-            event_tokens += tok
+            event_tokens = max(event_tokens, tok)
             if drained:
                 last_event = time.time()
                 if not running:
@@ -145,14 +145,14 @@ class AgentPort:
             if resp is not None:
                 ctx._cancel.set()
                 _, tok = self._drain(q, iid)  # 收尾排空已入队事件
-                event_tokens += tok
+                event_tokens = max(event_tokens, tok)
                 self._finalize_done(iid, resp_path, resp, event_tokens)
                 return AgentPortResult("done", resp, iid, attempt)
 
             if not th.is_alive():
                 # 传输结束：再排空一次队列 + 看一眼响应文件
                 _, tok = self._drain(q, iid)
-                event_tokens += tok
+                event_tokens = max(event_tokens, tok)
                 resp = self._read_valid_response(resp_path, iid, req_mtime)
                 if resp is not None:
                     self._finalize_done(iid, resp_path, resp, event_tokens)
@@ -182,7 +182,10 @@ class AgentPort:
             q.put(("transport_error", {"error": str(e)}))
 
     def _drain(self, q: "queue.Queue", iid: str) -> tuple[bool, int]:
-        """排空事件入库；返回 (是否有事件, 本次累计的 step_finish token 数)。"""
+        """排空事件入库；返回 (是否有事件, 本次见到的最大 step_finish 累计 token)。
+
+        opencode 的 step_finish 报的是**会话累计** total（单调递增），故取 max 而非求和。
+        """
         drained = False
         tokens = 0
         while True:
@@ -193,7 +196,7 @@ class AgentPort:
             self.store.append_run_event(iid, kind, payload)
             drained = True
             if kind in ("step_finish", "step-finish") and isinstance(payload, dict):
-                tokens += _extract_tokens(payload)
+                tokens = max(tokens, _extract_tokens(payload))
         return drained, tokens
 
     def _read_valid_response(self, resp_path: Path, iid: str, req_mtime: float) -> Optional[dict]:
@@ -235,16 +238,27 @@ class AgentPort:
 
 
 def _extract_tokens(payload: dict) -> int:
-    """从 step_finish 事件提取 token 数（兼容若干常见键）。"""
-    for key in ("tokens", "total_tokens", "totalTokens"):
-        v = payload.get(key)
-        if isinstance(v, (int, float)):
-            return int(v)
+    """从 step_finish 事件提取累计 token 数（兼容若干常见形态）。
+
+    - opencode：``{"tokens": {"input":..,"output":..,"total":N}}`` → 取 total。
+    - 简化形态：``{"tokens": N}`` / ``{"total_tokens": N}`` / ``{"usage": {...}}``。
+    """
+    v = payload.get("tokens")
+    if isinstance(v, dict):
+        t = v.get("total") or v.get("total_tokens") or v.get("totalTokens")
+        if isinstance(t, (int, float)):
+            return int(t)
+    if isinstance(v, (int, float)):
+        return int(v)
+    for key in ("total_tokens", "totalTokens"):
+        x = payload.get(key)
+        if isinstance(x, (int, float)):
+            return int(x)
     usage = payload.get("usage")
     if isinstance(usage, dict):
-        v = usage.get("total_tokens") or usage.get("totalTokens")
-        if isinstance(v, (int, float)):
-            return int(v)
+        x = usage.get("total_tokens") or usage.get("totalTokens") or usage.get("total")
+        if isinstance(x, (int, float)):
+            return int(x)
     return 0
 
 
