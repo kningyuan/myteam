@@ -18,19 +18,30 @@
 
 > 新接手者先读本节，再读决策与代码地图。
 
-- **阶段**：**设计阶段完成（D1–D18）。实现阶段进行中。** ✅ Phase 0（审计）+ ✅ Phase 1（Interaction 契约）+ ✅ Phase 2（SQLite 真相库）+ ✅ Phase 3（AgentPort）+ ✅ Phase 4（Gate 拆分 + 格式注册表）已落地，全测试 109 例绿。下一步 Phase 5（Process 单内核合并 + 失败语义）——整合最重的一步，建议作为专项推进。
+- **阶段**：**设计阶段完成（D1–D18）。抽象层五件套全部落地为可测试模块（Phase 1–7），全仓 126 例测试绿。** 余下 Phase 8 = **live 接线 + 旧引擎下线**（go-live 收尾，需运行中系统验证，未做以免破坏现网）。
+- **抽象层 → 新模块（全部位于 `skill/team/common/`，均可单测，旧引擎未动可回退）**：
+  - Interaction 契约 → `contracts.py`（+ `submit_result.py`）
+  - 存储真相 → `store.py`
+  - AgentPort → `agent_port.py`
+  - Gate + 格式注册表 → `gate.py` + `registry.py`
+  - Process 单内核 → `process.py`（one_shot/recurring + 失败语义 + triage）
+  - Context-Memory → `memory.py`（+ process 上游摘要注入）
+  - 可观测 + Token 治理 → `observability.py`
 - **已决**：D1–D18（见下）。**抽象层五件套已闭合**：`Interaction`(D11) / `AgentPort`(D12) / `Gate`(D14) / `Process`(D10) / `Context-Memory`(D16)；支撑：存储(D13)、Outcome(D15)、可观测(D17)、失败语义(D18)。见上方「架构全景」。
 - **已落地代码**：
   - Phase 1：`skill/team/common/contracts.py`（Pydantic 信封 + Outcome）、`submit_result.py`（校验后原子写，拒绝不抢救）、`tests/test_contracts.py`（14 例）。JSON 抢救置于迁移开关 `INTERACTION_CONTRACTS=1` 之后（默认关，可回退）：`notify_agent._write_response_file`、`executor.state_execute_task`。
   - Phase 2：`skill/team/common/store.py`（SQLite：project/task/interaction/run_event/memory + 只读导出视图 + task_data.json 一次性导入器 + CLI）、`tests/test_store.py`（8 例）。DB 落 `tasks/state.db`（已 gitignore）。
   - Phase 3：`skill/team/common/agent_port.py`（同步阻塞 + 串行 `run()`；注入式 Transport；两段式看门狗 soft/hard_idle；interaction_id 幂等 + 派发前清旧文件 + `reconcile_on_start` 启动对账 GC）、`tests/test_agent_port.py`（6 例：happy/卡死/无响应/重试/残留拒绝/对账）。
-  - Phase 4：`skill/team/common/registry.py`（格式注册表单一出处：outcome_kind/required_sections/sections/file_exists/evidence/防 stub/acceptance_criteria，读 templates.yaml）、`skill/team/common/gate.py`（契约门禁 + 格式/完整性门禁 + action 证据；min_length→防 stub、must_include 默认关；artifact/action 按 kind 取规则）、`tests/test_gate.py`（12 例）。新依赖：`PyYAML`（已加 requirements.txt，格式注册表必需）。
+  - Phase 4：`registry.py`（格式注册表单一出处）、`gate.py`（契约 + 格式/完整性 + action 证据；min_length→防 stub、must_include 默认关；按 kind 取规则）、`tests/test_gate.py`（12 例）。
+  - Phase 5：`process.py`（单内核：拓扑串行 DAG + execute 门禁重试 + needs_review 不阻塞 + failed 传播 blocked + 重试耗尽 `kind=triage` 委托 Main + 项目级 completed/partially_failed/failed/paused/aborted）、`contracts.py` 增 `triage` kind、`tests/test_process.py`（8 例）。
+  - Phase 6：`memory.py`（`kb://` 可插拔后端，默认 SQLite；gbrain 仅留接口）、process 注入直接上游「摘要+引用」到 `context.upstream`（摘要由 agent 经响应 notes 写、存 task.meta）、`tests/test_memory.py`（3 例）。
+  - Phase 7：`observability.py`（只读 API 形状：project_overview/task_detail/timeline/fleet_status/cost + 存活判定 liveness + 预算治理 check_budget 方案丙）、process 接 token 预算暂停、`tests/test_observability.py`（6 例）。
 - **新依赖**：`pydantic>=2`、`PyYAML>=6`（已写入 `requirements.txt`，venv 已安装）。
-- **下一步（实现期）**：
-  - **Phase 5**（整合crux）：合并 `task-executor/executor.py` + `continuous-executor/engine.py` 为单一声明式「Step+Gate」内核 + 模式配置（one_shot/recurring）；接 contracts/store/AgentPort/gate；落地 failed/needs_review/blocked + 重试耗尽 `kind=triage` 委托 Main + 项目级显式失败（D10/D18）。**需 live 跑通验证**。
-  - Phase 6：Context-Memory（DAG 上游摘要注入 + `kb://` 可插拔后端，默认 store.memory；删 quality_gate 的 gbrain 死回退）。
-  - Phase 7：可观测只读 API + 复用 Hub SSE 推 `run_event` + token 计量/预算/告警。
-  - Phase 8：删旧双引擎/弃用 skill、统一 config/path、更新 `ARCHITECTURE.md`、补集成测试。
+- **Phase 8（未做，go-live 收尾，需运行中系统验证）**：
+  1. **live 接线**：实现 `AgentPort` 的真实 `Transport`（接 `backend/adapters/opencode` + Hub `/api/agents/{id}/notify`，把适配器 `AgentEvent` 流接到 `ctx.emit` 作心跳/计量）；agent 侧用 `submit_result` 写回。
+  2. **可观测接线**：Hub 暴露 `observability.py` 只读查询 + 复用现有 SSE 推 `run_event`。
+  3. **下线**：新内核 live 验证通过后，删旧 `task-executor`/`continuous-executor` 双引擎、弃用 `notify-telegram`、删 `quality_gate` 的 gbrain 死回退、统一 config/path 出处，更新 `ARCHITECTURE.md`。
+  4. 旧 `executor.py`/`notify_agent.py` 的迁移开关 `INTERACTION_CONTRACTS` 在切换后移除。
 - **工作约定（改动纪律）**：
   1. **先讨论后实现**：每个 Open 问题确认后才落代码。
   2. **保留不重写**（D1）：在现有 `backend/` + `skill/team/` 上加固。

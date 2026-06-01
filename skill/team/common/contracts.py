@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field, TypeAdapter, ValidationError, model_valid
 
 SCHEMA_VERSION = "1.0"
 
-Kind = Literal["team_config", "task_plan", "evaluate", "execute", "review"]
+Kind = Literal["team_config", "task_plan", "evaluate", "execute", "review", "triage"]
 
 
 def contracts_enabled() -> bool:
@@ -134,6 +134,14 @@ class ReviewResult(BaseModel):
     checklist: list[dict] = Field(default_factory=list)
 
 
+class TriageResult(BaseModel):
+    """重试耗尽后委托 Main 的决策（D18）。"""
+
+    decision: Literal["retry", "reassign", "drop", "abort"]
+    target_agent: str = ""
+    notes: str = ""
+
+
 # ── Response 信封（辨识联合）─────────────────────────────────
 
 
@@ -183,6 +191,11 @@ class ReviewResponse(_BaseResponse):
         return self
 
 
+class TriageResponse(_BaseResponse):
+    kind: Literal["triage"]
+    result: TriageResult
+
+
 InteractionResponse = Annotated[
     Union[
         TeamConfigResponse,
@@ -190,6 +203,7 @@ InteractionResponse = Annotated[
         EvaluateResponse,
         ExecuteResponse,
         ReviewResponse,
+        TriageResponse,
     ],
     Field(discriminator="kind"),
 ]
@@ -202,6 +216,7 @@ _RESPONSE_MODEL_BY_KIND: dict[str, type[_BaseResponse]] = {
     "evaluate": EvaluateResponse,
     "execute": ExecuteResponse,
     "review": ReviewResponse,
+    "triage": TriageResponse,
 }
 
 

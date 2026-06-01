@@ -1,0 +1,146 @@
+#!/usr/bin/env python3
+"""Phase 7 可观测 + Token 治理测试（D17）。
+
+验证标准：只读视图反映真相库；超预算触发暂停与告警。
+"""
+import sys
+from pathlib import Path
+
+import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+import common.paths as paths  # noqa: E402
+from common.agent_port import AgentPort, WatchdogConfig  # noqa: E402
+from common.observability import (  # noqa: E402
+    BudgetConfig,
+    check_budget,
+    cost,
+    fleet_status,
+    liveness,
+    project_overview,
+    task_detail,
+    timeline,
+)
+from common.process import Process, ProcessConfig  # noqa: E402
+from common.registry import get_spec  # noqa: E402
+from common.store import Store  # noqa: E402
+from common.submit_result import submit  # noqa: E402
+
+
+@pytest.fixture()
+def store(tmp_path):
+    s = Store(tmp_path / "s.db")
+    yield s
+    s.close()
+
+
+def test_liveness_states():
+    assert liveness({"status": "done"}) == "done"
+    assert liveness({"status": "running", "last_event_at": "2026-06-01T12:00:00"}) == "stuck"
+    import time
+    now = time.strftime("%Y-%m-%dT%H:%M:%S")
+    assert liveness({"status": "running", "last_event_at": now}) == "running"
+
+
+def test_overview_and_cost(store):
+    store.upsert_project("pro_x", title="GEO")
+    store.upsert_task("pro_x", "t1", agent="researcher")
+    store.upsert_task("pro_x", "t2", agent="seo", dependencies=["t1"])
+    store.set_task_status("pro_x", "t1", "completed")
+    store.create_interaction("i1", "execute", "pro_x", task_id="t1", agent_id="researcher")
+    store.update_interaction("i1", tokens=100)
+    store.create_interaction("i2", "execute", "pro_x", task_id="t2", agent_id="seo")
+    store.update_interaction("i2", tokens=50)
+
+    ov = project_overview(store, "pro_x")
+    assert ov["task_counts"]["completed"] == 1
+    assert ov["progress"] == 0.5
+
+    c = cost(store, "pro_x")
+    assert c["project"] == 150
+    assert c["by_agent"] == {"researcher": 100, "seo": 50}
+    assert c["by_task"] == {"t1": 100, "t2": 50}
+
+
+def test_task_detail_and_timeline(store):
+    store.upsert_project("pro_x")
+    store.upsert_task("pro_x", "t1", agent="researcher")
+    store.create_interaction("i1", "execute", "pro_x", task_id="t1", agent_id="researcher")
+    store.append_run_event("i1", "step_start")
+    store.append_run_event("i1", "text", {"chunk": "x"})
+    store.update_interaction("i1", status="done", tokens=42)
+
+    td = task_detail(store, "pro_x", "t1")
+    assert td["interactions"][0]["tokens"] == 42
+    assert td["interactions"][0]["status"] == "done"
+    tl = timeline(store, "i1")
+    assert [e["kind"] for e in tl] == ["step_start", "text"]
+
+
+def test_fleet_status(store):
+    store.upsert_project("pro_x")
+    store.create_interaction("i1", "execute", "pro_x", agent_id="researcher")
+    store.update_interaction("i1", status="done")
+    fs = fleet_status(store, "pro_x")
+    assert fs["researcher"] == "done"
+
+
+def test_check_budget(store):
+    store.upsert_project("pro_x")
+    store.create_interaction("i1", "execute", "pro_x")
+    store.update_interaction("i1", tokens=850)
+    assert check_budget(store, "pro_x", BudgetConfig(project_limit=None)).state == "ok"
+    assert check_budget(store, "pro_x", BudgetConfig(project_limit=1000)).state == "alert"
+    store.update_interaction("i1", tokens=200)  # 累计 1050
+    assert check_budget(store, "pro_x", BudgetConfig(project_limit=1000)).state == "over"
+
+
+# ── 端到端：超预算暂停项目（方案丙）───────────────────────────
+
+
+@pytest.fixture()
+def penv(tmp_path, monkeypatch):
+    monkeypatch.setattr(paths, "WORKSPACES_DIR", tmp_path / "workspaces")
+    monkeypatch.setattr(paths, "PROJECTS_DIR", tmp_path / "project")
+    s = Store(tmp_path / "state.db")
+    wcfg = WatchdogConfig(soft_idle_sec=5, hard_idle_sec=10, poll_interval=0.02, max_attempts=1)
+    yield s, wcfg
+    s.close()
+
+
+def _valid(task_type):
+    spec = get_spec(task_type)
+    out = ["# 标题\n"]
+    for sname in spec.required_sections:
+        out.append(f"## {sname}\n「{sname}」足够具体的内容，覆盖要点与细节说明充分。\n")
+    return "\n".join(out)
+
+
+def test_over_budget_pauses_project(penv):
+    store, wcfg = penv
+
+    def transport(ctx):
+        ctx.emit("step_start")
+        rel = f"{ctx.request.task_id}_deliverable.md"
+        (paths.deliverables_dir(ctx.request.project_id) / rel).write_text(_valid("research"), "utf-8")
+        submit({
+            "interaction_id": ctx.request.interaction_id, "kind": "execute", "status": "ok",
+            "meta": {"tokens": 800},  # 每个任务烧 800 token
+            "quality": {"score": 0.9, "known_gaps": [], "notes": ""},
+            "result": {"outcome": {"kind": "artifact", "artifact": {"path": rel, "title": "x"}}},
+        }, paths.response_dir(ctx.request.agent_id) / f"{ctx.request.interaction_id}.response")
+
+    proc = Process(store, AgentPort(transport, store=store, config=wcfg),
+                   ProcessConfig(token_budget=1000))
+    tasks = [
+        {"id": "t1", "agent": "researcher", "task_type": "research", "dependencies": []},
+        {"id": "t2", "agent": "researcher", "task_type": "research", "dependencies": ["t1"]},
+        {"id": "t3", "agent": "researcher", "task_type": "research", "dependencies": ["t2"]},
+    ]
+    out = proc.run("pro_x", agents=["researcher"], tasks=tasks)
+    # t1 跑完烧 800 → 下一轮检查超 1000 之前还没超；t2 跑完累计 1600 → t3 前超限暂停
+    assert out.tasks["t1"].status == "completed"
+    assert out.tasks["t2"].status == "completed"
+    assert out.tasks["t3"].status == "blocked"
+    assert out.status == "paused"

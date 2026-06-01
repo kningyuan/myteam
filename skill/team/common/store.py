@@ -208,6 +208,17 @@ class Store:
                 f"UPDATE task SET {', '.join(sets)} WHERE project_id=? AND task_id=?", vals
             )
 
+    def update_task_meta(self, project_id: str, task_id: str, **kv) -> None:
+        """合并写入 task.meta（用于存放 agent 摘要/引用等，D16 上下文传递）。"""
+        row = self.get_task(project_id, task_id)
+        meta = (row.get("meta") if row else None) or {}
+        meta.update(kv)
+        with self._conn:
+            self._conn.execute(
+                "UPDATE task SET meta=?, updated_at=? WHERE project_id=? AND task_id=?",
+                (_dumps(meta), _now(), project_id, task_id),
+            )
+
     def get_task(self, project_id: str, task_id: str) -> Optional[dict]:
         row = self._conn.execute(
             "SELECT * FROM task WHERE project_id=? AND task_id=?", (project_id, task_id)
@@ -273,6 +284,28 @@ class Store:
             "SELECT * FROM interaction WHERE interaction_id=?", (interaction_id,)
         ).fetchone()
         return self._row(row) if row else None
+
+    def list_interactions(self, project_id: str) -> list[dict]:
+        rows = self._conn.execute(
+            "SELECT * FROM interaction WHERE project_id=? ORDER BY started_at", (project_id,)
+        ).fetchall()
+        return [self._row(r) for r in rows]
+
+    def tokens_total(self, project_id: str) -> int:
+        row = self._conn.execute(
+            "SELECT COALESCE(SUM(tokens),0) FROM interaction WHERE project_id=?", (project_id,)
+        ).fetchone()
+        return int(row[0])
+
+    def tokens_grouped(self, project_id: str, by: str) -> dict[str, int]:
+        """token 汇总，by ∈ {'agent_id','task_id'}（D17 计量）。"""
+        if by not in ("agent_id", "task_id"):
+            raise ValueError("by 仅支持 agent_id / task_id")
+        rows = self._conn.execute(
+            f"SELECT {by}, COALESCE(SUM(tokens),0) FROM interaction "
+            f"WHERE project_id=? GROUP BY {by}", (project_id,)
+        ).fetchall()
+        return {(r[0] or ""): int(r[1]) for r in rows}
 
     def append_run_event(self, interaction_id: str, kind: str,
                         payload: Optional[dict] = None) -> int:
