@@ -1095,3 +1095,20 @@ html, body {
 .feed-event.evk-budget_alert, .feed-event.evk-watchdog_soft_idle,
 .feed-event.evk-review_unreachable, .feed-event.evk-plan_rejected { border-left-color:var(--warning); }
 .feed-event.evk-message { border-left-color:var(--info); }
+.feed-interaction.clickable { cursor:pointer; }
+.feed-interaction.clickable:hover { background:var(--bg-interactive); }
+
+/* 交互明细（工具调用 + CLI 返回） */
+.trace-body { display:flex; flex-direction:column; gap:8px; }
+.trace-item { border:1px solid var(--border); border-radius:8px; padding:8px 10px; background:var(--bg-elevated); }
+.trace-head { font-size:12px; color:var(--text-secondary); margin-bottom:4px; display:flex; align-items:center; gap:6px; }
+.trace-status { font-size:10px; color:var(--text-tertiary); border:1px solid var(--border); border-radius:4px; padding:0 5px; }
+.trace-path { font-family:var(--font-mono); font-size:11px; color:var(--info); word-break:break-all; }
+.trace-pre { margin:4px 0 0; padding:8px 10px; background:var(--bg-interactive); border-radius:6px; font-family:var(--font-mono); font-size:11px; line-height:1.45; white-space:pre-wrap; word-break:break-word; max-height:240px; overflow:auto; }
+.trace-tag { display:inline-block; font-size:10px; color:var(--success); margin-bottom:2px; }
+.trace-out { margin-top:6px; }
+.trace-noout { font-size:11px; color:var(--text-tertiary); }
+.trace-msg { font-size:12px; line-height:1.5; color:var(--text-primary); white-space:pre-wrap; word-break:break-word; }
+.trace-text { border-left:2px solid var(--primary); }
+.trace-tool { border-left:2px solid var(--success); }
+.trace-mile { border-left:2px solid var(--warning); }

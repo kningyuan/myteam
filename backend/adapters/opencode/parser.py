@@ -34,13 +34,19 @@ def parse_line(line: str) -> list[AgentEvent]:
 
     elif event_type == "tool_use":
         name = part.get("tool") or part.get("name") or ""
+        state = part.get("state", {}) or {}
         tool_input = part.get("input")
         if tool_input is None:
-            tool_input = part.get("state", {}).get("input", {})
-        events.append(AgentEvent(
-            EventKind.TOOL_USE,
-            {"name": name, "input": json.dumps(tool_input, ensure_ascii=False)},
-        ))
+            tool_input = state.get("input", {})
+        payload = {"name": name, "input": json.dumps(tool_input, ensure_ascii=False)}
+        # opencode 把工具返回放在同一个 tool_use 事件的 state.output（无独立 tool_result 事件）
+        output = state.get("output", "")
+        if output:
+            payload["output"] = output if isinstance(output, str) \
+                else json.dumps(output, ensure_ascii=False)
+        if state.get("status"):
+            payload["status"] = state["status"]
+        events.append(AgentEvent(EventKind.TOOL_USE, payload))
 
     elif event_type == "tool_result":
         content = part.get("content", "")

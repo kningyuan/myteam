@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Agent Hub v2.1</title>
-<link rel="stylesheet" href="/static/style.css?v=20">
+<link rel="stylesheet" href="/static/style.css?v=21">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -183,8 +183,13 @@
             </div>
 
             <div class="project-section">
-              <h3>执行过程 <small class="hint">门禁 / 评审 / skill / 消息 / 阻塞 / 预算，按时间</small></h3>
+              <h3>执行过程 <small class="hint">点「交互行」展开明细：发给 CLI 的工具调用 + CLI 返回</small></h3>
               <div id="project-events" class="event-feed">—</div>
+            </div>
+
+            <div id="project-trace" class="project-section hidden">
+              <h3 id="trace-title">交互明细</h3>
+              <div id="trace-body" class="trace-body"></div>
             </div>
 
             <div class="project-section">
@@ -529,6 +534,6 @@
 </template>
 
 <script src="/static/markdown.js?v=1"></script>
-<script src="/static/app.js?v=20"></script>
+<script src="/static/app.js?v=21"></script>
 </body>
 </html>

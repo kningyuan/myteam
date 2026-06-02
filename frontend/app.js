@@ -38,6 +38,7 @@ function cacheDom() {
    'project-list','project-count','project-welcome','project-detail-view',
    'project-title','project-meta','project-progress-text','project-progress-fill',
    'project-tasks','project-fleet','project-cost','project-events',
+   'project-trace','trace-title','trace-body',
    'project-deliverable','deliverable-title','deliverable-meta','deliverable-body',
    'btn-new-project','btn-new-project-welcome','new-project-modal','btn-cancel-project',
    'np-goal','np-title','np-mode','np-budget','np-review','np-submit','np-cancel',
@@ -842,11 +843,11 @@ function renderEventFeed(events) {
       const label = INTERACTION_LABELS[e.kind] || e.kind || '交互';
       const att = e.attempt > 1 ? ` ×${e.attempt}` : '';
       const tok = e.tokens ? ` · ${e.tokens} tok` : '';
-      return `<div class="feed-row feed-interaction status-${esc(e.status || '')}">
+      return `<div class="feed-row feed-interaction clickable status-${esc(e.status || '')}" data-iid="${esc(e.interaction_id || '')}" title="点击查看该次交互明细（工具调用 + CLI 返回）">
         <span class="feed-ts">${esc(ts)}</span>
         <span class="feed-kind">${esc(label)}${att}</span>
         <span class="feed-who">${who}</span>
-        <span class="feed-state">${esc(e.status || '')}${tok}</span>
+        <span class="feed-state">${esc(e.status || '')}${tok} ›</span>
       </div>`;
     }
     const label = EVENT_LABELS[e.kind] || e.kind;
@@ -857,6 +858,53 @@ function renderEventFeed(events) {
       <span class="feed-detail" title="${esc(detail)}">${esc(detail)}</span>
     </div>`;
   }).join('');
+  box.querySelectorAll('.feed-interaction.clickable').forEach(el => {
+    el.addEventListener('click', () => openTrace(el.dataset.iid));
+  });
+}
+
+function fmtToolInput(name, inputStr) {
+  let o; try { o = JSON.parse(inputStr); } catch { return esc(inputStr || ''); }
+  if (o && o.filePath) {
+    const body = o.content != null ? `\n${o.content}` : '';
+    return `<span class="trace-path">${esc(o.filePath)}</span>${body ? `<pre class="trace-pre">${esc(String(body).trim())}</pre>` : ''}`;
+  }
+  if (o && o.command) return `<pre class="trace-pre">$ ${esc(o.command)}</pre>`;
+  return `<pre class="trace-pre">${esc(JSON.stringify(o, null, 2))}</pre>`;
+}
+
+async function openTrace(iid) {
+  if (!iid) return;
+  const panel = DOM['project-trace'];
+  if (!panel) return;
+  panel.classList.remove('hidden');
+  DOM['trace-title'].textContent = `交互明细 · ${iid.split(':').slice(1).join(':') || iid}`;
+  DOM['trace-body'].innerHTML = '<span class="hint">加载中…</span>';
+  try {
+    const r = await fetch(`/api/obs/interactions/${encodeURIComponent(iid)}/timeline`);
+    const d = await r.json();
+    const tl = (d.timeline || []).filter(e => ['tool_use','text','gate_passed','gate_failed','review_done','review_unreachable','error','transport_error','watchdog_soft_idle','watchdog_hard_kill'].includes(e.kind));
+    if (!tl.length) { DOM['trace-body'].innerHTML = '<span class="hint">暂无明细事件</span>'; return; }
+    DOM['trace-body'].innerHTML = tl.map(e => {
+      const p = e.payload || {};
+      if (e.kind === 'tool_use') {
+        const out = p.output ? `<div class="trace-out"><span class="trace-tag">CLI 返回</span><pre class="trace-pre">${esc(String(p.output).slice(0, 4000))}</pre></div>` : '<div class="trace-out trace-noout">（无返回/未完成）</div>';
+        return `<div class="trace-item trace-tool">
+          <div class="trace-head">🛠️ <b>${esc(p.name || 'tool')}</b> ${p.status ? `<span class="trace-status">${esc(p.status)}</span>` : ''}</div>
+          <div class="trace-in">${fmtToolInput(p.name, p.input)}</div>
+          ${out}
+        </div>`;
+      }
+      if (e.kind === 'text') {
+        return `<div class="trace-item trace-text"><div class="trace-head">💬 模型输出</div><div class="trace-msg">${esc(String(p.content || '').slice(0, 4000))}</div></div>`;
+      }
+      const label = EVENT_LABELS[e.kind] || e.kind;
+      return `<div class="trace-item trace-mile"><div class="trace-head">${esc(label)}</div><div class="trace-msg">${esc(eventDetail(e))}</div></div>`;
+    }).join('');
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch (e) {
+    DOM['trace-body'].innerHTML = '加载失败：' + esc(e.message || String(e));
+  }
 }
 
 async function openDeliverable(projectId, taskId) {
