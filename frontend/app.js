@@ -41,6 +41,7 @@ function cacheDom() {
    'project-trace','trace-title','trace-body',
    'home-stats','home-projects','btn-home-new-project',
    'project-deliverable','deliverable-title','deliverable-meta','deliverable-body',
+   'btn-deliverable-copy','btn-deliverable-download',
    'btn-new-project','btn-new-project-welcome','new-project-modal','btn-cancel-project',
    'np-goal','np-title','np-mode','np-budget','np-review','np-submit','np-cancel',
    'btn-theme','theme-dropdown',
@@ -828,6 +829,8 @@ async function selectProject(id, opts = {}) {
   DOM['project-trace']?.classList.add('hidden');
   if (DOM['deliverable-meta']) DOM['deliverable-meta'].textContent = '在「概览」点任意任务查看其交付物正文。';
   if (DOM['deliverable-body']) DOM['deliverable-body'].innerHTML = '';
+  _deliverable = { content: '', taskId: '' };
+  setDeliverableActions(false);
   await refreshProjectDetail(id);
   // 非终态时轮询实时刷新（内核在后台跑）
   S._projectPoll = setInterval(async () => {
@@ -1010,6 +1013,13 @@ async function openTrace(iid) {
   }
 }
 
+let _deliverable = { content: '', taskId: '' };
+
+function setDeliverableActions(visible) {
+  DOM['btn-deliverable-copy']?.classList.toggle('hidden', !visible);
+  DOM['btn-deliverable-download']?.classList.toggle('hidden', !visible);
+}
+
 async function openDeliverable(projectId, taskId) {
   const panel = DOM['project-deliverable'];
   if (!panel) return;
@@ -1017,6 +1027,8 @@ async function openDeliverable(projectId, taskId) {
   DOM['deliverable-title'].textContent = `交付物 · ${taskId}`;
   DOM['deliverable-meta'].textContent = '加载中…';
   DOM['deliverable-body'].innerHTML = '';
+  _deliverable = { content: '', taskId };
+  setDeliverableActions(false);
   try {
     const r = await fetch(`/api/projects/${encodeURIComponent(projectId)}/deliverable/${encodeURIComponent(taskId)}`);
     const d = await r.json();
@@ -1026,6 +1038,8 @@ async function openDeliverable(projectId, taskId) {
       DOM['deliverable-body'].innerHTML = '';
       return;
     }
+    _deliverable = { content: d.content, taskId };
+    setDeliverableActions(true);
     DOM['deliverable-meta'].textContent = `${d.content.length} 字符`;
     DOM['deliverable-body'].innerHTML = typeof renderAgentMarkdown === 'function'
       ? renderAgentMarkdown(d.content)
@@ -1034,6 +1048,29 @@ async function openDeliverable(projectId, taskId) {
   } catch (e) {
     DOM['deliverable-meta'].textContent = '加载失败：' + (e.message || e);
   }
+}
+
+async function copyDeliverable() {
+  if (!_deliverable.content) return;
+  try {
+    await navigator.clipboard.writeText(_deliverable.content);
+    showToast('已复制交付物正文', 'success');
+  } catch (e) {
+    showToast('复制失败：' + (e.message || e), 'error');
+  }
+}
+
+function downloadDeliverable() {
+  if (!_deliverable.content) return;
+  const blob = new Blob([_deliverable.content], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${(_deliverable.taskId || 'deliverable').replace(/[^\w.\-]/g, '_')}.md`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 async function loadBackgroundChats(agentId) {
@@ -2385,6 +2422,8 @@ function setupEventListeners() {
   const closeNewProject = () => DOM['new-project-modal'].classList.add('hidden');
   document.querySelectorAll('.project-subnav .ptab').forEach(b =>
     b.addEventListener('click', () => switchProjectTab(b.dataset.ptab)));
+  DOM['btn-deliverable-copy']?.addEventListener('click', copyDeliverable);
+  DOM['btn-deliverable-download']?.addEventListener('click', downloadDeliverable);
   DOM['btn-new-project']?.addEventListener('click', openNewProject);
   DOM['btn-new-project-welcome']?.addEventListener('click', openNewProject);
   DOM['btn-home-new-project']?.addEventListener('click', openNewProject);

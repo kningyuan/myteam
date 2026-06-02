@@ -940,6 +940,23 @@ html, body {
   border-bottom-color: var(--primary);
   font-weight: 600;
 }
+.deliverable-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.deliverable-actions { display: flex; gap: 6px; }
+.btn-ghost-sm {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.btn-ghost-sm:hover { color: var(--text-primary); border-color: var(--primary); }
 .ptab-panel { display: none; }
 .ptab-panel.active {
   display: flex;
