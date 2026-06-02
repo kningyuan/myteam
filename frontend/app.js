@@ -54,7 +54,7 @@ function cacheDom() {
    'create-agent-modal',
    'set-default-backend','set-default-model','set-port','set-cli-path','set-debug','set-price',
    'set-model-aliases','btn-save-settings','set-status','btn-apply-model-all',
-   'set-use-project-group','set-auto-group','set-hub-url',
+   'set-use-project-group','set-auto-group','set-hub-url','set-default-review',
    'set-poll-interval','set-ack-timeout','set-task-timeout',
    'set-agent-msg-timeout','set-team-config-timeout','set-task-plan-timeout','set-max-retries',
    'mention-dropdown',
@@ -703,15 +703,18 @@ function renderProjectList() {
 }
 
 // ============ Dashboard / 成本 ============
-let _priceRate = null;  // ¥ / 1M tokens（0 或 null = 不显示 ¥）
+let _sysCfg = null;  // 缓存 system 配置（¥费率 / 默认评审等）
+
+async function getSysConfig() {
+  if (_sysCfg) return _sysCfg;
+  try {
+    _sysCfg = (await (await fetch('/api/config')).json()).config?.system || {};
+  } catch { _sysCfg = {}; }
+  return _sysCfg;
+}
 
 async function getPriceRate() {
-  if (_priceRate !== null) return _priceRate;
-  try {
-    const cfg = (await (await fetch('/api/config')).json()).config || {};
-    _priceRate = Number(cfg.system?.price_per_mtok) || 0;
-  } catch { _priceRate = 0; }
-  return _priceRate;
+  return Number((await getSysConfig()).price_per_mtok) || 0;
 }
 
 function fmtYuan(tokens, rate) {
@@ -792,11 +795,25 @@ function stopProjectPoll() {
   if (S._projectPoll) { clearInterval(S._projectPoll); S._projectPoll = null; }
 }
 
+// 幂等渲染：内容没变就不动 DOM（消除轮询导致的闪烁/丢滚动/丢 hover）
+const _renderSig = {};
+function setHtmlIfChanged(el, key, html) {
+  if (!el) return false;
+  if (_renderSig[key] === html) return false;
+  _renderSig[key] = html;
+  el.innerHTML = html;
+  return true;
+}
+function setTextIfChanged(el, val) {
+  if (el && el.textContent !== val) el.textContent = val;
+}
+
 async function selectProject(id, opts = {}) {
   S.currentProjectId = id;
   S.currentAgentId = null;
   S.currentGroupId = null;
   stopProjectPoll();
+  for (const k in _renderSig) delete _renderSig[k];  // 换项目清签名，避免跨项目误判
   renderProjectList();
   DOM['project-welcome'].classList.add('hidden');
   DOM['project-detail-view'].classList.remove('hidden');
@@ -824,17 +841,17 @@ async function refreshProjectDetail(id) {
     const status = ov.status || (rs.running ? 'running' : 'unknown');
     const active = rs.running || !PROJECT_TERMINAL.has(status);
     DOM['btn-cancel-project']?.classList.toggle('hidden', !active);
-    DOM['project-title'].textContent = ov.title || id;
+    setTextIfChanged(DOM['project-title'], ov.title || id);
     const launchErr = rs && rs.error ? ` · ⚠️ ${rs.error}` : '';
-    DOM['project-meta'].textContent = `${id} · ${status}${rs.running ? ' · 运行中' : ''}${launchErr}`;
+    setTextIfChanged(DOM['project-meta'], `${id} · ${status}${rs.running ? ' · 运行中' : ''}${launchErr}`);
     const pct = Math.round((ov.progress || 0) * 100);
-    DOM['project-progress-text'].textContent = `${pct}%`;
-    DOM['project-progress-fill'].style.width = `${pct}%`;
+    setTextIfChanged(DOM['project-progress-text'], `${pct}%`);
+    if (DOM['project-progress-fill'].style.width !== `${pct}%`) DOM['project-progress-fill'].style.width = `${pct}%`;
 
     // 任务 & 产出（点开看交付物）
     const tasks = ov.tasks || [];
     const byTask = (cost && cost.by_task) || {};
-    DOM['project-tasks'].innerHTML = tasks.length
+    const tasksHtml = tasks.length
       ? tasks.map(t => {
           const st = t.status || 'pending';
           const deps = (t.dependencies || []).join(', ');
@@ -851,16 +868,19 @@ async function refreshProjectDetail(id) {
         }).join('')
       : (rs.running ? '<div class="empty">内核启动中（team_config / task_plan 决策中）…</div>'
                     : '<div class="empty">暂无任务</div>');
-    DOM['project-tasks'].querySelectorAll('.task-row.clickable').forEach(el => {
-      el.addEventListener('click', () => openDeliverable(id, el.dataset.task));
-    });
+    if (setHtmlIfChanged(DOM['project-tasks'], 'tasks', tasksHtml)) {
+      DOM['project-tasks'].querySelectorAll('.task-row.clickable').forEach(el => {
+        el.addEventListener('click', () => openDeliverable(id, el.dataset.task));
+      });
+    }
 
     // 舰队状态
     const fl = (fleet && fleet.fleet) || {};
     const flEntries = Object.entries(fl);
-    DOM['project-fleet'].innerHTML = flEntries.length
+    const fleetHtml = flEntries.length
       ? flEntries.map(([a, s]) => `<span class="fleet-chip live-${esc(s)}">${esc(a)} · ${esc(s)}</span>`).join('')
       : '<span class="hint">暂无</span>';
+    setHtmlIfChanged(DOM['project-fleet'], 'fleet', fleetHtml);
 
     // 成本 + 预算
     const total = (cost && cost.project) || 0;
@@ -868,9 +888,9 @@ async function refreshProjectDetail(id) {
     const rate = await getPriceRate();
     const agentRows = Object.entries(byAgent)
       .map(([a, n]) => `<div class="cost-row"><span>${esc(a)}</span><span>${n} tok${fmtYuan(n, rate)}</span></div>`).join('');
-    DOM['project-cost'].innerHTML =
-      budgetBar(total, ov.budget, ov.budget_ratio, ov.budget_state) +
+    const costHtml = budgetBar(total, ov.budget, ov.budget_ratio, ov.budget_state) +
       `<div class="cost-row cost-total"><span>合计</span><span>${total} tok${fmtYuan(total, rate)}</span></div>${agentRows || ''}`;
+    setHtmlIfChanged(DOM['project-cost'], 'cost', costHtml);
 
     renderEventFeed((ev && ev.events) || []);
 
@@ -907,8 +927,7 @@ function eventDetail(e) {
 function renderEventFeed(events) {
   const box = DOM['project-events'];
   if (!box) return;
-  if (!events.length) { box.innerHTML = '<span class="hint">暂无执行事件</span>'; return; }
-  box.innerHTML = events.map(e => {
+  const html = !events.length ? '<span class="hint">暂无执行事件</span>' : events.map(e => {
     const ts = (e.ts || '').replace('T', ' ').slice(5);
     const who = [e.task_id, e.agent_id].filter(Boolean).map(esc).join(' · ');
     if (e.category === 'interaction') {
@@ -930,9 +949,11 @@ function renderEventFeed(events) {
       <span class="feed-detail" title="${esc(detail)}">${esc(detail)}</span>
     </div>`;
   }).join('');
-  box.querySelectorAll('.feed-interaction.clickable').forEach(el => {
-    el.addEventListener('click', () => openTrace(el.dataset.iid));
-  });
+  if (setHtmlIfChanged(box, 'events', html)) {
+    box.querySelectorAll('.feed-interaction.clickable').forEach(el => {
+      el.addEventListener('click', () => openTrace(el.dataset.iid));
+    });
+  }
 }
 
 function fmtToolInput(name, inputStr) {
@@ -1878,6 +1899,7 @@ async function loadSettings() {
     DOM['set-cli-path'].value = cfg.backends?.opencode?.cli_path || '';
     DOM['set-debug'].checked = !!cfg.system?.debug;
     DOM['set-price'].value = cfg.system?.price_per_mtok || '';
+    DOM['set-default-review'].checked = !!cfg.system?.default_review;
     DOM['set-model-aliases'].value = JSON.stringify(cfg.backends?.opencode?.model_aliases || {}, null, 2);
 
     DOM['set-use-project-group'].checked = skillCfg.notifications?.use_project_group !== false;
@@ -1940,6 +1962,7 @@ async function saveSettings() {
     cfg.system.port = port;
     cfg.system.debug = !!DOM['set-debug']?.checked;
     cfg.system.price_per_mtok = Number(DOM['set-price']?.value) || 0;
+    cfg.system.default_review = !!DOM['set-default-review']?.checked;
     cfg.backends = cfg.backends || {};
     cfg.backends.opencode = cfg.backends.opencode || {};
     cfg.backends.opencode.model_aliases = aliases;
@@ -1991,7 +2014,7 @@ async function saveSettings() {
       }),
     ]);
     if (!rSys.ok || !rSkill.ok) throw new Error('保存失败');
-    _priceRate = null;
+    _sysCfg = null;
     showSetStatus('✓ 已保存（端口变更需重启 Hub）', 'success');
   } catch(e) {
     showSetStatus('保存失败: '+e.message, 'error');
@@ -2344,7 +2367,11 @@ function setupEventListeners() {
   DOM['new-group-modal']?.querySelector('.modal-close')?.addEventListener('click', () => DOM['new-group-modal'].classList.add('hidden'));
 
   // New project (发起项目 → 编排内核)
-  const openNewProject = () => { DOM['new-project-modal'].classList.remove('hidden'); DOM['np-goal']?.focus(); };
+  const openNewProject = async () => {
+    DOM['new-project-modal'].classList.remove('hidden');
+    DOM['np-goal']?.focus();
+    if (DOM['np-review']) DOM['np-review'].checked = !!(await getSysConfig()).default_review;
+  };
   const closeNewProject = () => DOM['new-project-modal'].classList.add('hidden');
   DOM['btn-new-project']?.addEventListener('click', openNewProject);
   DOM['btn-new-project-welcome']?.addEventListener('click', openNewProject);

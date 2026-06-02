@@ -13,6 +13,7 @@ DEFAULT_CONFIG = {
         "default_model": "SenseNova/sensenova-6.7-flash-lite",
         "debug": False,
         "price_per_mtok": 0,
+        "default_review": False,
     },
     "backends": {
         "opencode": {

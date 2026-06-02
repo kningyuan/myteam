@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Agent Hub v2.1</title>
-<link rel="stylesheet" href="/static/style.css?v=22">
+<link rel="stylesheet" href="/static/style.css?v=23">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -307,34 +307,43 @@
               <div class="form-group form-row-check">
                 <label><input type="checkbox" id="set-auto-group" checked> team_config 后自动创建项目群</label>
               </div>
-              <div class="form-group">
-                <label>轮询间隔（秒）</label>
-                <input id="set-poll-interval" type="number" placeholder="5" min="1">
+              <div class="form-group form-row-check">
+                <label><input type="checkbox" id="set-default-review"> 新建项目默认开启同行评审</label>
+                <small class="field-hint">勾选后「发起项目」对话框默认勾上评审；单个项目仍可临时改</small>
               </div>
-              <div class="form-group">
-                <label>ACK 超时（秒）</label>
-                <input id="set-ack-timeout" type="number" placeholder="300">
-              </div>
-              <div class="form-group">
-                <label>单任务超时（秒）</label>
-                <input id="set-task-timeout" type="number" placeholder="3600">
-              </div>
-              <div class="form-group">
-                <label>Agent 消息超时（秒）</label>
-                <input id="set-agent-msg-timeout" type="number" placeholder="1800">
-              </div>
-              <div class="form-group">
-                <label>团队配置等待（秒）</label>
-                <input id="set-team-config-timeout" type="number" placeholder="600">
-              </div>
-              <div class="form-group">
-                <label>任务规划等待（秒）</label>
-                <input id="set-task-plan-timeout" type="number" placeholder="600">
-              </div>
-              <div class="form-group">
-                <label>最大重试次数</label>
-                <input id="set-max-retries" type="number" placeholder="3" min="0">
-              </div>
+              <details class="adv-section">
+                <summary>高级：超时与重试</summary>
+                <div class="adv-grid">
+                  <div class="form-group">
+                    <label>轮询间隔（秒）</label>
+                    <input id="set-poll-interval" type="number" placeholder="5" min="1">
+                  </div>
+                  <div class="form-group">
+                    <label>ACK 超时（秒）</label>
+                    <input id="set-ack-timeout" type="number" placeholder="300">
+                  </div>
+                  <div class="form-group">
+                    <label>单任务超时（秒）</label>
+                    <input id="set-task-timeout" type="number" placeholder="3600">
+                  </div>
+                  <div class="form-group">
+                    <label>Agent 消息超时（秒）</label>
+                    <input id="set-agent-msg-timeout" type="number" placeholder="1800">
+                  </div>
+                  <div class="form-group">
+                    <label>团队配置等待（秒）</label>
+                    <input id="set-team-config-timeout" type="number" placeholder="600">
+                  </div>
+                  <div class="form-group">
+                    <label>任务规划等待（秒）</label>
+                    <input id="set-task-plan-timeout" type="number" placeholder="600">
+                  </div>
+                  <div class="form-group">
+                    <label>最大重试次数</label>
+                    <input id="set-max-retries" type="number" placeholder="3" min="0">
+                  </div>
+                </div>
+              </details>
             </section>
           </div>
           <p class="settings-advanced-hint">更多底层参数见 <code>config/skill_config.json</code> 与 <code>skill/team/.env</code></p>
@@ -568,6 +577,6 @@
 </div>
 
 <script src="/static/markdown.js?v=1"></script>
-<script src="/static/app.js?v=22"></script>
+<script src="/static/app.js?v=23"></script>
 </body>
 </html>

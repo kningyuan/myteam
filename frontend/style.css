@@ -1173,3 +1173,12 @@ html, body {
 .budget-label { font-size:11px; color:var(--text-tertiary); }
 .budget-wrap.budget-alert .budget-label { color:var(--warning); }
 .budget-wrap.budget-over .budget-label { color:var(--error); }
+
+/* 设置页：可折叠高级区 */
+.adv-section { margin-top:10px; border-top:1px solid var(--border); padding-top:8px; }
+.adv-section > summary { cursor:pointer; font-size:13px; color:var(--text-secondary); list-style:none; padding:4px 0; user-select:none; }
+.adv-section > summary::-webkit-details-marker { display:none; }
+.adv-section > summary::before { content:'▸ '; color:var(--text-tertiary); }
+.adv-section[open] > summary::before { content:'▾ '; }
+.adv-section > summary:hover { color:var(--text-primary); }
+.adv-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px,1fr)); gap:8px 14px; margin-top:8px; }
