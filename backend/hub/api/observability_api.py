@@ -17,6 +17,10 @@ from fastapi.responses import StreamingResponse
 router = APIRouter(prefix="/api/obs", tags=["observability"])
 
 _TERMINAL = {"done", "failed", "timed_out", "cancelled"}
+_PROJECT_TERMINAL = {
+    "completed", "failed", "partially_failed", "aborted",
+    "cancelled", "paused", "timed_out",
+}
 
 
 def _ensure_common_importable() -> None:
@@ -142,6 +146,63 @@ async def project_events(project_id: str):
         return {"events": _obs().project_events(store, project_id)}
     finally:
         store.close()
+
+
+def _project_signature(project_id: str) -> tuple[str, str | None]:
+    """计算项目变更签名（状态 + 进度 + 各任务状态 + token），用于 SSE 去抖。"""
+    store = _store()
+    try:
+        ov = _obs().project_overview(store, project_id)
+    finally:
+        store.close()
+    status = ov.get("status")
+    sig = json.dumps(
+        {
+            "s": status,
+            "p": ov.get("progress"),
+            "t": sorted((t.get("id"), t.get("status")) for t in ov.get("tasks", [])),
+            "tok": ov.get("tokens"),
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    return sig, status
+
+
+@router.get("/projects/{project_id}/stream")
+async def project_stream(request: Request, project_id: str):
+    """项目级 SSE：服务端轮询真相库，仅在状态/任务/token 变化时推一帧 tick，
+    前端据此刷新（替代固定 2.5s 客户端轮询）。终态后收尾关闭。"""
+    async def event_stream():
+        last_sig = None
+        while True:
+            if await request.is_disconnected():
+                break
+            try:
+                sig, status = await asyncio.to_thread(_project_signature, project_id)
+            except Exception:  # noqa: BLE001 - 真相库瞬时不可用时降级为 keepalive
+                yield ": keepalive\n\n"
+                await asyncio.sleep(2.0)
+                continue
+            if sig != last_sig:
+                last_sig = sig
+                yield "data: " + json.dumps({"status": status}, ensure_ascii=False) + "\n\n"
+            else:
+                yield ": keepalive\n\n"
+            if status in _PROJECT_TERMINAL:
+                yield "data: [DONE]\n\n"
+                break
+            await asyncio.sleep(1.5)
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/projects/{project_id}/fleet")

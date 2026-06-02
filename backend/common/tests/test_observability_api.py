@@ -123,6 +123,22 @@ def test_timeline(client):
     assert kinds == ["step_start", "step_finish"]
 
 
+def test_project_stream_until_done(client):
+    # 终态项目：stream 应推一帧 data 后立即收尾 [DONE]
+    s = obs_api._store()
+    s.upsert_project("pdone", title="done", status="completed")
+    s.close()
+    with client.stream("GET", "/api/obs/projects/pdone/stream") as resp:
+        assert resp.status_code == 200
+        body = ""
+        for chunk in resp.iter_text():
+            body += chunk
+            if "[DONE]" in body:
+                break
+    assert '"status": "completed"' in body
+    assert "[DONE]" in body
+
+
 def test_events_sse_streams_until_done(client):
     with client.stream("GET", f"/api/obs/interactions/{IID}/events") as resp:
         assert resp.status_code == 200

@@ -796,6 +796,43 @@ async function deleteProject(id) {
 
 function stopProjectPoll() {
   if (S._projectPoll) { clearInterval(S._projectPoll); S._projectPoll = null; }
+  if (S._projectStream) { try { S._projectStream.close(); } catch (e) {} S._projectStream = null; }
+}
+
+// 固定间隔轮询（SSE 不可用时的兜底）
+function startProjectPoll(id) {
+  S._projectPoll = setInterval(async () => {
+    if (S.currentProjectId !== id) { stopProjectPoll(); return; }
+    const done = await refreshProjectDetail(id);
+    if (done) { stopProjectPoll(); loadProjects().then(renderProjectList); }
+  }, 2500);
+}
+
+// 优先用项目级 SSE：服务端只在变化时推 tick，前端据此刷新；连接失败回退轮询
+function connectProjectStream(id) {
+  if (typeof EventSource === 'undefined') { startProjectPoll(id); return; }
+  let es;
+  try {
+    es = new EventSource(`/api/obs/projects/${encodeURIComponent(id)}/stream`);
+  } catch (e) { startProjectPoll(id); return; }
+  S._projectStream = es;
+  es.onmessage = async (ev) => {
+    if (S.currentProjectId !== id) { stopProjectPoll(); return; }
+    if (ev.data === '[DONE]') {
+      await refreshProjectDetail(id);
+      stopProjectPoll();
+      loadProjects().then(renderProjectList);
+      return;
+    }
+    const done = await refreshProjectDetail(id);
+    if (done) { stopProjectPoll(); loadProjects().then(renderProjectList); }
+  };
+  es.onerror = () => {
+    // 连接中断：关掉 SSE，退回轮询（避免 EventSource 自动重连风暴）
+    try { es.close(); } catch (e) {}
+    if (S._projectStream === es) S._projectStream = null;
+    if (S.currentProjectId === id && !S._projectPoll) startProjectPoll(id);
+  };
 }
 
 let _boundGroupId = '';
@@ -846,13 +883,9 @@ async function selectProject(id, opts = {}) {
   _deliverable = { content: '', taskId: '' };
   setDeliverableActions(false);
   await updateBoundGroupButton(id);
-  await refreshProjectDetail(id);
-  // 非终态时轮询实时刷新（内核在后台跑）
-  S._projectPoll = setInterval(async () => {
-    if (S.currentProjectId !== id) { stopProjectPoll(); return; }
-    const done = await refreshProjectDetail(id);
-    if (done) { stopProjectPoll(); loadProjects().then(renderProjectList); }
-  }, 2500);
+  const done = await refreshProjectDetail(id);
+  // 非终态时用 SSE 实时刷新（内核在后台跑）；终态则不连
+  if (!done) connectProjectStream(id);
   if (!opts.restore) saveUiState();
 }
 
