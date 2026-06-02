@@ -427,7 +427,9 @@ class Process:
         passed = bool(result.get("passed"))
         self.store.append_run_event(iid, "review_done",
                                     {"passed": passed, "feedback": result.get("feedback", "")})
-        return status if passed else "needs_review"
+        # reviewer 是权威：通过 → 升级为 completed（即便自评因 known_gaps 标了 needs_review）；
+        # 打回 → needs_review（不静默通过）。
+        return "completed" if passed else "needs_review"
 
     # ── triage（重试耗尽 → 委托 Main 决策，D18）───────────────
 

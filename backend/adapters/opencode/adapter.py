@@ -1,7 +1,9 @@
 """OpenCode CLI Adapter 实例。"""
 
 import os
+import signal
 import subprocess
+import threading
 import time
 from pathlib import Path
 from typing import Generator
@@ -138,6 +140,8 @@ class OpenCodeAdapter(CLIAdapter):
 
         proc = None
         cancelled = False
+        stop_watch = threading.Event()
+        watcher = None
         try:
             proc = subprocess.Popen(
                 cmd, cwd=request.workspace, env=env,
@@ -145,6 +149,22 @@ class OpenCodeAdapter(CLIAdapter):
                 stderr=subprocess.PIPE, text=True, bufsize=1,
                 start_new_session=True,
             )
+            # 看门狗在 opencode 空闲时会置 cancel_event，但此时 `for line in proc.stdout`
+            # 正阻塞读、不会再检查取消标志。用旁路线程监听取消并杀「整个进程组」——既能
+            # 解除 stdout 阻塞（管道关闭→循环结束），又能连 opencode 的子进程一起回收，
+            # 避免被孤儿化（reparent 到 init）造成进程泄漏。
+            cancel_event = request.cancel_event
+            if cancel_event is not None:
+                def _canceller(p=proc, ev=cancel_event, stop=stop_watch):
+                    while not stop.wait(0.3):
+                        if p.poll() is not None:
+                            return
+                        if ev.is_set():
+                            self._terminate_group(p)
+                            return
+                watcher = threading.Thread(target=_canceller, daemon=True)
+                watcher.start()
+
             try:
                 proc.stdin.write(request.message)
             except Exception:
@@ -152,11 +172,11 @@ class OpenCodeAdapter(CLIAdapter):
             proc.stdin.close()
 
             for line in proc.stdout:
-                if request.cancel_event and request.cancel_event.is_set():
+                if cancel_event and cancel_event.is_set():
                     cancelled = True
                     break
                 if time.time() - start > timeout:
-                    proc.kill()
+                    self._terminate_group(proc)
                     yield AgentEvent(EventKind.ERROR, {"message": "执行超时"})
                     return
                 for ev in parse_line(line):
@@ -175,12 +195,40 @@ class OpenCodeAdapter(CLIAdapter):
         except Exception as e:
             yield AgentEvent(EventKind.ERROR, {"message": str(e)})
         finally:
-            if proc is not None and proc.poll() is None:
-                try:
-                    proc.kill()
-                    proc.wait(timeout=2)
-                except Exception:
-                    pass
+            stop_watch.set()
+            self._terminate_group(proc)
+            if watcher is not None:
+                watcher.join(timeout=1)
+
+    @staticmethod
+    def _terminate_group(proc) -> None:
+        """杀掉整个进程组（opencode 以 start_new_session=True 起，其子进程同组）。
+
+        先 SIGTERM 整组、给 2s 退出窗口，未退则 SIGKILL；拿不到进程组时退回单进程 kill。
+        """
+        if proc is None or proc.poll() is not None:
+            return
+        try:
+            pgid = os.getpgid(proc.pid)
+        except (ProcessLookupError, OSError):
+            pgid = None
+        try:
+            if pgid is not None:
+                os.killpg(pgid, signal.SIGTERM)
+            else:
+                proc.terminate()
+            try:
+                proc.wait(timeout=2)
+                return
+            except subprocess.TimeoutExpired:
+                pass
+            if pgid is not None:
+                os.killpg(pgid, signal.SIGKILL)
+            else:
+                proc.kill()
+            proc.wait(timeout=2)
+        except (ProcessLookupError, OSError, subprocess.TimeoutExpired):
+            pass
 
 
 registry.register(OpenCodeAdapter())

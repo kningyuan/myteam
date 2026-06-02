@@ -354,6 +354,30 @@ def test_review_reject_to_needs_review(env):
     assert out.tasks["t1"].status == "needs_review"  # 评审打回 → 不静默通过
 
 
+def test_review_approve_promotes_low_selfassess_to_completed(env):
+    """自评有 known_gaps → 自评判定 needs_review；但 reviewer 批准 → 升级为 completed。"""
+    store, wcfg = env
+    reviews = []
+    low_q = {"score": 0.9, "known_gaps": ["未覆盖 X"], "notes": "有缺口"}
+
+    def transport(ctx):
+        ctx.emit("step_start")
+        req = ctx.request
+        rp = paths.response_dir(req.agent_id) / f"{req.interaction_id}.response"
+        if req.kind == "review":
+            reviews.append((req.task_id, req.agent_id))
+            submit({"interaction_id": req.interaction_id, "kind": "review", "status": "ok",
+                    "quality": GOOD_Q, "result": {"passed": True, "feedback": ""}}, rp)
+            return
+        _write_exec(ctx, valid_content("research"), low_q)
+
+    proc = Process(store, _port(store, wcfg, transport),
+                   ProcessConfig(review_enabled=True))
+    out = proc.run("pro_x", agents=["researcher", "product"], tasks=_reviewed_task())
+    assert out.tasks["t1"].status == "completed"
+    assert reviews == [("t1", "product")]
+
+
 def test_review_enabled_but_no_reviewer_skips(env):
     store, wcfg = env
     reviews = []
