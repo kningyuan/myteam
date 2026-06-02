@@ -299,3 +299,61 @@ def test_task_plan_out_of_team_exhausted_raises(env):
     with pytest.raises(RuntimeError, match="团队外"):
         proc.run("pro_x", goal="GEO")
     assert calls["plan"] == 2  # 用尽重试上限
+
+
+# ── recurring：周期循环 + 轮次继承（D10）──────────────────────
+
+
+def _recurring_transport(seen, *, fail_all=False):
+    """team_config 一次定 team；每周期 task_plan 返回单任务；记录注入的 prior_summary。"""
+    def transport(ctx):
+        ctx.emit("step_start")
+        req = ctx.request
+        rp = paths.response_dir(req.agent_id) / f"{req.interaction_id}.response"
+        if req.kind == "team_config":
+            submit({"interaction_id": req.interaction_id, "kind": "team_config",
+                    "status": "ok", "result": {"agents": ["researcher"]}}, rp)
+        elif req.kind == "task_plan":
+            seen.append((req.input or {}).get("prior_summary", ""))
+            submit({"interaction_id": req.interaction_id, "kind": "task_plan", "status": "ok",
+                    "result": {"tasks": [{"id": "task_001", "name": "调研", "agent": "researcher",
+                                          "task_type": "research", "description": "做调研",
+                                          "dependencies": []}]}}, rp)
+        elif req.kind == "execute":
+            content = bad_content("research") if fail_all else valid_content("research")
+            _write_exec(ctx, content, GOOD_Q)
+        elif req.kind == "triage":
+            submit({"interaction_id": req.interaction_id, "kind": "triage", "status": "ok",
+                    "result": {"decision": "drop"}}, rp)
+    return transport
+
+
+def test_recurring_runs_cycles_with_inheritance(env):
+    store, wcfg = env
+    seen: list[str] = []
+    proc = Process(store, _port(store, wcfg, _recurring_transport(seen)),
+                   ProcessConfig(mode="recurring", max_cycles=2))
+    out = proc.run("pro_r", goal="持续优化", agents=["researcher"])
+
+    assert out.status == "completed"
+    # 两个周期，task id 带周期前缀，互不覆盖
+    assert set(out.tasks) == {"c1_task_001", "c2_task_001"}
+    assert all(o.status == "completed" for o in out.tasks.values())
+    # 轮次继承：周期1 无 prior，周期2 注入了非空滚动摘要
+    assert seen[0] == "" and seen[1] and seen[1] != ""
+    # 每周期滚动摘要落 KB
+    mem = store.memory_search(project_id="pro_r", tags=["cycle_summary"])
+    assert len(mem) == 2
+
+
+def test_recurring_stops_on_zero_progress(env):
+    store, wcfg = env
+    seen: list[str] = []
+    proc = Process(store, _port(store, wcfg, _recurring_transport(seen, fail_all=True)),
+                   ProcessConfig(mode="recurring", max_cycles=3, max_gate_retries=1))
+    out = proc.run("pro_r", goal="持续优化", agents=["researcher"])
+
+    assert out.status == "failed"
+    # 第一周期零完成即停，不会跑满 max_cycles
+    assert set(out.tasks) == {"c1_task_001"}
+    assert len(seen) == 1

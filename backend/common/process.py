@@ -43,6 +43,7 @@ class ProcessConfig:
     inject_context: bool = True            # 注入直接上游摘要+引用（D16 第 1 层）
     token_budget: Optional[int] = None     # per-project token 硬上限（D17；None=不限）
     budget_alert_ratio: float = 0.8        # 预算告警阈值
+    max_cycles: int = 3                    # recurring 模式的周期上限（防空转，D10）
 
 
 @dataclass
@@ -85,6 +86,13 @@ def topological_order(tasks: list[dict]) -> list[str]:
     return order
 
 
+def _prefix_cycle(tasks: list[dict], cycle: int) -> list[dict]:
+    """给一轮任务的 id 与依赖加 ``cN_`` 前缀，避免跨周期覆盖、便于可观测区分轮次。"""
+    pref = f"c{cycle}_"
+    return [{**t, "id": pref + t["id"],
+             "dependencies": [pref + d for d in t.get("dependencies", [])]} for t in tasks]
+
+
 class Process:
     def __init__(self, store: Store, port: AgentPort, config: Optional[ProcessConfig] = None):
         self.store = store
@@ -105,15 +113,21 @@ class Process:
                                   status="in_progress")
         if agents is None:
             agents = self._team_config(project_id, goal)
+        # recurring：未预置 tasks 时走周期循环（周期迭代 + 轮次继承，D10）
+        if self.config.mode == "recurring" and tasks is None:
+            return self._run_recurring(project_id, goal, agents)
         if tasks is None:
             tasks = self._task_plan(project_id, goal, agents)
+        self._persist_tasks(project_id, tasks)
+        return self._dispatch(project_id, tasks)
+
+    def _persist_tasks(self, project_id: str, tasks: list[dict]) -> None:
         for t in tasks:
             self.store.upsert_task(
                 project_id, t["id"], name=t.get("name", ""), agent=t.get("agent", ""),
                 reviewer=t.get("reviewer", ""), task_type=t.get("task_type", ""),
                 dependencies=t.get("dependencies", []), status="pending",
             )
-        return self._dispatch(project_id, tasks)
 
     # ── team_config / task_plan（决策类 Interaction）──────────
 
@@ -129,18 +143,26 @@ class Process:
             raise RuntimeError(f"team_config 失败：{res.status} {res.reason}")
         return res.response["result"]["agents"]
 
-    def _task_plan(self, project_id: str, goal: str, agents: list[str]) -> list[dict]:
+    def _task_plan(self, project_id: str, goal: str, agents: list[str],
+                   *, cycle: int = 0, prior_summary: str = "") -> list[dict]:
         """规划任务 DAG。硬校验：每个任务的 agent 必须 ∈ team（team_config 选出的名册）；
-        越界则带 feedback 重试，耗尽仍越界则显式失败（不让漏网 agent 进调度）。"""
+        越界则带 feedback 重试，耗尽仍越界则显式失败（不让漏网 agent 进调度）。
+
+        recurring：cycle>0 时带上一周期的滚动摘要做轮次继承（注入 input.prior_summary）。"""
         team = set(agents)
         feedback: list[str] = []
         bad: list[str] = []
+        base_iid = f"{project_id}:task_plan" + (f":c{cycle}" if cycle else "")
+        plan_input = {"goal": goal, "team": agents}
+        if cycle:
+            plan_input["cycle"] = cycle
+            plan_input["prior_summary"] = prior_summary
         for attempt in range(1, self.config.max_plan_retries + 1):
-            iid = f"{project_id}:task_plan" + ("" if attempt == 1 else f":{attempt}")
+            iid = base_iid + ("" if attempt == 1 else f":{attempt}")
             req = {
                 "interaction_id": iid,
                 "kind": "task_plan", "project_id": project_id, "agent_id": "main",
-                "intent": "规划任务与依赖", "input": {"goal": goal, "team": agents},
+                "intent": "规划任务与依赖", "input": plan_input,
                 "response_schema": "task_plan.result@1.0",
                 "retry_feedback": feedback,
             }
@@ -157,9 +179,57 @@ class Process:
         raise RuntimeError(
             f"task_plan 指派了团队外 agent {bad}（重试 {self.config.max_plan_retries} 次仍未修正）")
 
+    # ── recurring：周期循环 + 轮次继承（D10）────────────────────
+
+    def _run_recurring(self, project_id: str, goal: str, agents: list[str]) -> ProjectOutcome:
+        """有界周期循环：每周期重规划（注入上一周期滚动摘要）→ 跑 DAG → 摘要滚动入 KB。
+
+        团队 team_config 一次定、各周期复用。停止条件（任一）：达到 max_cycles、外部取消、
+        中止/超预算、或本周期零完成（避免空转）。项目状态由本循环统一收尾，不在周期间反复落终态。
+        """
+        overall: dict[str, TaskOutcome] = {}
+        prior_summary = ""
+        stop_status: Optional[str] = None
+        for cycle in range(1, max(1, self.config.max_cycles) + 1):
+            if self._is_cancelled(project_id):
+                stop_status = "cancelled"
+                break
+            tasks = _prefix_cycle(
+                self._task_plan(project_id, goal, agents,
+                                cycle=cycle, prior_summary=prior_summary),
+                cycle)
+            self._persist_tasks(project_id, tasks)
+            outcome = self._dispatch(project_id, tasks, persist=False)
+            overall.update(outcome.tasks)
+            prior_summary = self._cycle_summary(project_id, tasks)
+            self.store.memory_write(project_id, f"周期 {cycle} 滚动摘要", prior_summary,
+                                    tags=["cycle_summary"])
+            self.store.append_run_event(f"{project_id}:cycle:{cycle}", "cycle_done",
+                                        {"status": outcome.status})
+            if outcome.status in ("cancelled", "aborted", "paused"):
+                stop_status = outcome.status
+                break
+            if not any(o.status in TERMINAL_OK for o in outcome.tasks.values()):
+                stop_status = "failed"  # 本周期零产出 → 停，避免无意义空转
+                break
+        final = stop_status or "completed"
+        self.store.set_project_status(project_id, final)
+        return ProjectOutcome(project_id, final, overall)
+
+    def _cycle_summary(self, project_id: str, tasks: list[dict]) -> str:
+        """把本周期各任务的成果摘要拼成一份滚动摘要，作为下一周期 task_plan 的上下文。"""
+        parts: list[str] = []
+        for t in tasks:
+            row = self.store.get_task(project_id, t["id"]) or {}
+            summary = (row.get("meta") or {}).get("summary")
+            if summary:
+                parts.append(f"- {row.get('name') or t['id']}: {summary}")
+        return "\n".join(parts) or "（本周期无可用摘要）"
+
     # ── DAG 调度（串行，D12）──────────────────────────────────
 
-    def _dispatch(self, project_id: str, tasks: list[dict]) -> ProjectOutcome:
+    def _dispatch(self, project_id: str, tasks: list[dict],
+                  *, persist: bool = True) -> ProjectOutcome:
         by_id = {t["id"]: t for t in tasks}
         order = topological_order(tasks)
         outcomes: dict[str, TaskOutcome] = {}
@@ -197,7 +267,8 @@ class Process:
                 # drop：保持 failed，不再处理
             outcomes[tid] = outcome
 
-        proj_status = self._finalize(project_id, outcomes, aborted, paused, cancelled)
+        proj_status = self._finalize(project_id, outcomes, aborted, paused, cancelled,
+                                     persist=persist)
         return ProjectOutcome(project_id, proj_status, outcomes)
 
     def _is_cancelled(self, project_id: str) -> bool:
@@ -352,7 +423,8 @@ class Process:
         return TaskOutcome(tid, "blocked", reason)
 
     def _finalize(self, project_id: str, outcomes: dict[str, TaskOutcome],
-                  aborted: bool, paused: bool = False, cancelled: bool = False) -> str:
+                  aborted: bool, paused: bool = False, cancelled: bool = False,
+                  persist: bool = True) -> str:
         statuses = {o.status for o in outcomes.values()}
         if cancelled:
             status = "cancelled"
@@ -366,5 +438,6 @@ class Process:
             status = "partially_failed"
         else:
             status = "failed"
-        self.store.set_project_status(project_id, status)
+        if persist:
+            self.store.set_project_status(project_id, status)
         return status
