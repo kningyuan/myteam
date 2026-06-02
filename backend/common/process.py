@@ -25,6 +25,7 @@ from common.agent_port import AgentPort
 from common.gate import check_execute
 from common.observability import BudgetConfig, check_budget
 from common.paths import deliverables_dir
+from common.registry import get_spec
 from common.store import Store
 
 TERMINAL_OK = {"completed", "needs_review"}
@@ -340,6 +341,8 @@ class Process:
                                      enforce_must_include=self.config.enforce_must_include)
             if gate_res.passed:
                 status = self._quality_status(resp)
+                if self.config.review_enabled:
+                    status = self._peer_review(project_id, task, status, task_type, rel_path)
                 self.store.set_task_status(project_id, tid, status)
                 self._capture_summary(project_id, tid, resp, rel_path)
                 self.store.append_run_event(req["interaction_id"], "gate_passed",
@@ -390,6 +393,39 @@ class Process:
         if gaps or (isinstance(score, (int, float)) and score < self.config.quality_floor):
             return "needs_review"
         return "completed"
+
+    # ── 同行评审（开关 review_enabled；reviewer 由 main 在 task_plan 指派）──
+
+    def _peer_review(self, project_id: str, task: dict, status: str,
+                     task_type: str, rel_path: str) -> str:
+        """开关打开且 main 指派了 reviewer 时，发 kind=review 给该 agent 对照验收标准评审。
+
+        判责：机制（何时评/契约/打回语义）= 框架；选谁评 = main；标准 = 业务配置
+        （acceptance_criteria @ 注册表）；判断 = reviewer agent。打回 → needs_review（不静默通过）。
+        """
+        tid = task["id"]
+        reviewer = (self.store.get_task(project_id, tid) or {}).get("reviewer") \
+            or task.get("reviewer", "")
+        if not reviewer:
+            return status  # 开关开但 main 未指派 reviewer：视为本任务无需评审
+        spec = get_spec(task_type) if task_type else None
+        iid = f"{project_id}:{tid}:review"
+        res = self.port.run({
+            "interaction_id": iid, "kind": "review",
+            "project_id": project_id, "task_id": tid, "agent_id": reviewer,
+            "intent": f"评审任务 {tid} 的交付物",
+            "input": {"task": task, "deliverable_path": rel_path,
+                      "acceptance_criteria": spec.acceptance_criteria if spec else []},
+            "response_schema": "review.result@1.0",
+        })
+        if res.status != "done":
+            self.store.append_run_event(iid, "review_unreachable", {"reason": res.reason})
+            return "needs_review"  # 评审不可达 → 质量未确认，不静默放行
+        result = res.response.get("result", {})
+        passed = bool(result.get("passed"))
+        self.store.append_run_event(iid, "review_done",
+                                    {"passed": passed, "feedback": result.get("feedback", "")})
+        return status if passed else "needs_review"
 
     # ── triage（重试耗尽 → 委托 Main 决策，D18）───────────────
 

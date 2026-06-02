@@ -29,7 +29,7 @@ from common.store import Store
 
 def run_project(project_id: str, *, goal: str = "", title: str = "",
                 mode: str = "one_shot", token_budget: Optional[int] = None,
-                max_cycles: int = 3,
+                max_cycles: int = 3, review: bool = False,
                 store: Optional[Store] = None, transport=None,
                 watchdog: Optional[WatchdogConfig] = None,
                 config: Optional[ProcessConfig] = None) -> ProjectOutcome:
@@ -42,7 +42,7 @@ def run_project(project_id: str, *, goal: str = "", title: str = "",
     port = AgentPort(transport, store=store, config=watchdog or WatchdogConfig())
     proc = Process(store, port,
                    config or ProcessConfig(mode=mode, token_budget=token_budget,
-                                           max_cycles=max_cycles))
+                                           max_cycles=max_cycles, review_enabled=review))
     return proc.run(project_id, title=title, goal=goal)
 
 
@@ -54,10 +54,13 @@ def main(argv: Optional[list[str]] = None) -> int:
     p.add_argument("--mode", choices=["one_shot", "recurring"], default="one_shot")
     p.add_argument("--budget", type=int, default=None, help="per-project token 硬上限")
     p.add_argument("--max-cycles", type=int, default=3, help="recurring 模式的周期上限")
+    p.add_argument("--review", action="store_true",
+                   help="开启同行评审（reviewer 由 main 在 task_plan 指派）")
     a = p.parse_args(argv)
 
     out = run_project(a.project_id, goal=a.goal, title=a.title,
-                      mode=a.mode, token_budget=a.budget, max_cycles=a.max_cycles)
+                      mode=a.mode, token_budget=a.budget, max_cycles=a.max_cycles,
+                      review=a.review)
     print(json.dumps({
         "project_id": out.project_id, "status": out.status,
         "tasks": {tid: {"status": o.status, "attempts": o.attempts, "reason": o.reason}

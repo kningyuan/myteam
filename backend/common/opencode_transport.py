@@ -105,6 +105,17 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
             '{"kind":"artifact","artifact":{"path":"%s","format":"markdown","title":"..."}}' % rel
         )
         result_hint = '"result": {"outcome": %s}' % outcome_hint
+    elif kind == "review":
+        rel = (req.input or {}).get("deliverable_path", f"{req.task_id}_deliverable.md")
+        abs_dv = deliv_dir / rel
+        criteria = (req.input or {}).get("acceptance_criteria") or []
+        lines.append(f"请打开并通读交付物文件：{abs_dv}")
+        if criteria:
+            lines.append("逐条对照以下验收标准评审：")
+            for c in criteria:
+                lines.append(f"  - {c}")
+        lines.append("整体达标则 passed=true；否则 passed=false，并在 feedback 写明须修正之处。")
+        result_hint = '"result": %s' % _RESULT_SKELETON["review"]
     else:
         lines.append("输入数据：")
         lines.append(json.dumps(req.input or {}, ensure_ascii=False))

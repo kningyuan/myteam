@@ -301,6 +301,71 @@ def test_task_plan_out_of_team_exhausted_raises(env):
     assert calls["plan"] == 2  # 用尽重试上限
 
 
+# ── 同行评审（开关 review_enabled）────────────────────────────
+
+
+def _review_transport(reviews, *, approved=True):
+    """execute 正常产出；review 由 reviewer 返回 passed=approved。records 记录被调用的评审。"""
+    def transport(ctx):
+        ctx.emit("step_start")
+        req = ctx.request
+        rp = paths.response_dir(req.agent_id) / f"{req.interaction_id}.response"
+        if req.kind == "review":
+            reviews.append((req.task_id, req.agent_id))
+            submit({"interaction_id": req.interaction_id, "kind": "review", "status": "ok",
+                    "quality": GOOD_Q,
+                    "result": {"passed": approved, "feedback": "" if approved else "缺数据"}}, rp)
+            return
+        _write_exec(ctx, valid_content("research"), GOOD_Q)
+    return transport
+
+
+def _reviewed_task():
+    return [{"id": "t1", "agent": "researcher", "task_type": "research",
+             "reviewer": "product", "dependencies": []}]
+
+
+def test_review_switch_off_no_review(env):
+    store, wcfg = env
+    reviews = []
+    proc = Process(store, _port(store, wcfg, _review_transport(reviews)),
+                   ProcessConfig(review_enabled=False))
+    out = proc.run("pro_x", agents=["researcher", "product"], tasks=_reviewed_task())
+    assert out.tasks["t1"].status == "completed"
+    assert reviews == []  # 开关关：即便指派了 reviewer 也不评审
+
+
+def test_review_approve_keeps_status(env):
+    store, wcfg = env
+    reviews = []
+    proc = Process(store, _port(store, wcfg, _review_transport(reviews, approved=True)),
+                   ProcessConfig(review_enabled=True))
+    out = proc.run("pro_x", agents=["researcher", "product"], tasks=_reviewed_task())
+    assert out.tasks["t1"].status == "completed"
+    assert reviews == [("t1", "product")]  # 评审发给了 main 指派的 reviewer
+
+
+def test_review_reject_to_needs_review(env):
+    store, wcfg = env
+    reviews = []
+    proc = Process(store, _port(store, wcfg, _review_transport(reviews, approved=False)),
+                   ProcessConfig(review_enabled=True))
+    out = proc.run("pro_x", agents=["researcher", "product"], tasks=_reviewed_task())
+    assert out.tasks["t1"].status == "needs_review"  # 评审打回 → 不静默通过
+
+
+def test_review_enabled_but_no_reviewer_skips(env):
+    store, wcfg = env
+    reviews = []
+    proc = Process(store, _port(store, wcfg, _review_transport(reviews)),
+                   ProcessConfig(review_enabled=True))
+    out = proc.run("pro_x", agents=["researcher"],
+                   tasks=[{"id": "t1", "agent": "researcher", "task_type": "research",
+                           "dependencies": []}])
+    assert out.tasks["t1"].status == "completed"
+    assert reviews == []  # 开关开但 main 未指派 reviewer → 跳过
+
+
 # ── recurring：周期循环 + 轮次继承（D10）──────────────────────
 
 

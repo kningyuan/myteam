@@ -40,7 +40,7 @@ function cacheDom() {
    'project-tasks','project-fleet','project-cost',
    'project-deliverable','deliverable-title','deliverable-meta','deliverable-body',
    'btn-new-project','btn-new-project-welcome','new-project-modal','btn-cancel-project',
-   'np-goal','np-title','np-mode','np-budget','np-submit','np-cancel',
+   'np-goal','np-title','np-mode','np-budget','np-review','np-submit','np-cancel',
    'btn-theme','theme-dropdown',
    'modal-overlay','agent-config-modal','modal-backend','modal-model','modal-agent-info',
    'modal-save','modal-cancel','btn-agent-config',
@@ -2111,6 +2111,7 @@ function setupEventListeners() {
     };
     const budget = parseInt(DOM['np-budget'].value, 10);
     if (!isNaN(budget) && budget > 0) payload.budget = budget;
+    if (DOM['np-review']?.checked) payload.review = true;
     DOM['np-submit'].disabled = true;
     try {
       const r = await fetch('/api/projects/run', {
