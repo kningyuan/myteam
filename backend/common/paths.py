@@ -13,6 +13,7 @@ TEAM_SKILL_DIR = MYTEAM_ROOT / "skill" / "team"
 SKILL_DIR = MYTEAM_ROOT / "skill"
 CONFIG_DIR = MYTEAM_ROOT / "config"
 BUSINESS_DIR = MYTEAM_ROOT / "business"
+BUSINESS_CONFIG_DIR = BUSINESS_DIR / "config"
 
 TASKS_DIR = BUSINESS_DIR / "tasks"
 PROJECTS_DIR = TASKS_DIR / "project"
@@ -22,7 +23,7 @@ LOGS_DIR = TASKS_DIR / "_logs"
 WORKSPACE_PREFIX = "workspace-"
 
 SESSION_MAP_FILE = Path(
-    os.environ.get("MYTEAM_SESSION_MAP", str(CONFIG_DIR / "session_map.json"))
+    os.environ.get("MYTEAM_SESSION_MAP", str(BUSINESS_CONFIG_DIR / "session_map.json"))
 )
 MYTEAM_HUB_URL = os.environ.get("MYTEAM_HUB_URL", "http://127.0.0.1:8765").rstrip("/")
 

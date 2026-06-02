@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from common.paths import (
-    CONFIG_DIR,
+    BUSINESS_CONFIG_DIR,
     MYTEAM_ROOT,
     deliverables_dir,
     response_dir,
@@ -55,7 +55,7 @@ def _default_request_factory(**kw):
 
 
 def _load_agents_config() -> dict:
-    path = CONFIG_DIR / "agents_config.json"
+    path = BUSINESS_CONFIG_DIR / "agents_config.json"
     if not path.exists():
         return {}
     try:

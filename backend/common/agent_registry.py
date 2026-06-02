@@ -6,9 +6,9 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from common.paths import CONFIG_DIR, MYTEAM_ROOT, WORKSPACES_DIR, WORKSPACE_PREFIX
+from common.paths import BUSINESS_CONFIG_DIR, MYTEAM_ROOT, WORKSPACES_DIR, WORKSPACE_PREFIX
 
-REGISTRY_FILE = CONFIG_DIR / "agents_registry.json"
+REGISTRY_FILE = BUSINESS_CONFIG_DIR / "agents_registry.json"
 
 
 def _load_registry() -> dict:

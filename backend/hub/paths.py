@@ -9,6 +9,7 @@ BACKEND_DIR = MYTEAM_ROOT / "backend"
 FRONTEND_DIR = MYTEAM_ROOT / "frontend"
 CONFIG_DIR = MYTEAM_ROOT / "config"
 BUSINESS_DIR = MYTEAM_ROOT / "business"
+BUSINESS_CONFIG_DIR = BUSINESS_DIR / "config"
 RULES_DIR = BUSINESS_DIR / "rules"
 WORKSPACES_DIR = BUSINESS_DIR / "workspaces"
 SKILL_DIR = MYTEAM_ROOT / "skill"
@@ -22,14 +23,17 @@ STATIC_DIR = FRONTEND_DIR
 DATA_DIR = CONFIG_DIR
 TEAM_DIR = MYTEAM_ROOT
 
-AGENTS_CONFIG_FILE = CONFIG_DIR / "agents_config.json"
-AGENTS_REGISTRY_FILE = CONFIG_DIR / "agents_registry.json"
+# 系统配置（与业务领域无关，随代码走，留在 config/）
 SKILL_CONFIG_FILE = CONFIG_DIR / "skill_config.json"
-GROUPS_FILE = CONFIG_DIR / "groups.json"
 SYSTEM_CONFIG_FILE = CONFIG_DIR / "system_config.json"
-SESSION_MAP_FILE = CONFIG_DIR / "session_map.json"
-CHAT_ARCHIVES_DIR = CONFIG_DIR / "chat_archives"
-GROUP_ARCHIVES_FILE = CONFIG_DIR / "group_archives.json"
+
+# 业务配置 + 业务运行态（随业务领域变化，落 business/config/，已 gitignore）
+AGENTS_CONFIG_FILE = BUSINESS_CONFIG_DIR / "agents_config.json"
+AGENTS_REGISTRY_FILE = BUSINESS_CONFIG_DIR / "agents_registry.json"
+GROUPS_FILE = BUSINESS_CONFIG_DIR / "groups.json"
+SESSION_MAP_FILE = BUSINESS_CONFIG_DIR / "session_map.json"
+CHAT_ARCHIVES_DIR = BUSINESS_CONFIG_DIR / "chat_archives"
+GROUP_ARCHIVES_FILE = BUSINESS_CONFIG_DIR / "group_archives.json"
 
 IDENTITY_FILES = ["IDENTITY.md", "AGENTS.md", "SOUL.md", "USER.md"]
 
