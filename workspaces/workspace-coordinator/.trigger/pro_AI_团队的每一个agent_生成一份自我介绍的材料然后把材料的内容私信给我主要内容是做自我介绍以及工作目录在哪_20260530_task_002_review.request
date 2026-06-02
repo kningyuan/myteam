@@ -1,6 +1,0 @@
-{
-  "event": "cross_review",
-  "project_id": "pro_AI_团队的每一个agent_生成一份自我介绍的材料然后把材料的内容私信给我主要内容是做自我介绍以及工作目录在哪_20260530",
-  "task_id": "task_002",
-  "handoff_path": "/Users/kuanghualong/.openclaw/tasks/projects/pro_AI_团队的每一个agent_生成一份自我介绍的材料然后把材料的内容私信给我主要内容是做自我介绍以及工作目录在哪_20260530/reviews/task_002_handoff.md"
-}

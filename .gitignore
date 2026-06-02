@@ -14,11 +14,18 @@ config/**/*.json
 data/*.json
 data/*.lock
 *.log
+*.lock
+.agent-hub.pid
+
+# 业务运行态数据（用户业务数据，统一在 business/，不入库）
+business/workspaces/
+business/tasks/
+business/config/
 
 # SQLite 运行态真相库（D13）— 运行时生成，不入库
-tasks/state.db
-tasks/state.db-wal
-tasks/state.db-shm
+business/tasks/state.db
+business/tasks/state.db-wal
+business/tasks/state.db-shm
 
 # IDE
 .vscode/

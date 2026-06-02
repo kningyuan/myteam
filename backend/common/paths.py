@@ -14,9 +14,9 @@ SKILL_DIR = MYTEAM_ROOT / "skill"
 CONFIG_DIR = MYTEAM_ROOT / "config"
 BUSINESS_DIR = MYTEAM_ROOT / "business"
 
-TASKS_DIR = MYTEAM_ROOT / "tasks"
+TASKS_DIR = BUSINESS_DIR / "tasks"
 PROJECTS_DIR = TASKS_DIR / "project"
-WORKSPACES_DIR = MYTEAM_ROOT / "workspaces"
+WORKSPACES_DIR = BUSINESS_DIR / "workspaces"
 LOGS_DIR = TASKS_DIR / "_logs"
 
 WORKSPACE_PREFIX = "workspace-"
