@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Agent Hub v2.1</title>
-<link rel="stylesheet" href="/static/style.css?v=21">
+<link rel="stylesheet" href="/static/style.css?v=22">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -15,7 +15,8 @@
   <nav id="top-nav">
     <span class="nav-logo">🤖 Agent Hub</span>
     <div class="nav-tabs">
-      <button class="nav-tab active" data-tab="chat">💬 对话</button>
+      <button class="nav-tab active" data-tab="home">🏠 首页</button>
+      <button class="nav-tab" data-tab="chat">💬 对话</button>
       <button class="nav-tab" data-tab="groups">👥 群组</button>
       <button class="nav-tab" data-tab="projects">📋 项目</button>
       <button class="nav-tab" data-tab="agents">🤖 管理</button>
@@ -75,8 +76,21 @@
 
     <!-- Main Content -->
     <main id="content">
+      <!-- Tab: Home / Dashboard -->
+      <div id="tab-home" class="tab-content active">
+        <div class="home-panel">
+          <div class="home-header">
+            <h2>总览</h2>
+            <button id="btn-home-new-project" class="btn-primary">✨ 发起项目</button>
+          </div>
+          <div id="home-stats" class="home-stats"></div>
+          <h3 class="home-sec-title">项目</h3>
+          <div id="home-projects" class="home-cards"><div class="loading">加载中...</div></div>
+        </div>
+      </div>
+
       <!-- Tab: Chat -->
-      <div id="tab-chat" class="tab-content active">
+      <div id="tab-chat" class="tab-content">
         <!-- Welcome -->
         <div id="welcome" class="welcome">
           <div class="welcome-icon">💬</div>
@@ -265,6 +279,11 @@
               <div class="form-group">
                 <label>OpenCode CLI 路径</label>
                 <input id="set-cli-path" type="text" placeholder="留空则自动检测">
+              </div>
+              <div class="form-group">
+                <label>价格（¥ / 100万 tokens）</label>
+                <input id="set-price" type="number" step="0.01" min="0" placeholder="0（留空/0 则只显示 token）">
+                <small class="field-hint">用于成本¥估算（按你所用模型的实际单价填）；0 表示不显示金额</small>
               </div>
               <div class="form-group form-row-check">
                 <label><input type="checkbox" id="set-debug"> 调试模式</label>
@@ -533,7 +552,22 @@
   </div>
 </template>
 
+<!-- Toast 通知容器 -->
+<div id="toast-container" class="toast-container"></div>
+
+<!-- 通用确认弹窗 -->
+<div id="confirm-modal" class="modal-overlay hidden">
+  <div class="modal modal-confirm">
+    <h3 id="confirm-title">确认操作</h3>
+    <p id="confirm-body" class="confirm-body"></p>
+    <div class="modal-footer">
+      <button id="confirm-cancel" class="btn-secondary">取消</button>
+      <button id="confirm-ok" class="btn-primary">确认</button>
+    </div>
+  </div>
+</div>
+
 <script src="/static/markdown.js?v=1"></script>
-<script src="/static/app.js?v=21"></script>
+<script src="/static/app.js?v=22"></script>
 </body>
 </html>

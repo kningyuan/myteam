@@ -39,6 +39,7 @@ function cacheDom() {
    'project-title','project-meta','project-progress-text','project-progress-fill',
    'project-tasks','project-fleet','project-cost','project-events',
    'project-trace','trace-title','trace-body',
+   'home-stats','home-projects','btn-home-new-project',
    'project-deliverable','deliverable-title','deliverable-meta','deliverable-body',
    'btn-new-project','btn-new-project-welcome','new-project-modal','btn-cancel-project',
    'np-goal','np-title','np-mode','np-budget','np-review','np-submit','np-cancel',
@@ -51,7 +52,7 @@ function cacheDom() {
    'manage-agent-table','manage-agent-count','btn-create-agent',
    'manage-tasktype-table','manage-tasktype-count','manage-memory-table','manage-memory-count',
    'create-agent-modal',
-   'set-default-backend','set-default-model','set-port','set-cli-path','set-debug',
+   'set-default-backend','set-default-model','set-port','set-cli-path','set-debug','set-price',
    'set-model-aliases','btn-save-settings','set-status','btn-apply-model-all',
    'set-use-project-group','set-auto-group','set-hub-url',
    'set-poll-interval','set-ack-timeout','set-task-timeout',
@@ -76,6 +77,7 @@ async function init() {
   renderProjectList();
   setStatus('online');
   await restoreUiState();
+  if (document.querySelector('.nav-tab.active')?.dataset.tab === 'home') renderDashboard();
   startSidebarPoll();
 }
 
@@ -154,6 +156,7 @@ function switchTab(tab, opts = {}) {
     (tab === 'projects' && p.id === 'sidebar-projects')
   ));
 
+  if (tab === 'home') renderDashboard();
   if (tab === 'chat') renderAgentList();
   if (tab === 'groups') { renderGroupList(); loadGroups(); }
   if (tab === 'projects') { renderProjectList(); loadProjects().then(renderProjectList); }
@@ -439,7 +442,7 @@ async function deleteChatWindow(agentId) {
   if (!id) return;
   const a = S.agents.find(x => x.id === id);
   const name = a ? a.name : id;
-  if (!confirm(`删除与「${name}」的对话窗口？\n\n· 侧栏隐藏，可用搜索找回\n· 不会删除 Agent 配置\n· 如需清空 LLM 记忆请用「清空对话」`)) return;
+  if (!await showConfirm(`删除与「${name}」的对话窗口？\n· 侧栏隐藏，可用搜索找回\n· 不会删除 Agent 配置\n· 如需清空 LLM 记忆请用「清空对话」`, {title:'删除对话', okText:'删除', danger:true})) return;
 
   const msgs = S.agentMessages[id] || [];
   const snapshot = {
@@ -515,7 +518,7 @@ async function dissolveGroupWindow() {
   if (!S.currentGroupId) return;
   const g = S.groups.find(x => x.id === S.currentGroupId);
   const name = g ? g.name : S.currentGroupId;
-  if (!confirm(`解散群组「${name}」？\n\n· 从列表隐藏，可搜索恢复\n· 不删除 tasks/ 项目数据\n· 消息记录将清空`)) return;
+  if (!await showConfirm(`解散群组「${name}」？\n· 从列表隐藏，可搜索恢复\n· 不删除 tasks/ 项目数据\n· 消息记录将清空`, {title:'解散群组', okText:'解散', danger:true})) return;
 
   try {
     const r = await fetch(`/api/groups/${S.currentGroupId}/dissolve`, { method: 'POST' });
@@ -699,8 +702,74 @@ function renderProjectList() {
   });
 }
 
+// ============ Dashboard / 成本 ============
+let _priceRate = null;  // ¥ / 1M tokens（0 或 null = 不显示 ¥）
+
+async function getPriceRate() {
+  if (_priceRate !== null) return _priceRate;
+  try {
+    const cfg = (await (await fetch('/api/config')).json()).config || {};
+    _priceRate = Number(cfg.system?.price_per_mtok) || 0;
+  } catch { _priceRate = 0; }
+  return _priceRate;
+}
+
+function fmtYuan(tokens, rate) {
+  if (!rate) return '';
+  return ` · ¥${(tokens / 1e6 * rate).toFixed(2)}`;
+}
+
+function budgetBar(tokens, budget, ratio, state) {
+  if (!budget) return `<div class="budget-none">${tokens} tok · 无预算上限</div>`;
+  const pct = Math.min(100, Math.round((ratio || 0) * 100));
+  return `<div class="budget-wrap budget-${esc(state || 'ok')}">
+    <div class="budget-track"><div class="budget-fill" style="width:${pct}%"></div></div>
+    <div class="budget-label">${tokens} / ${budget} tok · ${pct}%${state === 'over' ? ' · 超限' : state === 'alert' ? ' · 接近上限' : ''}</div>
+  </div>`;
+}
+
+const PROJ_STATUS_LABEL = {
+  in_progress:'运行中', running:'运行中', pending:'排队', completed:'已完成',
+  needs_review:'待确认', failed:'失败', cancelled:'已取消', blocked:'阻塞',
+};
+
+async function renderDashboard() {
+  const stats = DOM['home-stats'], cards = DOM['home-projects'];
+  if (!stats || !cards) return;
+  const rate = await getPriceRate();
+  try {
+    const d = await (await fetch('/api/obs/summary')).json();
+    const t = d.totals || {};
+    stats.innerHTML = `
+      <div class="stat-card"><div class="stat-num">${t.projects || 0}</div><div class="stat-lbl">项目总数</div></div>
+      <div class="stat-card"><div class="stat-num stat-run">${t.running || 0}</div><div class="stat-lbl">运行中</div></div>
+      <div class="stat-card"><div class="stat-num">${(t.tokens || 0).toLocaleString()}</div><div class="stat-lbl">总 Token</div></div>
+      ${rate ? `<div class="stat-card"><div class="stat-num">¥${((t.tokens || 0) / 1e6 * rate).toFixed(2)}</div><div class="stat-lbl">预估成本</div></div>` : ''}`;
+    const ps = d.projects || [];
+    if (!ps.length) { cards.innerHTML = '<div class="empty">还没有项目，点右上角「发起项目」开始。</div>'; return; }
+    cards.innerHTML = ps.map(p => {
+      const pct = Math.round((p.progress || 0) * 100);
+      const sl = PROJ_STATUS_LABEL[p.status] || p.status || '—';
+      return `<div class="home-card clickable" data-pid="${esc(p.id)}">
+        <div class="home-card-top">
+          <span class="home-card-title">${esc(p.title || p.id)}</span>
+          <span class="status-chip s-${esc(p.status || '')}">${esc(sl)}</span>
+        </div>
+        <div class="home-card-prog"><div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div><span>${pct}%</span></div>
+        ${budgetBar(p.tokens || 0, p.budget, p.budget_ratio, p.budget_state)}
+        <div class="home-card-foot">${p.task_count || 0} 任务 · ${(p.tokens || 0).toLocaleString()} tok${fmtYuan(p.tokens || 0, rate)}</div>
+      </div>`;
+    }).join('');
+    cards.querySelectorAll('.home-card.clickable').forEach(el => {
+      el.addEventListener('click', () => { switchTab('projects'); selectProject(el.dataset.pid); });
+    });
+  } catch (e) {
+    cards.innerHTML = `<div class="empty">加载失败：${esc(e.message || e)}</div>`;
+  }
+}
+
 async function deleteProject(id) {
-  if (!confirm(`确认彻底删除项目「${id}」？将清除其数据库记录、交付物目录与 agent 临时文件，不可恢复。`)) return;
+  if (!await showConfirm(`确认彻底删除项目「${id}」？将清除其数据库记录、交付物目录与 agent 临时文件，不可恢复。`, {title:'删除项目', okText:'彻底删除', danger:true})) return;
   try {
     const r = await fetch(`/api/projects/${encodeURIComponent(id)}`, { method: 'DELETE' });
     const d = await r.json();
@@ -713,8 +782,9 @@ async function deleteProject(id) {
     }
     await loadProjects();
     renderProjectList();
+    showToast(`已删除项目「${id}」`, 'success');
   } catch (e) {
-    alert('删除项目失败：' + (e.message || e));
+    showToast('删除项目失败：' + (e.message || e), 'error');
   }
 }
 
@@ -792,13 +862,15 @@ async function refreshProjectDetail(id) {
       ? flEntries.map(([a, s]) => `<span class="fleet-chip live-${esc(s)}">${esc(a)} · ${esc(s)}</span>`).join('')
       : '<span class="hint">暂无</span>';
 
-    // 成本
+    // 成本 + 预算
     const total = (cost && cost.project) || 0;
     const byAgent = (cost && cost.by_agent) || {};
+    const rate = await getPriceRate();
     const agentRows = Object.entries(byAgent)
-      .map(([a, n]) => `<div class="cost-row"><span>${esc(a)}</span><span>${n}</span></div>`).join('');
+      .map(([a, n]) => `<div class="cost-row"><span>${esc(a)}</span><span>${n} tok${fmtYuan(n, rate)}</span></div>`).join('');
     DOM['project-cost'].innerHTML =
-      `<div class="cost-row cost-total"><span>合计</span><span>${total} tok</span></div>${agentRows || ''}`;
+      budgetBar(total, ov.budget, ov.budget_ratio, ov.budget_state) +
+      `<div class="cost-row cost-total"><span>合计</span><span>${total} tok${fmtYuan(total, rate)}</span></div>${agentRows || ''}`;
 
     renderEventFeed((ev && ev.events) || []);
 
@@ -1681,7 +1753,7 @@ async function renderManageAgents() {
     btn.addEventListener('click', async (e) => {
       const tr = e.target.closest('tr');
       const id = tr.dataset.id;
-      if (!confirm(`确认删除 Agent「${id}」？将删除工作目录和配置。`)) return;
+      if (!await showConfirm(`确认删除 Agent「${id}」？将删除工作目录和配置。`, {title:'删除 Agent', okText:'删除', danger:true})) return;
       try {
         const r = await fetch(`/api/agents/${id}`, { method: 'DELETE' });
         if (!r.ok) { const d = await r.json(); throw new Error(d.detail); }
@@ -1805,6 +1877,7 @@ async function loadSettings() {
     DOM['set-port'].value = cfg.system?.port || 8765;
     DOM['set-cli-path'].value = cfg.backends?.opencode?.cli_path || '';
     DOM['set-debug'].checked = !!cfg.system?.debug;
+    DOM['set-price'].value = cfg.system?.price_per_mtok || '';
     DOM['set-model-aliases'].value = JSON.stringify(cfg.backends?.opencode?.model_aliases || {}, null, 2);
 
     DOM['set-use-project-group'].checked = skillCfg.notifications?.use_project_group !== false;
@@ -1832,7 +1905,7 @@ async function applyModelToAll() {
   const backend = DOM['set-default-backend'].value;
   const model = DOM['set-default-model'].value;
   if (!model) { showSetStatus('请先选择模型', 'error'); return; }
-  if (!confirm(`把后端「${backend}」下的所有 agent 模型都改成：\n${model}\n\n（其它后端的 agent 不受影响）`)) return;
+  if (!await showConfirm(`把后端「${backend}」下的所有 agent 模型都改成：\n${model}\n（其它后端的 agent 不受影响）`, {title:'批量应用模型', okText:'应用'})) return;
   try {
     const r = await fetch('/api/agents/apply-model', {
       method: 'POST', headers: {'Content-Type':'application/json'},
@@ -1866,6 +1939,7 @@ async function saveSettings() {
     cfg.system.default_model = model;
     cfg.system.port = port;
     cfg.system.debug = !!DOM['set-debug']?.checked;
+    cfg.system.price_per_mtok = Number(DOM['set-price']?.value) || 0;
     cfg.backends = cfg.backends || {};
     cfg.backends.opencode = cfg.backends.opencode || {};
     cfg.backends.opencode.model_aliases = aliases;
@@ -1917,6 +1991,7 @@ async function saveSettings() {
       }),
     ]);
     if (!rSys.ok || !rSkill.ok) throw new Error('保存失败');
+    _priceRate = null;
     showSetStatus('✓ 已保存（端口变更需重启 Hub）', 'success');
   } catch(e) {
     showSetStatus('保存失败: '+e.message, 'error');
@@ -1924,11 +1999,54 @@ async function saveSettings() {
 }
 
 function showSetStatus(msg, type) {
+  if (msg) showToast(msg, type || 'info');
   const s = DOM['set-status'];
+  if (!s) return;
   s.textContent = msg;
   s.className = 'form-status';
   if (msg) { s.style.display = 'block'; if (type) s.classList.add(type); }
   else s.style.display = 'none';
+}
+
+// ============ Toast 通知 ============
+function showToast(msg, type = 'info', ms = 3200) {
+  const box = document.getElementById('toast-container');
+  if (!box) { console.log('[toast]', type, msg); return; }
+  const icon = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' }[type] || 'ℹ';
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.innerHTML = `<span class="toast-icon">${icon}</span><span class="toast-msg"></span>`;
+  el.querySelector('.toast-msg').textContent = msg;
+  box.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('show'));
+  const close = () => { el.classList.remove('show'); setTimeout(() => el.remove(), 220); };
+  el.addEventListener('click', close);
+  if (ms) setTimeout(close, ms);
+}
+
+// ============ 通用确认弹窗（替代原生 confirm）============
+function showConfirm(body, opts = {}) {
+  return new Promise(resolve => {
+    const modal = document.getElementById('confirm-modal');
+    const okBtn = document.getElementById('confirm-ok');
+    const cancelBtn = document.getElementById('confirm-cancel');
+    if (!modal || !okBtn || !cancelBtn) { resolve(window.confirm(body)); return; }
+    document.getElementById('confirm-title').textContent = opts.title || '确认操作';
+    document.getElementById('confirm-body').textContent = body;
+    okBtn.textContent = opts.okText || '确认';
+    okBtn.className = opts.danger ? 'btn-primary btn-danger' : 'btn-primary';
+    modal.classList.remove('hidden');
+    const done = (val) => {
+      modal.classList.add('hidden');
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+      resolve(val);
+    };
+    const onOk = () => done(true);
+    const onCancel = () => done(false);
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+  });
 }
 
 // ============ Utilities ============
@@ -2059,10 +2177,10 @@ function removeTyping(el) {
 async function clearChat() {
   if (!S.currentAgentId) return;
   if (S.isStreaming) cancelActiveStream();
-  const ok = confirm(
-    '清空后将删除：\n\n' +
+  const ok = await showConfirm(
+    '清空后将删除：\n' +
     '· 本页所有对话记录（浏览器本地）\n' +
-    '· Agent 多轮上下文（OpenCode Session）\n\n' +
+    '· Agent 多轮上下文（OpenCode Session）\n' +
     '下次对话 Agent 不会记得之前聊过什么。'
   );
   if (!ok) return;
@@ -2085,9 +2203,10 @@ async function clearChat() {
 async function clearGroupChat() {
   if (!S.currentGroupId) return;
   if (S.isStreaming) cancelActiveStream();
-  const ok = confirm(
-    '清空后将删除本群组的所有消息记录。\n\n' +
-    '说明：各 Agent 的私聊上下文需在对应 Agent 对话里单独清空。'
+  const ok = await showConfirm(
+    '清空后将删除本群组的所有消息记录。\n' +
+    '说明：各 Agent 的私聊上下文需在对应 Agent 对话里单独清空。',
+    {title:'清空群消息', okText:'清空', danger:true}
   );
   if (!ok) return;
 
@@ -2229,12 +2348,13 @@ function setupEventListeners() {
   const closeNewProject = () => DOM['new-project-modal'].classList.add('hidden');
   DOM['btn-new-project']?.addEventListener('click', openNewProject);
   DOM['btn-new-project-welcome']?.addEventListener('click', openNewProject);
+  DOM['btn-home-new-project']?.addEventListener('click', openNewProject);
   DOM['np-cancel']?.addEventListener('click', closeNewProject);
   DOM['new-project-modal']?.querySelector('.modal-close')?.addEventListener('click', closeNewProject);
   DOM['btn-cancel-project']?.addEventListener('click', async () => {
     const id = S.currentProjectId;
     if (!id) return;
-    if (!confirm('取消该项目？当前正在执行的任务会跑完，之后不再派发新任务。')) return;
+    if (!await showConfirm('取消该项目？当前正在执行的任务会跑完，之后不再派发新任务。', {title:'取消项目', okText:'取消项目', danger:true})) return;
     try {
       const r = await fetch(`/api/projects/${encodeURIComponent(id)}/cancel`, { method: 'POST' });
       const d = await r.json();

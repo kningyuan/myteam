@@ -63,6 +63,16 @@ async def list_projects():
         store.close()
 
 
+@router.get("/summary")
+async def summary():
+    """全局总览（Dashboard）：项目卡片数据 + 全局总计（项目数/运行中/总 token）。"""
+    store = _store()
+    try:
+        return _obs().projects_summary(store)
+    finally:
+        store.close()
+
+
 @router.get("/task-types")
 async def list_task_types():
     """只读：业务任务类型注册表（task_type 约束的单一出处，源自 templates.yaml）。"""

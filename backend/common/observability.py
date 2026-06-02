@@ -46,8 +46,20 @@ def liveness(interaction: dict) -> str:
     return "running"
 
 
+def _budget_state(used: int, budget: Optional[int], alert_ratio: float = 0.8) -> tuple[Optional[float], str]:
+    """(ratio, state)：ok / alert / over。budget 为空时 ratio=None、state=ok。"""
+    if not budget:
+        return None, "ok"
+    ratio = round(used / budget, 3)
+    if used >= budget:
+        return ratio, "over"
+    if ratio >= alert_ratio:
+        return ratio, "alert"
+    return ratio, "ok"
+
+
 def project_overview(store: Store, project_id: str) -> dict:
-    """项目总览：状态 / DAG / 进度。"""
+    """项目总览：状态 / DAG / 进度 / 成本预算。"""
     proj = store.get_project(project_id) or {"project_id": project_id}
     tasks = store.list_tasks(project_id)
     counts: dict[str, int] = {}
@@ -55,15 +67,53 @@ def project_overview(store: Store, project_id: str) -> dict:
         counts[t["status"]] = counts.get(t["status"], 0) + 1
     done = counts.get("completed", 0) + counts.get("needs_review", 0)
     total = len(tasks) or 1
+    used = store.tokens_total(project_id)
+    budget = (proj.get("meta") or {}).get("token_budget")
+    ratio, bstate = _budget_state(used, budget)
     return {
         "project_id": project_id,
         "status": proj.get("status"),
         "mode": proj.get("mode"),
         "task_counts": counts,
         "progress": round(done / total, 3),
+        "tokens": used,
+        "budget": budget,
+        "budget_ratio": ratio,
+        "budget_state": bstate,
         "tasks": [{"id": t["task_id"], "name": t.get("name", ""), "status": t["status"],
                    "agent": t["agent"], "dependencies": t["dependencies"],
                    "summary": (t.get("meta") or {}).get("summary", "")} for t in tasks],
+    }
+
+
+def projects_summary(store: Store) -> dict:
+    """全局总览（Dashboard 用）：每个项目的状态/进度/成本/预算 + 全局总计。"""
+    running = {"in_progress", "running", "pending"}
+    items = []
+    total_tokens = 0
+    n_running = 0
+    for p in store.list_projects():
+        pid = p["project_id"]
+        tasks = store.list_tasks(pid)
+        done = sum(1 for t in tasks if t["status"] in ("completed", "needs_review"))
+        progress = round(done / (len(tasks) or 1), 3)
+        used = store.tokens_total(pid)
+        total_tokens += used
+        status = p.get("status") or "unknown"
+        if status in running:
+            n_running += 1
+        budget = (p.get("meta") or {}).get("token_budget")
+        ratio, bstate = _budget_state(used, budget)
+        items.append({
+            "id": pid, "title": p.get("title") or pid, "status": status,
+            "mode": p.get("mode"), "progress": progress, "task_count": len(tasks),
+            "tokens": used, "budget": budget, "budget_ratio": ratio,
+            "budget_state": bstate, "updated_at": p.get("updated_at"),
+        })
+    return {
+        "projects": items,
+        "totals": {"projects": len(items), "running": n_running,
+                   "tokens": total_tokens},
     }
 
 

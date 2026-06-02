@@ -111,7 +111,9 @@ class Process:
         两个 Interaction 由 Main 决策（live 路径）。
         """
         self.store.upsert_project(project_id, title=title, mode=self.config.mode,
-                                  status="in_progress")
+                                  status="in_progress",
+                                  meta={"token_budget": self.config.token_budget,
+                                        "goal": goal})
         if agents is None:
             agents = self._team_config(project_id, goal)
         # recurring：未预置 tasks 时走周期循环（周期迭代 + 轮次继承，D10）

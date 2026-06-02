@@ -93,6 +93,14 @@ def test_fleet(client):
     assert r.json()["fleet"] == {"researcher": "done"}
 
 
+def test_summary_route(client):
+    r = client.get("/api/obs/summary")
+    assert r.status_code == 200
+    d = r.json()
+    assert "totals" in d and d["totals"]["projects"] >= 1
+    assert any(p["id"] == "p1" for p in d["projects"])
+
+
 def test_project_events_route(client):
     r = client.get("/api/obs/projects/p1/events")
     assert r.status_code == 200

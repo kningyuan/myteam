@@ -20,6 +20,7 @@ from common.observability import (  # noqa: E402
     liveness,
     project_events,
     project_overview,
+    projects_summary,
     task_detail,
     timeline,
 )
@@ -34,6 +35,27 @@ def store(tmp_path):
     s = Store(tmp_path / "s.db")
     yield s
     s.close()
+
+
+def test_overview_budget_and_summary(store):
+    """预算持久在 meta；overview/summary 暴露 tokens/budget/state。"""
+    store.upsert_project("pro_b", title="预算项目", status="in_progress",
+                         meta={"token_budget": 1000})
+    store.upsert_task("pro_b", "t1", agent="researcher")
+    store.create_interaction("pro_b:t1:execute:1", "execute", "pro_b",
+                             task_id="t1", agent_id="researcher")
+    store.update_interaction("pro_b:t1:execute:1", status="done", tokens=850)
+
+    ov = project_overview(store, "pro_b")
+    assert ov["tokens"] == 850 and ov["budget"] == 1000
+    assert ov["budget_state"] == "alert"   # 85% ≥ 80%
+
+    summ = projects_summary(store)
+    assert summ["totals"]["projects"] >= 1
+    assert summ["totals"]["tokens"] >= 850
+    row = next(p for p in summ["projects"] if p["id"] == "pro_b")
+    assert row["budget"] == 1000 and row["budget_state"] == "alert"
+    assert summ["totals"]["running"] >= 1   # in_progress 计入运行中
 
 
 def test_project_events_feed(store):
