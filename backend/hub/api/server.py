@@ -25,6 +25,7 @@ except ImportError:
 
 from base.agent_chat import (
     _load_agents_config,
+    apply_model_to_all,
     clear_agent_chat_context,
     delete_agent,
     get_agent_backend_config,
@@ -95,6 +96,16 @@ async def update_agent_config(agent_id: str, body: dict):
     model = body.get("model", "")
     set_agent_backend_config(agent_id, backend, model)
     return {"success": True, "agent_id": agent_id, "backend": backend, "model": model}
+
+
+@app.post("/api/agents/apply-model")
+async def api_apply_model(body: dict):
+    backend = body.get("backend", "opencode")
+    model = (body.get("model") or "").strip()
+    if not model:
+        raise HTTPException(status_code=400, detail="model required")
+    result = apply_model_to_all(backend, model)
+    return {"success": True, **result}
 
 
 @app.get("/api/backends")

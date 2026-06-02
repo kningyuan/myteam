@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Agent Hub v2.1</title>
-<link rel="stylesheet" href="/static/style.css?v=18">
+<link rel="stylesheet" href="/static/style.css?v=20">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -183,6 +183,11 @@
             </div>
 
             <div class="project-section">
+              <h3>执行过程 <small class="hint">门禁 / 评审 / skill / 消息 / 阻塞 / 预算，按时间</small></h3>
+              <div id="project-events" class="event-feed">—</div>
+            </div>
+
+            <div class="project-section">
               <h3>舰队状态</h3>
               <div id="project-fleet" class="fleet-list">—</div>
             </div>
@@ -249,6 +254,8 @@
               <div class="form-group">
                 <label>默认模型</label>
                 <select id="set-default-model"></select>
+                <button type="button" id="btn-apply-model-all" class="btn-secondary" style="margin-top:8px;">应用到所有同后端 agent</button>
+                <small class="field-hint">默认模型仅用于「新建 agent」和未配置模型时的兜底；点上面按钮可把当前后端的全部 agent 一键改成此模型</small>
               </div>
               <div class="form-group">
                 <label>OpenCode CLI 路径</label>
@@ -522,6 +529,6 @@
 </template>
 
 <script src="/static/markdown.js?v=1"></script>
-<script src="/static/app.js?v=18"></script>
+<script src="/static/app.js?v=20"></script>
 </body>
 </html>

@@ -18,6 +18,7 @@ from common.observability import (  # noqa: E402
     cost,
     fleet_status,
     liveness,
+    project_events,
     project_overview,
     task_detail,
     timeline,
@@ -33,6 +34,28 @@ def store(tmp_path):
     s = Store(tmp_path / "s.db")
     yield s
     s.close()
+
+
+def test_project_events_feed(store):
+    """项目事件流：交互骨架 + 里程碑事件（含合成 id），过滤低层噪声，按时间排序。"""
+    store.upsert_project("pro_e")
+    store.create_interaction("pro_e_task_001_execute", "execute", "pro_e",
+                             task_id="task_001", agent_id="researcher")
+    store.append_run_event("pro_e_task_001_execute", "text", {"t": "正文片段"})  # 噪声，过滤
+    store.append_run_event("pro_e_task_001_execute", "gate_passed", {})
+    store.append_run_event("pro_e_task_001_execute", "tool_use", {"tool": "web-search"})
+    # 合成 id 事件（不挂在真实 interaction 上）
+    store.append_run_event("pro_e:budget", "budget_alert", {"used": 90})
+    store.append_run_event("pro_e:notify", "message", {"sender": "system", "text": "进度通报"})
+
+    feed = project_events(store, "pro_e")
+    kinds = [e["kind"] for e in feed]
+    assert "text" not in kinds                      # 低层噪声被过滤
+    assert "gate_passed" in kinds                   # 真实交互里程碑
+    assert "tool_use" in kinds                      # skill 调用
+    assert "budget_alert" in kinds                  # 合成 id 事件被捞到
+    assert "message" in kinds                       # 群通知进流
+    assert any(e["category"] == "interaction" for e in feed)  # 交互骨架在
 
 
 def test_liveness_states():

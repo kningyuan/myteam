@@ -123,8 +123,29 @@ def post_project_progress(
 
     ok = _post_system_message(group["id"], text, sender=sender)
     if ok:
+        _record_message_event(project_id, sender, text)
         return True, group["id"]
     return False, "failed to post message"
+
+
+def _record_message_event(project_id: str, sender: str, text: str) -> None:
+    """把群通知记进项目事件流（run_event），失败不影响通知本身。"""
+    try:
+        import sys
+        from pathlib import Path
+        backend = Path(__file__).resolve().parents[2]
+        if str(backend) not in sys.path:
+            sys.path.insert(0, str(backend))
+        from common.store import Store
+
+        store = Store()
+        try:
+            store.append_run_event(f"{project_id}:notify", "message",
+                                   {"sender": sender, "text": text[:500]})
+        finally:
+            store.close()
+    except Exception:
+        pass
 
 
 def _post_system_message(group_id: str, text: str, sender: str = "system") -> bool:

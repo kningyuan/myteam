@@ -37,7 +37,7 @@ function cacheDom() {
    'tab-chat','tab-groups','tab-projects','tab-agents','tab-settings',
    'project-list','project-count','project-welcome','project-detail-view',
    'project-title','project-meta','project-progress-text','project-progress-fill',
-   'project-tasks','project-fleet','project-cost',
+   'project-tasks','project-fleet','project-cost','project-events',
    'project-deliverable','deliverable-title','deliverable-meta','deliverable-body',
    'btn-new-project','btn-new-project-welcome','new-project-modal','btn-cancel-project',
    'np-goal','np-title','np-mode','np-budget','np-review','np-submit','np-cancel',
@@ -51,7 +51,7 @@ function cacheDom() {
    'manage-tasktype-table','manage-tasktype-count','manage-memory-table','manage-memory-count',
    'create-agent-modal',
    'set-default-backend','set-default-model','set-port','set-cli-path','set-debug',
-   'set-model-aliases','btn-save-settings','set-status',
+   'set-model-aliases','btn-save-settings','set-status','btn-apply-model-all',
    'set-use-project-group','set-auto-group','set-hub-url',
    'set-poll-interval','set-ack-timeout','set-task-timeout',
    'set-agent-msg-timeout','set-team-config-timeout','set-task-plan-timeout','set-max-retries',
@@ -743,11 +743,12 @@ async function selectProject(id, opts = {}) {
 async function refreshProjectDetail(id) {
   try {
     const pid = encodeURIComponent(id);
-    const [ov, cost, fleet, rs] = await Promise.all([
+    const [ov, cost, fleet, rs, ev] = await Promise.all([
       fetch(`/api/obs/projects/${pid}/overview`).then(r => r.json()),
       fetch(`/api/obs/projects/${pid}/cost`).then(r => r.json()).catch(() => ({})),
       fetch(`/api/obs/projects/${pid}/fleet`).then(r => r.json()).catch(() => ({fleet: {}})),
       fetch(`/api/projects/run-status/${pid}`).then(r => r.json()).catch(() => ({})),
+      fetch(`/api/obs/projects/${pid}/events`).then(r => r.json()).catch(() => ({events: []})),
     ]);
     const status = ov.status || (rs.running ? 'running' : 'unknown');
     const active = rs.running || !PROJECT_TERMINAL.has(status);
@@ -798,11 +799,64 @@ async function refreshProjectDetail(id) {
     DOM['project-cost'].innerHTML =
       `<div class="cost-row cost-total"><span>合计</span><span>${total} tok</span></div>${agentRows || ''}`;
 
+    renderEventFeed((ev && ev.events) || []);
+
     return PROJECT_TERMINAL.has(status) && !rs.running;
   } catch (e) {
     DOM['project-meta'].textContent = `${id} · 加载失败：${String(e.message || e)}`;
     return false;
   }
+}
+
+const EVENT_LABELS = {
+  gate_passed:'✅ 门禁通过', gate_failed:'⛔ 门禁未过', review_done:'🔎 评审完成',
+  review_unreachable:'⚠️ 评审不可达', plan_rejected:'↩️ 计划被拒', blocked:'🚧 任务阻塞',
+  budget_alert:'💰 预算告警', budget_over:'🛑 预算超限', cycle_done:'🔁 周期完成',
+  watchdog_soft_idle:'😴 疑似卡住', watchdog_hard_kill:'🔪 看门狗中止',
+  transport_error:'💥 传输错误', reconcile_timed_out:'⏱️ 重启对账超时',
+  tool_use:'🛠️ skill 调用', prompt_sent:'📤 发送给 CLI', message:'💬 消息',
+};
+const INTERACTION_LABELS = {
+  team_config:'组队配置', task_plan:'任务拆分', execute:'执行', review:'评审', triage:'分诊',
+};
+
+function eventDetail(e) {
+  const p = e.payload || {};
+  if (e.kind === 'gate_failed' && Array.isArray(p.failures)) return p.failures.join('；');
+  if (e.kind === 'review_done') return (p.passed ? '通过' : '打回') + (p.feedback ? ' · ' + p.feedback : '');
+  if (e.kind === 'message') return (p.sender ? p.sender + '：' : '') + (p.text || '');
+  if (e.kind === 'tool_use') return p.tool || p.name || JSON.stringify(p).slice(0, 120);
+  if (e.kind === 'blocked' || e.kind === 'plan_rejected') return p.reason || (p.invalid_agents || []).join(', ');
+  if (e.kind === 'budget_alert' || e.kind === 'budget_over') return JSON.stringify(p);
+  return p && Object.keys(p).length ? JSON.stringify(p).slice(0, 120) : '';
+}
+
+function renderEventFeed(events) {
+  const box = DOM['project-events'];
+  if (!box) return;
+  if (!events.length) { box.innerHTML = '<span class="hint">暂无执行事件</span>'; return; }
+  box.innerHTML = events.map(e => {
+    const ts = (e.ts || '').replace('T', ' ').slice(5);
+    const who = [e.task_id, e.agent_id].filter(Boolean).map(esc).join(' · ');
+    if (e.category === 'interaction') {
+      const label = INTERACTION_LABELS[e.kind] || e.kind || '交互';
+      const att = e.attempt > 1 ? ` ×${e.attempt}` : '';
+      const tok = e.tokens ? ` · ${e.tokens} tok` : '';
+      return `<div class="feed-row feed-interaction status-${esc(e.status || '')}">
+        <span class="feed-ts">${esc(ts)}</span>
+        <span class="feed-kind">${esc(label)}${att}</span>
+        <span class="feed-who">${who}</span>
+        <span class="feed-state">${esc(e.status || '')}${tok}</span>
+      </div>`;
+    }
+    const label = EVENT_LABELS[e.kind] || e.kind;
+    const detail = eventDetail(e);
+    return `<div class="feed-row feed-event evk-${esc(e.kind)}">
+      <span class="feed-ts">${esc(ts)}</span>
+      <span class="feed-kind">${esc(label)}</span>
+      <span class="feed-detail" title="${esc(detail)}">${esc(detail)}</span>
+    </div>`;
+  }).join('');
 }
 
 async function openDeliverable(projectId, taskId) {
@@ -1726,6 +1780,22 @@ function updateDefaultModelSelect(backendId, selected) {
   ).join('');
 }
 
+async function applyModelToAll() {
+  const backend = DOM['set-default-backend'].value;
+  const model = DOM['set-default-model'].value;
+  if (!model) { showSetStatus('请先选择模型', 'error'); return; }
+  if (!confirm(`把后端「${backend}」下的所有 agent 模型都改成：\n${model}\n\n（其它后端的 agent 不受影响）`)) return;
+  try {
+    const r = await fetch('/api/agents/apply-model', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ backend, model }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || '应用失败');
+    showSetStatus(`✓ 已应用到 ${d.applied.length} 个 agent，跳过 ${d.skipped.length} 个（非 ${backend}）`, 'success');
+  } catch(e) { showSetStatus('应用失败: '+e.message, 'error'); }
+}
+
 async function saveSettings() {
   const backend = DOM['set-default-backend'].value;
   const model = DOM['set-default-model'].value;
@@ -2160,6 +2230,7 @@ function setupEventListeners() {
 
   // Settings save
   DOM['btn-save-settings']?.addEventListener('click', saveSettings);
+  DOM['btn-apply-model-all']?.addEventListener('click', applyModelToAll);
 
   // Manage modal
   DOM['mm-save']?.addEventListener('click', saveManageModal);

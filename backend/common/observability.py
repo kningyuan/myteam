@@ -88,6 +88,48 @@ def timeline(store: Store, interaction_id: str) -> list[dict]:
             for e in store.list_run_events(interaction_id)]
 
 
+# 项目事件流里要呈现的「里程碑」事件（过滤掉 text/step_start 等低层噪声）
+_FEED_KINDS = {
+    "plan_rejected", "gate_passed", "gate_failed",
+    "review_done", "review_unreachable",
+    "blocked", "budget_alert", "budget_over", "cycle_done",
+    "watchdog_soft_idle", "watchdog_hard_kill", "transport_error",
+    "reconcile_timed_out", "tool_use", "prompt_sent", "message",
+}
+
+
+def project_events(store: Store, project_id: str) -> list[dict]:
+    """项目执行过程事件流（一条时间线）。
+
+    = 交互生命周期骨架（每个 interaction 一条：谁/什么任务/什么交互 → 状态）
+    + 里程碑事件（门禁 / 评审 / skill 调用 / 阻塞 / 预算 / 看门狗 / 消息）。
+    低层 cli 噪声（text/step_*/session）不进项目级流，留给单交互钻取。
+    """
+    feed: list[dict] = []
+    for i in store.list_interactions(project_id):
+        feed.append({
+            "ts": i.get("started_at") or "",
+            "category": "interaction",
+            "kind": i.get("kind") or "",
+            "agent_id": i.get("agent_id") or "",
+            "task_id": i.get("task_id") or "",
+            "interaction_id": i.get("interaction_id"),
+            "status": i.get("status"),
+            "attempt": i.get("attempt"),
+            "tokens": i.get("tokens"),
+        })
+    for e in store.list_project_events(project_id):
+        if e["kind"] not in _FEED_KINDS:
+            continue
+        feed.append({
+            "ts": e["ts"], "category": "event", "kind": e["kind"],
+            "agent_id": e["agent_id"], "task_id": e["task_id"],
+            "interaction_id": e["interaction_id"], "payload": e["payload"],
+        })
+    feed.sort(key=lambda x: (x.get("ts") or "", x.get("category") == "event"))
+    return feed
+
+
 def fleet_status(store: Store, project_id: str) -> dict[str, str]:
     """Agent 舰队状态（派生）：每个 agent 取其最新 interaction 的存活态。"""
     latest: dict[str, dict] = {}

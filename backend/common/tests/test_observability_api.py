@@ -93,6 +93,15 @@ def test_fleet(client):
     assert r.json()["fleet"] == {"researcher": "done"}
 
 
+def test_project_events_route(client):
+    r = client.get("/api/obs/projects/p1/events")
+    assert r.status_code == 200
+    feed = r.json()["events"]
+    assert any(e["category"] == "interaction" and e["kind"] == "execute" for e in feed)
+    kinds = [e["kind"] for e in feed]
+    assert "step_start" not in kinds and "step_finish" not in kinds  # 低层噪声不进项目流
+
+
 def test_task_detail_and_404(client):
     r = client.get("/api/obs/projects/p1/tasks/task_001")
     assert r.status_code == 200

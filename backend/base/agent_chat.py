@@ -66,6 +66,28 @@ def get_agent_backend_config(agent_id: str) -> BackendConfig:
     return _derive_backend_config(agent_id)
 
 
+def apply_model_to_all(backend_id: str, model: str) -> dict:
+    """把指定 backend/CLI 的所有 agent 模型批量改为 model。
+
+    只作用于 backend 匹配的 agent，其余跳过；保留各 agent 现有的 name/workspace/extra。
+    """
+    config = _load_agents_config()
+    applied, skipped = [], []
+    for agent in scan_agents():
+        aid = agent["id"]
+        if agent.get("backend") != backend_id:
+            skipped.append(aid)
+            continue
+        entry = dict(config.get(aid) or {})
+        entry["backend"] = backend_id
+        entry["model"] = model
+        entry.setdefault("extra", {})
+        config[aid] = entry
+        applied.append(aid)
+    _save_agents_config(config)
+    return {"backend": backend_id, "model": model, "applied": applied, "skipped": skipped}
+
+
 def delete_agent_config(agent_id: str):
     """删除 Agent 配置"""
     config = _load_agents_config()

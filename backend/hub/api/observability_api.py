@@ -124,6 +124,16 @@ async def project_cost(project_id: str):
         store.close()
 
 
+@router.get("/projects/{project_id}/events")
+async def project_events(project_id: str):
+    """项目执行过程事件流（交互骨架 + 门禁/评审/skill/消息/阻塞/预算里程碑）。"""
+    store = _store()
+    try:
+        return {"events": _obs().project_events(store, project_id)}
+    finally:
+        store.close()
+
+
 @router.get("/projects/{project_id}/fleet")
 async def project_fleet(project_id: str):
     store = _store()

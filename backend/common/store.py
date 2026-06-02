@@ -364,6 +364,28 @@ class Store:
         ).fetchall()
         return [self._row(r) for r in rows]
 
+    def list_project_events(self, project_id: str) -> list[dict]:
+        """项目级事件流：聚合该项目所有 interaction 的 run_event，
+        以及合成 id 事件（如 ``{pid}:budget`` / ``{pid}:cycle:N`` / ``{pid}:{tid}:blocked``），
+        按时间排序。每条带交互归属（task_id/agent_id/interaction_kind）。
+        """
+        rows = self._conn.execute(
+            "SELECT re.interaction_id AS interaction_id, re.id AS rid, re.kind AS kind, "
+            "       re.payload AS payload, re.ts AS ts, "
+            "       i.task_id AS task_id, i.agent_id AS agent_id, i.kind AS interaction_kind "
+            "FROM run_event re "
+            "LEFT JOIN interaction i ON re.interaction_id = i.interaction_id "
+            "WHERE i.project_id = ? OR re.interaction_id LIKE ? "
+            "ORDER BY re.ts, re.id",
+            (project_id, f"{project_id}:%"),
+        ).fetchall()
+        return [{
+            "ts": r["ts"], "kind": r["kind"], "payload": _loads(r["payload"]),
+            "interaction_id": r["interaction_id"],
+            "task_id": r["task_id"] or "", "agent_id": r["agent_id"] or "",
+            "interaction_kind": r["interaction_kind"] or "",
+        } for r in rows]
+
     # ── memory（KB SQLite 默认后端，详见 Phase 6）──────────────
 
     def memory_write(self, project_id: str, title: str, content: str, *,
