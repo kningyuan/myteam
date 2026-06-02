@@ -14,7 +14,7 @@
 
 ## myteam 项目约定（补充）
 
-- 路径唯一来源：`backend/hub/paths.py`（Hub）、`skill/team/common/paths.py`（协作 skill）
-- Agent 注册表：`config/agents_registry.json`（Main 选团队时读取）
-- 系统配置：`config/system_config.json`；协作引擎配置：`config/skill_config.json`
+- 路径唯一来源：`backend/hub/paths.py`（Hub）、`backend/common/paths.py`（编排内核）
+- Agent 注册表：`business/config/agents_registry.json`（Main 选团队时读取）
+- 系统配置：`config/system_config.json`、`config/skill_config.json`；业务配置：`business/config/`
 - 项目进度通报：myteam 项目群（team_config 后自动创建），**不使用 Telegram**

@@ -30,7 +30,7 @@ B) 编排内核（目标 → 任务 DAG 自动执行）
 | 服务 | `backend/hub/services/`、`backend/base/` | 聊天/群组/项目编排 |
 | 适配器 | `backend/adapter/`、`backend/adapters/opencode/` | CLI 协议归一为 `AgentEvent` |
 | 存储 | `backend/store/` | 配置 JSON + 系统配置真相 |
-| 编排内核 | `skill/team/common/` | `run_kernel / process / agent_port / gate / registry / store(SQLite)` |
+| 编排内核 | `backend/common/` | `run_kernel / process / agent_port / gate / registry / store(SQLite)` |
 | 可观测 | `backend/hub/api/observability_api.py` | 只读查询 + `run_event` SSE |
 
 ---
@@ -65,7 +65,7 @@ venv/bin/pip install -r requirements.txt
 #   打开 http://localhost:8765
 ```
 
-> `config/*.json`、`tasks/state.db`、`*.log` 均被 `.gitignore` 排除——它们是**每个环境自己的运行态**，不入库，需在本机生成/配置。
+> 系统配置 `config/*.json`、业务配置与运行态 `business/`（`business/config/*`、`business/workspaces/`、`business/tasks/state.db`）、`*.log` 均被 `.gitignore` 排除——它们是**每个环境自己的运行态/业务数据**，不入库，需在本机生成/配置。
 
 ---
 
@@ -86,16 +86,16 @@ venv/bin/pip install -r requirements.txt
 
 ```bash
 export MYTEAM_ROOT="$PWD"
-export PYTHONPATH="$PWD/skill/team:$PWD/backend"
+export PYTHONPATH="$PWD/backend"
 export NO_PROXY="localhost,127.0.0.1,::1"
 
-venv/bin/python3 skill/team/common/run_kernel.py <project_id> \
+venv/bin/python3 backend/common/run_kernel.py <project_id> \
   --goal "你的项目目标..." \
   --mode one_shot \        # one_shot | recurring
   --budget 150000          # 可选：per-project token 硬上限
 ```
 
-- 结果写入 SQLite（`tasks/state.db`），交付物写 `tasks/project/<project_id>/deliverables/`，契约响应写各 agent 的 `.response`。
+- 结果写入 SQLite（`business/tasks/state.db`），交付物写 `business/tasks/project/<project_id>/deliverables/`，契约响应写各 agent 的 `.response`。
 - 内核**不依赖 Hub 运行**（直连 opencode）；想在 UI 看进度就同时开着 Hub（读同一个库）。
 - 退出码：`completed` → 0，否则非 0。
 
@@ -105,12 +105,15 @@ venv/bin/python3 skill/team/common/run_kernel.py <project_id> \
 
 | 文件 / 目录 | 作用 | 来源 |
 |------|------|------|
+| **系统配置（随代码走，`config/`）** | | |
 | `config/system_config.json` | 端口、默认 backend/model、`backends.opencode.cli_path`、模型列表 | 首次加载由 `store.system_config` 用默认值**自动生成** |
-| `config/agents_config.json` | 每个 agent 的 `backend / model / workspace` | UI 建 agent 或手工写 |
-| `config/agents_registry.json` | agent 注册表（Main 选团队时读） | 同上 |
-| `config/groups.json`、`session_map.json`、`skill_config.json` | 群组、会话映射、协作配置 | 运行时管理 |
-| `workspaces/workspace-<agent_id>/` | agent 工作目录（放 `AGENTS.md/IDENTITY.md/SOUL.md/MEMORY.md` 等人设与规则） | 建 agent 时生成 |
-| `skill/team/.env` | 可选超时/重试覆盖（默认全注释 = 用默认值） | 已有模板 |
+| `config/skill_config.json` | 协作/通知开关等系统级配置 | 运行时管理 |
+| **业务配置（随业务领域走，`business/config/`，gitignore）** | | |
+| `business/config/agents_config.json` | 每个 agent 的 `backend / model / workspace` | UI 建 agent 或手工写 |
+| `business/config/agents_registry.json` | agent 注册表（Main 选团队时读） | 同上 |
+| `business/config/groups.json`、`session_map.json`、`group_archives.json`、`chat_archives/` | 群组、会话映射、归档 | 运行时管理 |
+| `business/config/.env` | 可选超时/重试覆盖（默认全注释 = 用默认值） | 已有模板 |
+| `business/workspaces/workspace-<agent_id>/` | agent 工作目录（放 `AGENTS.md/IDENTITY.md/SOUL.md/MEMORY.md` 等人设与规则） | 建 agent 时生成 |
 
 仓库自带一套 15 个模板 agent（`main / deputy / researcher / product / designer / developer / tester / ops / docs / content / seo / social / email / consultation / coordinator`），默认模型 `SenseNova/sensenova-6.7-flash-lite`。
 
@@ -120,11 +123,11 @@ venv/bin/python3 skill/team/common/run_kernel.py <project_id> \
 
 **不是全都必须。**
 
-- 每个 `workspaces/workspace-<agent_id>/` 对应一个 agent 的工作目录。**只有你实际会用到的 agent 才需要 workspace**。
+- 每个 `business/workspaces/workspace-<agent_id>/` 对应一个 agent 的工作目录。**只有你实际会用到的 agent 才需要 workspace**。
 - `main` 必备：负责 `team_config` / `task_plan` / `triage` 决策。其余 agent 只在被分配任务时才用到。
 - 目录本身**按需自动创建**（框架会建 `.response` / `.trigger` 子目录），缺目录不会让流程崩溃。
 - 但一个完整 workspace 里的 `AGENTS.md`（opencode 跑 `--dir` 时自动读取）、`IDENTITY.md`、`SOUL.md`、`MEMORY.md` 等是该 agent 的**人设 / 规则 / 记忆**。**没有这些文件，agent 仍能执行，但没有人设与记忆，产出质量会下降**。
-- 用不到的模板 workspace 可以删除；`workspaces/workspace-`（空 agent_id）是历史残留，可清理。
+- 用不到的模板 workspace 可以删除。各 workspace 内残留的 `.openclaw` / `.sisyphus`（OpenClaw 时代产物）可手工清理。
 
 > 经验法则：保留 `main` + 你实际编入团队的 agent，并确保它们的 workspace 里有 `AGENTS.md` 与身份文件。
 
@@ -139,8 +142,8 @@ venv/bin/python3 skill/team/common/run_kernel.py <project_id> \
 ### 冒烟示例
 
 ```bash
-export MYTEAM_ROOT="$PWD" PYTHONPATH="$PWD/skill/team:$PWD/backend" NO_PROXY="localhost,127.0.0.1,::1"
-venv/bin/python3 skill/team/common/run_kernel.py smoke_test \
+export MYTEAM_ROOT="$PWD" PYTHONPATH="$PWD/backend" NO_PROXY="localhost,127.0.0.1,::1"
+venv/bin/python3 backend/common/run_kernel.py smoke_test \
   --goal "为 example.com 做一次 GEO 快速评估" --budget 80000
 ```
 
@@ -151,10 +154,10 @@ venv/bin/python3 skill/team/common/run_kernel.py smoke_test \
 ## 8. 测试
 
 ```bash
-PYTHONPATH="$PWD/skill/team:$PWD/backend" venv/bin/python3 -m pytest skill/team/common/tests backend -q
+PYTHONPATH="$PWD/backend" venv/bin/python3 -m pytest backend -q
 ```
 
-当前全仓 91 例。
+当前全仓 94 例。
 
 ---
 
@@ -164,19 +167,23 @@ PYTHONPATH="$PWD/skill/team:$PWD/backend" venv/bin/python3 -m pytest skill/team/
 myteam/
 ├── run.sh                       # Hub 启停脚本
 ├── requirements.txt
-├── backend/
+├── backend/                     # 系统功能（唯一一棵后端树）
 │   ├── hub/api/server.py        # FastAPI 入口（端口 8765）
 │   ├── hub/api/observability_api.py
 │   ├── hub/services/            # 聊天/群组/项目服务
 │   ├── base/                    # 领域逻辑（agent_chat / factory / groups）
 │   ├── adapter/ + adapters/opencode/   # CLI 适配抽象 + opencode 实例
-│   └── store/                   # 配置/系统配置（JSON 真相）
-├── skill/team/common/           # 编排内核：run_kernel / process / agent_port / gate / registry / store(SQLite)
-├── skill/team/templates/templates.yaml   # task_type 格式注册表
+│   ├── store/                   # 配置/系统配置（JSON 真相）
+│   └── common/                  # 编排内核：run_kernel / process / agent_port / gate / registry / store(SQLite)
 ├── frontend/                    # Web UI
-├── config/                      # 运行态配置（gitignore）
-├── workspaces/                  # 各 agent 工作目录
-├── tasks/                       # 运行态：state.db、project/<id>/deliverables（gitignore）
+├── config/                      # 系统配置（system_config / skill_config，随代码走）
+├── business/                    # 业务领域（gitignore 运行态）
+│   ├── skills/publish-post/     # 通用业务 skill
+│   ├── templates/templates.yaml # task_type 格式注册表（业务定义）
+│   ├── rules/                   # agent 规则（universal-rules / worker-template / ...）
+│   ├── config/                  # 业务配置 + 运行态（agents_config / groups / session_map / .env ...）
+│   ├── workspaces/              # 各 agent 工作目录
+│   └── tasks/                   # 运行态：state.db、project/<id>/deliverables
 └── docs/                        # ARCHITECTURE.md / framework-decisions.md
 ```
 
@@ -187,4 +194,4 @@ myteam/
 - **`OpenCode CLI 未找到`**：装好 opencode；或设 `config/system_config.json` 的 `backends.opencode.cli_path`，或 `export OPENCODE_CLI_PATH=/abs/path/opencode`。
 - **`team_config / task_plan 失败`**：检查 `main` 的 workspace 与模型可用性；弱模型可能产不出合法契约，内核已在提示词里注入具体 JSON 骨架 + 可用 agent/task_type 白名单。
 - **端口被占**：`./run.sh stop` 或改 `LOCAL_AGENT_PORT`。
-- **看不到进度**：内核写 `tasks/state.db`，需用入口 A 的 Hub 读取同库展示。
+- **看不到进度**：内核写 `business/tasks/state.db`，需用入口 A 的 Hub 读取同库展示。

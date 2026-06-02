@@ -68,9 +68,9 @@ OpenCode CLI            →     adapters/opencode/
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
-│  Orchestration (Phase 2)  skill/team-ok/                      │
-│  项目任务状态机；通过 ChatService 调 Agent，不直连 CLI          │
-│  逐步去掉 ~/.openclaw 硬编码路径                                │
+│  Orchestration            backend/common/ (单一 Process 内核)  │
+│  run_kernel → Process/AgentPort/Gate/Store(SQLite)；直驱 CLI   │
+│  业务定义/运行态在 business/（templates/workspaces/tasks/config）│
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -207,8 +207,8 @@ myteam/                          # 工程：平台代码
 
 team-ok **不应**解析 OpenCode JSON；只消费 **AgentEvent 摘要**或最终 text。
 
-> 注：编排层已从 `skill/team-ok/` 的 `executor`/`continuous-executor` 双引擎迁移到
-> `skill/team/` 的单一 **Process 内核**（见 §11）。旧引擎已删除，入口统一为 `run_kernel.py`。
+> 注：编排层已从旧 `executor`/`continuous-executor` 双引擎及 agent 驱动的老编排 skill
+> 全面退役，统一为 `backend/common/` 的单一 **Process 内核**（见 §11），入口统一为 `run_kernel.py`。
 
 ---
 
@@ -251,7 +251,7 @@ team-ok **不应**解析 OpenCode JSON；只消费 **AgentEvent 摘要**或最�
 > 业务编排层（项目 → 任务 DAG 执行），与上面的 chat/adapter 层正交。
 > 详细决策见 `docs/framework-decisions.md`（D1–D18）。
 
-旧 `skill/team/{task-executor,continuous-executor}` 双引擎已删除，统一为单一声明式状态机：
+旧 OpenClaw 时代的 agent 驱动编排 skill（`task-executor`/`continuous-executor`/`task-dispatch`/`task-queue`/`task-monitor`/`task-resume`/`project-init`/`agent-notify` 等）已整体退役，统一为单一声明式状态机；内核与系统工具已上移到 `backend/common/`：
 
 ```
 run_kernel.py (CLI 入口)
@@ -266,13 +266,13 @@ run_kernel.py (CLI 入口)
 
 | 组件 | 文件 | 职责 |
 |------|------|------|
-| 入口 | `skill/team/common/run_kernel.py` | 装配 Store/AgentPort/Process，按 goal 跑项目 |
-| 状态机 | `common/process.py` | DAG 调度、失败/重试、triage 委派 |
-| 交互端口 | `common/agent_port.py` | InteractionRequest 投递、liveness、幂等、token 计量 |
-| 传输 | `common/opencode_transport.py` | 构造 worker prompt → opencode 子进程 → AgentEvent |
-| 门禁 | `common/gate.py` | 契约/格式/完整性校验（复用 `quality_gate` 证据校验工具） |
-| 注册表 | `common/registry.py` | task_type 约束（读 `templates/templates.yaml`） |
-| 真相库 | `common/store.py` | SQLite 运行态：interactions / events / tasks / tokens |
+| 入口 | `backend/common/run_kernel.py` | 装配 Store/AgentPort/Process，按 goal 跑项目 |
+| 状态机 | `backend/common/process.py` | DAG 调度、失败/重试、triage 委派 |
+| 交互端口 | `backend/common/agent_port.py` | InteractionRequest 投递、liveness、幂等、token 计量 |
+| 传输 | `backend/common/opencode_transport.py` | 构造 worker prompt → opencode 子进程 → AgentEvent |
+| 门禁 | `backend/common/gate.py` | 契约/格式/完整性校验（复用 `quality_gate` 证据校验工具） |
+| 注册表 | `backend/common/registry.py` | task_type 约束（读 `business/templates/templates.yaml`） |
+| 真相库 | `backend/common/store.py` | SQLite 运行态：interactions / events / tasks / tokens（`business/tasks/state.db`） |
 | 可观测 | `backend/hub/api/observability_api.py` | 只读查询 + run_event SSE |
 
 ## 12. config / path 出处
@@ -280,13 +280,14 @@ run_kernel.py (CLI 入口)
 | 层 | 模块 | 根 / 真相 |
 |----|------|----------|
 | 服务端（Hub/UI） | `backend/hub/paths.py` | `MYTEAM_ROOT`（= 仓库根） |
-| Worker / 编排 | `skill/team/common/paths.py` | `MYTEAM_ROOT`（env 可覆盖） |
+| Worker / 编排 | `backend/common/paths.py` | `MYTEAM_ROOT`（env 可覆盖） |
 | 系统配置真相 | `backend/store/system_config.py` | `config/system_config.json` |
+| 业务配置 / 运行态 | 两个 `paths.py` 的 `BUSINESS_CONFIG_DIR` / `WORKSPACES_DIR` / `TASKS_DIR` | `business/`（gitignore） |
 
 `backend/base/system_config.py` 已降级为兼容垫片，仅 re-export `store.system_config`。
-两个 `paths.py` 服务于两个不同 sys.path 包（server 在 `backend/`，worker 在 `skill/team/`），
-均以 `MYTEAM_ROOT` 为根、`config/` 为配置目录，无定义漂移。
+两个 `paths.py` 同处 `backend/` 包树（server=`backend/hub`，内核=`backend/common`），
+均以 `MYTEAM_ROOT` 为根：系统配置在 `config/`、业务配置与运行态在 `business/`，无定义漂移。
 
 ---
 
-*文档版本：2026-06-02 · 新增 §11 编排内核 / §12 config·path 出处（D1–D18 切换收尾）*
+*文档版本：2026-06-02 · 目录重构：内核上移 `backend/common/`、业务归位 `business/`、退役老编排（§11/§12 已更新）*
