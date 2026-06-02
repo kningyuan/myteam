@@ -1,0 +1,21 @@
+{
+  "interaction_id": "smoke_20260602_010818_task_001_execute",
+  "kind": "execute",
+  "status": "ok",
+  "quality": {
+    "score": 0.95,
+    "known_gaps": [],
+    "notes": "基于皮亚诺公理体系的形式化解释，准确简洁，符合调研格式要求。"
+  },
+  "result": {
+    "outcome": {
+      "kind": "artifact",
+      "artifact": {
+        "path": "task_001_smoke.md",
+        "format": "markdown",
+        "title": "为什么 1+1=2"
+      }
+    }
+  },
+  "notes": "交付物为 Markdown 格式，包含调研背景、信息来源、关键发现、结论四个二级标题章节，核心结论为：1+1=2 是因为在自然数的皮亚诺公理体系中，2 被定义为 1 的后继数，而加法 n+1 的定义即为取 n 的后继数。"
+}

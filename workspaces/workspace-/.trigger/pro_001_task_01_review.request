@@ -1,0 +1,6 @@
+{
+  "event": "cross_review",
+  "project_id": "pro_001",
+  "task_id": "task_01",
+  "handoff_path": "/handoff.md"
+}

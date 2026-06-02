@@ -1,0 +1,21 @@
+{
+  "interaction_id": "smoke_20260602_010534_task_001_execute",
+  "kind": "execute",
+  "status": "ok",
+  "quality": {
+    "score": 0.95,
+    "known_gaps": [],
+    "notes": "基于皮亚诺公理体系给出严谨推导，结构完整覆盖四个章节。"
+  },
+  "result": {
+    "outcome": {
+      "kind": "artifact",
+      "artifact": {
+        "path": "task_001_smoke.md",
+        "format": "markdown",
+        "title": "1+1=2 的解释"
+      }
+    }
+  },
+  "notes": "基于皮亚诺公理体系，从自然数定义与加法递归定义出发，推导出 1+1=2 为必然定理而非经验观察。"
+}

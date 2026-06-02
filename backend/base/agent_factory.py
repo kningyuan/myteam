@@ -1,0 +1,236 @@
+"""
+Agent Factory - 一键创建 Agent
+根据描述自动生成工作目录和能力文件
+"""
+
+import json
+import re
+import sys
+from pathlib import Path
+from typing import Optional
+
+_ROOT = Path(__file__).resolve().parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
+from hub.paths import WORKSPACE_PREFIX, WORKSPACES_DIR, resolve_workspace, to_relative_path
+from base.agent_chat import (
+    get_agent_backend_config,
+    set_agent_backend_config,
+    stream_chat,
+)
+
+
+def _default_model(backend_id: str) -> str:
+    import adapters  # noqa: F401
+    from adapter.registry import registry
+
+    adapter = registry.get(backend_id)
+    return adapter.get_default_model() if adapter else ""
+
+
+def generate_agent(
+    agent_id: str,
+    description: str,
+    backend_id: str = "opencode",
+    model: str = "",
+    chinese_name: str = "",
+    use_existing_agent_for_gen: bool = True,
+) -> dict:
+    werk = WORKSPACES_DIR / f"{WORKSPACE_PREFIX}{agent_id}"
+
+    if werk.exists():
+        return {"success": False, "error": f"Agent '{agent_id}' 的工作目录已存在"}
+
+    if not model:
+        model = _default_model(backend_id)
+
+    if use_existing_agent_for_gen:
+        files_content = _generate_via_llm(agent_id, description, chinese_name, backend_id, model)
+    else:
+        files_content = _generate_template(agent_id, description, chinese_name)
+
+    if not files_content:
+        files_content = _generate_template(agent_id, description, chinese_name)
+
+    werk.mkdir(parents=True, exist_ok=True)
+    trigger_dir = werk / ".trigger"
+    response_dir = werk / ".response"
+    trigger_dir.mkdir(exist_ok=True)
+    response_dir.mkdir(exist_ok=True)
+
+    created_files = []
+    for filename, content in files_content.items():
+        file_path = werk / filename
+        file_path.write_text(content.strip() + "\n", encoding="utf-8")
+        created_files.append(filename)
+
+        if filename == "IDENTITY.md" and not chinese_name:
+            chinese_name = _extract_name_from_identity(content)
+
+    set_agent_backend_config(agent_id, backend_id, model, workspace=to_relative_path(werk))
+
+    return {
+        "success": True,
+        "agent_id": agent_id,
+        "chinese_name": chinese_name,
+        "workspace": to_relative_path(werk),
+        "files": created_files,
+        "backend": backend_id,
+        "model": model,
+    }
+
+
+def _generate_via_llm(
+    agent_id: str,
+    description: str,
+    chinese_name: str,
+    backend_id: str,
+    model: str,
+) -> Optional[dict[str, str]]:
+    prompt = f"""你是一个 Agent 生成器。请根据以下描述，为一个 AI Agent 生成完整的身份和配置文件。
+
+Agent ID: {agent_id}
+{"中文名: " + chinese_name if chinese_name else ""}
+描述: {description}
+
+请生成以下 6 个文件的内容，用 JSON 格式返回：
+
+{{
+  "IDENTITY.md": "身份定义（emoji, name, role, vibe 等）",
+  "AGENTS.md": "Agent 的能力、工作流程、协作方式",
+  "SOUL.md": "灵魂与行为准则",
+  "USER.md": "用户信息（当前未知，写 placeholder）",
+  "TOOLS.md": "可用的工具描述",
+  "HEARTBEAT.md": "心跳检查项"
+}}
+
+要求：
+1. IDENTITY.md 用中文，name 用中文，emoji 要匹配角色
+2. AGENTS.md 详细描述能力和工作流程，包含核心职责、工作方法、协作方式
+3. 所有内容用 Markdown 格式
+4. 只返回 JSON，不要其他文字
+"""
+
+    try:
+        content_buffer = ""
+        for sse_json in stream_chat("main", prompt):
+            evt = json.loads(sse_json)
+            if evt["event"] == "thinking" and evt["data"].get("type") == "text":
+                content_buffer += evt["data"].get("content", "")
+
+        content_buffer = content_buffer.strip()
+        match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content_buffer, re.DOTALL)
+        if match:
+            content_buffer = match.group(1)
+        return json.loads(content_buffer)
+
+    except Exception as e:
+        print(f"[WARN] LLM 生成失败: {e}")
+        return None
+
+
+def _generate_template(agent_id: str, description: str, chinese_name: str = "") -> dict[str, str]:
+    name = chinese_name or f"Agent-{agent_id}"
+    return {
+        "IDENTITY.md": f"""# Agent Identity
+
+emoji: 🤖
+name: {name}
+role: AI 助手
+description: {description}
+""",
+        "AGENTS.md": f"""# {name} - Agent 配置
+
+## 核心定位
+{description}
+
+## 工作流程
+1. 接收任务
+2. 分析需求
+3. 执行工作
+4. 输出结果
+
+## 协作方式
+- 通过 .trigger/.response 文件系统通信
+- 返回 JSON 格式的 structured response
+- 不直接调用外部脚本
+""",
+        "SOUL.md": f"""# {name} - 灵魂与行为准则
+
+## 行为准则
+1. 准确：确保输出正确可靠
+2. 高效：快速响应，不浪费资源
+3. 协作：积极与其他 Agent 配合
+4. 透明：清晰说明工作状态
+
+## 工作态度
+- 主动解决问题
+- 保持专业
+- 持续改进
+""",
+        "USER.md": """# 用户信息
+
+用户: 待配置
+联系方式: 待配置
+偏好: 待配置
+""",
+        "TOOLS.md": """# 可用工具
+
+## 基础工具
+- 文件读写：读取和写入工作目录中的文件
+- 代码执行：执行 shell 命令
+- 网络请求：进行 HTTP 请求
+
+## 注意事项
+- 所有操作在工作目录内进行
+- 遵守安全规范
+- 记录操作日志
+""",
+        "HEARTBEAT.md": """# 心跳检查项
+
+## 每日检查
+- [ ] 工作目录是否正常
+- [ ] 身份文件是否完整
+- [ ] 工具是否可用
+
+## 异常处理
+- 文件缺失：重新生成
+- 通信失败：等待重试
+- 任务超时：报告状态
+""",
+    }
+
+
+def _extract_name_from_identity(content: str) -> str:
+    patterns = [
+        r"name[：:]\s*(\S+)",
+        r"称呼[：:]\s*(\S+)",
+    ]
+    for p in patterns:
+        m = re.search(p, content)
+        if m:
+            return m.group(1)
+    return ""
+
+
+def list_available_agent_ids() -> list[str]:
+    if not WORKSPACES_DIR.is_dir():
+        return []
+    existing = set()
+    for d in WORKSPACES_DIR.glob(f"{WORKSPACE_PREFIX}*"):
+        if d.is_dir():
+            existing.add(d.name[len(WORKSPACE_PREFIX):])
+    return sorted(existing)
+
+
+def suggest_agent_id(description: str) -> str:
+    words = re.findall(r'[a-zA-Z]+', description)
+    base = words[0].lower() if words else "agent"
+    existing = list_available_agent_ids()
+    if base not in existing:
+        return base
+    i = 1
+    while f"{base}{i}" in existing:
+        i += 1
+    return f"{base}{i}"

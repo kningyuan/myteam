@@ -1,0 +1,12 @@
+{
+  "agents": [
+    "researcher",
+    "seo",
+    "content",
+    "developer",
+    "product",
+    "ops",
+    "tester",
+    "social"
+  ]
+}

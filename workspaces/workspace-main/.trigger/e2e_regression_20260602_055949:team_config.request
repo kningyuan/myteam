@@ -1,0 +1,17 @@
+{
+  "interaction_id": "e2e_regression_20260602_055949:team_config",
+  "schema_version": "1.0",
+  "kind": "team_config",
+  "project_id": "e2e_regression_20260602_055949",
+  "task_id": null,
+  "agent_id": "main",
+  "intent": "为目标配置团队",
+  "input": {
+    "goal": "为示例站点 example.com 做一次 GEO 快速评估：先做现状研究，再产出 SEO 优化方案，最后给出整体策略建议。"
+  },
+  "context": {},
+  "response_schema": "team_config.result@1.0",
+  "constraints": {},
+  "deadline_sec": null,
+  "retry_feedback": []
+}

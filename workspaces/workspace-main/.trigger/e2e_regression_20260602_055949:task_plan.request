@@ -1,0 +1,22 @@
+{
+  "interaction_id": "e2e_regression_20260602_055949:task_plan",
+  "schema_version": "1.0",
+  "kind": "task_plan",
+  "project_id": "e2e_regression_20260602_055949",
+  "task_id": null,
+  "agent_id": "main",
+  "intent": "规划任务与依赖",
+  "input": {
+    "goal": "为示例站点 example.com 做一次 GEO 快速评估：先做现状研究，再产出 SEO 优化方案，最后给出整体策略建议。",
+    "team": [
+      "researcher",
+      "seo",
+      "analyst"
+    ]
+  },
+  "context": {},
+  "response_schema": "task_plan.result@1.0",
+  "constraints": {},
+  "deadline_sec": null,
+  "retry_feedback": []
+}

@@ -1,9 +1,0 @@
-{
-  "agents": [
-    "researcher",
-    "analyst",
-    "content",
-    "developer",
-    "tester"
-  ]
-}

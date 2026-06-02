@@ -1,0 +1,42 @@
+{
+  "interaction_id": "e2e_regression_20260602_055949:task_plan",
+  "kind": "task_plan",
+  "status": "ok",
+  "result": {
+    "tasks": [
+      {
+        "id": "t1",
+        "name": "example.com 现状研究与竞品分析",
+        "agent": "researcher",
+        "task_type": "research",
+        "description": "调研 example.com 当前 SEO 现状、流量结构、关键词排名及主要竞品，输出基线报告",
+        "reviewer": "",
+        "dependencies": []
+      },
+      {
+        "id": "t2",
+        "name": "example.com SEO 优化方案",
+        "agent": "seo",
+        "task_type": "seo-plan",
+        "description": "基于现状研究，制定技术 SEO、内容 SEO、外链建设等优化方案，明确优先级与预期收益",
+        "reviewer": "",
+        "dependencies": [
+          "t1"
+        ]
+      },
+      {
+        "id": "t3",
+        "name": "整体 GEO 策略建议",
+        "agent": "analyst",
+        "task_type": "strategy",
+        "description": "综合研究结果与 SEO 方案，输出整体 GEO 策略建议，包括资源投入、时间线、风险点与 ROI 预估",
+        "reviewer": "",
+        "dependencies": [
+          "t1",
+          "t2"
+        ]
+      }
+    ]
+  },
+  "notes": "3 阶段流水线：researcher 先做现状基线 → seo 制定优化方案 → analyst 汇总输出整体策略。t2 依赖 t1，t3 依赖 t1+t2，确保下游有充分上下文。"
+}

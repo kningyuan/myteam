@@ -110,26 +110,6 @@ def script_path(*parts: str) -> Path:
     return TEAM_SKILL_DIR.joinpath(*parts)
 
 
-def notify_agent_script() -> Path:
-    return script_path("agent-notify", "scripts", "notify_agent.py")
-
-
-def task_queue_script() -> Path:
-    return script_path("task-queue", "scripts", "task_queue.py")
-
-
-def project_data_script() -> Path:
-    return script_path("project-data", "scripts", "project_data.py")
-
-
-def dispatch_script() -> Path:
-    return script_path("task-dispatch", "scripts", "dispatch.py")
-
-
-def task_monitor_script() -> Path:
-    return script_path("task-monitor", "scripts", "task_monitor.py")
-
-
 def templates_file() -> Path:
     return script_path("templates", "templates.yaml")
 

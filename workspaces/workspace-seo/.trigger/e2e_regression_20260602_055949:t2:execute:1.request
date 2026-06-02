@@ -1,0 +1,38 @@
+{
+  "interaction_id": "e2e_regression_20260602_055949:t2:execute:1",
+  "schema_version": "1.0",
+  "kind": "execute",
+  "project_id": "e2e_regression_20260602_055949",
+  "task_id": "t2",
+  "agent_id": "seo",
+  "intent": "基于现状研究，制定技术 SEO、内容 SEO、外链建设等优化方案，明确优先级与预期收益",
+  "input": {
+    "task": {
+      "id": "t2",
+      "name": "example.com SEO 优化方案",
+      "agent": "seo",
+      "task_type": "seo-plan",
+      "description": "基于现状研究，制定技术 SEO、内容 SEO、外链建设等优化方案，明确优先级与预期收益",
+      "reviewer": "",
+      "dependencies": [
+        "t1"
+      ]
+    },
+    "deliverable_path": "t2_deliverable.md"
+  },
+  "context": {
+    "upstream": [
+      {
+        "task_id": "t1",
+        "summary": "完成 example.com SEO 基线调研。该域名为 IANA 保留域名（1995 年注册），零 SEO 优化，流量主要来自直接访问和文档引用。基础设施健康（HTTPS+Cloudflare），但缺乏 Sitemap/结构化数据等现代 SEO 元素。无商业竞品，对标对象为 example.org/net/edu。",
+        "ref": "t1_deliverable.md"
+      }
+    ]
+  },
+  "response_schema": "execute.result@1.0",
+  "constraints": {
+    "task_type": "seo-plan"
+  },
+  "deadline_sec": null,
+  "retry_feedback": []
+}

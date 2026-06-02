@@ -1,0 +1,9 @@
+{
+  "interaction_id": "e2e_regression_20260602_055949:team_config",
+  "kind": "team_config",
+  "status": "ok",
+  "result": {
+    "agents": ["researcher", "seo", "analyst"]
+  },
+  "notes": "为example.com GEO评估配置团队：researcher负责现状调研，seo负责优化方案，analyst负责数据洞察与策略建议。"
+}
