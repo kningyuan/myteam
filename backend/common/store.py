@@ -176,6 +176,31 @@ class Store:
         ).fetchall()
         return [self._row(r) for r in rows]
 
+    def delete_project(self, project_id: str) -> list[dict]:
+        """彻底删除一个项目的全部行（5 表）。
+
+        返回该项目的交互列表 [{interaction_id, agent_id}]，供上层清理 agent 工作目录的
+        .trigger/.response 临时文件。run_event 无 project_id 列，按 ``project_id:`` 前缀清
+        （含 budget/cycle/blocked 等合成 interaction_id）。
+        """
+        rows = self._conn.execute(
+            "SELECT interaction_id, agent_id FROM interaction WHERE project_id=?",
+            (project_id,)).fetchall()
+        interactions = [{"interaction_id": r["interaction_id"], "agent_id": r["agent_id"]}
+                        for r in rows]
+        prefix = f"{project_id}:"
+        ev = self._conn.execute("SELECT DISTINCT interaction_id FROM run_event").fetchall()
+        ev_iids = [r["interaction_id"] for r in ev
+                   if (r["interaction_id"] or "").startswith(prefix)]
+        with self._conn:
+            for iid in ev_iids:
+                self._conn.execute("DELETE FROM run_event WHERE interaction_id=?", (iid,))
+            self._conn.execute("DELETE FROM interaction WHERE project_id=?", (project_id,))
+            self._conn.execute("DELETE FROM task WHERE project_id=?", (project_id,))
+            self._conn.execute("DELETE FROM memory WHERE project_id=?", (project_id,))
+            self._conn.execute("DELETE FROM project WHERE project_id=?", (project_id,))
+        return interactions
+
     # ── task ─────────────────────────────────────────────────
 
     def upsert_task(self, project_id: str, task_id: str, *, name: str = "", agent: str = "",

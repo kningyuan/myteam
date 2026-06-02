@@ -686,11 +686,34 @@ function renderProjectList() {
       <span class="s-icon">📋</span>
       <span class="s-name">${esc(p.title || p.id)}</span>
       <span class="s-sub">${Math.round((p.progress || 0) * 100)}% · ${p.task_count || 0}任务 · ${esc(p.status || '')}</span>
+      <button class="s-del" data-del="${p.id}" title="删除项目">🗑</button>
     </div>`
   ).join('');
   DOM['project-list'].querySelectorAll('.sidebar-item').forEach(el => {
     el.addEventListener('click', () => selectProject(el.dataset.id));
   });
+  DOM['project-list'].querySelectorAll('.s-del').forEach(btn => {
+    btn.addEventListener('click', (e) => { e.stopPropagation(); deleteProject(btn.dataset.del); });
+  });
+}
+
+async function deleteProject(id) {
+  if (!confirm(`确认彻底删除项目「${id}」？将清除其数据库记录、交付物目录与 agent 临时文件，不可恢复。`)) return;
+  try {
+    const r = await fetch(`/api/projects/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || '删除失败');
+    if (S.currentProjectId === id) {
+      stopProjectPoll();
+      S.currentProjectId = null;
+      DOM['project-detail-view']?.classList.add('hidden');
+      DOM['project-welcome']?.classList.remove('hidden');
+    }
+    await loadProjects();
+    renderProjectList();
+  } catch (e) {
+    alert('删除项目失败：' + (e.message || e));
+  }
 }
 
 function stopProjectPoll() {

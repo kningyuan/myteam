@@ -654,6 +654,26 @@ async def api_project_cancel(project_id: str):
     return {"success": True, "project_id": project_id, "status": "cancelled"}
 
 
+@app.delete("/api/projects/{project_id}")
+async def api_project_delete(project_id: str):
+    """彻底删除项目：清 state.db 5 表 + agent 工作目录临时件 + 项目目录。运行中需先取消。"""
+    if "/" in project_id or "\\" in project_id or ".." in project_id:
+        raise HTTPException(status_code=400, detail="project_id 非法")
+    if _KERNEL_RUNS.get(project_id, {}).get("running"):
+        raise HTTPException(status_code=409, detail="项目运行中，请先取消再删除")
+    from common.store import Store
+    store = Store()
+    try:
+        if not store.get_project(project_id):
+            raise HTTPException(status_code=404, detail="项目不存在")
+    finally:
+        store.close()
+    from common.project_admin import delete_project
+    summary = delete_project(project_id)
+    _KERNEL_RUNS.pop(project_id, None)
+    return {"success": True, "project_id": project_id, **summary}
+
+
 @app.get("/api/agents/{agent_id}/chats")
 async def api_agent_background_chats(agent_id: str):
     """获取 Agent 的后台执行私聊记录（持久化的 .chat 文件）。"""

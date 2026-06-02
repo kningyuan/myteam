@@ -19,6 +19,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 import hub.api.server as srv  # noqa: E402
 import hub.paths as hub_paths  # noqa: E402
 import common.store as cstore  # noqa: E402
+import common.project_admin as padmin  # noqa: E402
 
 
 @pytest.fixture()
@@ -91,3 +92,29 @@ def test_cancel(client, tmp_path, monkeypatch):
 
     done = client.post("/api/projects/p_done/cancel")
     assert done.status_code == 200 and done.json()["success"] is False
+
+
+def test_delete(client, tmp_path, monkeypatch):
+    db = tmp_path / "state.db"
+    orig = cstore.Store
+    seed = orig(db)
+    seed.upsert_project("p_del", title="D", status="completed")
+    seed.close()
+    monkeypatch.setattr(cstore, "Store", lambda *a, **k: orig(db))
+    calls = {}
+
+    def _stub_delete(pid, **k):
+        calls["pid"] = pid
+        return {"interactions": 0, "files_removed": 0, "project_dir_removed": False}
+    monkeypatch.setattr(padmin, "delete_project", _stub_delete)
+
+    assert client.request("DELETE", "/api/projects/ab..").status_code == 400
+    assert client.request("DELETE", "/api/projects/nope").status_code == 404
+
+    srv._KERNEL_RUNS["p_del"] = {"running": True, "error": None}
+    assert client.request("DELETE", "/api/projects/p_del").status_code == 409
+    srv._KERNEL_RUNS.pop("p_del", None)
+
+    ok = client.request("DELETE", "/api/projects/p_del")
+    assert ok.status_code == 200 and ok.json()["success"] is True
+    assert calls["pid"] == "p_del"

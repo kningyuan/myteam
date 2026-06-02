@@ -124,3 +124,34 @@ def test_memory_write_search(store):
     assert store.memory_search(tags=["geo"])
     assert store.memory_search(text="结构化")
     assert not store.memory_search(tags=["nope"])
+
+
+def test_delete_project_purges_all_tables_and_isolates(store):
+    # 目标项目：含 task / interaction / run_event / memory + 合成 budget 事件
+    store.upsert_project("pro_del", title="待删")
+    store.upsert_task("pro_del", "task_001", name="t", agent="researcher")
+    store.create_interaction("pro_del:task_001:execute:1", "execute", "pro_del",
+                             task_id="task_001", agent_id="researcher")
+    store.append_run_event("pro_del:task_001:execute:1", "step_start", {})
+    store.append_run_event("pro_del:budget", "budget_over", {"used": 9})  # 合成 id（无交互行）
+    store.memory_write("pro_del", "KB", "x", tags=["a"])
+    # 另一个项目：必须不受影响
+    store.upsert_project("pro_keep", title="保留")
+    store.upsert_task("pro_keep", "task_001", name="k")
+    store.append_run_event("pro_keep:task_001:execute:1", "step_start", {})
+
+    inter = store.delete_project("pro_del")
+    assert {"interaction_id": "pro_del:task_001:execute:1",
+            "agent_id": "researcher"} in inter
+
+    assert store.get_project("pro_del") is None
+    assert store.list_tasks("pro_del") == []
+    assert store.get_interaction("pro_del:task_001:execute:1") is None
+    assert store.memory_search(project_id="pro_del") == []
+    c = store._conn.execute(
+        "SELECT COUNT(*) FROM run_event WHERE interaction_id LIKE 'pro_del:%'").fetchone()[0]
+    assert c == 0
+    # 隔离：另一个项目完好
+    assert store.get_project("pro_keep") is not None
+    assert store._conn.execute(
+        "SELECT COUNT(*) FROM run_event WHERE interaction_id LIKE 'pro_keep:%'").fetchone()[0] == 1
