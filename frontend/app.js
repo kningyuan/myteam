@@ -38,7 +38,7 @@ function cacheDom() {
    'project-list','project-count','project-welcome','project-detail-view',
    'project-title','project-meta','project-progress-text','project-progress-fill',
    'project-tasks','project-log',
-   'btn-new-project','btn-new-project-welcome','new-project-modal',
+   'btn-new-project','btn-new-project-welcome','new-project-modal','btn-cancel-project',
    'np-goal','np-title','np-mode','np-budget','np-submit','np-cancel',
    'btn-theme','theme-dropdown',
    'modal-overlay','agent-config-modal','modal-backend','modal-model','modal-agent-info',
@@ -659,7 +659,7 @@ function renderGroupList() {
 }
 
 // ============ Projects ============
-const PROJECT_TERMINAL = new Set(['completed', 'failed', 'cancelled', 'timed_out']);
+const PROJECT_TERMINAL = new Set(['completed', 'failed', 'partially_failed', 'aborted', 'cancelled', 'paused', 'timed_out']);
 
 async function loadProjects() {
   try {
@@ -722,6 +722,8 @@ async function refreshProjectDetail(id) {
       fetch(`/api/projects/run-status/${pid}`).then(r => r.json()).catch(() => ({})),
     ]);
     const status = ov.status || (rs.running ? 'running' : 'unknown');
+    const active = rs.running || !PROJECT_TERMINAL.has(status);
+    DOM['btn-cancel-project']?.classList.toggle('hidden', !active);
     DOM['project-title'].textContent = ov.title || id;
     const launchErr = rs && rs.error ? ` · ⚠️ ${rs.error}` : '';
     DOM['project-meta'].textContent = `${id} · ${status}${rs.running ? ' · 运行中' : ''}${launchErr}`;
@@ -2000,6 +2002,19 @@ function setupEventListeners() {
   DOM['btn-new-project-welcome']?.addEventListener('click', openNewProject);
   DOM['np-cancel']?.addEventListener('click', closeNewProject);
   DOM['new-project-modal']?.querySelector('.modal-close')?.addEventListener('click', closeNewProject);
+  DOM['btn-cancel-project']?.addEventListener('click', async () => {
+    const id = S.currentProjectId;
+    if (!id) return;
+    if (!confirm('取消该项目？当前正在执行的任务会跑完，之后不再派发新任务。')) return;
+    try {
+      const r = await fetch(`/api/projects/${encodeURIComponent(id)}/cancel`, { method: 'POST' });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || '取消失败');
+      await refreshProjectDetail(id);
+    } catch (e) {
+      alert('取消失败：' + (e.message || e));
+    }
+  });
   DOM['np-submit']?.addEventListener('click', async () => {
     const goal = DOM['np-goal'].value.trim();
     if (!goal) return;

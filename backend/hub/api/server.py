@@ -610,6 +610,29 @@ async def api_project_run_status(project_id: str):
     return _KERNEL_RUNS.get(project_id, {"running": False, "error": None})
 
 
+_PROJECT_TERMINAL = {"completed", "failed", "partially_failed", "aborted", "cancelled", "paused"}
+
+
+@app.post("/api/projects/{project_id}/cancel")
+async def api_project_cancel(project_id: str):
+    """协作式取消：把项目状态置 cancelled，运行中的内核在任务间隙观察后停止派发。
+
+    注意：正在执行的当前任务（opencode 子进程）会自然跑完，之后不再派发新任务。
+    """
+    from common.store import Store
+    store = Store()
+    try:
+        proj = store.get_project(project_id)
+        if not proj:
+            raise HTTPException(status_code=404, detail="项目不存在")
+        if proj.get("status") in _PROJECT_TERMINAL:
+            return {"success": False, "status": proj.get("status"), "message": "项目已结束"}
+        store.set_project_status(project_id, "cancelled")
+    finally:
+        store.close()
+    return {"success": True, "project_id": project_id, "status": "cancelled"}
+
+
 @app.get("/api/agents/{agent_id}/chats")
 async def api_agent_background_chats(agent_id: str):
     """获取 Agent 的后台执行私聊记录（持久化的 .chat 文件）。"""

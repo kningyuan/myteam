@@ -104,6 +104,26 @@ def test_happy_dag(env):
     assert store.get_project("pro_x")["status"] == "completed"
 
 
+def test_cancel_stops_dispatch(env):
+    store, wcfg = env
+
+    def transport(ctx):
+        ctx.emit("step_start")
+        if ctx.request.task_id == "t1":
+            store.set_project_status("pro_x", "cancelled")  # 外部取消（模拟 API）
+        _write_exec(ctx, valid_content("research"), GOOD_Q)
+
+    proc = Process(store, _port(store, wcfg, transport), ProcessConfig())
+    tasks = [
+        {"id": "t1", "agent": "researcher", "task_type": "research", "dependencies": []},
+        {"id": "t2", "agent": "researcher", "task_type": "research", "dependencies": ["t1"]},
+    ]
+    out = proc.run("pro_x", agents=["researcher"], tasks=tasks)
+    assert out.status == "cancelled"
+    assert out.tasks["t2"].status == "blocked"
+    assert store.get_project("pro_x")["status"] == "cancelled"
+
+
 def test_gate_retry_then_pass(env):
     store, wcfg = env
 

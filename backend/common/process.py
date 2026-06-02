@@ -165,10 +165,14 @@ class Process:
         outcomes: dict[str, TaskOutcome] = {}
         aborted = False
         paused = False
+        cancelled = False
 
         for tid in order:
-            if aborted or paused:
-                reason = "项目已中止" if aborted else "项目已暂停（token 超预算）"
+            if not (cancelled or aborted or paused) and self._is_cancelled(project_id):
+                cancelled = True
+            if cancelled or aborted or paused:
+                reason = ("项目已取消" if cancelled else
+                          "项目已中止" if aborted else "项目已暂停（token 超预算）")
                 outcomes[tid] = self._block(project_id, tid, reason)
                 continue
             if self._over_budget(project_id):
@@ -193,8 +197,13 @@ class Process:
                 # drop：保持 failed，不再处理
             outcomes[tid] = outcome
 
-        proj_status = self._finalize(project_id, outcomes, aborted, paused)
+        proj_status = self._finalize(project_id, outcomes, aborted, paused, cancelled)
         return ProjectOutcome(project_id, proj_status, outcomes)
+
+    def _is_cancelled(self, project_id: str) -> bool:
+        """协作式取消：外部把项目状态置为 cancelled，调度循环在任务间隙观察后停止派发。"""
+        p = self.store.get_project(project_id)
+        return bool(p and p.get("status") == "cancelled")
 
     def _over_budget(self, project_id: str) -> bool:
         """方案丙（D17）：到硬上限 → 暂停项目 + 上报，后续任务不再派发。"""
@@ -343,9 +352,11 @@ class Process:
         return TaskOutcome(tid, "blocked", reason)
 
     def _finalize(self, project_id: str, outcomes: dict[str, TaskOutcome],
-                  aborted: bool, paused: bool = False) -> str:
+                  aborted: bool, paused: bool = False, cancelled: bool = False) -> str:
         statuses = {o.status for o in outcomes.values()}
-        if aborted:
+        if cancelled:
+            status = "cancelled"
+        elif aborted:
             status = "aborted"
         elif paused:
             status = "paused"
