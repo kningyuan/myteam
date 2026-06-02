@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Agent Hub v2.1</title>
-<link rel="stylesheet" href="/static/style.css?v=23">
+<link rel="stylesheet" href="/static/style.css?v=24">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -185,35 +185,52 @@
               <div class="progress-bar"><div id="project-progress-fill" class="progress-fill"></div></div>
             </div>
 
-            <div class="project-section">
-              <h3>任务 &amp; 产出 <small class="hint">点任务查看交付物正文</small></h3>
-              <div id="project-tasks" class="task-list"></div>
+            <div class="project-subnav">
+              <button class="ptab active" data-ptab="overview">概览</button>
+              <button class="ptab" data-ptab="exec">执行过程</button>
+              <button class="ptab" data-ptab="deliverable">交付物</button>
+              <button class="ptab" data-ptab="cost">成本</button>
             </div>
 
-            <div id="project-deliverable" class="project-section hidden">
-              <h3 id="deliverable-title">交付物</h3>
-              <div id="deliverable-meta" class="deliverable-meta"></div>
-              <div id="deliverable-body" class="markdown-body deliverable-body"></div>
+            <!-- 概览：任务 DAG + 舰队 -->
+            <div class="ptab-panel active" data-ptab="overview">
+              <div class="project-section">
+                <h3>任务 &amp; 产出 <small class="hint">点任务查看交付物正文</small></h3>
+                <div id="project-tasks" class="task-list"></div>
+              </div>
+              <div class="project-section">
+                <h3>舰队状态</h3>
+                <div id="project-fleet" class="fleet-list">—</div>
+              </div>
             </div>
 
-            <div class="project-section">
-              <h3>执行过程 <small class="hint">点「交互行」展开明细：发给 CLI 的工具调用 + CLI 返回</small></h3>
-              <div id="project-events" class="event-feed">—</div>
+            <!-- 执行过程：事件流 + 交互明细 -->
+            <div class="ptab-panel" data-ptab="exec">
+              <div class="project-section">
+                <h3>执行过程 <small class="hint">点「交互行」展开明细：发给 CLI 的工具调用 + CLI 返回</small></h3>
+                <div id="project-events" class="event-feed">—</div>
+              </div>
+              <div id="project-trace" class="project-section hidden">
+                <h3 id="trace-title">交互明细</h3>
+                <div id="trace-body" class="trace-body"></div>
+              </div>
             </div>
 
-            <div id="project-trace" class="project-section hidden">
-              <h3 id="trace-title">交互明细</h3>
-              <div id="trace-body" class="trace-body"></div>
+            <!-- 交付物 -->
+            <div class="ptab-panel" data-ptab="deliverable">
+              <div id="project-deliverable" class="project-section">
+                <h3 id="deliverable-title">交付物</h3>
+                <div id="deliverable-meta" class="deliverable-meta">在「概览」点任意任务查看其交付物正文。</div>
+                <div id="deliverable-body" class="markdown-body deliverable-body"></div>
+              </div>
             </div>
 
-            <div class="project-section">
-              <h3>舰队状态</h3>
-              <div id="project-fleet" class="fleet-list">—</div>
-            </div>
-
-            <div class="project-section">
-              <h3>成本（Token）</h3>
-              <div id="project-cost" class="cost-view">—</div>
+            <!-- 成本 -->
+            <div class="ptab-panel" data-ptab="cost">
+              <div class="project-section">
+                <h3>成本（Token / 预算）</h3>
+                <div id="project-cost" class="cost-view">—</div>
+              </div>
             </div>
           </div>
         </div>
@@ -577,6 +594,6 @@
 </div>
 
 <script src="/static/markdown.js?v=1"></script>
-<script src="/static/app.js?v=23"></script>
+<script src="/static/app.js?v=24"></script>
 </body>
 </html>

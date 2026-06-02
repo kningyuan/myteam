@@ -795,6 +795,13 @@ function stopProjectPoll() {
   if (S._projectPoll) { clearInterval(S._projectPoll); S._projectPoll = null; }
 }
 
+function switchProjectTab(ptab) {
+  document.querySelectorAll('.project-subnav .ptab').forEach(b =>
+    b.classList.toggle('active', b.dataset.ptab === ptab));
+  document.querySelectorAll('.ptab-panel').forEach(p =>
+    p.classList.toggle('active', p.dataset.ptab === ptab));
+}
+
 // 幂等渲染：内容没变就不动 DOM（消除轮询导致的闪烁/丢滚动/丢 hover）
 const _renderSig = {};
 function setHtmlIfChanged(el, key, html) {
@@ -817,7 +824,10 @@ async function selectProject(id, opts = {}) {
   renderProjectList();
   DOM['project-welcome'].classList.add('hidden');
   DOM['project-detail-view'].classList.remove('hidden');
-  DOM['project-deliverable']?.classList.add('hidden');
+  switchProjectTab('overview');
+  DOM['project-trace']?.classList.add('hidden');
+  if (DOM['deliverable-meta']) DOM['deliverable-meta'].textContent = '在「概览」点任意任务查看其交付物正文。';
+  if (DOM['deliverable-body']) DOM['deliverable-body'].innerHTML = '';
   await refreshProjectDetail(id);
   // 非终态时轮询实时刷新（内核在后台跑）
   S._projectPoll = setInterval(async () => {
@@ -1003,7 +1013,7 @@ async function openTrace(iid) {
 async function openDeliverable(projectId, taskId) {
   const panel = DOM['project-deliverable'];
   if (!panel) return;
-  panel.classList.remove('hidden');
+  switchProjectTab('deliverable');
   DOM['deliverable-title'].textContent = `交付物 · ${taskId}`;
   DOM['deliverable-meta'].textContent = '加载中…';
   DOM['deliverable-body'].innerHTML = '';
@@ -2373,6 +2383,8 @@ function setupEventListeners() {
     if (DOM['np-review']) DOM['np-review'].checked = !!(await getSysConfig()).default_review;
   };
   const closeNewProject = () => DOM['new-project-modal'].classList.add('hidden');
+  document.querySelectorAll('.project-subnav .ptab').forEach(b =>
+    b.addEventListener('click', () => switchProjectTab(b.dataset.ptab)));
   DOM['btn-new-project']?.addEventListener('click', openNewProject);
   DOM['btn-new-project-welcome']?.addEventListener('click', openNewProject);
   DOM['btn-home-new-project']?.addEventListener('click', openNewProject);
