@@ -1,4 +1,4 @@
-"""myteam skill/team 路径常量 — 唯一来源（全部相对 MYTEAM_ROOT）。"""
+"""myteam 内核（backend/common）路径常量 — 唯一来源（全部相对 MYTEAM_ROOT）。"""
 
 from __future__ import annotations
 
@@ -6,9 +6,10 @@ import os
 import sys
 from pathlib import Path
 
-# skill/team/common/paths.py → parents: common(0) team(1) skill(2) myteam(3)
-MYTEAM_ROOT = Path(os.environ.get("MYTEAM_ROOT", str(Path(__file__).resolve().parents[3])))
-TEAM_SKILL_DIR = Path(__file__).resolve().parents[1]
+# backend/common/paths.py → parents: common(0) backend(1) myteam(2)
+MYTEAM_ROOT = Path(os.environ.get("MYTEAM_ROOT", str(Path(__file__).resolve().parents[2])))
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+TEAM_SKILL_DIR = MYTEAM_ROOT / "skill" / "team"
 SKILL_DIR = MYTEAM_ROOT / "skill"
 CONFIG_DIR = MYTEAM_ROOT / "config"
 
@@ -33,11 +34,11 @@ CONTINUOUS_DIR = TASKS_DIR / "continuous"
 
 
 def ensure_team_importable() -> Path:
-    """将 skill/team 加入 sys.path。"""
-    p = str(TEAM_SKILL_DIR)
+    """将 backend 加入 sys.path，使 `common` 内核包可被导入。"""
+    p = str(BACKEND_DIR)
     if p not in sys.path:
         sys.path.insert(0, p)
-    return TEAM_SKILL_DIR
+    return BACKEND_DIR
 
 
 def bootstrap(from_file: str | Path) -> Path:

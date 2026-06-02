@@ -20,9 +20,9 @@ _TERMINAL = {"done", "failed", "timed_out", "cancelled"}
 
 
 def _ensure_common_importable() -> None:
-    # backend/hub/api/observability_api.py → parents[3] = myteam root
-    team = Path(__file__).resolve().parents[3] / "skill" / "team"
-    p = str(team)
+    # backend/hub/api/observability_api.py → parents[2] = backend（含 common 内核包）
+    backend = Path(__file__).resolve().parents[2]
+    p = str(backend)
     if p not in sys.path:
         sys.path.insert(0, p)
 

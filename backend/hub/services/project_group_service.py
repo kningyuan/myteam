@@ -178,10 +178,9 @@ def format_progress_message(
     """统一多行通报（对齐 notify-telegram format_notification）。"""
     import sys
 
-    from hub.paths import SKILL_DIR
+    from hub.paths import BACKEND_DIR
 
-    team_dir = SKILL_DIR / "team"
-    p = str(team_dir)
+    p = str(BACKEND_DIR)
     if p not in sys.path:
         sys.path.insert(0, p)
     from common.notify_format import format_event_message
