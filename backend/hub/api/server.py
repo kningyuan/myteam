@@ -610,6 +610,21 @@ async def api_project_run_status(project_id: str):
     return _KERNEL_RUNS.get(project_id, {"running": False, "error": None})
 
 
+@app.get("/api/projects/{project_id}/deliverable/{task_id}")
+async def api_project_deliverable(project_id: str, task_id: str):
+    """读取某任务的交付物正文（business/tasks/project/<id>/deliverables/<task>_deliverable.md）。"""
+    if not re.fullmatch(r"[\w-]{1,64}", task_id):
+        raise HTTPException(status_code=400, detail="task_id 非法")
+    from hub.paths import PROJECTS_DIR
+    path = PROJECTS_DIR / project_id / "deliverables" / f"{task_id}_deliverable.md"
+    if not path.is_file():
+        return {"task_id": task_id, "exists": False, "content": ""}
+    try:
+        return {"task_id": task_id, "exists": True, "content": path.read_text(encoding="utf-8")}
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 _PROJECT_TERMINAL = {"completed", "failed", "partially_failed", "aborted", "cancelled", "paused"}
 
 

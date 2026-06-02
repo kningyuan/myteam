@@ -37,7 +37,8 @@ function cacheDom() {
    'tab-chat','tab-groups','tab-projects','tab-agents','tab-settings',
    'project-list','project-count','project-welcome','project-detail-view',
    'project-title','project-meta','project-progress-text','project-progress-fill',
-   'project-tasks','project-log',
+   'project-tasks','project-fleet','project-cost',
+   'project-deliverable','deliverable-title','deliverable-meta','deliverable-body',
    'btn-new-project','btn-new-project-welcome','new-project-modal','btn-cancel-project',
    'np-goal','np-title','np-mode','np-budget','np-submit','np-cancel',
    'btn-theme','theme-dropdown',
@@ -703,6 +704,7 @@ async function selectProject(id, opts = {}) {
   renderProjectList();
   DOM['project-welcome'].classList.add('hidden');
   DOM['project-detail-view'].classList.remove('hidden');
+  DOM['project-deliverable']?.classList.add('hidden');
   await refreshProjectDetail(id);
   // 非终态时轮询实时刷新（内核在后台跑）
   S._projectPoll = setInterval(async () => {
@@ -716,9 +718,10 @@ async function selectProject(id, opts = {}) {
 async function refreshProjectDetail(id) {
   try {
     const pid = encodeURIComponent(id);
-    const [ov, cost, rs] = await Promise.all([
+    const [ov, cost, fleet, rs] = await Promise.all([
       fetch(`/api/obs/projects/${pid}/overview`).then(r => r.json()),
       fetch(`/api/obs/projects/${pid}/cost`).then(r => r.json()).catch(() => ({})),
+      fetch(`/api/obs/projects/${pid}/fleet`).then(r => r.json()).catch(() => ({fleet: {}})),
       fetch(`/api/projects/run-status/${pid}`).then(r => r.json()).catch(() => ({})),
     ]);
     const status = ov.status || (rs.running ? 'running' : 'unknown');
@@ -731,30 +734,73 @@ async function refreshProjectDetail(id) {
     DOM['project-progress-text'].textContent = `${pct}%`;
     DOM['project-progress-fill'].style.width = `${pct}%`;
 
+    // 任务 & 产出（点开看交付物）
     const tasks = ov.tasks || [];
+    const byTask = (cost && cost.by_task) || {};
     DOM['project-tasks'].innerHTML = tasks.length
       ? tasks.map(t => {
           const st = t.status || 'pending';
           const deps = (t.dependencies || []).join(', ');
-          return `<div class="task-row status-${st}">
+          const tok = byTask[t.id] ? `${byTask[t.id]} tok` : '';
+          return `<div class="task-row status-${st} clickable" data-task="${esc(t.id)}">
             <span class="task-id">${esc(t.id)}</span>
-            <span class="task-name">${esc(deps ? '依赖: ' + deps : '')}</span>
+            <span class="task-name">${esc(t.name || '')}${deps ? ` <small class="hint">依赖: ${esc(deps)}</small>` : ''}</span>
             <span class="task-agent">${esc(t.agent || '-')}</span>
+            <span class="task-tokens">${tok}</span>
             <span class="task-status">${esc(st)}</span>
           </div>`;
         }).join('')
       : (rs.running ? '<div class="empty">内核启动中（team_config / task_plan 决策中）…</div>'
                     : '<div class="empty">暂无任务</div>');
+    DOM['project-tasks'].querySelectorAll('.task-row.clickable').forEach(el => {
+      el.addEventListener('click', () => openDeliverable(id, el.dataset.task));
+    });
 
+    // 舰队状态
+    const fl = (fleet && fleet.fleet) || {};
+    const flEntries = Object.entries(fl);
+    DOM['project-fleet'].innerHTML = flEntries.length
+      ? flEntries.map(([a, s]) => `<span class="fleet-chip live-${esc(s)}">${esc(a)} · ${esc(s)}</span>`).join('')
+      : '<span class="hint">暂无</span>';
+
+    // 成本
     const total = (cost && cost.project) || 0;
     const byAgent = (cost && cost.by_agent) || {};
-    const agentLines = Object.entries(byAgent).map(([a, n]) => `  ${a}: ${n}`).join('\n');
-    DOM['project-log'].textContent = `Token 累计：${total}\n${agentLines || '  （暂无）'}`;
+    const agentRows = Object.entries(byAgent)
+      .map(([a, n]) => `<div class="cost-row"><span>${esc(a)}</span><span>${n}</span></div>`).join('');
+    DOM['project-cost'].innerHTML =
+      `<div class="cost-row cost-total"><span>合计</span><span>${total} tok</span></div>${agentRows || ''}`;
 
     return PROJECT_TERMINAL.has(status) && !rs.running;
   } catch (e) {
     DOM['project-meta'].textContent = `${id} · 加载失败：${String(e.message || e)}`;
     return false;
+  }
+}
+
+async function openDeliverable(projectId, taskId) {
+  const panel = DOM['project-deliverable'];
+  if (!panel) return;
+  panel.classList.remove('hidden');
+  DOM['deliverable-title'].textContent = `交付物 · ${taskId}`;
+  DOM['deliverable-meta'].textContent = '加载中…';
+  DOM['deliverable-body'].innerHTML = '';
+  try {
+    const r = await fetch(`/api/projects/${encodeURIComponent(projectId)}/deliverable/${encodeURIComponent(taskId)}`);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || '加载失败');
+    if (!d.exists || !d.content) {
+      DOM['deliverable-meta'].textContent = '该任务暂无交付物文件';
+      DOM['deliverable-body'].innerHTML = '';
+      return;
+    }
+    DOM['deliverable-meta'].textContent = `${d.content.length} 字符`;
+    DOM['deliverable-body'].innerHTML = typeof renderAgentMarkdown === 'function'
+      ? renderAgentMarkdown(d.content)
+      : esc(d.content).replace(/\n/g, '<br>');
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch (e) {
+    DOM['deliverable-meta'].textContent = '加载失败：' + (e.message || e);
   }
 }
 

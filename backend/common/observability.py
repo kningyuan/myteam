@@ -61,8 +61,8 @@ def project_overview(store: Store, project_id: str) -> dict:
         "mode": proj.get("mode"),
         "task_counts": counts,
         "progress": round(done / total, 3),
-        "tasks": [{"id": t["task_id"], "status": t["status"], "agent": t["agent"],
-                   "dependencies": t["dependencies"]} for t in tasks],
+        "tasks": [{"id": t["task_id"], "name": t.get("name", ""), "status": t["status"],
+                   "agent": t["agent"], "dependencies": t["dependencies"]} for t in tasks],
     }
 
 

@@ -933,7 +933,7 @@ html, body {
 }
 .task-row {
   display: grid;
-  grid-template-columns: 100px 1fr 80px 90px;
+  grid-template-columns: 90px 1fr 90px 70px 90px;
   gap: var(--space-3);
   align-items: center;
   padding: 10px 12px;
@@ -943,10 +943,43 @@ html, body {
   font-size: 12px;
 }
 .task-row .task-id { font-family: var(--font-mono); color: var(--text-tertiary); }
+.task-row .task-tokens { text-align: right; color: var(--text-tertiary); font-family: var(--font-mono); font-size: 11px; }
 .task-row .task-status { text-align: right; text-transform: capitalize; }
 .task-row.status-completed .task-status { color: var(--success); }
 .task-row.status-in_progress .task-status { color: var(--warning); }
-.task-row.status-failed .task-status { color: var(--error); }
+.task-row.status-needs_review .task-status { color: var(--warning); }
+.task-row.status-failed .task-status,
+.task-row.status-blocked .task-status { color: var(--error); }
+.task-row.clickable { cursor: pointer; }
+.task-row.clickable:hover { border-color: var(--border-hover); background: var(--bg-interactive); }
+
+/* 舰队状态 */
+.fleet-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.fleet-chip {
+  font-size: 11px; padding: 3px 10px; border-radius: 12px;
+  background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-secondary);
+}
+.fleet-chip.live-running { color: var(--warning); border-color: var(--warning); }
+.fleet-chip.live-done { color: var(--success); border-color: var(--success); }
+.fleet-chip.live-stuck { color: var(--error); border-color: var(--error); }
+
+/* 成本 */
+.cost-view { display: flex; flex-direction: column; gap: 4px; }
+.cost-row {
+  display: flex; justify-content: space-between; font-size: 12px;
+  padding: 6px 12px; background: var(--bg-elevated);
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+}
+.cost-row span:last-child { font-family: var(--font-mono); color: var(--text-secondary); }
+.cost-row.cost-total span:last-child { color: var(--text-primary); font-weight: 600; }
+
+/* 交付物正文 */
+.deliverable-meta { font-size: 11px; color: var(--text-tertiary); margin-bottom: var(--space-3); }
+.deliverable-body {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius-md); padding: var(--space-4);
+  max-height: 480px; overflow: auto; font-size: 13px; line-height: 1.6;
+}
 .project-log {
   background: var(--bg-elevated);
   border: 1px solid var(--border);

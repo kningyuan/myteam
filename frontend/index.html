@@ -170,13 +170,26 @@
               </div>
               <div class="progress-bar"><div id="project-progress-fill" class="progress-fill"></div></div>
             </div>
+
             <div class="project-section">
-              <h3>任务列表</h3>
+              <h3>任务 &amp; 产出 <small class="hint">点任务查看交付物正文</small></h3>
               <div id="project-tasks" class="task-list"></div>
             </div>
+
+            <div id="project-deliverable" class="project-section hidden">
+              <h3 id="deliverable-title">交付物</h3>
+              <div id="deliverable-meta" class="deliverable-meta"></div>
+              <div id="deliverable-body" class="markdown-body deliverable-body"></div>
+            </div>
+
+            <div class="project-section">
+              <h3>舰队状态</h3>
+              <div id="project-fleet" class="fleet-list">—</div>
+            </div>
+
             <div class="project-section">
               <h3>成本（Token）</h3>
-              <pre id="project-log" class="project-log">—</pre>
+              <div id="project-cost" class="cost-view">—</div>
             </div>
           </div>
         </div>
