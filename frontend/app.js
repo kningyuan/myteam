@@ -225,11 +225,12 @@ function renderAgentList() {
   DOM['agent-list'].innerHTML = sorted.map(a => {
     const lastTs = agentLastActivityTs(a.id);
     const rel = formatRelativeTime(lastTs);
-    const hasNew = (S.agentMessages[a.id] || []).some(m => m._new);
-    return `<div class="sidebar-item ${S.currentAgentId === a.id ? 'active' : ''}${hasNew ? ' has-new' : ''}" data-id="${a.id}">
-      <span class="s-icon">${getAvatar(a.id)}${hasNew ? '<span class="new-dot"></span>' : ''}</span>
+    const unread = (S.agentMessages[a.id] || []).filter(m => m._new).length;
+    return `<div class="sidebar-item ${S.currentAgentId === a.id ? 'active' : ''}${unread ? ' has-new' : ''}" data-id="${a.id}">
+      <span class="s-icon">${getAvatar(a.id)}</span>
       <span class="s-name">${esc(a.name)}</span>
-      <span class="s-sub">${rel || esc((a.model||'').slice(0,18))}</span>
+      <span class="s-sub">${rel ? esc(rel) : ''}</span>
+      ${unread ? `<span class="s-badge">${unread > 99 ? '99+' : unread}</span>` : ''}
       <span class="s-del" data-del-agent="${a.id}" title="删除对话">✕</span>
     </div>`;
   }).join('');
@@ -867,7 +868,8 @@ function selectAgent(id, opts = {}) {
   const a = S.agents.find(x => x.id === id);
   if (a) {
     DOM['chat-agent-name'].textContent = a.name;
-    DOM['chat-agent-id'].textContent = `${a.id} · ${a.backend}`;
+    DOM['chat-agent-id'].textContent =
+      [a.id, a.backend, a.model].filter(Boolean).join(' · ');
     DOM['chat-agent-avatar'].textContent = getAvatar(id);
   }
   DOM.messages.innerHTML = '';

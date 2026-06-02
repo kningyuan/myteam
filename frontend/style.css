@@ -188,6 +188,8 @@ html, body {
 .sidebar-item.has-new { background:var(--bg-active); }
 .sidebar-item .s-name { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .sidebar-item .s-sub { font-size:10px; color:var(--text-tertiary); }
+.sidebar-item .s-badge { position:absolute; right:10px; top:50%; transform:translateY(-50%); min-width:16px; height:16px; padding:0 5px; border-radius:8px; background:#ff4444; color:#fff; font-size:10px; line-height:16px; text-align:center; font-weight:600; }
+.sidebar-item:hover .s-badge { opacity:0; }
 .btn-sm { background:var(--bg-interactive); border:none; color:var(--text-secondary); width:24px; height:24px; border-radius:4px; cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; }
 .btn-sm:hover { background:var(--bg-interactive); color:var(--text-primary); }
 

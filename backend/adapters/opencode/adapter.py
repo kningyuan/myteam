@@ -44,6 +44,23 @@ class OpenCodeAdapter(CLIAdapter):
         )
 
     def list_models(self) -> list[ModelInfo]:
+        """优先用 `opencode models` 的真实可用模型（带缓存，CLI 较慢）；失败回退静态配置。"""
+        default_id = ""
+        try:
+            from store.system_config import system_config
+            default_id = system_config.get_default_model("opencode") or ""
+        except Exception:
+            pass
+
+        dynamic = self._query_opencode_models()
+        if dynamic:
+            return [
+                ModelInfo(id=mid, name=mid.split("/", 1)[-1],
+                          provider=mid.split("/", 1)[0] if "/" in mid else "",
+                          default=(mid == default_id))
+                for mid in dynamic
+            ]
+
         try:
             from store.system_config import system_config
             cfg_models = system_config.get_models("opencode")
@@ -53,7 +70,7 @@ class OpenCodeAdapter(CLIAdapter):
                         id=m.get("id", ""),
                         name=m.get("name", m.get("id", "")),
                         provider=m.get("provider", ""),
-                        default=bool(m.get("default")),
+                        default=bool(m.get("default")) or m.get("id", "") == default_id,
                     )
                     for m in cfg_models
                 ]
@@ -62,6 +79,30 @@ class OpenCodeAdapter(CLIAdapter):
         return [
             ModelInfo("opencode/mimo-v2.5-free", "mimo-v2.5-free", "opencode", True),
         ]
+
+    # `opencode models` 启动较慢（数秒），按进程级缓存（TTL 5 分钟）避免拖慢 /api/backends。
+    _models_cache: list[str] = []
+    _models_cache_ts: float = 0.0
+    _MODELS_TTL = 300.0
+
+    def _query_opencode_models(self) -> list[str]:
+        now = time.time()
+        cls = OpenCodeAdapter
+        if cls._models_cache and (now - cls._models_cache_ts) < cls._MODELS_TTL:
+            return cls._models_cache
+        cli = self._cli_path()
+        if not os.path.isfile(cli):
+            return []
+        try:
+            out = subprocess.run([cli, "models"], capture_output=True, text=True,
+                                 timeout=20)
+        except (subprocess.SubprocessError, OSError):
+            return []
+        models = [ln.strip() for ln in out.stdout.splitlines() if ln.strip()]
+        if models:
+            cls._models_cache = models
+            cls._models_cache_ts = now
+        return models
 
     def get_default_model(self) -> str:
         for m in self.list_models():
