@@ -39,6 +39,13 @@ def test_project_and_task_crud(store):
     assert t["status"] == "completed" and t["completed_at"] is not None
 
 
+def test_list_projects(store):
+    store.upsert_project("pro_a", title="A")
+    store.upsert_project("pro_b", title="B")
+    ids = {p["project_id"] for p in store.list_projects()}
+    assert ids == {"pro_a", "pro_b"}
+
+
 def test_interaction_and_events(store):
     store.upsert_project("pro_x")
     store.upsert_task("pro_x", "task_001")

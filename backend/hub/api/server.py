@@ -3,7 +3,10 @@
 import asyncio
 import json
 import os
+import re
 import sys
+import threading
+import time
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent.parent.parent
@@ -555,6 +558,56 @@ async def api_project_log(project_id: str, tail: int = Query(500, ge=1, le=5000)
     if not get_project(project_id):
         raise HTTPException(status_code=404, detail="项目不存在")
     return {"project_id": project_id, "log": get_project_log(project_id, tail=tail)}
+
+
+# ── 发起项目：UI → 编排内核（后台线程跑 run_kernel）──────────────
+_KERNEL_RUNS: dict[str, dict] = {}  # project_id -> {running, error}
+
+
+def _slug(text: str, limit: int = 24) -> str:
+    s = re.sub(r"[^\w\u4e00-\u9fff-]", "", (text or "").strip().replace(" ", "_"))
+    return s[:limit] or "project"
+
+
+def _run_kernel_bg(project_id: str, goal: str, mode: str, budget, title: str) -> None:
+    try:
+        from common.run_kernel import run_project
+        run_project(project_id, goal=goal, title=title, mode=mode, token_budget=budget)
+    except Exception as e:  # noqa: BLE001 — 后台线程，错误回灌给状态查询
+        _KERNEL_RUNS[project_id] = {"running": False, "error": str(e)}
+    else:
+        _KERNEL_RUNS[project_id] = {"running": False, "error": None}
+
+
+@app.post("/api/projects/run")
+async def api_project_run(body: dict):
+    """从 UI 发起一个项目：装配并在后台线程跑编排内核，立即返回 project_id。"""
+    goal = (body.get("goal") or "").strip()
+    if not goal:
+        raise HTTPException(status_code=400, detail="goal 必填")
+    mode = body.get("mode") or "one_shot"
+    if mode not in ("one_shot", "recurring"):
+        raise HTTPException(status_code=400, detail="mode 非法")
+    try:
+        budget = int(body.get("budget")) if body.get("budget") else None
+    except (TypeError, ValueError):
+        budget = None
+    title = (body.get("title") or "").strip()
+    project_id = (body.get("project_id") or "").strip()
+    if not project_id:
+        project_id = f"ui_{_slug(title or goal)}_{time.strftime('%Y%m%d_%H%M%S')}"
+    if _KERNEL_RUNS.get(project_id, {}).get("running"):
+        raise HTTPException(status_code=409, detail="该项目正在运行")
+    _KERNEL_RUNS[project_id] = {"running": True, "error": None}
+    threading.Thread(
+        target=_run_kernel_bg, args=(project_id, goal, mode, budget, title), daemon=True
+    ).start()
+    return {"project_id": project_id, "title": title or project_id, "started": True}
+
+
+@app.get("/api/projects/run-status/{project_id}")
+async def api_project_run_status(project_id: str):
+    return _KERNEL_RUNS.get(project_id, {"running": False, "error": None})
 
 
 @app.get("/api/agents/{agent_id}/chats")

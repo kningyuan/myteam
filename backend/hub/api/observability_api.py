@@ -39,6 +39,30 @@ def _store():
     return Store()
 
 
+@router.get("/projects")
+async def list_projects():
+    """从 SQLite 真相库列出项目（新内核写入），供 UI 项目列表使用。"""
+    store = _store()
+    obs = _obs()
+    try:
+        out = []
+        for p in store.list_projects():
+            pid = p["project_id"]
+            ov = obs.project_overview(store, pid)
+            out.append({
+                "id": pid,
+                "title": p.get("title") or pid,
+                "status": p.get("status"),
+                "mode": p.get("mode"),
+                "progress": ov.get("progress", 0),
+                "task_count": len(ov.get("tasks", [])),
+                "updated_at": p.get("updated_at"),
+            })
+        return {"projects": out}
+    finally:
+        store.close()
+
+
 @router.get("/projects/{project_id}/overview")
 async def project_overview(project_id: str):
     store = _store()

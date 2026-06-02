@@ -67,6 +67,7 @@
         <div class="sidebar-title">
           <span>项目列表</span>
           <span class="badge" id="project-count">0</span>
+          <button id="btn-new-project" class="btn-sm" title="发起项目">+</button>
         </div>
         <div id="project-list" class="sidebar-list"><div class="loading">加载中...</div></div>
       </div>
@@ -144,8 +145,9 @@
       <div id="tab-projects" class="tab-content">
         <div id="project-welcome" class="welcome">
           <div class="welcome-icon">📋</div>
-          <h2>选择一个项目查看进度</h2>
-          <p>项目目录位于 <code>tasks/project/</code>，每个子目录包含 task_data.json</p>
+          <h2>发起一个项目，或从左侧选择查看进度</h2>
+          <p>给一个目标，Main 自动配团队 + 规划任务 DAG，交编排内核执行。</p>
+          <button id="btn-new-project-welcome" class="btn-primary">✨ 发起项目</button>
         </div>
         <div id="project-detail-view" class="project-view hidden">
           <div class="chat-header">
@@ -170,8 +172,8 @@
               <div id="project-tasks" class="task-list"></div>
             </div>
             <div class="project-section">
-              <h3>执行日志</h3>
-              <pre id="project-log" class="project-log">暂无日志</pre>
+              <h3>成本（Token）</h3>
+              <pre id="project-log" class="project-log">—</pre>
             </div>
           </div>
         </div>
@@ -351,6 +353,41 @@
     <div class="modal-footer">
       <button id="ng-submit" class="btn-primary">创建</button>
       <button id="ng-cancel" class="btn-secondary">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- New Project Modal -->
+<div id="new-project-modal" class="modal hidden">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>✨ 发起项目</h3>
+      <button class="modal-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>项目目标 <span class="required">*</span></label>
+        <textarea id="np-goal" rows="3" placeholder="例：为 example.com 做一次 GEO 快速评估并给出改进清单"></textarea>
+      </div>
+      <div class="form-group">
+        <label>标题（可选）</label>
+        <input id="np-title" placeholder="留空则用目标自动生成">
+      </div>
+      <div class="form-group">
+        <label>模式</label>
+        <select id="np-mode">
+          <option value="one_shot">one_shot（跑一次）</option>
+          <option value="recurring">recurring（持续）</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Token 预算（可选）</label>
+        <input id="np-budget" type="number" placeholder="例：150000，留空不限">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button id="np-submit" class="btn-primary">发起</button>
+      <button id="np-cancel" class="btn-secondary">取消</button>
     </div>
   </div>
 </div>

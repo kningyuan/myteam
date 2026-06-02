@@ -38,6 +38,8 @@ function cacheDom() {
    'project-list','project-count','project-welcome','project-detail-view',
    'project-title','project-meta','project-progress-text','project-progress-fill',
    'project-tasks','project-log',
+   'btn-new-project','btn-new-project-welcome','new-project-modal',
+   'np-goal','np-title','np-mode','np-budget','np-submit','np-cancel',
    'btn-theme','theme-dropdown',
    'modal-overlay','agent-config-modal','modal-backend','modal-model','modal-agent-info',
    'modal-save','modal-cancel','btn-agent-config',
@@ -151,7 +153,7 @@ function switchTab(tab, opts = {}) {
 
   if (tab === 'chat') renderAgentList();
   if (tab === 'groups') { renderGroupList(); loadGroups(); }
-  if (tab === 'projects') { renderProjectList(); loadProjects(); }
+  if (tab === 'projects') { renderProjectList(); loadProjects().then(renderProjectList); }
   if (tab === 'agents') renderManageAgents();
   if (tab === 'settings') loadSettings();
   if (tab !== 'groups') disconnectGroupEvents();
@@ -657,9 +659,11 @@ function renderGroupList() {
 }
 
 // ============ Projects ============
+const PROJECT_TERMINAL = new Set(['completed', 'failed', 'cancelled', 'timed_out']);
+
 async function loadProjects() {
   try {
-    const r = await fetch('/api/projects');
+    const r = await fetch('/api/obs/projects');
     const d = await r.json();
     S.projects = d.projects || [];
     if (DOM['project-count']) DOM['project-count'].textContent = S.projects.length;
@@ -672,14 +676,14 @@ async function loadProjects() {
 function renderProjectList() {
   if (!DOM['project-list']) return;
   if (!S.projects.length) {
-    DOM['project-list'].innerHTML = '<div class="empty">暂无项目<br><small>在 tasks/project/ 下创建项目目录</small></div>';
+    DOM['project-list'].innerHTML = '<div class="empty">暂无项目<br><small>点击 + 发起一个项目</small></div>';
     return;
   }
   DOM['project-list'].innerHTML = S.projects.map(p =>
     `<div class="sidebar-item ${S.currentProjectId === p.id ? 'active' : ''}" data-id="${p.id}">
       <span class="s-icon">📋</span>
-      <span class="s-name">${esc(p.name)}</span>
-      <span class="s-sub">${p.progress || 0}% · ${p.task_count || 0}任务</span>
+      <span class="s-name">${esc(p.title || p.id)}</span>
+      <span class="s-sub">${Math.round((p.progress || 0) * 100)}% · ${p.task_count || 0}任务 · ${esc(p.status || '')}</span>
     </div>`
   ).join('');
   DOM['project-list'].querySelectorAll('.sidebar-item').forEach(el => {
@@ -687,51 +691,69 @@ function renderProjectList() {
   });
 }
 
+function stopProjectPoll() {
+  if (S._projectPoll) { clearInterval(S._projectPoll); S._projectPoll = null; }
+}
+
 async function selectProject(id, opts = {}) {
   S.currentProjectId = id;
   S.currentAgentId = null;
   S.currentGroupId = null;
+  stopProjectPoll();
   renderProjectList();
   DOM['project-welcome'].classList.add('hidden');
   DOM['project-detail-view'].classList.remove('hidden');
+  await refreshProjectDetail(id);
+  // 非终态时轮询实时刷新（内核在后台跑）
+  S._projectPoll = setInterval(async () => {
+    if (S.currentProjectId !== id) { stopProjectPoll(); return; }
+    const done = await refreshProjectDetail(id);
+    if (done) { stopProjectPoll(); loadProjects().then(renderProjectList); }
+  }, 2500);
+  if (!opts.restore) saveUiState();
+}
 
+async function refreshProjectDetail(id) {
   try {
     const pid = encodeURIComponent(id);
-    const [pr, lr] = await Promise.all([
-      fetch(`/api/projects/${pid}`),
-      fetch(`/api/projects/${pid}/log?tail=400`),
+    const [ov, cost, rs] = await Promise.all([
+      fetch(`/api/obs/projects/${pid}/overview`).then(r => r.json()),
+      fetch(`/api/obs/projects/${pid}/cost`).then(r => r.json()).catch(() => ({})),
+      fetch(`/api/projects/run-status/${pid}`).then(r => r.json()).catch(() => ({})),
     ]);
-    const pd = await pr.json();
-    const ld = await lr.json();
-    if (!pr.ok) throw new Error(pd.detail || '加载失败');
-    const p = pd.project;
-    const stats = p.stats || {};
-    DOM['project-title'].textContent = p.name || id;
-    DOM['project-meta'].textContent = `${id} · ${p.status || 'unknown'} · ${p.path || ''}`;
-    const pct = stats.progress ?? p.progress ?? 0;
+    const status = ov.status || (rs.running ? 'running' : 'unknown');
+    DOM['project-title'].textContent = ov.title || id;
+    const launchErr = rs && rs.error ? ` · ⚠️ ${rs.error}` : '';
+    DOM['project-meta'].textContent = `${id} · ${status}${rs.running ? ' · 运行中' : ''}${launchErr}`;
+    const pct = Math.round((ov.progress || 0) * 100);
     DOM['project-progress-text'].textContent = `${pct}%`;
     DOM['project-progress-fill'].style.width = `${pct}%`;
 
-    const tasks = (p.task_data?.tasks) || [];
+    const tasks = ov.tasks || [];
     DOM['project-tasks'].innerHTML = tasks.length
       ? tasks.map(t => {
           const st = t.status || 'pending';
+          const deps = (t.dependencies || []).join(', ');
           return `<div class="task-row status-${st}">
             <span class="task-id">${esc(t.id)}</span>
-            <span class="task-name">${esc(t.name || '')}</span>
+            <span class="task-name">${esc(deps ? '依赖: ' + deps : '')}</span>
             <span class="task-agent">${esc(t.agent || '-')}</span>
             <span class="task-status">${esc(st)}</span>
           </div>`;
         }).join('')
-      : '<div class="empty">暂无任务</div>';
+      : (rs.running ? '<div class="empty">内核启动中（team_config / task_plan 决策中）…</div>'
+                    : '<div class="empty">暂无任务</div>');
 
-    DOM['project-log'].textContent = ld.log || '暂无日志（skill-logs/skills.log）';
+    const total = (cost && cost.project) || 0;
+    const byAgent = (cost && cost.by_agent) || {};
+    const agentLines = Object.entries(byAgent).map(([a, n]) => `  ${a}: ${n}`).join('\n');
+    DOM['project-log'].textContent = `Token 累计：${total}\n${agentLines || '  （暂无）'}`;
+
+    return PROJECT_TERMINAL.has(status) && !rs.running;
   } catch (e) {
-    DOM['project-title'].textContent = id;
-    DOM['project-meta'].textContent = '加载失败';
-    DOM['project-log'].textContent = String(e.message || e);
+    DOM['project-meta'].textContent = `${id} · 加载失败：${String(e.message || e)}`;
+    return false;
   }
-  if (!opts.restore) saveUiState();
 }
 
 async function loadBackgroundChats(agentId) {
@@ -1970,6 +1992,44 @@ function setupEventListeners() {
   });
   DOM['ng-cancel']?.addEventListener('click', () => DOM['new-group-modal'].classList.add('hidden'));
   DOM['new-group-modal']?.querySelector('.modal-close')?.addEventListener('click', () => DOM['new-group-modal'].classList.add('hidden'));
+
+  // New project (发起项目 → 编排内核)
+  const openNewProject = () => { DOM['new-project-modal'].classList.remove('hidden'); DOM['np-goal']?.focus(); };
+  const closeNewProject = () => DOM['new-project-modal'].classList.add('hidden');
+  DOM['btn-new-project']?.addEventListener('click', openNewProject);
+  DOM['btn-new-project-welcome']?.addEventListener('click', openNewProject);
+  DOM['np-cancel']?.addEventListener('click', closeNewProject);
+  DOM['new-project-modal']?.querySelector('.modal-close')?.addEventListener('click', closeNewProject);
+  DOM['np-submit']?.addEventListener('click', async () => {
+    const goal = DOM['np-goal'].value.trim();
+    if (!goal) return;
+    const payload = {
+      goal,
+      title: DOM['np-title'].value.trim(),
+      mode: DOM['np-mode'].value,
+    };
+    const budget = parseInt(DOM['np-budget'].value, 10);
+    if (!isNaN(budget) && budget > 0) payload.budget = budget;
+    DOM['np-submit'].disabled = true;
+    try {
+      const r = await fetch('/api/projects/run', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(payload),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || '发起失败');
+      closeNewProject();
+      DOM['np-goal'].value = ''; DOM['np-title'].value = ''; DOM['np-budget'].value = '';
+      await loadProjects();
+      renderProjectList();
+      switchTab('projects');
+      selectProject(d.project_id);
+    } catch (e) {
+      alert('发起项目失败：' + (e.message || e));
+    } finally {
+      DOM['np-submit'].disabled = false;
+    }
+  });
 
   // Settings save
   DOM['btn-save-settings']?.addEventListener('click', saveSettings);

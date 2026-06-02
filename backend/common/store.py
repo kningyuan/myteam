@@ -170,6 +170,12 @@ class Store:
         ).fetchone()
         return self._row(row) if row else None
 
+    def list_projects(self) -> list[dict]:
+        rows = self._conn.execute(
+            "SELECT * FROM project ORDER BY updated_at DESC, rowid DESC"
+        ).fetchall()
+        return [self._row(r) for r in rows]
+
     # ── task ─────────────────────────────────────────────────
 
     def upsert_task(self, project_id: str, task_id: str, *, name: str = "", agent: str = "",
