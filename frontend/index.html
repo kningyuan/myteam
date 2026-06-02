@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Agent Hub v2.1</title>
-<link rel="stylesheet" href="/static/style.css?v=25">
+<link rel="stylesheet" href="/static/style.css?v=26">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -13,6 +13,7 @@
 <div id="app">
   <!-- Top Nav -->
   <nav id="top-nav">
+    <button id="btn-sidebar-toggle" class="btn-icon" title="菜单" type="button" aria-label="菜单">☰</button>
     <span class="nav-logo">🤖 Agent Hub</span>
     <div class="nav-tabs">
       <button class="nav-tab active" data-tab="home">🏠 首页</button>
@@ -35,6 +36,7 @@
   </nav>
 
   <div id="main-layout">
+    <div id="sidebar-backdrop" class="hidden"></div>
     <!-- Sidebar (context-dependent) -->
     <aside id="sidebar">
       <!-- Agent list (shown in chat tab) -->
@@ -600,6 +602,6 @@
 </div>
 
 <script src="/static/markdown.js?v=1"></script>
-<script src="/static/app.js?v=25"></script>
+<script src="/static/app.js?v=26"></script>
 </body>
 </html>

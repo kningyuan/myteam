@@ -42,6 +42,7 @@ function cacheDom() {
    'home-stats','home-projects','btn-home-new-project',
    'project-deliverable','deliverable-title','deliverable-meta','deliverable-body',
    'btn-deliverable-copy','btn-deliverable-download',
+   'btn-sidebar-toggle','sidebar-backdrop','sidebar',
    'btn-new-project','btn-new-project-welcome','new-project-modal','btn-cancel-project',
    'np-goal','np-title','np-mode','np-budget','np-review','np-submit','np-cancel',
    'btn-theme','theme-dropdown',
@@ -2424,6 +2425,14 @@ function setupEventListeners() {
     b.addEventListener('click', () => switchProjectTab(b.dataset.ptab)));
   DOM['btn-deliverable-copy']?.addEventListener('click', copyDeliverable);
   DOM['btn-deliverable-download']?.addEventListener('click', downloadDeliverable);
+  DOM['btn-sidebar-toggle']?.addEventListener('click', () => document.body.classList.toggle('sidebar-open'));
+  DOM['sidebar-backdrop']?.addEventListener('click', () => document.body.classList.remove('sidebar-open'));
+  // 窄屏抽屉：选中侧栏条目后自动收起
+  DOM['sidebar']?.addEventListener('click', (e) => {
+    if (e.target.closest('.sidebar-item, .search-item')) {
+      document.body.classList.remove('sidebar-open');
+    }
+  });
   DOM['btn-new-project']?.addEventListener('click', openNewProject);
   DOM['btn-new-project-welcome']?.addEventListener('click', openNewProject);
   DOM['btn-home-new-project']?.addEventListener('click', openNewProject);
