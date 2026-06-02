@@ -8,6 +8,8 @@ BACKEND_DIR = MYTEAM_ROOT / "backend"
 
 FRONTEND_DIR = MYTEAM_ROOT / "frontend"
 CONFIG_DIR = MYTEAM_ROOT / "config"
+BUSINESS_DIR = MYTEAM_ROOT / "business"
+RULES_DIR = BUSINESS_DIR / "rules"
 WORKSPACES_DIR = MYTEAM_ROOT / "workspaces"
 SKILL_DIR = MYTEAM_ROOT / "skill"
 TASKS_DIR = MYTEAM_ROOT / "tasks"

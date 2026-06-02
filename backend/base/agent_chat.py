@@ -17,7 +17,7 @@ if str(_ROOT) not in sys.path:
 
 from hub.paths import (
     AGENTS_CONFIG_FILE,
-    SKILL_DIR,
+    RULES_DIR,
     WORKSPACE_PREFIX,
     WORKSPACES_DIR,
     resolve_path,
@@ -26,8 +26,6 @@ from hub.paths import (
 )
 from store.system_config import system_config
 from base.agent_identity import AgentIdentityBuilder, multi_agent_manager
-
-RULES_DIR = SKILL_DIR / "rule"
 
 
 @dataclass

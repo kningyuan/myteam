@@ -12,6 +12,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 TEAM_SKILL_DIR = MYTEAM_ROOT / "skill" / "team"
 SKILL_DIR = MYTEAM_ROOT / "skill"
 CONFIG_DIR = MYTEAM_ROOT / "config"
+BUSINESS_DIR = MYTEAM_ROOT / "business"
 
 TASKS_DIR = MYTEAM_ROOT / "tasks"
 PROJECTS_DIR = TASKS_DIR / "project"
@@ -112,7 +113,7 @@ def script_path(*parts: str) -> Path:
 
 
 def templates_file() -> Path:
-    return script_path("templates", "templates.yaml")
+    return BUSINESS_DIR / "templates" / "templates.yaml"
 
 
 def telegram_config_file() -> Path:

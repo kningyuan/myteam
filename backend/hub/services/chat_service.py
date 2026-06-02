@@ -17,7 +17,7 @@ from adapter.events import EventKind
 from adapter.protocol import RunRequest
 from adapter.registry import registry
 from adapter.sse import encode_done, encode_error, encode_event
-from hub.paths import SKILL_DIR, resolve_workspace
+from hub.paths import RULES_DIR, resolve_workspace
 from store.sessions import session_store
 
 # 过渡期：复用 base 的身份与配置
@@ -117,7 +117,7 @@ class ChatService:
         return "\n\n".join(sections)
 
     def _merge_rules(self, agent_id: str, workspace: str) -> Optional[str]:
-        universal = SKILL_DIR / "rule" / "universal-rules.md"
+        universal = RULES_DIR / "universal-rules.md"
         agents_md = Path(workspace) / "AGENTS.md"
         try:
             fd, temp_path = tempfile.mkstemp(suffix=".md", prefix=f"rules-{agent_id}-", dir="/tmp")
@@ -129,7 +129,7 @@ class ChatService:
                     f.write(universal.read_text(encoding="utf-8"))
                     f.write("\n\n---\n\n")
                 for name in ["brainstorming-guide.md", "worker-template.md"]:
-                    fp = SKILL_DIR / "rule" / name
+                    fp = RULES_DIR / name
                     if agent_id != "main" and fp.exists():
                         f.write(fp.read_text(encoding="utf-8"))
                         f.write("\n\n---\n\n")
