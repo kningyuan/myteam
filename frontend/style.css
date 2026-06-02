@@ -573,6 +573,7 @@ html, body {
 .manage-table td { padding:8px 12px; border-bottom:1px solid var(--border); vertical-align:middle; }
 .manage-table tr:hover td { background:var(--bg-interactive); }
 .manage-table .agent-cell { display:flex; align-items:center; gap:8px; }
+.chip { display:inline-block; padding:1px 7px; margin:1px; border-radius:10px; background:var(--bg-interactive); border:1px solid var(--border); font-size:11px; color:var(--text-secondary); }
 .manage-table .agent-cell .icon { width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; background:var(--bg-interactive); }
 .manage-table select { padding:4px 8px; border:1px solid var(--border); border-radius:4px; background:var(--bg-interactive); color:var(--text-primary); font-size:12px; }
 .manage-table input { padding:4px 8px; border:1px solid var(--border); border-radius:4px; background:var(--bg-interactive); color:var(--text-primary); font-size:12px; width:100%; min-width:60px; }

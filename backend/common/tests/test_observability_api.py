@@ -35,6 +35,8 @@ def client(tmp_path, monkeypatch):
     seed.append_run_event(IID, "step_start", {"i": 0})
     seed.append_run_event(IID, "step_finish", {"tokens": {"total": 123}})
     seed.update_interaction(IID, status="done", tokens=123, response_ref="x.response")
+    seed.memory_write("p1", "GEO 要点", "结构化数据 + 引用策略是核心", task_id="task_001",
+                      tags=["geo"])
     seed.close()
 
     # 每次请求开新连接指向同一临时库（handler 会 close）
@@ -59,6 +61,22 @@ def test_list_projects_route(client):
     assert r.status_code == 200
     projects = r.json()["projects"]
     assert any(p["id"] == "p1" and p["title"] == "GEO" for p in projects)
+
+
+def test_task_types_route(client):
+    r = client.get("/api/obs/task-types")
+    assert r.status_code == 200
+    tts = r.json()["task_types"]
+    assert tts and all("task_type" in t and "outcome_kind" in t for t in tts)
+
+
+def test_memory_route(client):
+    r = client.get("/api/obs/memory")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["total"] >= 1
+    hit = next(m for m in data["memory"] if m["title"] == "GEO 要点")
+    assert "结构化数据" in hit["preview"] and hit["tags"] == ["geo"]
 
 
 def test_cost(client):

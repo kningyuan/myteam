@@ -63,6 +63,49 @@ async def list_projects():
         store.close()
 
 
+@router.get("/task-types")
+async def list_task_types():
+    """只读：业务任务类型注册表（task_type 约束的单一出处，源自 templates.yaml）。"""
+    _ensure_common_importable()
+    from common.registry import load_registry  # noqa: WPS433
+    out = []
+    for tt, spec in load_registry().items():
+        out.append({
+            "task_type": tt,
+            "outcome_kind": spec.outcome_kind,
+            "required_sections": spec.required_sections,
+            "must_include": spec.must_include,
+            "stub_floor": spec.stub_floor,
+            "acceptance_criteria": spec.acceptance_criteria,
+            "section_count": len(spec.sections),
+        })
+    out.sort(key=lambda x: x["task_type"])
+    return {"task_types": out}
+
+
+@router.get("/memory")
+async def list_memory(project_id: str | None = None, text: str = "", limit: int = 50):
+    """只读：知识库（KB）条目列表，正文截断为预览。"""
+    store = _store()
+    try:
+        rows = store.memory_search(project_id=project_id, text=text)
+        out = []
+        for r in rows[: max(1, min(limit, 200))]:
+            content = r.get("content") or ""
+            out.append({
+                "id": r.get("id"),
+                "project_id": r.get("project_id"),
+                "task_id": r.get("task_id"),
+                "title": r.get("title"),
+                "tags": r.get("tags") or [],
+                "created_at": r.get("created_at"),
+                "preview": content[:200],
+            })
+        return {"memory": out, "total": len(rows)}
+    finally:
+        store.close()
+
+
 @router.get("/projects/{project_id}/overview")
 async def project_overview(project_id: str):
     store = _store()

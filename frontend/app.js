@@ -48,6 +48,7 @@ function cacheDom() {
    'new-group-modal','ng-name','ng-desc','ng-submit','ng-cancel','btn-new-group',
    'status-badge','agent-count','btn-group-config','btn-send','btn-group-send',
    'manage-agent-table','manage-agent-count','btn-create-agent',
+   'manage-tasktype-table','manage-tasktype-count','manage-memory-table','manage-memory-count',
    'create-agent-modal',
    'set-default-backend','set-default-model','set-port','set-cli-path','set-debug',
    'set-model-aliases','btn-save-settings','set-status',
@@ -155,7 +156,7 @@ function switchTab(tab, opts = {}) {
   if (tab === 'chat') renderAgentList();
   if (tab === 'groups') { renderGroupList(); loadGroups(); }
   if (tab === 'projects') { renderProjectList(); loadProjects().then(renderProjectList); }
-  if (tab === 'agents') renderManageAgents();
+  if (tab === 'agents') { renderManageAgents(); renderTaskTypes(); renderMemory(); }
   if (tab === 'settings') loadSettings();
   if (tab !== 'groups') disconnectGroupEvents();
   if (tab !== 'chat') disconnectAgentEvents();
@@ -1562,6 +1563,43 @@ async function renderManageAgents() {
       } catch(e) { alert('删除失败: '+e.message); }
     });
   });
+}
+
+async function renderTaskTypes() {
+  const box = DOM['manage-tasktype-table'];
+  if (!box) return;
+  try {
+    const r = await fetch('/api/obs/task-types');
+    const items = (await r.json()).task_types || [];
+    DOM['manage-tasktype-count'].textContent = items.length;
+    if (!items.length) { box.innerHTML = '<div class="empty">暂无任务类型</div>'; return; }
+    box.innerHTML = `<table class="manage-table">
+      <thead><tr><th>类型</th><th>产出</th><th>必需章节</th><th>章节数</th></tr></thead>
+      <tbody>${items.map(t => `<tr>
+        <td><code>${esc(t.task_type)}</code></td>
+        <td>${esc(t.outcome_kind)}</td>
+        <td>${(t.required_sections || []).map(s => `<span class="chip">${esc(s)}</span>`).join(' ') || '—'}</td>
+        <td>${t.section_count}</td></tr>`).join('')}</tbody></table>`;
+  } catch(e) { box.innerHTML = `<div class="empty">加载失败：${esc(e.message)}</div>`; }
+}
+
+async function renderMemory() {
+  const box = DOM['manage-memory-table'];
+  if (!box) return;
+  try {
+    const r = await fetch('/api/obs/memory');
+    const data = await r.json();
+    const items = data.memory || [];
+    DOM['manage-memory-count'].textContent = data.total ?? items.length;
+    if (!items.length) { box.innerHTML = '<div class="empty">暂无知识库条目</div>'; return; }
+    box.innerHTML = `<table class="manage-table">
+      <thead><tr><th>标题</th><th>项目</th><th>标签</th><th>预览</th></tr></thead>
+      <tbody>${items.map(m => `<tr>
+        <td>${esc(m.title || '')}</td>
+        <td><code>${esc(m.project_id || '')}</code></td>
+        <td>${(m.tags || []).map(t => `<span class="chip">${esc(t)}</span>`).join(' ') || '—'}</td>
+        <td class="hint">${esc(m.preview || '')}</td></tr>`).join('')}</tbody></table>`;
+  } catch(e) { box.innerHTML = `<div class="empty">加载失败：${esc(e.message)}</div>`; }
 }
 
 function openManageModal(agentId) {
