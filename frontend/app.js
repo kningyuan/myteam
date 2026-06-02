@@ -42,7 +42,7 @@ function cacheDom() {
    'home-stats','home-projects','btn-home-new-project',
    'project-deliverable','deliverable-title','deliverable-meta','deliverable-body',
    'btn-deliverable-copy','btn-deliverable-download',
-   'btn-sidebar-toggle','sidebar-backdrop','sidebar',
+   'btn-sidebar-toggle','sidebar-backdrop','sidebar','btn-open-group','btn-open-project',
    'btn-new-project','btn-new-project-welcome','new-project-modal','btn-cancel-project',
    'np-goal','np-title','np-mode','np-budget','np-review','np-submit','np-cancel',
    'btn-theme','theme-dropdown',
@@ -656,9 +656,10 @@ function renderGroupList() {
   const sorted = [...active].sort((a, b) => groupLastActivityTs(b) - groupLastActivityTs(a));
   DOM['group-list'].innerHTML = sorted.map(g => {
     const rel = formatRelativeTime(groupLastActivityTs(g));
+    const projTag = g.project_id ? '<span class="s-tag" title="属于一个项目（自动建群）">📋</span>' : '';
     return `<div class="sidebar-item ${S.currentGroupId === g.id ? 'active' : ''}" data-id="${g.id}">
       <span class="s-icon">👥</span>
-      <span class="s-name">${esc(g.name)}</span>
+      <span class="s-name">${esc(g.name)}${projTag}</span>
       <span class="s-sub">${rel || `${g.member_count}人`}</span>
     </div>`;
   }).join('');
@@ -797,6 +798,18 @@ function stopProjectPoll() {
   if (S._projectPoll) { clearInterval(S._projectPoll); S._projectPoll = null; }
 }
 
+let _boundGroupId = '';
+let _boundProjectId = '';
+
+async function updateBoundGroupButton(projectId) {
+  const btn = DOM['btn-open-group'];
+  if (!btn) return;
+  if (!S.groups || !S.groups.length) { try { await loadGroups(); } catch (e) {} }
+  const grp = (S.groups || []).find(g => g.project_id === projectId && g.status !== 'dissolved');
+  _boundGroupId = grp ? grp.id : '';
+  btn.classList.toggle('hidden', !grp);
+}
+
 function switchProjectTab(ptab) {
   document.querySelectorAll('.project-subnav .ptab').forEach(b =>
     b.classList.toggle('active', b.dataset.ptab === ptab));
@@ -832,6 +845,7 @@ async function selectProject(id, opts = {}) {
   if (DOM['deliverable-body']) DOM['deliverable-body'].innerHTML = '';
   _deliverable = { content: '', taskId: '' };
   setDeliverableActions(false);
+  await updateBoundGroupButton(id);
   await refreshProjectDetail(id);
   // 非终态时轮询实时刷新（内核在后台跑）
   S._projectPoll = setInterval(async () => {
@@ -1327,6 +1341,8 @@ async function selectGroup(id, opts = {}) {
     DOM['group-name'].textContent = g.name;
     S.groupMembers = g.members || [];
     DOM['group-members'].textContent = `成员: ${(g.members||[]).join(', ') || '无'}`;
+    _boundProjectId = g.project_id || '';
+    DOM['btn-open-project']?.classList.toggle('hidden', !_boundProjectId);
 
     // Render history
     (g.messages||[]).forEach(m => {
@@ -2425,6 +2441,12 @@ function setupEventListeners() {
     b.addEventListener('click', () => switchProjectTab(b.dataset.ptab)));
   DOM['btn-deliverable-copy']?.addEventListener('click', copyDeliverable);
   DOM['btn-deliverable-download']?.addEventListener('click', downloadDeliverable);
+  DOM['btn-open-group']?.addEventListener('click', () => {
+    if (_boundGroupId) { switchTab('groups'); selectGroup(_boundGroupId); }
+  });
+  DOM['btn-open-project']?.addEventListener('click', () => {
+    if (_boundProjectId) { switchTab('projects'); selectProject(_boundProjectId); }
+  });
   DOM['btn-sidebar-toggle']?.addEventListener('click', () => document.body.classList.toggle('sidebar-open'));
   DOM['sidebar-backdrop']?.addEventListener('click', () => document.body.classList.remove('sidebar-open'));
   // 窄屏抽屉：选中侧栏条目后自动收起

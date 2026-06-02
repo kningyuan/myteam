@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Agent Hub v2.1</title>
-<link rel="stylesheet" href="/static/style.css?v=26">
+<link rel="stylesheet" href="/static/style.css?v=27">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -143,6 +143,7 @@
               </div>
             </div>
             <div class="chat-actions">
+              <button id="btn-open-project" class="btn-clear hidden" title="打开该群组对应的项目">📋 项目详情</button>
               <button id="btn-group-config" class="btn-icon" title="管理群组成员">⚙️</button>
               <button id="btn-dissolve-group" class="btn-clear" title="解散群组（可搜索恢复，不删项目数据）">✕ 解散群组</button>
               <button id="btn-clear-group" class="btn-clear" title="清空群组消息记录">🗑️ 清空对话</button>
@@ -175,6 +176,7 @@
               </div>
             </div>
             <div class="chat-actions">
+              <button id="btn-open-group" class="btn-clear hidden" title="打开该项目的协作群组">👥 协作群组</button>
               <button id="btn-cancel-project" class="btn-clear hidden" title="取消项目（当前任务跑完后停止派发）">✕ 取消项目</button>
             </div>
           </div>
@@ -602,6 +604,6 @@
 </div>
 
 <script src="/static/markdown.js?v=1"></script>
-<script src="/static/app.js?v=26"></script>
+<script src="/static/app.js?v=27"></script>
 </body>
 </html>
