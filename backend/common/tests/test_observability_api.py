@@ -54,6 +54,13 @@ def test_overview(client):
     assert data["progress"] == 1.0
 
 
+def test_list_projects_route(client):
+    r = client.get("/api/obs/projects")
+    assert r.status_code == 200
+    projects = r.json()["projects"]
+    assert any(p["id"] == "p1" and p["title"] == "GEO" for p in projects)
+
+
 def test_cost(client):
     r = client.get("/api/obs/projects/p1/cost")
     assert r.status_code == 200

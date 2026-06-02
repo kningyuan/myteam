@@ -742,9 +742,11 @@ async function refreshProjectDetail(id) {
           const st = t.status || 'pending';
           const deps = (t.dependencies || []).join(', ');
           const tok = byTask[t.id] ? `${byTask[t.id]} tok` : '';
+          const sub = t.summary ? `<small class="hint">${esc(t.summary)}</small>`
+                                : (deps ? `<small class="hint">依赖: ${esc(deps)}</small>` : '');
           return `<div class="task-row status-${st} clickable" data-task="${esc(t.id)}">
             <span class="task-id">${esc(t.id)}</span>
-            <span class="task-name">${esc(t.name || '')}${deps ? ` <small class="hint">依赖: ${esc(deps)}</small>` : ''}</span>
+            <span class="task-name">${esc(t.name || '')}${sub ? '<br>' + sub : ''}</span>
             <span class="task-agent">${esc(t.agent || '-')}</span>
             <span class="task-tokens">${tok}</span>
             <span class="task-status">${esc(st)}</span>
