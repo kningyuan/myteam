@@ -249,7 +249,7 @@ team-ok **不应**解析 OpenCode JSON；只消费 **AgentEvent 摘要**或最�
 ## 11. 编排内核（Orchestration Kernel）
 
 > 业务编排层（项目 → 任务 DAG 执行），与上面的 chat/adapter 层正交。
-> 详细决策见 `docs/framework-decisions.md`（D1–D18）。
+> 详细决策见 `docs/framework-decisions.md`（D1–D19）。
 
 旧 OpenClaw 时代的 agent 驱动编排 skill（`task-executor`/`continuous-executor`/`task-dispatch`/`task-queue`/`task-monitor`/`task-resume`/`project-init`/`agent-notify` 等）已整体退役，统一为单一声明式状态机；内核与系统工具已上移到 `backend/common/`：
 
@@ -275,7 +275,76 @@ run_kernel.py (CLI 入口)
 | 真相库 | `backend/common/store.py` | SQLite 运行态：interactions / events / tasks / tokens（`business/tasks/state.db`） |
 | 可观测 | `backend/hub/api/observability_api.py` | 只读查询 + run_event SSE |
 
-## 12. config / path 出处
+## 12. System / Strategy / Skill 三层边界
+
+团队协作框架不是一个「大 Skill」，也不应把全部业务方法论硬编码进系统。当前定型为三层：
+
+| 层 | 存放位置 | 职责 | 不应承担 |
+|----|----------|------|----------|
+| System Kernel | `backend/common/`、`backend/adapter/`、`backend/hub/api/observability_api.py` | Interaction 契约、Process、AgentPort、Gate、Store、Observability、预算/审计/恢复 | 具体行业执行方法、平台发布步骤、角色写作风格 |
+| Strategy Registry | `business/templates/templates.yaml`、`business/config/agents_registry.json`、`business/rules/` | task_type、角色名册、验收标准、证据规则、团队默认策略 | 子进程调度、状态恢复、看门狗、运行态持久化 |
+| Skill Pack | `business/skills/*/SKILL.md`、agent workspace 内 `AGENTS.md`/身份文件 | 教 agent 如何完成某类具体工作、调用外部工具、生成证据 | 改写系统状态、决定调度顺序、替代 Gate 或 Store |
+
+判定规则：
+
+1. 必须被测试、恢复、审计、重试、持久化的能力进 System Kernel。
+2. 改变任务类型、角色选择、验收标准、流程策略的内容进 Strategy Registry。
+3. 教某个 agent 如何完成具体工作的内容做 Skill。
+4. 失败会导致系统状态不一致的能力不能放 Skill。
+5. 失败只会影响某个任务质量的能力可以放 Skill。
+
+### 当前归属审计
+
+| 当前对象 | 归属 | 结论 |
+|----------|------|------|
+| `backend/common/process.py` | System Kernel | 正确：DAG 调度、one_shot/recurring、失败语义、预算暂停必须由系统保证 |
+| `backend/common/agent_port.py` | System Kernel | 正确：心跳、watchdog、幂等、合法响应读取不可交给 Skill |
+| `backend/common/contracts.py` | System Kernel | 正确：Interaction 结构是稳定边界，必须可测试和版本化 |
+| `backend/common/registry.py` | System Kernel 读取入口 | 正确：代码只负责把策略注册表计算化；数据仍在 `business/templates/templates.yaml` |
+| `business/templates/templates.yaml` | Strategy Registry | 正确：task_type、sections、check_rules、outcome_kind、acceptance_criteria 属业务策略 |
+| `business/config/agents_registry.json` | Strategy Registry | 正确：Main 做 team_config 时读取的可用角色名册 |
+| `business/rules/*.md` | Strategy Registry / Agent Rules | 正确：属于团队通用工作约束，不承担运行时机制 |
+| `business/skills/publish-post/SKILL.md` | Skill Pack | 正确：只描述发布动作、脚本调用和证据要求，不调度、不持久化 |
+| `config/system_config.json`、`config/skill_config.json` | System Config | 正确：端口、backend、通知开关等系统配置，不是业务技能 |
+
+### Strategy Registry 结构与加载路径
+
+当前策略注册表以 `business/templates/templates.yaml` 为核心，由 `backend/common/registry.py` 统一读取：
+
+```
+business/templates/templates.yaml
+  task_type:
+    outcome_kind: artifact | action
+    deliverable_template:
+      required_heading_level: 2
+      sections:
+        - name / description / required / example
+    check_rules:
+      required_sections: [...]
+      file_exists: [...]
+      evidence_url: {...}
+      stub_floor: N
+      must_include: [...]
+    acceptance_criteria: [...]
+```
+
+加载链路：
+
+```
+Process → registry.get_spec(task_type)
+        → business/templates/templates.yaml
+        → 下发 constraints 给 Agent
+        → Gate 用同一份 spec 校验 outcome
+```
+
+约束：
+
+- `templates.yaml` 是 task_type 格式/验收策略的单一出处。
+- `backend/common/registry.py` 只做解析、默认值派生和类型化访问，不承载业务文案。
+- 新 task_type 必须先进入注册表，再按需补对应 Skill；不能只写 Skill 就让 Process 识别新任务。
+- review checklist、quality floor、证据规则优先进入注册表或系统配置；只有“怎么执行某个检查”的操作步骤才进入 Skill。
+
+## 13. config / path 出处
 
 | 层 | 模块 | 根 / 真相 |
 |----|------|----------|
@@ -290,4 +359,4 @@ run_kernel.py (CLI 入口)
 
 ---
 
-*文档版本：2026-06-02 · 目录重构：内核上移 `backend/common/`、业务归位 `business/`、退役老编排（§11/§12 已更新）*
+*文档版本：2026-06-04 · 增补 System / Strategy / Skill 三层边界、当前归属审计与策略注册表加载链路（§12）*

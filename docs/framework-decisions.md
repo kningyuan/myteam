@@ -18,7 +18,7 @@
 
 > 新接手者先读本节，再读决策与代码地图。
 
-- **阶段**：**设计阶段完成（D1–D18）。抽象层五件套全部落地为可测试模块（Phase 1–7），全仓 140 例测试绿。** Phase 8 已完成真机端到端验证（单次 + 三任务 DAG + goal 驱动全流程）、Hub 只读可观测接线、新内核运行时入口 `run_kernel`（均非破坏性）；余下仅 **现网切换 + 旧引擎下线**（破坏性，需明确授权）。
+- **阶段**：**设计阶段完成（D1–D19）。抽象层五件套全部落地为可测试模块（Phase 1–7），全仓 140 例测试绿。** Phase 8 已完成真机端到端验证（单次 + 三任务 DAG + goal 驱动全流程）、Hub 只读可观测接线、新内核运行时入口 `run_kernel`（均非破坏性）；余下仅 **现网切换 + 旧引擎下线**（破坏性，需明确授权）。
 - **抽象层 → 新模块（全部位于 `skill/team/common/`，均可单测，旧引擎未动可回退）**：
   - Interaction 契约 → `contracts.py`（+ `submit_result.py`）
   - 存储真相 → `store.py`
@@ -30,7 +30,7 @@
   - AgentPort 真实传输 → `opencode_transport.py`（Phase 8 step 1）
   - Hub 只读可观测接线 → `backend/hub/api/observability_api.py`（Phase 8 step 2）
   - 新内核运行时入口 → `common/run_kernel.py`（Phase 8 step 4）
-- **已决**：D1–D18（见下）。**抽象层五件套已闭合**：`Interaction`(D11) / `AgentPort`(D12) / `Gate`(D14) / `Process`(D10) / `Context-Memory`(D16)；支撑：存储(D13)、Outcome(D15)、可观测(D17)、失败语义(D18)。见上方「架构全景」。
+- **已决**：D1–D19（见下）。**抽象层五件套已闭合**：`Interaction`(D11) / `AgentPort`(D12) / `Gate`(D14) / `Process`(D10) / `Context-Memory`(D16)；支撑：存储(D13)、Outcome(D15)、可观测(D17)、失败语义(D18)、System/Strategy/Skill 三层存在形态(D19)。见上方「架构全景」。
 - **已落地代码**：
   - Phase 1：`skill/team/common/contracts.py`（Pydantic 信封 + Outcome）、`submit_result.py`（校验后原子写，拒绝不抢救）、`tests/test_contracts.py`（14 例）。契约路径已是唯一路径——旧 JSON 抢救（`notify_agent._write_response_file`）与迁移开关 `INTERACTION_CONTRACTS` 已在 5(b)-v 删除（其唯一调用者 `executor.state_execute_task` 已随 5(b)-ii 删旧引擎一并消失，确认死代码）。
   - Phase 2：`skill/team/common/store.py`（SQLite：project/task/interaction/run_event/memory + 只读导出视图 + task_data.json 一次性导入器 + CLI）、`tests/test_store.py`（8 例）。DB 落 `tasks/state.db`（已 gitignore）。
@@ -100,7 +100,7 @@
 
 ---
 
-## 架构全景（设计阶段产物，D1–D18 汇总）
+## 架构全景（设计阶段产物，D1–D19 汇总）
 
 抽象层五件套 + 支撑层的协作关系：
 
@@ -129,7 +129,7 @@ flowchart TB
   store --> obs
 ```
 
-**一句话小结**：Process 内核按 DAG 串行驱动；每一步以统一 **Interaction 契约**（D11）经 **AgentPort**（D12）投递给 CLITAgent，Agent 用 `submit_result` 回传 **schema 校验过的 Outcome**（D15）；框架用**确定性 Gate**（D14）只判格式/完整性，质量交 Agent 自评 + 同行评审；所有状态/事件落 **SQLite**（D13）作为唯一真相，驱动**可观测**（D17）；**Context-Memory**（D16）负责跨任务信息传递与记忆；失败语义清晰（D18）。机制全在 `backend/` 代码、能力留 skill（D2/D10）。
+**一句话小结**：Process 内核按 DAG 串行驱动；每一步以统一 **Interaction 契约**（D11）经 **AgentPort**（D12）投递给 CLITAgent，Agent 用 `submit_result` 回传 **schema 校验过的 Outcome**（D15）；框架用**确定性 Gate**（D14）只判格式/完整性，质量交 Agent 自评 + 同行评审；所有状态/事件落 **SQLite**（D13）作为唯一真相，驱动**可观测**（D17）；**Context-Memory**（D16）负责跨任务信息传递与记忆；失败语义清晰（D18）。存在形态按 D19 固化为：System Kernel 承载机制，Strategy Registry 承载策略，Skill Pack 承载执行能力。
 
 ---
 
@@ -300,6 +300,22 @@ flowchart TB
   - interaction：`pending → running → done | failed | cancelled | timed_out`
   - task：`pending → in_progress → completed | needs_review | failed | blocked`
 
+### D19 — 团队协作框架存在形态：System Kernel + Strategy Registry + Skill Pack
+- **决策**：团队协作框架作为系统级产品能力存在，不做成纯 Skill；但也不把业务方法论全部硬编码进系统。最终形态为三层：
+  1. **System Kernel**：`backend/common/`、`backend/adapter/`、可观测 API。承载 Interaction 契约、Process、AgentPort、Gate、Store、Observability、预算/审计/恢复。
+  2. **Strategy Registry**：`business/templates/templates.yaml`、`business/config/agents_registry.json`、`business/rules/`。承载 task_type、角色名册、验收标准、证据规则、团队默认策略。
+  3. **Skill Pack**：`business/skills/*/SKILL.md` 与 agent workspace 规则。承载领域执行步骤、工具调用说明、证据收集方法和角色工作方法。
+- **判定规则**：
+  - 必须被测试、恢复、审计、重试、持久化的能力进系统。
+  - 改变任务类型、角色选择、验收标准、流程策略的内容进策略注册表。
+  - 教某个 agent 如何完成具体工作的内容做 Skill。
+  - 失败会导致系统状态不一致的能力不能放 Skill；失败只影响某个任务质量的能力可以放 Skill。
+- **理由**：
+  - Skill 的定位是给 agent 注入任务方法和领域知识，不能保证运行时一致性、幂等、审计、恢复。
+  - 系统内核必须可测试、可回放、可观测；策略配置必须可版本化、可替换；Skill 必须轻量、聚焦执行能力。
+  - 当前代码已经符合该方向：`Process/AgentPort/Gate/Store` 在 `backend/common/`，`templates.yaml` 由 `registry.py` 读取，`publish-post` 是动作型能力 Skill。
+- **后续约束**：若创建 Cursor Skill，只能作为“如何使用 myteam 协作框架”的操作手册或入口说明，不能把 Process/Gate/Store 等运行时机制搬进 Skill。
+
 ---
 
 ## 待讨论的问题（Open）
@@ -315,13 +331,13 @@ flowchart TB
 - ~~**O7 单引擎 vs 双引擎**~~ **已定 → 见 D10**；剩余（两模式配置表达、轮次继承数据结构）= **实现细节，并入实现阶段**。
 - ~~**O8 失败/降级语义**~~ **已定 → 见 D18**（failed 阻塞+升级 / needs_review 质量未确认不阻塞 / triage 委托 Main）。
 
-> **Open 区已清空：设计阶段（D1–D18）完成。** 余下仅实现期细节，进入「实现阶段排期」。
+> **Open 区已清空：设计阶段（D1–D19）完成。** 余下仅实现期细节，进入「实现阶段排期」。
 - ~~**O9 Context/Memory 的具体设计**~~ **已定 → 见 D16**（三层：依赖注入摘要+引用 / 框架触发-agent 压缩 / 可插拔 KB 后端默认 SQLite）。
 - ~~**O10 Outcome/Action 的具体设计**~~ **已定 → 见 D15**（outcome=kind+artifact+(action:evidence)；task_type 声明 outcome_kind；门禁按 kind；action 幂等责任在 skill）。
 
 ---
 
-## 实现阶段计划（D1–D18 落地路线）
+## 实现阶段计划（D1–D19 落地路线）
 
 > 原则（接 Karpathy 指南）：**保留不重写**（D1）、**外科手术式改动**、**每阶段有可验证的成功标准**、**串行先行**（D12）。每个阶段独立可交付、可回滚。
 

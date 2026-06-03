@@ -117,6 +117,18 @@ venv/bin/python3 backend/common/run_kernel.py <project_id> \
 
 仓库自带一套 15 个模板 agent（`main / deputy / researcher / product / designer / developer / tester / ops / docs / content / seo / social / email / consultation / coordinator`），默认模型 `SenseNova/sensenova-6.7-flash-lite`。
 
+### 团队协作框架的三层形态
+
+myteam 的团队协作框架不是一个 Skill，而是系统级内核 + 可配置策略 + Skill 能力包：
+
+| 层 | 路径 | 用途 |
+|----|------|------|
+| System Kernel | `backend/common/`、`backend/adapter/`、`backend/hub/api/observability_api.py` | Process / AgentPort / Gate / Store / Observability 等运行时机制 |
+| Strategy Registry | `business/templates/templates.yaml`、`business/config/agents_registry.json`、`business/rules/` | task_type、角色名册、验收标准、证据规则、团队默认策略 |
+| Skill Pack | `business/skills/*/SKILL.md`、`business/workspaces/*/AGENTS.md` | 具体执行能力、工具步骤、角色工作方法 |
+
+经验法则：需要恢复、重试、审计、持久化的进系统；改变任务类型/验收标准/角色选择的进策略注册表；教 agent 怎么完成具体工作的做 Skill。
+
 ---
 
 ## 6. Workspaces 说明（是否都必须？）
@@ -178,9 +190,9 @@ myteam/
 ├── frontend/                    # Web UI
 ├── config/                      # 系统配置（system_config / skill_config，随代码走）
 ├── business/                    # 业务领域（gitignore 运行态）
-│   ├── skills/publish-post/     # 通用业务 skill
-│   ├── templates/templates.yaml # task_type 格式注册表（业务定义）
-│   ├── rules/                   # agent 规则（universal-rules / worker-template / ...）
+│   ├── skills/publish-post/     # Skill 能力包：具体动作/领域执行方法
+│   ├── templates/templates.yaml # Strategy Registry：task_type 格式/验收/证据规则
+│   ├── rules/                   # Strategy / Agent Rules：团队通用约束
 │   ├── config/                  # 业务配置 + 运行态（agents_config / groups / session_map / .env ...）
 │   ├── workspaces/              # 各 agent 工作目录
 │   └── tasks/                   # 运行态：state.db、project/<id>/deliverables
