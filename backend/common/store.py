@@ -113,10 +113,37 @@ CREATE TABLE IF NOT EXISTS memory (
     created_at  TEXT
 );
 
+-- 对话/记忆一等公民（P0）：人↔agent 多轮历史进库，供 Context Assembler 组装上下文。
+CREATE TABLE IF NOT EXISTS conversation (
+    conversation_id TEXT PRIMARY KEY,
+    kind            TEXT DEFAULT 'dm',      -- dm | group | project
+    participants    TEXT DEFAULT '[]',
+    project_id      TEXT DEFAULT NULL,
+    title           TEXT DEFAULT '',
+    created_at      TEXT,
+    updated_at      TEXT,
+    meta            TEXT DEFAULT 'null'     -- {summary, summarized_through_seq, pins:[...]}
+);
+
+CREATE TABLE IF NOT EXISTS message (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id TEXT,
+    seq             INTEGER,
+    role            TEXT,                   -- user | agent | system | tool
+    author          TEXT DEFAULT '',
+    text            TEXT DEFAULT '',
+    parts           TEXT DEFAULT 'null',    -- [{type:text|tool_use|tool_result|citation, ...}]
+    backend         TEXT DEFAULT '',
+    tokens          INTEGER DEFAULT 0,
+    created_at      TEXT,
+    meta            TEXT DEFAULT 'null'
+);
+
 CREATE INDEX IF NOT EXISTS idx_task_project ON task(project_id);
 CREATE INDEX IF NOT EXISTS idx_interaction_task ON interaction(project_id, task_id);
 CREATE INDEX IF NOT EXISTS idx_run_event_iid ON run_event(interaction_id, seq);
 CREATE INDEX IF NOT EXISTS idx_memory_project ON memory(project_id);
+CREATE INDEX IF NOT EXISTS idx_message_conv ON message(conversation_id, seq);
 """
 
 
@@ -131,7 +158,21 @@ class Store:
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA synchronous=NORMAL")
         self._conn.executescript(_SCHEMA)
+        self._fts = self._init_message_fts()
         self._conn.commit()
+
+    def _init_message_fts(self) -> bool:
+        """message 全文索引（trigram，CJK 子串召回友好）。FTS5/trigram 不可用时回退 LIKE。"""
+        for tokenize in ("tokenize='trigram'", ""):
+            try:
+                self._conn.execute(
+                    "CREATE VIRTUAL TABLE IF NOT EXISTS message_fts USING fts5("
+                    "text, conversation_id UNINDEXED" + (", " + tokenize if tokenize else "") + ")"
+                )
+                return True
+            except sqlite3.OperationalError:
+                self._conn.execute("DROP TABLE IF EXISTS message_fts")
+        return False
 
     def close(self):
         self._conn.close()
@@ -417,6 +458,153 @@ class Store:
             out.append(d)
         return out
 
+    # ── conversation / message（对话记忆一等公民，P0）──────────
+
+    def create_conversation(self, conversation_id: str, *, kind: str = "dm",
+                            participants: Optional[list] = None,
+                            project_id: Optional[str] = None, title: str = "",
+                            meta: Optional[dict] = None) -> None:
+        now = _now()
+        with self._conn:
+            self._conn.execute(
+                """INSERT INTO conversation
+                     (conversation_id, kind, participants, project_id, title,
+                      created_at, updated_at, meta)
+                   VALUES (?,?,?,?,?,?,?,?)
+                   ON CONFLICT(conversation_id) DO NOTHING""",
+                (conversation_id, kind, _dumps(participants or []), project_id, title,
+                 now, now, _dumps(meta)),
+            )
+
+    def get_conversation(self, conversation_id: str) -> Optional[dict]:
+        row = self._conn.execute(
+            "SELECT * FROM conversation WHERE conversation_id=?", (conversation_id,)
+        ).fetchone()
+        if not row:
+            return None
+        d = self._row(row)
+        d["participants"] = _loads(d.get("participants")) or []
+        return d
+
+    def get_or_create_dm(self, agent_id: str) -> str:
+        """取/建一个人↔单 agent 的 DM 会话，返回 conversation_id。"""
+        cid = f"dm:{agent_id}"
+        self.create_conversation(cid, kind="dm", participants=["user", agent_id])
+        return cid
+
+    def update_conversation_meta(self, conversation_id: str, **kv) -> None:
+        """合并写 conversation.meta（摘要 / summarized_through_seq / pins 等）。"""
+        conv = self.get_conversation(conversation_id)
+        meta = (conv.get("meta") if conv else None) or {}
+        meta.update(kv)
+        with self._conn:
+            self._conn.execute(
+                "UPDATE conversation SET meta=?, updated_at=? WHERE conversation_id=?",
+                (_dumps(meta), _now(), conversation_id),
+            )
+
+    def append_message(self, conversation_id: str, role: str, author: str = "", *,
+                       text: str = "", parts: Optional[list] = None, backend: str = "",
+                       tokens: int = 0, meta: Optional[dict] = None) -> tuple[int, int]:
+        """追加一条消息，返回 (id, seq)。seq 在会话内自增。"""
+        with self._conn:
+            seq = (self._conn.execute(
+                "SELECT COALESCE(MAX(seq),0)+1 FROM message WHERE conversation_id=?",
+                (conversation_id,)).fetchone()[0])
+            cur = self._conn.execute(
+                """INSERT INTO message
+                     (conversation_id, seq, role, author, text, parts, backend, tokens,
+                      created_at, meta)
+                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                (conversation_id, seq, role, author, text, _dumps(parts), backend, tokens,
+                 _now(), _dumps(meta)),
+            )
+            mid = cur.lastrowid
+            if self._fts and text:
+                self._conn.execute(
+                    "INSERT INTO message_fts(rowid, text, conversation_id) VALUES (?,?,?)",
+                    (mid, text, conversation_id),
+                )
+            self._conn.execute(
+                "UPDATE conversation SET updated_at=? WHERE conversation_id=?",
+                (_now(), conversation_id),
+            )
+        return mid, seq
+
+    def clear_conversation(self, conversation_id: str) -> int:
+        """清空一个会话的全部消息（含 FTS 索引）+ 重置摘要/pins。返回删除的消息数。"""
+        with self._conn:
+            ids = [r[0] for r in self._conn.execute(
+                "SELECT id FROM message WHERE conversation_id=?",
+                (conversation_id,)).fetchall()]
+            if self._fts and ids:
+                self._conn.executemany(
+                    "DELETE FROM message_fts WHERE rowid=?", [(i,) for i in ids])
+            self._conn.execute(
+                "DELETE FROM message WHERE conversation_id=?", (conversation_id,))
+            self._conn.execute(
+                "UPDATE conversation SET meta='null', updated_at=? WHERE conversation_id=?",
+                (_now(), conversation_id))
+        return len(ids)
+
+    def get_message(self, message_id: int) -> Optional[dict]:
+        row = self._conn.execute("SELECT * FROM message WHERE id=?", (message_id,)).fetchone()
+        return self._msg_row(row) if row else None
+
+    def count_messages(self, conversation_id: str) -> int:
+        return self._conn.execute(
+            "SELECT COUNT(*) FROM message WHERE conversation_id=?", (conversation_id,)
+        ).fetchone()[0]
+
+    def list_messages(self, conversation_id: str, *, after_seq: int = 0,
+                      limit: Optional[int] = None) -> list[dict]:
+        """按 seq 升序列出消息（after_seq 之后；limit 可选）。"""
+        sql = "SELECT * FROM message WHERE conversation_id=? AND seq>? ORDER BY seq"
+        params: list = [conversation_id, after_seq]
+        if limit is not None:
+            sql += " LIMIT ?"
+            params.append(limit)
+        return [self._msg_row(r) for r in self._conn.execute(sql, params).fetchall()]
+
+    def recent_messages(self, conversation_id: str, k: int) -> list[dict]:
+        """最近 k 条消息，按 seq 升序返回（便于直接拼装）。"""
+        if k <= 0:
+            return []
+        rows = self._conn.execute(
+            "SELECT * FROM message WHERE conversation_id=? ORDER BY seq DESC LIMIT ?",
+            (conversation_id, k),
+        ).fetchall()
+        return [self._msg_row(r) for r in reversed(rows)]
+
+    def search_messages(self, query: str, *, conversation_id: Optional[str] = None,
+                        limit: int = 5) -> list[dict]:
+        """关键词检索消息正文。FTS5(trigram) 优先；不可用或异常时回退 LIKE。"""
+        q = (query or "").strip()
+        if not q:
+            return []
+        if self._fts and len(q) >= 3:
+            match = '"' + q.replace('"', '""') + '"'
+            sql = ("SELECT m.* FROM message m JOIN message_fts ON message_fts.rowid=m.id "
+                   "WHERE message_fts MATCH ?")
+            params: list = [match]
+            if conversation_id:
+                sql += " AND m.conversation_id=?"
+                params.append(conversation_id)
+            sql += " ORDER BY rank LIMIT ?"
+            params.append(limit)
+            try:
+                return [self._msg_row(r) for r in self._conn.execute(sql, params).fetchall()]
+            except sqlite3.OperationalError:
+                pass
+        sql = "SELECT * FROM message WHERE text LIKE ?"
+        params = [f"%{q}%"]
+        if conversation_id:
+            sql += " AND conversation_id=?"
+            params.append(conversation_id)
+        sql += " ORDER BY seq DESC LIMIT ?"
+        params.append(limit)
+        return [self._msg_row(r) for r in self._conn.execute(sql, params).fetchall()]
+
     # ── 只读导出视图（task_data.json 形状）─────────────────────
 
     def export_project(self, project_id: str) -> dict:
@@ -504,6 +692,12 @@ class Store:
     def _mem_row(row: sqlite3.Row) -> dict:
         d = dict(row)
         d["tags"] = _loads(d.get("tags")) or []
+        return d
+
+    @classmethod
+    def _msg_row(cls, row: sqlite3.Row) -> dict:
+        d = cls._row(row)
+        d["parts"] = _loads(d.get("parts"))
         return d
 
 

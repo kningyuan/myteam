@@ -231,7 +231,8 @@ async def chat(request: Request, agent_id: str, message: str = Query(..., descri
 
     def produce(cancel):
         try:
-            for event_json in stream_chat(agent_id, message.strip(), cancel_event=cancel):
+            for event_json in stream_chat(agent_id, message.strip(), cancel_event=cancel,
+                                          use_memory=True):
                 yield event_json
         except Exception as e:
             yield json.dumps({"event": "error", "data": {"message": str(e)}}, ensure_ascii=False)

@@ -33,7 +33,17 @@ class ChatService:
         agent_id: str,
         message: str,
         cancel_event: Optional[Event] = None,
+        *,
+        use_memory: bool = False,
     ) -> Generator[str, None, None]:
+        """1-on-1 流式对话。
+
+        use_memory=True（DM 路径，P0）：对话历史进 Store、由 Context Assembler 组装上下文，
+        own-history、不依赖 opencode -s。其余调用方（群组/通知/工厂）保持 use_memory=False 旧路径。
+        """
+        if use_memory:
+            yield from self._stream_memory(agent_id, message, cancel_event)
+            return
         agent_cfg = _load_agents_config().get(agent_id, {})
         workspace = resolve_workspace(agent_id, agent_cfg.get("workspace"))
         if not workspace.is_dir():
@@ -104,6 +114,109 @@ class ChatService:
                     os.remove(rules_file)
                 except Exception:
                     pass
+
+    def _stream_memory(
+        self,
+        agent_id: str,
+        message: str,
+        cancel_event: Optional[Event] = None,
+    ) -> Generator[str, None, None]:
+        """DM 记忆路径：消息落库 + Context Assembler 组装上下文 + own-history（无 -s）。"""
+        from common.store import Store
+        from common.context_assembler import assemble, maybe_update_summary
+
+        agent_cfg = _load_agents_config().get(agent_id, {})
+        workspace = resolve_workspace(agent_id, agent_cfg.get("workspace"))
+        if not workspace.is_dir():
+            yield encode_error(f"Agent '{agent_id}' 的工作目录不存在")
+            return
+        backend_cfg = get_agent_backend_config(agent_id)
+        adapter = registry.get(backend_cfg.backend_id)
+        if not adapter:
+            yield encode_error(f"Adapter '{backend_cfg.backend_id}' 未注册")
+            return
+        model = backend_cfg.model or adapter.get_default_model()
+        rules_file = self._merge_rules(agent_id, str(workspace))
+        system_prompt = self._build_system_prompt(agent_id, str(workspace))
+
+        store = Store()
+        try:
+            conv_id = store.get_or_create_dm(agent_id)
+            store.append_message(conv_id, "user", "user", text=message)
+
+            context = assemble(store, conv_id, message)
+            sections = []
+            if system_prompt:
+                sections.append(f"【系统指令】\n{system_prompt}")
+            if context:
+                sections.append(context)
+            sections.append(f"【用户消息】\n{message}")
+            full_message = "\n\n".join(sections)
+
+            req = RunRequest(
+                workspace=str(workspace),
+                message=full_message,
+                model=model,
+                session_id=None,            # own-history：不依赖 opencode -s，避免历史重复注入
+                rules_file=rules_file,
+                agent_id=agent_id,
+                cancel_event=cancel_event,
+            )
+            buf: list[str] = []
+            cancelled = False
+            for event in adapter.run(req):
+                if event.kind == EventKind.SESSION:
+                    continue
+                if event.kind == EventKind.ERROR:
+                    yield encode_error(event.data.get("message", ""))
+                    return
+                if event.kind == EventKind.TEXT:
+                    buf.append(event.data.get("content", ""))
+                if cancel_event is not None and cancel_event.is_set():
+                    cancelled = True
+                encoded = encode_event(event)
+                if encoded:
+                    yield encoded
+
+            reply = "".join(buf).strip()
+            if reply:
+                store.append_message(conv_id, "agent", agent_id, text=reply,
+                                     parts=[{"type": "text", "text": reply}],
+                                     backend=backend_cfg.backend_id)
+            if not cancelled:
+                maybe_update_summary(
+                    store, conv_id,
+                    summarize_fn=self._make_summarizer(adapter, str(workspace), model,
+                                                       rules_file, agent_id))
+            yield encode_done("")
+        finally:
+            store.close()
+            if rules_file and os.path.exists(rules_file):
+                try:
+                    os.remove(rules_file)
+                except Exception:
+                    pass
+
+    def _make_summarizer(self, adapter, workspace: str, model: str,
+                         rules_file: Optional[str], agent_id: str):
+        """返回 summarize_fn(pending, prev)->str：用当前 agent「顺带」生成滚动摘要。"""
+        def _summarize(pending: list, prev: str) -> str:
+            convo = "\n".join(
+                f"{m.get('author') or m.get('role')}：{m.get('text', '')}" for m in pending)
+            prompt = (
+                "请把下面这段对话压缩成简洁的滚动摘要，保留关键事实、决策、待办与用户偏好，"
+                "去掉寒暄与冗余。只输出摘要正文。\n"
+                + (f"\n【已有摘要】\n{prev}\n" if prev else "")
+                + f"\n【新增对话】\n{convo}"
+            )
+            req = RunRequest(workspace=workspace, message=prompt, model=model,
+                             session_id=None, rules_file=rules_file, agent_id=agent_id)
+            out: list[str] = []
+            for ev in adapter.run(req):
+                if ev.kind == EventKind.TEXT:
+                    out.append(ev.data.get("content", ""))
+            return "".join(out).strip()
+        return _summarize
 
     def _build_system_prompt(self, agent_id: str, workspace: str) -> str:
         builder = AgentIdentityBuilder(agent_id, workspace)

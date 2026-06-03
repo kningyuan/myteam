@@ -257,15 +257,30 @@ def clear_agent_chat_context(agent_id: str) -> tuple[bool, str]:
 
     backend_cfg = get_agent_backend_config(agent_id)
     _clear_agent_sessions(agent_id, backend_cfg.backend_id)
+    # P0：DM 记忆路径的历史在 Store，清空时一并清掉（消息 + 摘要/pins）
+    try:
+        from common.store import Store
+        s = Store()
+        try:
+            s.clear_conversation(f"dm:{agent_id}")
+        finally:
+            s.close()
+    except Exception:
+        pass
     return True, "对话记录与 Agent 上下文已清空"
 
 
 # ============ 流式对话 ============
 
-def stream_chat(agent_id: str, message: str, cancel_event=None) -> Generator[str, None, None]:
-    """与 Agent 对话 — 委托 hub.services.ChatService（Adapter 抽象层）。"""
+def stream_chat(agent_id: str, message: str, cancel_event=None,
+                *, use_memory: bool = False) -> Generator[str, None, None]:
+    """与 Agent 对话 — 委托 hub.services.ChatService（Adapter 抽象层）。
+
+    use_memory=True：DM 记忆路径（对话进 Store + Context Assembler）。群组/通知等保持默认 False。
+    """
     from hub.services.chat_service import chat_service
-    yield from chat_service.stream(agent_id, message, cancel_event=cancel_event)
+    yield from chat_service.stream(agent_id, message, cancel_event=cancel_event,
+                                   use_memory=use_memory)
 
 
 def get_agent_model(agent_id: str) -> str:
