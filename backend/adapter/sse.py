@@ -22,3 +22,8 @@ def encode_error(message: str) -> str:
 
 def encode_done(session_id: str = "") -> str:
     return json.dumps({"event": "done", "data": {"session_id": session_id}}, ensure_ascii=False)
+
+
+def encode_citations(citations: list) -> str:
+    """引用闭环：把本轮回复实际依据的检索召回来源推给 UI（也会落库到 message.parts）。"""
+    return json.dumps({"event": "citations", "data": citations or []}, ensure_ascii=False)

@@ -50,9 +50,24 @@ def _render(msg: dict, clip: int) -> str:
     return f"{_label(msg)}：{_clip(msg.get('text', ''), clip)}"
 
 
-def assemble(store: Store, conversation_id: str, query: str,
-             config: Optional[AssemblerConfig] = None) -> str:
-    """组装对话上下文块（不含系统/身份、不含当前用户消息）。空历史返回 ""。"""
+def _citation(msg: dict, conversation_id: str) -> dict:
+    """把一条被检索召回的历史消息转成引用条目（前端 message.parts 渲染卡片用）。"""
+    return {
+        "type": "citation",
+        "source": "history",
+        "ref": f"{conversation_id}#seq{msg['seq']}",
+        "title": f"{_label(msg)} · #{msg['seq']}",
+        "snippet": _clip(msg.get("text", ""), 160),
+    }
+
+
+def assemble_context(store: Store, conversation_id: str, query: str,
+                     config: Optional[AssemblerConfig] = None) -> dict:
+    """组装对话上下文，并暴露实际注入 prompt 的「检索召回」来源（引用闭环用）。
+
+    返回 {"text": <上下文块字符串>, "citations": [<citation dict>, ...]}。
+    citations 只含真正进入 prompt 的召回历史（被预算裁掉的不算），保证「引用 = 真实依据」。
+    """
     cfg = config or AssemblerConfig()
     conv = store.get_conversation(conversation_id) or {}
     meta = conv.get("meta") or {}
@@ -66,6 +81,7 @@ def assemble(store: Store, conversation_id: str, query: str,
         if m["id"] not in recent_ids]
 
     blocks: list[str] = []
+    citations: list[dict] = []
     used = 0
 
     if pins:
@@ -79,17 +95,19 @@ def assemble(store: Store, conversation_id: str, query: str,
         used += len(body)
 
     if retrieved:
-        lines, budget = [], cfg.retrieval_reserve
+        lines, budget, cited = [], cfg.retrieval_reserve, []
         for m in retrieved:
             line = f"- [seq{m['seq']} {_label(m)}] {_clip(m.get('text', ''), 240)}"
             if budget - len(line) < 0:
                 break
             lines.append(line)
             budget -= len(line)
+            cited.append(m)
         if lines:
             body = "\n".join(lines)
             blocks.append(f"【相关历史片段（检索召回）】\n{body}")
             used += len(body)
+            citations = [_citation(m, conversation_id) for m in cited]
 
     if recent:
         budget = max(cfg.recent_floor, cfg.char_budget - used)
@@ -99,7 +117,13 @@ def assemble(store: Store, conversation_id: str, query: str,
             rendered.pop(0)
         blocks.append("【最近对话】\n" + "\n".join(rendered))
 
-    return "\n\n".join(blocks)
+    return {"text": "\n\n".join(blocks), "citations": citations}
+
+
+def assemble(store: Store, conversation_id: str, query: str,
+             config: Optional[AssemblerConfig] = None) -> str:
+    """仅取上下文文本（向后兼容旧调用）。"""
+    return assemble_context(store, conversation_id, query, config)["text"]
 
 
 def maybe_update_summary(store: Store, conversation_id: str, *,

@@ -30,6 +30,7 @@ function cacheDom() {
   ['agent-list','group-list','messages','group-messages','welcome','chat-view',
    'group-welcome','group-chat-view','message-input','group-input','btn-send','btn-group-send',
    'btn-clear-chat','btn-delete-chat','btn-clear-group','btn-dissolve-group',
+   'btn-chat-more','chat-more-dropdown','new-msg-floater',
    'agent-search','agent-search-results','group-search','group-search-results',
    'chat-agent-name','chat-agent-id','chat-agent-avatar',
    'group-name','group-members','group-avatar',
@@ -1139,6 +1140,7 @@ async function loadBackgroundChats(agentId) {
       if (agentId === S.currentAgentId) {
         DOM.messages.innerHTML = '';
         existing.forEach(m => renderAgentMsg(m, DOM.messages, agentId));
+        scrollBottom(DOM.messages, true);
       }
     }
   } catch (e) { /* ignore */ }
@@ -1163,11 +1165,13 @@ function selectAgent(id, opts = {}) {
     DOM['chat-agent-avatar'].textContent = getAvatar(id);
   }
   DOM.messages.innerHTML = '';
+  // 本地缓存即时渲染（离线兜底），随后 loadDmHistory 以后端库刷新为准 + 合并后台私聊
   if (S.agentMessages[id]) {
     S.agentMessages[id].forEach(m => renderAgentMsg(m, DOM.messages, id));
+    scrollBottom(DOM.messages, true);
   }
-  // 加载持久化的后台执行私聊记录
-  loadBackgroundChats(id);
+  hideNewMsgFloater();
+  loadDmHistory(id);
   DOM['message-input'].disabled = false;
   DOM['message-input'].focus();
   updateSendBtn();
@@ -1183,6 +1187,7 @@ async function sendAgentMsg() {
   const msg = { role:'user', content:text, ts: Date.now() };
   addAgentMsg(S.currentAgentId, msg);
   renderAgentMsg(msg, DOM.messages, S.currentAgentId);
+  scrollBottom(DOM.messages, true);
   DOM['message-input'].value = ''; DOM['message-input'].style.height = 'auto';
   S.isStreaming = true; setStatus('busy');
   updateSendBtn();
@@ -1280,6 +1285,17 @@ function handleChatEvent(ev, msg, contentEl, tb, ts, rootEl) {
   if (!ev || !rootEl) return;
   if (ev.event === 'thinking') {
     handleThinking(ev.data, msg, contentEl, tb, ts, rootEl);
+  } else if (ev.event === 'citations') {
+    const cites = Array.isArray(ev.data) ? ev.data : [];
+    if (cites.length) {
+      msg.parts = cites;
+      const bubble = rootEl.querySelector('.bubble');
+      if (bubble) {
+        bubble.querySelector('.citations')?.remove();
+        renderCitations(bubble, cites, bubble.querySelector('.msg-meta'));
+      }
+      scrollBottom(DOM.messages);
+    }
   } else if (ev.event === 'error') {
     showAgentError(rootEl, ev.data?.message || '未知错误');
   } else if (ev.event === 'done') {
@@ -1318,31 +1334,141 @@ function showAgentError(rootEl, message) {
   }
 }
 
+// ---- DM 时间/分组工具 ----
+function fmtMsgTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  if (isNaN(d)) return '';
+  return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+function dayKeyOf(ts) {
+  const d = new Date(ts || Date.now());
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+function dayLabelOf(ts) {
+  const d = new Date(ts || Date.now()), now = new Date();
+  const y = new Date(now); y.setDate(now.getDate() - 1);
+  if (dayKeyOf(ts) === dayKeyOf(now.getTime())) return '今天';
+  if (dayKeyOf(ts) === dayKeyOf(y.getTime())) return '昨天';
+  return `${d.getMonth() + 1} 月 ${d.getDate()} 日`;
+}
+function tsFromIso(s) { const t = Date.parse(s); return isNaN(t) ? 0 : t; }
+
+function msgMetaHtml(mts) {
+  return '<div class="msg-meta"><button class="msg-copy" type="button" title="复制" aria-label="复制">⧉</button>' +
+    '<span class="msg-time">' + fmtMsgTime(mts) + '</span></div>';
+}
+
+// 引用卡片：把消息 parts 里 type==='citation' 的条目渲染成卡片，插在 meta 之前
+function renderCitations(bubbleEl, parts, beforeEl) {
+  if (!Array.isArray(parts)) return;
+  const cites = parts.filter(p => p && p.type === 'citation');
+  if (!cites.length) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'citations';
+  cites.forEach(c => {
+    const card = document.createElement('div');
+    card.className = 'citation-card';
+    const title = c.title || c.source || c.ref || '引用';
+    const snippet = c.snippet || c.text || '';
+    card.innerHTML = '<div class="cite-head">🔗 ' + esc(title) + '</div>' +
+      (snippet ? '<div class="cite-snippet">' + esc(snippet) + '</div>' : '');
+    if (c.url) {
+      card.classList.add('clickable');
+      card.addEventListener('click', () => window.open(c.url, '_blank', 'noopener'));
+    }
+    wrap.appendChild(card);
+  });
+  if (beforeEl) bubbleEl.insertBefore(wrap, beforeEl);
+  else bubbleEl.appendChild(wrap);
+}
+
+// 从后端 message 表加载 DM 历史（P0 记忆地基为准），失败则保留本地离线缓存；最后合并后台私聊
+async function loadDmHistory(id) {
+  try {
+    const r = await fetch(`/api/chat/${encodeURIComponent(id)}/messages`);
+    if (r.ok) {
+      const d = await r.json();
+      if (S.currentAgentId === id && !S.isStreaming) {
+        const mapped = (d.messages || []).map(m => ({
+          role: m.role === 'user' ? 'user' : (m.role === 'agent' ? 'agent' : 'system'),
+          content: m.text || '',
+          parts: m.parts || null,
+          ts: tsFromIso(m.created_at),
+        }));
+        if (mapped.length) {
+          S.agentMessages[id] = mapped;
+          DOM.messages.innerHTML = '';
+          mapped.forEach(m => renderAgentMsg(m, DOM.messages, id));
+          scrollBottom(DOM.messages, true);
+        }
+      }
+    }
+  } catch (e) { /* 离线：保留本地缓存渲染 */ }
+  loadBackgroundChats(id);
+}
+
 function renderAgentMsg(msg, container, agentId) {
   const c = container || DOM.messages;
   const aid = agentId || S.currentAgentId;
+  const mts = msg.ts || 0;
+  const gkey = msg.role === 'agent' ? 'agent:' + aid : msg.role;
+
+  // 日期分隔：非 system，与上一条不同天则插入居中 pill
+  if (msg.role !== 'system') {
+    const last = c.lastElementChild;
+    const lastDay = last && last.dataset ? last.dataset.day : null;
+    const thisDay = dayKeyOf(mts);
+    if (lastDay !== thisDay) {
+      const sep = document.createElement('div');
+      sep.className = 'date-sep'; sep.dataset.day = thisDay;
+      sep.textContent = dayLabelOf(mts);
+      c.appendChild(sep);
+    }
+  }
+  // 连续同发送者分组（5 分钟内合并头像/名字）
+  let grouped = false;
+  const prev = c.lastElementChild;
+  if (prev && prev.classList && prev.classList.contains('message') && prev.dataset.gkey === gkey) {
+    const lt = parseInt(prev.dataset.ts || '0', 10);
+    grouped = (mts && lt) ? Math.abs(mts - lt) < 300000 : (!mts && !lt);
+  }
+
   const div = document.createElement('div');
+  div.dataset.gkey = gkey;
+  div.dataset.ts = String(mts);
+  div.dataset.day = dayKeyOf(mts);
+
   if (msg.role === 'user') {
-    div.className = 'message user';
-    div.innerHTML = '<div class="msg-content">' + esc(msg.content) + '</div>';
+    div.className = 'message user' + (grouped ? ' grouped' : '');
+    div.innerHTML = '<div class="bubble"><div class="msg-content">' + esc(msg.content) +
+      '</div>' + msgMetaHtml(mts) + '</div>';
   } else if (msg.role === 'agent') {
-    div.className = 'message agent';
+    div.className = 'message agent' + (grouped ? ' grouped' : '');
     const a = S.agents.find(x => x.id === aid);
     const nm = a ? a.name : 'Agent';
     const hasThinking = msg.thinking && msg.thinking.length;
 
     div.innerHTML =
-      '<div class="msg-header"><span class="msg-agent-icon">' + getAvatar(aid) + '</span>' + esc(nm) + '</div>' +
-      '<div class="thinking-section collapsed"><div class="thinking-header"><span class="thinking-toggle">▼</span><span class="thinking-title">' + esc(thinkingSectionTitle(msg.thinking, !!(msg.ts && S.isStreaming))) + '</span></div><div class="thinking-body">' + buildThinkingBodyHtml(msg.thinking) + '</div></div>' +
-      '<div class="msg-content"></div>' +
-      '<div class="typing-dots" style="display:none"><span></span><span></span><span></span></div>';
+      '<div class="msg-avatar">' + getAvatar(aid) + '</div>' +
+      '<div class="bubble">' +
+        (grouped ? '' : '<div class="bubble-name">' + esc(nm) + '</div>') +
+        '<div class="thinking-section collapsed"><div class="thinking-header"><span class="thinking-toggle">▼</span><span class="thinking-title">' + esc(thinkingSectionTitle(msg.thinking, !!(msg.ts && S.isStreaming))) + '</span></div><div class="thinking-body">' + buildThinkingBodyHtml(msg.thinking) + '</div></div>' +
+        '<div class="msg-content"></div>' +
+        '<div class="typing-dots" style="display:none"><span></span><span></span><span></span></div>' +
+        msgMetaHtml(mts) +
+      '</div>';
 
     const ce = div.querySelector('.msg-content');
     if (ce) renderBubbleMarkdown(ce, msg.content || '');
 
-    const ts = div.querySelector('.thinking-section');
-    if (ts && !hasThinking && !(msg.ts && S.isStreaming)) ts.style.display = 'none';
-    if (ts && msg.ts && S.isStreaming) ts.style.display = '';
+    // 引用卡片渲染管线（parts.citation → 卡片；无引用则 no-op）
+    const bub = div.querySelector('.bubble');
+    if (bub) renderCitations(bub, msg.parts, bub.querySelector('.msg-meta'));
+
+    const tsEl = div.querySelector('.thinking-section');
+    if (tsEl && !hasThinking && !(msg.ts && S.isStreaming)) tsEl.style.display = 'none';
+    if (tsEl && msg.ts && S.isStreaming) tsEl.style.display = '';
 
     if (msg.ts && S.isStreaming && !msg.content && !hasThinking) {
       const td = div.querySelector('.typing-dots');
@@ -2285,8 +2411,20 @@ function updateGroupSendBtn() {
   );
 }
 
-function scrollBottom(el) {
-  requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
+function isNearBottom(el) {
+  return el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+}
+function showNewMsgFloater() { DOM['new-msg-floater']?.classList.remove('hidden'); }
+function hideNewMsgFloater() { DOM['new-msg-floater']?.classList.add('hidden'); }
+
+// 贴底时跟随滚动；用户上滑查看历史时不猛拽，改为提示「↓ 新消息」
+function scrollBottom(el, force) {
+  if (force || isNearBottom(el)) {
+    requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
+    if (el === DOM.messages) hideNewMsgFloater();
+  } else if (el === DOM.messages) {
+    showNewMsgFloater();
+  }
 }
 
 function removeTyping(el) {
@@ -2361,8 +2499,19 @@ function setupEventListeners() {
     DOM['message-input'].style.height = Math.min(DOM['message-input'].scrollHeight, 120) + 'px';
     updateSendBtn();
   });
-  DOM['btn-clear-chat'].addEventListener('click', clearChat);
-  DOM['btn-delete-chat']?.addEventListener('click', () => deleteChatWindow());
+  DOM['btn-clear-chat'].addEventListener('click', () => {
+    DOM['chat-more-dropdown']?.classList.add('hidden'); clearChat();
+  });
+  DOM['btn-delete-chat']?.addEventListener('click', () => {
+    DOM['chat-more-dropdown']?.classList.add('hidden'); deleteChatWindow();
+  });
+  DOM['btn-chat-more']?.addEventListener('click', e => {
+    e.stopPropagation();
+    DOM['chat-more-dropdown']?.classList.toggle('hidden');
+  });
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.more-menu')) DOM['chat-more-dropdown']?.classList.add('hidden');
+  });
   DOM['btn-agent-config'].addEventListener('click', openAgentConfig);
   DOM['agent-search']?.addEventListener('input', e => searchChatArchives(e.target.value));
   DOM['agent-search']?.addEventListener('blur', () => setTimeout(() => hideSearchResults('agent'), 200));
@@ -2600,8 +2749,23 @@ function setupEventListeners() {
   // Thinking section toggle (delegated)
   DOM.messages.addEventListener('click', e => {
     const thHeader = e.target.closest('.thinking-header');
-    if (thHeader) { thHeader.closest('.thinking-section')?.classList.toggle('collapsed'); }
+    if (thHeader) { thHeader.closest('.thinking-section')?.classList.toggle('collapsed'); return; }
+    const cp = e.target.closest('.msg-copy');
+    if (cp) {
+      const mc = cp.closest('.message')?.querySelector('.msg-content');
+      const txt = mc ? (mc.innerText || mc.textContent || '') : '';
+      if (txt && navigator.clipboard) {
+        navigator.clipboard.writeText(txt).then(() => {
+          cp.textContent = '✓';
+          setTimeout(() => { cp.textContent = '⧉'; }, 1200);
+        }).catch(() => {});
+      }
+    }
   });
+  DOM.messages.addEventListener('scroll', () => {
+    if (isNearBottom(DOM.messages)) hideNewMsgFloater();
+  });
+  DOM['new-msg-floater']?.addEventListener('click', () => scrollBottom(DOM.messages, true));
   DOM['group-messages'].addEventListener('click', e => {
     const thHeader = e.target.closest('.thinking-header');
     if (thHeader) { thHeader.closest('.thinking-section')?.classList.toggle('collapsed'); }

@@ -123,7 +123,7 @@ class ChatService:
     ) -> Generator[str, None, None]:
         """DM 记忆路径：消息落库 + Context Assembler 组装上下文 + own-history（无 -s）。"""
         from common.store import Store
-        from common.context_assembler import assemble, maybe_update_summary
+        from common.context_assembler import assemble_context, maybe_update_summary
 
         agent_cfg = _load_agents_config().get(agent_id, {})
         workspace = resolve_workspace(agent_id, agent_cfg.get("workspace"))
@@ -144,7 +144,9 @@ class ChatService:
             conv_id = store.get_or_create_dm(agent_id)
             store.append_message(conv_id, "user", "user", text=message)
 
-            context = assemble(store, conv_id, message)
+            assembled = assemble_context(store, conv_id, message)
+            context = assembled["text"]
+            citations = assembled["citations"]
             sections = []
             if system_prompt:
                 sections.append(f"【系统指令】\n{system_prompt}")
@@ -152,6 +154,11 @@ class ChatService:
                 sections.append(context)
             sections.append(f"【用户消息】\n{message}")
             full_message = "\n\n".join(sections)
+
+            # 引用闭环：先把本轮依据的召回来源推给 UI（落库见下方 parts）
+            if citations:
+                from adapter.sse import encode_citations
+                yield encode_citations(citations)
 
             req = RunRequest(
                 workspace=str(workspace),
@@ -181,7 +188,7 @@ class ChatService:
             reply = "".join(buf).strip()
             if reply:
                 store.append_message(conv_id, "agent", agent_id, text=reply,
-                                     parts=[{"type": "text", "text": reply}],
+                                     parts=[{"type": "text", "text": reply}] + citations,
                                      backend=backend_cfg.backend_id)
             if not cancelled:
                 maybe_update_summary(

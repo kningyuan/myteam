@@ -255,6 +255,26 @@ async def chat(request: Request, agent_id: str, message: str = Query(..., descri
     )
 
 
+@app.get("/api/chat/{agent_id}/messages")
+async def api_chat_messages(agent_id: str, limit: int = Query(200, ge=1, le=2000)):
+    """DM 会话历史（P0 记忆地基）——从 Store 的 message 表读，前端据此渲染对话流。"""
+    from common.store import Store
+    store = Store()
+    try:
+        conv_id = f"dm:{agent_id}"
+        msgs = store.list_messages(conv_id)
+        if limit and len(msgs) > limit:
+            msgs = msgs[-limit:]
+        out = [{
+            "seq": m["seq"], "role": m["role"], "author": m.get("author", ""),
+            "text": m.get("text", ""), "parts": m.get("parts"),
+            "created_at": m.get("created_at", ""),
+        } for m in msgs]
+    finally:
+        store.close()
+    return {"agent_id": agent_id, "conversation_id": conv_id, "messages": out}
+
+
 @app.post("/api/chat/{agent_id}/clear")
 async def api_clear_chat(agent_id: str):
     ok, msg = clear_agent_chat_context(agent_id)

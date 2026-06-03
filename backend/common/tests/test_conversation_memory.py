@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from common.store import Store  # noqa: E402
 from common.context_assembler import (  # noqa: E402
-    AssemblerConfig, assemble, maybe_update_summary,
+    AssemblerConfig, assemble, assemble_context, maybe_update_summary,
 )
 
 
@@ -133,6 +133,35 @@ def test_clear_conversation_wipes_messages_fts_and_meta(store):
     assert store.search_messages("OrionAlpha7", conversation_id=cid) == []  # FTS 也清了
     conv = store.get_conversation(cid)
     assert (conv.get("meta") or {}) == {} or conv.get("meta") is None
+
+
+def test_assemble_context_emits_citations_from_retrieval(store):
+    """引用闭环：被检索召回（且进入 prompt）的旧消息应作为 citation 暴露出来。"""
+    cid = store.get_or_create_dm("ops")
+    # 一条含独特关键词的旧消息
+    store.append_message(cid, "user", "user", text="项目代号是 OrionAlpha7 请记住")
+    # 灌入足够多的近期消息，把上面那条挤出近窗
+    for i in range(8):
+        store.append_message(cid, "user", "user", text=f"无关闲聊 {i}")
+
+    cfg = AssemblerConfig(recent_turns=4, retrieval_k=4)
+    res = assemble_context(store, cid, "OrionAlpha7", cfg)
+    assert isinstance(res, dict) and "text" in res and "citations" in res
+    cites = res["citations"]
+    assert cites, "应从检索召回中产出引用"
+    c = cites[0]
+    assert c["type"] == "citation"
+    assert c["ref"].startswith(f"{cid}#seq")
+    assert "OrionAlpha7" in c["snippet"]
+    # 召回的历史片段也应进入上下文文本
+    assert "OrionAlpha7" in res["text"]
+
+
+def test_assemble_context_no_citations_without_history(store):
+    """无历史可召回时不应捏造引用（首轮对话）。"""
+    cid = store.get_or_create_dm("ops")
+    res = assemble_context(store, cid, "随便问问")
+    assert res["citations"] == []
 
 
 def test_summary_not_triggered_below_threshold(store):

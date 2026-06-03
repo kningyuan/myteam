@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Agent Hub v2.1</title>
-<link rel="stylesheet" href="/static/style.css?v=29">
+<link rel="stylesheet" href="/static/style.css?v=31">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -111,11 +111,17 @@
             </div>
             <div class="chat-actions">
               <button id="btn-agent-config" class="btn-icon" title="配置后端/模型">⚙️</button>
-              <button id="btn-delete-chat" class="btn-clear" title="从列表删除（可搜索找回）">✕ 删除对话</button>
-              <button id="btn-clear-chat" class="btn-clear" title="清空界面记录并重置 Agent 多轮上下文">🗑️ 清空对话</button>
+              <div class="more-menu">
+                <button id="btn-chat-more" class="btn-icon" title="更多" type="button">⋯</button>
+                <div id="chat-more-dropdown" class="more-dropdown hidden">
+                  <button id="btn-clear-chat" type="button" title="清空界面记录并重置 Agent 多轮上下文">🗑️ 清空对话</button>
+                  <button id="btn-delete-chat" type="button" title="从列表删除（可搜索找回）">✕ 删除对话</button>
+                </div>
+              </div>
             </div>
           </div>
           <div id="messages" class="messages"></div>
+          <button id="new-msg-floater" class="new-msg-floater hidden" type="button" title="回到最新">↓ 新消息</button>
           <div class="input-area">
             <textarea id="message-input" rows="2" placeholder="输入消息...（Enter 发送，Shift+Enter 换行）"
                       autocomplete="off"></textarea>
@@ -607,6 +613,6 @@
 </div>
 
 <script src="/static/markdown.js?v=1"></script>
-<script src="/static/app.js?v=29"></script>
+<script src="/static/app.js?v=32"></script>
 </body>
 </html>
