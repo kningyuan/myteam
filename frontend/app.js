@@ -38,7 +38,7 @@ function cacheDom() {
    'project-list','project-count','project-welcome','project-detail-view',
    'project-title','project-meta','project-progress-text','project-progress-fill',
    'project-tasks','project-fleet','project-cost','project-events',
-   'project-trace','trace-title','trace-body',
+   'project-trace','trace-title','trace-body','trace-close',
    'home-stats','home-projects','btn-home-new-project',
    'project-deliverable','deliverable-title','deliverable-meta','deliverable-body',
    'btn-deliverable-copy','btn-deliverable-download',
@@ -2441,6 +2441,7 @@ function setupEventListeners() {
     loadGroups();
     renderGroupList();
   });
+  DOM['trace-close']?.addEventListener('click', () => DOM['project-trace']?.classList.add('hidden'));
   DOM['group-modal-close']?.addEventListener('click', () => DOM['group-config-modal'].classList.add('hidden'));
   DOM['group-config-modal']?.querySelector('.modal-close')?.addEventListener('click', () => DOM['group-config-modal'].classList.add('hidden'));
 

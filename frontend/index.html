@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Agent Hub v2.1</title>
-<link rel="stylesheet" href="/static/style.css?v=28">
+<link rel="stylesheet" href="/static/style.css?v=29">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -215,7 +215,10 @@
                 <div id="project-events" class="event-feed">—</div>
               </div>
               <div id="project-trace" class="project-section hidden">
-                <h3 id="trace-title">交互明细</h3>
+                <div class="trace-header">
+                  <h3 id="trace-title">交互明细</h3>
+                  <button id="trace-close" class="btn-secondary" type="button">关闭</button>
+                </div>
                 <div id="trace-body" class="trace-body"></div>
               </div>
             </div>
@@ -604,6 +607,6 @@
 </div>
 
 <script src="/static/markdown.js?v=1"></script>
-<script src="/static/app.js?v=28"></script>
+<script src="/static/app.js?v=29"></script>
 </body>
 </html>
