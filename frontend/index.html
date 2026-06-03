@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Agent Hub v2.1</title>
-<link rel="stylesheet" href="/static/style.css?v=31">
+<link rel="stylesheet" href="/static/style.css?v=36">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -13,22 +13,22 @@
 <div id="app">
   <!-- Top Nav -->
   <nav id="top-nav">
-    <button id="btn-sidebar-toggle" class="btn-icon" title="菜单" type="button" aria-label="菜单">☰</button>
+    <button id="btn-sidebar-toggle" class="btn-icon" title="菜单" type="button" aria-label="菜单" data-icon="menu"></button>
     <span class="nav-logo">🤖 Agent Hub</span>
     <div class="nav-tabs">
-      <button class="nav-tab active" data-tab="home">🏠 首页</button>
-      <button class="nav-tab" data-tab="chat">💬 对话</button>
-      <button class="nav-tab" data-tab="groups">👥 群组</button>
-      <button class="nav-tab" data-tab="projects">📋 项目</button>
-      <button class="nav-tab" data-tab="agents">🤖 管理</button>
-      <button class="nav-tab" data-tab="settings">⚙️ 设置</button>
+      <button class="nav-tab active" data-tab="home"><span data-icon="home"></span> 首页</button>
+      <button class="nav-tab" data-tab="chat"><span data-icon="chat"></span> 对话</button>
+      <button class="nav-tab" data-tab="groups"><span data-icon="users"></span> 群组</button>
+      <button class="nav-tab" data-tab="projects"><span data-icon="clipboard"></span> 项目</button>
+      <button class="nav-tab" data-tab="agents"><span data-icon="sliders"></span> 管理</button>
+      <button class="nav-tab" data-tab="settings"><span data-icon="settings"></span> 设置</button>
     </div>
     <div class="nav-actions">
       <div class="theme-menu">
-        <button id="btn-theme" class="btn-icon" title="主题设置" type="button">🎨</button>
+        <button id="btn-theme" class="btn-icon" title="主题设置" type="button" data-icon="theme"></button>
         <div id="theme-dropdown" class="theme-dropdown hidden">
-          <button type="button" data-theme="dark">🌙 深色</button>
-          <button type="button" data-theme="light">☀️ 浅色</button>
+          <button type="button" data-theme="dark"><span data-icon="moon"></span> 深色</button>
+          <button type="button" data-theme="light"><span data-icon="sun"></span> 浅色</button>
         </div>
       </div>
       <span id="status-badge" class="status online">就绪</span>
@@ -56,7 +56,7 @@
       <div id="sidebar-groups" class="sidebar-panel">
         <div class="sidebar-title">
           <span>群组列表</span>
-          <button id="btn-new-group" class="btn-sm" title="创建群组">+</button>
+          <button id="btn-new-group" class="btn-sm" title="创建群组" data-icon="plus"></button>
         </div>
         <div class="sidebar-search">
           <input id="group-search" type="search" placeholder="搜索 / 找回已解散群组…" autocomplete="off">
@@ -70,7 +70,7 @@
         <div class="sidebar-title">
           <span>项目列表</span>
           <span class="badge" id="project-count">0</span>
-          <button id="btn-new-project" class="btn-sm" title="发起项目">+</button>
+          <button id="btn-new-project" class="btn-sm" title="发起项目" data-icon="plus"></button>
         </div>
         <div id="project-list" class="sidebar-list"><div class="loading">加载中...</div></div>
       </div>
@@ -83,7 +83,7 @@
         <div class="home-panel">
           <div class="home-header">
             <h2>总览</h2>
-            <button id="btn-home-new-project" class="btn-primary">✨ 发起项目</button>
+            <button id="btn-home-new-project" class="btn-primary"><span data-icon="plus"></span> 发起项目</button>
           </div>
           <div id="home-stats" class="home-stats"></div>
           <h3 class="home-sec-title">项目</h3>
@@ -110,18 +110,18 @@
               </div>
             </div>
             <div class="chat-actions">
-              <button id="btn-agent-config" class="btn-icon" title="配置后端/模型">⚙️</button>
+              <button id="btn-agent-config" class="btn-icon" title="配置后端/模型" data-icon="settings"></button>
               <div class="more-menu">
-                <button id="btn-chat-more" class="btn-icon" title="更多" type="button">⋯</button>
+                <button id="btn-chat-more" class="btn-icon" title="更多" type="button" data-icon="more"></button>
                 <div id="chat-more-dropdown" class="more-dropdown hidden">
-                  <button id="btn-clear-chat" type="button" title="清空界面记录并重置 Agent 多轮上下文">🗑️ 清空对话</button>
-                  <button id="btn-delete-chat" type="button" title="从列表删除（可搜索找回）">✕ 删除对话</button>
+                  <button id="btn-clear-chat" type="button" title="清空界面记录并重置 Agent 多轮上下文"><span data-icon="trash"></span> 清空对话</button>
+                  <button id="btn-delete-chat" type="button" title="从列表删除（可搜索找回）"><span data-icon="x"></span> 删除对话</button>
                 </div>
               </div>
             </div>
           </div>
           <div id="messages" class="messages"></div>
-          <button id="new-msg-floater" class="new-msg-floater hidden" type="button" title="回到最新">↓ 新消息</button>
+          <button id="new-msg-floater" class="new-msg-floater hidden" type="button" title="回到最新"><span data-icon="arrow-down"></span> 新消息</button>
           <div class="input-area">
             <textarea id="message-input" rows="2" placeholder="输入消息...（Enter 发送，Shift+Enter 换行）"
                       autocomplete="off"></textarea>
@@ -149,10 +149,15 @@
               </div>
             </div>
             <div class="chat-actions">
-              <button id="btn-open-project" class="btn-clear hidden" title="打开该群组对应的项目">📋 项目详情</button>
-              <button id="btn-group-config" class="btn-icon" title="管理群组成员">⚙️</button>
-              <button id="btn-dissolve-group" class="btn-clear" title="解散群组（可搜索恢复，不删项目数据）">✕ 解散群组</button>
-              <button id="btn-clear-group" class="btn-clear" title="清空群组消息记录">🗑️ 清空对话</button>
+              <button id="btn-open-project" class="btn-clear hidden" title="打开该群组对应的项目"><span data-icon="clipboard"></span> 项目详情</button>
+              <button id="btn-group-config" class="btn-icon" title="管理群组成员" data-icon="settings"></button>
+              <div class="more-menu">
+                <button id="btn-group-more" class="btn-icon" title="更多" type="button" data-icon="more"></button>
+                <div id="group-more-dropdown" class="more-dropdown hidden">
+                  <button id="btn-clear-group" type="button" title="清空群组消息记录"><span data-icon="trash"></span> 清空对话</button>
+                  <button id="btn-dissolve-group" type="button" title="解散群组（可搜索恢复，不删项目数据）"><span data-icon="x"></span> 解散群组</button>
+                </div>
+              </div>
             </div>
           </div>
           <div id="group-messages" class="messages"></div>
@@ -170,7 +175,7 @@
           <div class="welcome-icon">📋</div>
           <h2>发起一个项目，或从左侧选择查看进度</h2>
           <p>给一个目标，Main 自动配团队 + 规划任务 DAG，交编排内核执行。</p>
-          <button id="btn-new-project-welcome" class="btn-primary">✨ 发起项目</button>
+          <button id="btn-new-project-welcome" class="btn-primary"><span data-icon="plus"></span> 发起项目</button>
         </div>
         <div id="project-detail-view" class="project-view hidden">
           <div class="chat-header">
@@ -182,8 +187,8 @@
               </div>
             </div>
             <div class="chat-actions">
-              <button id="btn-open-group" class="btn-clear hidden" title="打开该项目的协作群组">👥 协作群组</button>
-              <button id="btn-cancel-project" class="btn-clear hidden" title="取消项目（当前任务跑完后停止派发）">✕ 取消项目</button>
+              <button id="btn-open-group" class="btn-clear hidden" title="打开该项目的协作群组"><span data-icon="users"></span> 协作群组</button>
+              <button id="btn-cancel-project" class="btn-clear hidden" title="取消项目（当前任务跑完后停止派发）"><span data-icon="x"></span> 取消项目</button>
             </div>
           </div>
           <div class="project-body">
@@ -235,8 +240,8 @@
                 <div class="deliverable-head">
                   <h3 id="deliverable-title">交付物</h3>
                   <div class="deliverable-actions">
-                    <button id="btn-deliverable-copy" class="btn-ghost-sm hidden" title="复制正文">📋 复制</button>
-                    <button id="btn-deliverable-download" class="btn-ghost-sm hidden" title="下载 Markdown">⬇️ 下载 .md</button>
+                    <button id="btn-deliverable-copy" class="btn-ghost-sm hidden" title="复制正文"><span data-icon="copy"></span> 复制</button>
+                    <button id="btn-deliverable-download" class="btn-ghost-sm hidden" title="下载 Markdown"><span data-icon="download"></span> 下载 .md</button>
                   </div>
                 </div>
                 <div id="deliverable-meta" class="deliverable-meta">在「概览」点任意任务查看其交付物正文。</div>
@@ -263,12 +268,12 @@
               <h2>🤖 Agent 管理</h2>
               <span class="badge" id="manage-agent-count">0</span>
             </div>
-            <button id="btn-create-agent" class="btn-primary">✨ 创建 Agent</button>
+            <button id="btn-create-agent" class="btn-primary"><span data-icon="plus"></span> 创建 Agent</button>
           </div>
           <p class="subtitle">管理所有 Agent 的配置、后端和模型</p>
           <div id="manage-agent-table"></div>
 
-          <div class="manage-header" style="margin-top:28px">
+          <div class="manage-header mt-section">
             <div class="manage-header-left">
               <h2>🧩 任务类型</h2>
               <span class="badge" id="manage-tasktype-count">0</span>
@@ -277,7 +282,7 @@
           <p class="subtitle">业务任务类型注册表（task_type 约束的单一出处，只读）</p>
           <div id="manage-tasktype-table"></div>
 
-          <div class="manage-header" style="margin-top:28px">
+          <div class="manage-header mt-section">
             <div class="manage-header-left">
               <h2>📚 知识库</h2>
               <span class="badge" id="manage-memory-count">0</span>
@@ -309,7 +314,7 @@
               <div class="form-group">
                 <label>默认模型</label>
                 <select id="set-default-model"></select>
-                <button type="button" id="btn-apply-model-all" class="btn-secondary" style="margin-top:8px;">应用到所有同后端 agent</button>
+                <button type="button" id="btn-apply-model-all" class="btn-secondary mt-sm">应用到所有同后端 agent</button>
                 <small class="field-hint">默认模型仅用于「新建 agent」和未配置模型时的兜底；点上面按钮可把当前后端的全部 agent 一键改成此模型</small>
               </div>
               <div class="form-group">
@@ -396,7 +401,7 @@
   <div class="modal-content" id="agent-config-modal">
     <div class="modal-header">
       <h3>Agent 配置</h3>
-      <button class="modal-close">✕</button>
+      <button class="modal-close" data-icon="x"></button>
     </div>
     <div class="modal-body">
       <p id="modal-agent-info"></p>
@@ -421,7 +426,7 @@
   <div class="modal-content">
     <div class="modal-header">
       <h3>群组管理</h3>
-      <button class="modal-close">✕</button>
+      <button class="modal-close" data-icon="x"></button>
     </div>
     <div class="modal-body">
       <p id="group-modal-name"></p>
@@ -448,7 +453,7 @@
   <div class="modal-content">
     <div class="modal-header">
       <h3>创建群组</h3>
-      <button class="modal-close">✕</button>
+      <button class="modal-close" data-icon="x"></button>
     </div>
     <div class="modal-body">
       <div class="form-group">
@@ -472,7 +477,7 @@
   <div class="modal-content">
     <div class="modal-header">
       <h3>✨ 发起项目</h3>
-      <button class="modal-close">✕</button>
+      <button class="modal-close" data-icon="x"></button>
     </div>
     <div class="modal-body">
       <div class="form-group">
@@ -510,7 +515,7 @@
   <div class="modal-content modal-wide">
     <div class="modal-header">
       <h3>✨ 创建 Agent</h3>
-      <button class="modal-close">✕</button>
+      <button class="modal-close" data-icon="x"></button>
     </div>
     <div class="modal-body">
       <p class="modal-subtitle">描述 Agent 职责，自动生成工作目录和能力文件</p>
@@ -547,7 +552,7 @@
       </form>
     </div>
     <div class="modal-footer">
-      <button id="cf-submit" class="btn-primary">🚀 创建 Agent</button>
+      <button id="cf-submit" class="btn-primary"><span data-icon="plus"></span> 创建 Agent</button>
       <button id="cf-cancel" class="btn-secondary">取消</button>
     </div>
   </div>
@@ -558,12 +563,12 @@
   <div class="modal-content">
     <div class="modal-header">
       <h3>Agent 配置</h3>
-      <button class="modal-close">✕</button>
+      <button class="modal-close" data-icon="x"></button>
     </div>
     <div class="modal-body">
       <div class="form-group">
         <label>Agent ID</label>
-        <input id="mm-id" readonly style="color:var(--text3);cursor:not-allowed">
+        <input id="mm-id" readonly style="color:var(--text-tertiary);cursor:not-allowed">
       </div>
       <div class="form-group">
         <label>名称</label>
@@ -613,6 +618,6 @@
 </div>
 
 <script src="/static/markdown.js?v=1"></script>
-<script src="/static/app.js?v=32"></script>
+<script src="/static/app.js?v=36"></script>
 </body>
 </html>

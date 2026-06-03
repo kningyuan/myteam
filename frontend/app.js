@@ -31,6 +31,7 @@ function cacheDom() {
    'group-welcome','group-chat-view','message-input','group-input','btn-send','btn-group-send',
    'btn-clear-chat','btn-delete-chat','btn-clear-group','btn-dissolve-group',
    'btn-chat-more','chat-more-dropdown','new-msg-floater',
+   'btn-group-more','group-more-dropdown',
    'agent-search','agent-search-results','group-search','group-search-results',
    'chat-agent-name','chat-agent-id','chat-agent-avatar',
    'group-name','group-members','group-avatar',
@@ -68,6 +69,7 @@ function cacheDom() {
 // ============ Init ============
 async function init() {
   cacheDom();
+  hydrateIcons(document);
   loadChatHistory();
   loadTheme();
   await loadHiddenChats();
@@ -238,7 +240,7 @@ function renderAgentList() {
       <span class="s-name">${esc(a.name)}</span>
       <span class="s-sub">${rel ? esc(rel) : ''}</span>
       ${unread ? `<span class="s-badge">${unread > 99 ? '99+' : unread}</span>` : ''}
-      <span class="s-del" data-del-agent="${a.id}" title="删除对话">✕</span>
+      <span class="s-del" data-del-agent="${a.id}" title="删除对话">${ic('x')}</span>
     </div>`;
   }).join('');
   DOM['agent-list'].querySelectorAll('.sidebar-item').forEach(el => {
@@ -1354,6 +1356,59 @@ function dayLabelOf(ts) {
 }
 function tsFromIso(s) { const t = Date.parse(s); return isNaN(t) ? 0 : t; }
 
+// 与上一条不同天则插入居中日期分隔 pill（DM/群组共用）
+function _dateSep(c, mts) {
+  const last = c.lastElementChild;
+  const lastDay = last && last.dataset ? last.dataset.day : null;
+  const thisDay = dayKeyOf(mts);
+  if (lastDay !== thisDay) {
+    const sep = document.createElement('div');
+    sep.className = 'date-sep'; sep.dataset.day = thisDay;
+    sep.textContent = dayLabelOf(mts);
+    c.appendChild(sep);
+  }
+}
+// 连续同发送者（5 分钟内）分组（DM/群组共用）
+function _grouped(c, gkey, mts) {
+  const prev = c.lastElementChild;
+  if (prev && prev.classList && prev.classList.contains('message') && prev.dataset.gkey === gkey) {
+    const lt = parseInt(prev.dataset.ts || '0', 10);
+    return (mts && lt) ? Math.abs(mts - lt) < 300000 : (!mts && !lt);
+  }
+  return false;
+}
+
+// ============ 线性图标（内联 SVG，currentColor，零依赖）============
+const ICONS = {
+  menu: '<line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>',
+  home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>',
+  chat: '<path d="M21 12a8 8 0 0 1-11.3 7.3L4 21l1.7-5.7A8 8 0 1 1 21 12Z"/>',
+  users: '<circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 5.5a3 3 0 0 1 0 5.5"/><path d="M17.5 14a6 6 0 0 1 3.5 6"/>',
+  clipboard: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/><line x1="8" y1="18" x2="13" y2="18"/>',
+  sliders: '<line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2" class="fill"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="15" cy="12" r="2" class="fill"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="8" cy="18" r="2" class="fill"/>',
+  settings: '<circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"/>',
+  theme: '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18Z" class="fill"/>',
+  moon: '<path d="M21 12.8A8 8 0 0 1 11.2 3 7 7 0 1 0 21 12.8Z"/>',
+  sun: '<circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/>',
+  plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  more: '<circle cx="5" cy="12" r="1.5" class="fill"/><circle cx="12" cy="12" r="1.5" class="fill"/><circle cx="19" cy="12" r="1.5" class="fill"/>',
+  trash: '<path d="M4 7h16"/><path d="M9 7V5h6v2"/><path d="M6 7l1 13h10l1-13"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>',
+  x: '<line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>',
+  'arrow-down': '<line x1="12" y1="5" x2="12" y2="19"/><path d="M6 13l6 6 6-6"/>',
+  copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/>',
+  download: '<path d="M12 3v12"/><path d="M7 11l5 5 5-5"/><path d="M5 21h14"/>',
+};
+function ic(name, cls) {
+  return '<svg class="icon-svg' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" aria-hidden="true">' + (ICONS[name] || '') + '</svg>';
+}
+function hydrateIcons(root) {
+  (root || document).querySelectorAll('[data-icon]').forEach(el => {
+    if (el.dataset.iconDone) return;
+    el.insertAdjacentHTML('afterbegin', ic(el.dataset.icon));
+    el.dataset.iconDone = '1';
+  });
+}
+
 function msgMetaHtml(mts) {
   return '<div class="msg-meta"><button class="msg-copy" type="button" title="复制" aria-label="复制">⧉</button>' +
     '<span class="msg-time">' + fmtMsgTime(mts) + '</span></div>';
@@ -1414,25 +1469,8 @@ function renderAgentMsg(msg, container, agentId) {
   const mts = msg.ts || 0;
   const gkey = msg.role === 'agent' ? 'agent:' + aid : msg.role;
 
-  // 日期分隔：非 system，与上一条不同天则插入居中 pill
-  if (msg.role !== 'system') {
-    const last = c.lastElementChild;
-    const lastDay = last && last.dataset ? last.dataset.day : null;
-    const thisDay = dayKeyOf(mts);
-    if (lastDay !== thisDay) {
-      const sep = document.createElement('div');
-      sep.className = 'date-sep'; sep.dataset.day = thisDay;
-      sep.textContent = dayLabelOf(mts);
-      c.appendChild(sep);
-    }
-  }
-  // 连续同发送者分组（5 分钟内合并头像/名字）
-  let grouped = false;
-  const prev = c.lastElementChild;
-  if (prev && prev.classList && prev.classList.contains('message') && prev.dataset.gkey === gkey) {
-    const lt = parseInt(prev.dataset.ts || '0', 10);
-    grouped = (mts && lt) ? Math.abs(mts - lt) < 300000 : (!mts && !lt);
-  }
+  if (msg.role !== 'system') _dateSep(c, mts);
+  const grouped = _grouped(c, gkey, mts);
 
   const div = document.createElement('div');
   div.dataset.gkey = gkey;
@@ -1507,6 +1545,7 @@ async function selectGroup(id, opts = {}) {
     (g.messages||[]).forEach(m => {
       renderGroupMsg(m);
     });
+    scrollBottom(DOM['group-messages'], true);
   } catch(e) { console.error(e); }
   DOM['group-input'].disabled = false;
   DOM['group-input'].focus();
@@ -1759,15 +1798,27 @@ async function sendGroupMsg() {
 function handleGroupThinking(data) {
   let block = document.getElementById(`gt-${data.agent_id}`);
   if (!block) {
+    const c = DOM['group-messages'];
+    const aId = data.agent_id;
+    const mts = Date.now();
+    const gkey = 'agent:' + aId;
+    _dateSep(c, mts);
+    const grouped = _grouped(c, gkey, mts);
     const div = document.createElement('div');
-    div.className = 'message agent';
-    div.id = `gt-${data.agent_id}`;
-    div.innerHTML = `<div class="msg-header"><span class="msg-agent-icon">${getAvatar(data.agent_id)}</span>${esc(data.agent_id)}</div>
-      <div class="thinking-section collapsed"><div class="thinking-header"><span class="thinking-toggle">▼</span><span class="thinking-title">Agent 活动</span></div><div class="thinking-body"></div></div>
-      <div class="msg-content"></div>`;
-    DOM['group-messages'].appendChild(div);
+    div.className = 'message group-agent' + (grouped ? ' grouped' : '');
+    div.id = `gt-${aId}`;
+    div.dataset.gkey = gkey; div.dataset.ts = String(mts); div.dataset.day = dayKeyOf(mts);
+    div.innerHTML =
+      '<div class="msg-avatar">' + getAvatar(aId) + '</div>' +
+      '<div class="bubble">' +
+        (grouped ? '' : '<div class="bubble-name">@' + esc(aId) + '</div>') +
+        '<div class="thinking-section collapsed"><div class="thinking-header"><span class="thinking-toggle">▼</span><span class="thinking-title">Agent 活动</span></div><div class="thinking-body"></div></div>' +
+        '<div class="msg-content"></div>' +
+        msgMetaHtml(mts) +
+      '</div>';
+    c.appendChild(div);
     block = div;
-    scrollBottom(DOM['group-messages']);
+    scrollBottom(c);
   }
 
   const tb = block.querySelector('.thinking-body');
@@ -1793,19 +1844,35 @@ function renderGroupMsg(msg, container) {
     if (document.querySelector('.nav-tab.active')?.dataset.tab === 'groups') renderGroupList();
   }
   const c = container || DOM['group-messages'];
-  const div = document.createElement('div');
+  const mts = msg.timestamp ? Math.round(msg.timestamp * 1000) : (msg.ts || Date.now());
+  const sender = msg.sender;
+  const isUser = sender === 'user';
+  const isSystem = sender === 'system';
+  const gkey = isUser ? 'user' : (isSystem ? 'system' : 'agent:' + sender);
 
-  if (msg.sender === 'user') {
-    div.className = 'message group-user';
-    div.innerHTML = `<div class="msg-header">你</div><div class="msg-content">${esc(msg.text)}</div>`;
-  } else if (msg.sender === 'system') {
+  if (!isSystem) _dateSep(c, mts);
+  const grouped = _grouped(c, gkey, mts);
+
+  const div = document.createElement('div');
+  div.dataset.gkey = gkey; div.dataset.ts = String(mts); div.dataset.day = dayKeyOf(mts);
+
+  if (isUser) {
+    div.className = 'message group-user' + (grouped ? ' grouped' : '');
+    div.innerHTML = '<div class="bubble"><div class="msg-content">' + esc(msg.text || '') +
+      '</div>' + msgMetaHtml(mts) + '</div>';
+  } else if (isSystem) {
     div.className = 'message system';
     div.innerHTML = esc(msg.text || '').replace(/\n/g, '<br>');
   } else {
-    // Agent message
-    const aId = msg.sender;
-    div.className = 'message group-agent';
-    div.innerHTML = `<div class="msg-header"><span class="msg-agent-icon">${getAvatar(aId)}</span>@${esc(aId)}</div><div class="msg-content"></div>`;
+    const aId = sender;
+    div.className = 'message group-agent' + (grouped ? ' grouped' : '');
+    div.innerHTML =
+      '<div class="msg-avatar">' + getAvatar(aId) + '</div>' +
+      '<div class="bubble">' +
+        (grouped ? '' : '<div class="bubble-name">@' + esc(aId) + '</div>') +
+        '<div class="msg-content"></div>' +
+        msgMetaHtml(mts) +
+      '</div>';
     const ce = div.querySelector('.msg-content');
     // 通报消息包含 📋 → 保留换行；否则用 markdown
     if ((msg.text || '').includes('📋')) {
@@ -1867,8 +1934,8 @@ async function openGroupConfig() {
   const g = d.group;
   DOM['group-modal-name'].textContent = g.name;
   DOM['group-modal-members'].innerHTML = (g.members||[]).map(m =>
-    `<span class="member-tag">${esc(m)} <button class="member-remove" data-agent="${m}">✕</button></span>`
-  ).join('') || '<span style="color:var(--text3);font-size:12px">暂无成员</span>';
+    `<span class="member-tag">${esc(m)} <button class="member-remove" data-agent="${m}">${ic('x')}</button></span>`
+  ).join('') || '<span style="color:var(--text-tertiary);font-size:12px">暂无成员</span>';
 
   DOM['group-modal-members'].querySelectorAll('.member-remove').forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -1968,10 +2035,10 @@ async function renderManageAgents() {
 
   const rows = S.agents.map(a => {
     return `<tr data-id="${esc(a.id)}">
-      <td><div class="agent-cell"><span class="icon">${getAvatar(a.id)}</span><span><strong>${esc(a.name)}</strong><br><span style="color:var(--text3);font-size:11px">${esc(a.id)}</span></span></div></td>
+      <td><div class="agent-cell"><span class="icon">${getAvatar(a.id)}</span><span><strong>${esc(a.name)}</strong><br><span style="color:var(--text-tertiary);font-size:11px">${esc(a.id)}</span></span></div></td>
       <td><span style="font-size:12px">${esc(a.backend)}</span></td>
-      <td><span style="font-size:11px;color:var(--text2)">${esc(a.model||'').slice(0,30)}</span></td>
-      <td><span style="font-size:10px;color:var(--text3);word-break:break-all">${esc(a.workspace||'')}</span></td>
+      <td><span style="font-size:11px;color:var(--text-secondary)">${esc(a.model||'').slice(0,30)}</span></td>
+      <td><span style="font-size:10px;color:var(--text-tertiary);word-break:break-all">${esc(a.workspace||'')}</span></td>
       <td style="text-align:right;white-space:nowrap">
         <button class="btn-xs primary am-config">配置</button>
         <button class="btn-xs danger am-del">删除</button>
@@ -2563,8 +2630,19 @@ function setupEventListeners() {
       hideMentionDropdown();
     }
   });
-  DOM['btn-clear-group'].addEventListener('click', clearGroupChat);
-  DOM['btn-dissolve-group']?.addEventListener('click', dissolveGroupWindow);
+  DOM['btn-clear-group'].addEventListener('click', () => {
+    DOM['group-more-dropdown']?.classList.add('hidden'); clearGroupChat();
+  });
+  DOM['btn-dissolve-group']?.addEventListener('click', () => {
+    DOM['group-more-dropdown']?.classList.add('hidden'); dissolveGroupWindow();
+  });
+  DOM['btn-group-more']?.addEventListener('click', e => {
+    e.stopPropagation();
+    DOM['group-more-dropdown']?.classList.toggle('hidden');
+  });
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.more-menu')) DOM['group-more-dropdown']?.classList.add('hidden');
+  });
   DOM['btn-group-config'].addEventListener('click', openGroupConfig);
   DOM['group-search']?.addEventListener('input', e => searchGroupsArchive(e.target.value));
   DOM['group-search']?.addEventListener('blur', () => setTimeout(() => hideSearchResults('group'), 200));
@@ -2768,7 +2846,18 @@ function setupEventListeners() {
   DOM['new-msg-floater']?.addEventListener('click', () => scrollBottom(DOM.messages, true));
   DOM['group-messages'].addEventListener('click', e => {
     const thHeader = e.target.closest('.thinking-header');
-    if (thHeader) { thHeader.closest('.thinking-section')?.classList.toggle('collapsed'); }
+    if (thHeader) { thHeader.closest('.thinking-section')?.classList.toggle('collapsed'); return; }
+    const cp = e.target.closest('.msg-copy');
+    if (cp) {
+      const mc = cp.closest('.message')?.querySelector('.msg-content');
+      const txt = mc ? (mc.innerText || mc.textContent || '') : '';
+      if (txt && navigator.clipboard) {
+        navigator.clipboard.writeText(txt).then(() => {
+          cp.textContent = '✓';
+          setTimeout(() => { cp.textContent = '⧉'; }, 1200);
+        }).catch(() => {});
+      }
+    }
   });
 
   // Close mention dropdown on outside click
