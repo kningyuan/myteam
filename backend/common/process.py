@@ -45,6 +45,9 @@ class ProcessConfig:
     token_budget: Optional[int] = None     # per-project token 硬上限（D17；None=不限）
     budget_alert_ratio: float = 0.8        # 预算告警阈值
     max_cycles: int = 3                    # recurring 模式的周期上限（防空转，D10）
+    split_enabled: bool = False            # 派发前静态递归展开（evaluate）；默认关，opt-in
+    max_split_depth: int = 2               # 递归拆分深度上限 → 终止性硬底（无论 agent 怎么判都收敛）
+    max_subtasks: int = 8                  # 单次拆分子任务数上限（防扇出爆炸）
 
 
 @dataclass
@@ -70,9 +73,10 @@ def topological_order(tasks: list[dict]) -> list[str]:
     graph: dict[str, list[str]] = {t["id"]: [] for t in tasks}
     for t in tasks:
         for dep in t.get("dependencies", []):
-            if dep in ids:
-                graph[dep].append(t["id"])
-                indeg[t["id"]] += 1
+            if dep not in ids:
+                raise ValueError(f"依赖 {dep} 未在任务列表中")
+            graph[dep].append(t["id"])
+            indeg[t["id"]] += 1
     queue = deque(sorted(tid for tid, d in indeg.items() if d == 0))
     order: list[str] = []
     while queue:
@@ -92,6 +96,74 @@ def _prefix_cycle(tasks: list[dict], cycle: int) -> list[dict]:
     pref = f"c{cycle}_"
     return [{**t, "id": pref + t["id"],
              "dependencies": [pref + d for d in t.get("dependencies", [])]} for t in tasks]
+
+
+@dataclass
+class PlanCheckResult:
+    """plan gate 校验结果。passed=False 时 feedback 包含给 agent 的打回理由。"""
+    passed: bool
+    feedback: str = ""
+
+
+def check_plan(tasks: list[dict], team: set[str], *,
+               max_fanout: Optional[int] = None) -> PlanCheckResult:
+    """确定性门禁：校验 task DAG 的 agent/类型/依赖/无环/扇出。
+
+    task_plan（顶层）和 evaluate（子任务拆分）的输出都经过此门禁，
+    保证所有进入 _dispatch 的 DAG 符合同一套标准。
+
+    校验项（按顺序短路）：
+    1. id 唯一性
+    2. agent ∈ team（名册）
+    3. task_type ∈ registry（注册表）
+    4. 无 dangling 依赖（所有 dep 指向本批次内的 id）
+    5. 无环（Kahn 拓扑排序可收敛）
+    6. 可选扇出上限（仅 evaluate 子任务启用）
+    """
+    # 1. id 唯一
+    ids = [t.get("id", "") for t in tasks]
+    if len(set(ids)) != len(ids):
+        dupes = sorted({i for i in ids if ids.count(i) > 1})
+        return PlanCheckResult(False, f"任务 id 有重复：{', '.join(dupes)}")
+
+    id_set = set(ids)
+
+    # 2. agent ∈ team
+    bad_agents = sorted({t.get("agent", "") for t in tasks
+                         if t.get("agent", "") not in team})
+    if bad_agents:
+        return PlanCheckResult(False,
+            f"以下 agent 不在团队名册中：{', '.join(bad_agents)}；"
+            f"每个任务的 agent 只能从 [{', '.join(sorted(team))}] 中选。")
+
+    # 3. task_type ∈ registry
+    bad_types = sorted({t.get("task_type", "") for t in tasks
+                        if get_spec(t.get("task_type", "")) is None})
+    if bad_types:
+        return PlanCheckResult(False,
+            f"以下 task_type 未在注册表中：{', '.join(bad_types)}；"
+            f"只能用已注册的类型。")
+
+    # 4. 无 dangling 依赖
+    dangling = sorted({d for t in tasks for d in t.get("dependencies", [])
+                       if d not in id_set})
+    if dangling:
+        return PlanCheckResult(False,
+            f"依赖引用了不存在的任务 id：{', '.join(dangling)}；"
+            f"请仅引用本批次内的任务。")
+
+    # 5. 无环
+    try:
+        topological_order(tasks)
+    except ValueError:
+        return PlanCheckResult(False, "任务依赖存在环，请重新规划。")
+
+    # 6. 可选扇出上限
+    if max_fanout is not None and len(tasks) > max_fanout:
+        return PlanCheckResult(False,
+            f"子任务数 {len(tasks)} 超过上限 {max_fanout}，请合并。")
+
+    return PlanCheckResult(True)
 
 
 class Process:
@@ -121,6 +193,12 @@ class Process:
             return self._run_recurring(project_id, goal, agents)
         if tasks is None:
             tasks = self._task_plan(project_id, goal, agents)
+            if self.config.split_enabled:
+                tasks = self._expand_plan(project_id, tasks, agents)
+        # 最终断言：无论 tasks 从哪条路径来，进入持久化/调度前必须通过 plan gate
+        check = check_plan(tasks, set(agents))
+        if not check.passed:
+            raise RuntimeError(f"plan gate 校验失败（{project_id}）：{check.feedback}")
         self._persist_tasks(project_id, tasks)
         return self._dispatch(project_id, tasks)
 
@@ -148,13 +226,12 @@ class Process:
 
     def _task_plan(self, project_id: str, goal: str, agents: list[str],
                    *, cycle: int = 0, prior_summary: str = "") -> list[dict]:
-        """规划任务 DAG。硬校验：每个任务的 agent 必须 ∈ team（team_config 选出的名册）；
-        越界则带 feedback 重试，耗尽仍越界则显式失败（不让漏网 agent 进调度）。
+        """规划任务 DAG。经 check_plan 门禁校验（agent/类型/环/依赖）；
+        越界则带 feedback 重试，耗尽则显式失败（不让漏网 DAG 进调度）。
 
         recurring：cycle>0 时带上一周期的滚动摘要做轮次继承（注入 input.prior_summary）。"""
         team = set(agents)
         feedback: list[str] = []
-        bad: list[str] = []
         base_iid = f"{project_id}:task_plan" + (f":c{cycle}" if cycle else "")
         plan_input = {"goal": goal, "team": agents}
         if cycle:
@@ -173,14 +250,114 @@ class Process:
             if res.status != "done":
                 raise RuntimeError(f"task_plan 失败：{res.status} {res.reason}")
             tasks = res.response["result"]["tasks"]
-            bad = sorted({t.get("agent", "") for t in tasks if t.get("agent", "") not in team})
-            if not bad:
+            check = check_plan(tasks, team)
+            if check.passed:
                 return tasks
-            feedback = [f"以下 agent 不在团队名册中：{', '.join(bad)}；"
-                        f"每个任务的 agent 只能从 [{', '.join(agents)}] 中选，请重新规划。"]
-            self.store.append_run_event(iid, "plan_rejected", {"invalid_agents": bad})
+            feedback = [check.feedback]
+            self.store.append_run_event(iid, "plan_rejected", {"reason": check.feedback})
         raise RuntimeError(
-            f"task_plan 指派了团队外 agent {bad}（重试 {self.config.max_plan_retries} 次仍未修正）")
+            f"task_plan 校验失败（重试 {self.config.max_plan_retries} 次仍未通过）：{feedback[0]}")
+
+    # ── 派发前静态递归展开（evaluate → 折回 DAG）──────────────────
+
+    def _expand_plan(self, project_id: str, tasks: list[dict],
+                     agents: list[str], *, cycle: int = 0) -> list[dict]:
+        """派发前的**静态**递归展开：对每个任务问一次 evaluate，should_split 则就地展开成
+        子任务、重接依赖、入队继续展开。深度/扇出有界 → 必然收敛。展开产物仍是静态 DAG，
+        `_dispatch` / 持久化 / 恢复全部不变（动态改图留作 v2）。
+
+        cycle>0（recurring）时给 evaluate 交互 id 加 :c{cycle} 后缀，避免跨周期撞 id。"""
+        result: dict[str, dict] = {t["id"]: t for t in tasks}
+        worklist = deque((t["id"], 0) for t in tasks)
+        suffix = f":c{cycle}" if cycle else ""
+        while worklist:
+            tid, depth = worklist.popleft()
+            if depth >= self.config.max_split_depth:
+                continue                              # 深度硬底：到顶不再问，保证终止
+            task = result.get(tid)
+            if task is None:
+                continue                              # 已被上一层展开替换掉
+            subs = self._evaluate(project_id, task, agents, depth, cycle=cycle)
+            if not subs:
+                continue
+            self._splice(result, task, subs)
+            self.store.append_run_event(
+                f"{project_id}:{tid}:evaluate{suffix}", "task_split",
+                {"parent": tid, "children": [s["id"] for s in subs], "depth": depth})
+            worklist.extend((s["id"], depth + 1) for s in subs)
+        return list(result.values())
+
+    def _evaluate(self, project_id: str, task: dict, agents: list[str],
+                  depth: int, *, cycle: int = 0) -> Optional[list[dict]]:
+        """问 task 的 assigned agent「要不要拆」。照 _task_plan 的 检查→feedback→重试 样板：
+        子任务须 agent∈team & task_type∈registry & 组内无环 & 不超扇出，否则带 feedback 重试。
+        返回经校验+归一的子任务（dict 列表）；不拆/不可达/重试耗尽 → None（原样执行，不阻断）。"""
+        team = set(agents)
+        feedback: list[str] = []
+        base_iid = f"{project_id}:{task['id']}:evaluate" + (f":c{cycle}" if cycle else "")
+        for attempt in range(1, self.config.max_plan_retries + 1):
+            iid = base_iid + ("" if attempt == 1 else f":{attempt}")
+            res = self.port.run({
+                "interaction_id": iid, "kind": "evaluate",
+                "project_id": project_id, "task_id": task["id"],
+                "agent_id": task.get("agent", ""),
+                "intent": "评估任务是否需要拆分为子任务",
+                "input": {"task": task, "depth": depth,
+                          "max_depth": self.config.max_split_depth,
+                          "max_subtasks": self.config.max_subtasks, "team": agents},
+                "response_schema": "evaluate.result@1.0",
+                "retry_feedback": feedback,
+            })
+            if res.status != "done":
+                return None                           # 评估不可达 → 保守不拆
+            result = res.response.get("result") or {}
+            if not result.get("should_split"):
+                return None
+            subs = self._normalize_subtasks(result.get("sub_tasks") or [], task)
+            bad = self._validate_subtasks(subs, team)
+            if not bad:
+                return subs
+            feedback = [bad]
+            self.store.append_run_event(iid, "split_rejected", {"reason": bad})
+        return None                                   # 重试耗尽 → 原样执行（不阻断）
+
+    def _normalize_subtasks(self, subs: list[dict], parent: dict) -> list[dict]:
+        """加父前缀防撞名（仿 _prefix_cycle）；空 agent/task_type 回填父任务值；
+        子任务内部依赖只引用同组兄弟 id，一并加前缀。"""
+        pid = parent["id"]
+        out: list[dict] = []
+        for s in subs:
+            out.append({
+                "id": f"{pid}.{s['id']}",
+                "name": s.get("name", ""),
+                "agent": s.get("agent") or parent.get("agent", ""),
+                "task_type": s.get("task_type") or parent.get("task_type", ""),
+                "description": s.get("description", ""),
+                "reviewer": s.get("reviewer", ""),
+                "dependencies": [f"{pid}.{d}" for d in (s.get("dependencies") or [])],
+            })
+        return out
+
+    def _validate_subtasks(self, subs: list[dict], team: set[str]) -> str:
+        """委托给 check_plan（加扇出上限），兼容旧返回格式（空串=通过）。"""
+        return check_plan(subs, team,
+                          max_fanout=self.config.max_subtasks).feedback
+
+    def _splice(self, result: dict[str, dict], parent: dict, subs: list[dict]) -> None:
+        """用 subs 替换 result 中的 parent：入口子任务（无组内依赖）继承父的上游依赖；
+        原先依赖 parent 的外部任务改为依赖**全部**子任务（串行执行 → 零并行损失）。"""
+        pid = parent["id"]
+        parent_deps = list(parent.get("dependencies", []))
+        sub_ids = [s["id"] for s in subs]
+        for s in subs:
+            if not s["dependencies"]:                 # 入口子任务：接上父的上游
+                s["dependencies"] = list(parent_deps)
+            result[s["id"]] = s
+        del result[pid]
+        for t in result.values():                     # 外部依赖重接：dep==pid → 全部子任务
+            deps = t.get("dependencies", [])
+            if pid in deps:
+                t["dependencies"] = [d for d in deps if d != pid] + sub_ids
 
     # ── recurring：周期循环 + 轮次继承（D10）────────────────────
 
@@ -197,10 +374,11 @@ class Process:
             if self._is_cancelled(project_id):
                 stop_status = "cancelled"
                 break
-            tasks = _prefix_cycle(
-                self._task_plan(project_id, goal, agents,
-                                cycle=cycle, prior_summary=prior_summary),
-                cycle)
+            planned = self._task_plan(project_id, goal, agents,
+                                      cycle=cycle, prior_summary=prior_summary)
+            if self.config.split_enabled:
+                planned = self._expand_plan(project_id, planned, agents, cycle=cycle)
+            tasks = _prefix_cycle(planned, cycle)
             self._persist_tasks(project_id, tasks)
             outcome = self._dispatch(project_id, tasks, persist=False)
             overall.update(outcome.tasks)

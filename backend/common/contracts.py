@@ -98,17 +98,12 @@ class TaskPlanResult(BaseModel):
     tasks: list[PlannedTask] = Field(min_length=1)
 
 
-class SubTask(BaseModel):
-    id: str
-    name: str
-    description: str
-    dependencies: list[str] = Field(default_factory=list)
-
-
 class EvaluateResult(BaseModel):
     should_split: bool
     reason: str = ""
-    sub_tasks: list[SubTask] = Field(default_factory=list)
+    # 子任务 = 完整 PlannedTask：强制带 task_type（registry 锚）+ agent（team 锚），
+    # 与顶层任务同一套校验，递归拆解不绕过锚点。agent/task_type 留空时由框架回填父任务值。
+    sub_tasks: list[PlannedTask] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _check_split(self):

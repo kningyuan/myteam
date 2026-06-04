@@ -258,3 +258,106 @@ publish-post:
       url_must_match: "zhuanlan.zhihu.com/p/"
       screenshot_field: "证据截图"
       verify_title: true
+
+code-writing:
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+      - name: "需求说明"
+        description: "本次代码编写的功能需求、输入/输出定义、约束条件"
+        required: true
+        example: "实现一个REST API接口 GET /api/users/{id}，返回用户信息JSON。输入：用户ID（UUID格式）。输出：{id, name, email, role}。约束：响应时间<200ms。"
+      - name: "实现方案"
+        description: "技术选型、架构设计、核心数据结构定义"
+        required: true
+        example: "采用FastAPI + SQLAlchemy异步查询。数据模型：User(id: UUID, name: str, email: str, role: str)。缓存层：Redis TTL=60s。"
+      - name: "代码清单"
+        description: "列出本次涉及的所有文件路径和核心代码片段（非全文，标注关键逻辑）"
+        required: true
+        example: "新增文件：app/routers/users.py（路由+业务逻辑）、app/schemas/user.py（Pydantic模型）。修改文件：app/main.py（注册路由）。"
+      - name: "质量说明"
+        description: "代码规范性、边界处理、错误处理、日志记录、安全考虑"
+        required: true
+        example: "输入校验：UUID格式验证、404处理。日志：所有查询记录耗时。安全：接口限流 100req/min。错误：统一异常处理 + 结构化错误响应。"
+    structure:
+      - "H1 标题作为文档主标题"
+      - "每个章节使用 H2 标题"
+      - "代码块标注语言和文件路径"
+  check_rules:
+    required_sections:
+      - "需求说明"
+      - "实现方案"
+      - "代码清单"
+      - "质量说明"
+    must_include:
+      - "文件路径"
+    min_length: 300
+
+code-testing:
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+      - name: "测试范围"
+        description: "被测模块/功能说明、测试层级（单元/集成/e2e）、环境要求"
+        required: true
+        example: "测试 getUser 接口。层级：单元测试 + 集成测试。环境：Python 3.13 + pytest + httpx TestClient。覆盖率目标：>80%。"
+      - name: "测试用例"
+        description: "每个用例的输入、预期输出、边界条件，用表格呈现"
+        required: true
+        example: "| 用例 | 输入 | 预期 | 边界 |\n|------|------|------|------|\n| 正常用户 | id=valid-uuid | 200+用户JSON | UUID格式正确 |\n| 用户不存在 | id=random-uuid | 404 | 数据库无记录 |\n| 参数非法 | id=not-a-uuid | 422 | UUID格式错误 |"
+      - name: "执行结果"
+        description: "测试运行输出（覆盖率报告、通过/失败总数、失败详情）"
+        required: true
+        example: "pytest 结果：25 passed, 0 failed。覆盖率：82%（目标80%）。测试耗时：1.2s。"
+      - name: "质量评估"
+        description: "测试充分性分析、遗漏风险、补充建议"
+        required: true
+        example: "充分性：覆盖正常路径+3种异常路径。遗漏风险：并发场景未覆盖。建议：后续补充压力测试。"
+    structure:
+      - "H1 标题作为测试报告主标题"
+      - "每个章节使用 H2 标题"
+      - "用例使用表格呈现"
+  check_rules:
+    required_sections:
+      - "测试范围"
+      - "测试用例"
+      - "执行结果"
+      - "质量评估"
+    must_include:
+      - "覆盖率"
+      - "测试用例"
+    min_length: 200
+
+code-deployment:
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+      - name: "部署概要"
+        description: "部署目标环境、发布版本/commit、部署方式"
+        required: true
+        example: "环境：staging（k8s namespace: staging）。版本：v2.1.0 (commit: a1b2c3d)。部署方式：滚动更新，maxSurge=1, maxUnavailable=0。"
+      - name: "部署步骤"
+        description: "按顺序列出每一步操作命令或操作说明"
+        required: true
+        example: "1. 拉取镜像：docker pull registry.internal/myapp:v2.1.0\n2. 更新 deployment：kubectl set image deployment/myapp app=registry.internal/myapp:v2.1.0 -n staging\n3. 等待就绪：kubectl rollout status deployment/myapp -n staging --timeout=300s"
+      - name: "验证结果"
+        description: "部署后的验证方式与结果（健康检查、功能冒烟、日志确认）"
+        required: true
+        example: "健康检查：curl -f http://staging.myapp.internal/health → 200 OK。冒烟测试：API 3/3 passed。日志确认：无 ERROR 级别新日志。"
+      - name: "回滚方案"
+        description: "部署失败的判定标准与回滚操作"
+        required: true
+        example: "判定：健康检查连续3次失败 OR 错误率上升 >5%。回滚：kubectl rollout undo deployment/myapp -n staging。预计恢复时间：<2分钟。"
+    structure:
+      - "H1 标题作为部署记录主标题"
+      - "每个章节使用 H2 标题"
+      - "命令使用代码块"
+  check_rules:
+    required_sections:
+      - "部署概要"
+      - "部署步骤"
+      - "验证结果"
+      - "回滚方案"
+    must_include:
+      - "健康检查"
+    min_length: 200

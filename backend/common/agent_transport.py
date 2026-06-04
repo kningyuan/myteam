@@ -30,7 +30,9 @@ _RESULT_SKELETON = {
     "task_plan": ('{"tasks": [{"id": "t1", "name": "任务名", "agent": "<agent_id>", '
                   '"task_type": "<task_type>", "description": "做什么", '
                   '"reviewer": "", "dependencies": []}]}'),
-    "evaluate": '{"should_split": false, "reason": "理由", "sub_tasks": []}',
+    "evaluate": ('{"should_split": false, "reason": "为何拆/不拆", "sub_tasks": '
+                 '[{"id": "s1", "name": "子任务名", "agent": "", "task_type": "", '
+                 '"description": "做什么", "reviewer": "", "dependencies": []}]}'),
     "review": '{"passed": true, "feedback": "评审意见", "checklist": []}',
     "triage": '{"decision": "retry", "target_agent": "", "notes": "理由"}',
 }
@@ -42,8 +44,11 @@ def _ensure_backend_importable() -> None:
         sys.path.insert(0, p)
 
 
-def _default_adapter():
+def _default_adapter(backend: str = "opencode"):
     _ensure_backend_importable()
+    if backend == "claude":
+        from adapters.claude import ClaudeCodeAdapter
+        return ClaudeCodeAdapter()
     from adapters.opencode.adapter import OpenCodeAdapter
     return OpenCodeAdapter()
 
@@ -119,13 +124,16 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
     else:
         lines.append("输入数据：")
         lines.append(json.dumps(req.input or {}, ensure_ascii=False))
-        if kind == "task_plan":
+        if kind in ("task_plan", "evaluate"):
             team = (req.input or {}).get("team") or []
             task_types = list(load_registry().keys())
             if team:
                 lines.append(f"agent 字段只能从以下取：{', '.join(team)}")
             if task_types:
                 lines.append(f"task_type 字段只能从以下取：{', '.join(task_types)}")
+        if kind == "evaluate":
+            lines.append("如需拆分：每个子任务必须给出 agent 与 task_type（留空则继承父任务），"
+                         "子任务依赖只能引用同组其它子任务 id；无需拆分则 should_split=false、sub_tasks 留空。")
         result_hint = '"result": %s' % _RESULT_SKELETON.get(kind, "{ ... }")
 
     if req.retry_feedback:
@@ -159,12 +167,14 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
 class AdapterTransport:
     """可调用对象，符合 AgentPort 的 Transport 协议：``__call__(ctx) -> None``。"""
 
-    def __init__(self, adapter=None, *, agents_config: Optional[dict] = None,
+    def __init__(self, adapter=None, *, backend: str = "opencode",
+                 agents_config: Optional[dict] = None,
                  rules_file: Optional[str] = None,
                  request_factory: Optional[Callable] = None,
                  prompt_builder: Callable = build_worker_prompt,
                  session_resolver: Optional[Callable[[str], Optional[str]]] = None):
         self._adapter = adapter
+        self._backend = backend
         self._agents_config = agents_config
         self.rules_file = rules_file
         self._request_factory = request_factory or _default_request_factory
@@ -173,7 +183,7 @@ class AdapterTransport:
 
     def _adapter_obj(self):
         if self._adapter is None:
-            self._adapter = _default_adapter()
+            self._adapter = _default_adapter(self._backend)
         return self._adapter
 
     def _config(self) -> dict:

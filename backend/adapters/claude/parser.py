@@ -1,0 +1,88 @@
+"""Claude Code CLI stream-json → 统一 AgentEvent（唯一允许 Claude Code 格式耦合处）。
+
+行格式（--output-format stream-json --verbose）：
+  - {"type":"system","subtype":"init","session_id":"...","model":"..."}
+  - {"type":"assistant","message":{"content":[{"type":"text","text":"..."}]}}
+  - {"type":"assistant","message":{"content":[{"type":"tool_use","name":"...","input":{...}}]}}
+  - {"type":"result","subtype":"success","result":"...","usage":{...}}
+  - {"type":"result","subtype":"error","is_error":true,...}
+"""
+
+import json
+from typing import Any
+
+from adapter.events import AgentEvent, EventKind
+
+
+def parse_line(line: str) -> list[AgentEvent]:
+    """解析 Claude Code stream-json 的一行 stdout，返回 0~N 个事件。"""
+    line = line.strip()
+    if not line:
+        return []
+    try:
+        raw: dict[str, Any] = json.loads(line)
+    except json.JSONDecodeError:
+        return []
+
+    events: list[AgentEvent] = []
+
+    event_type = raw.get("type", "")
+
+    if event_type == "system":
+        subtype = raw.get("subtype", "")
+        if subtype == "init":
+            sid = raw.get("session_id", "")
+            model = raw.get("model", "")
+            data: dict[str, Any] = {}
+            if sid:
+                data["session_id"] = sid
+            if model:
+                data["model"] = model
+            events.append(AgentEvent(EventKind.SESSION, data))
+
+    elif event_type == "assistant":
+        msg = raw.get("message") or {}
+        contents = msg.get("content") or []
+        for c in contents:
+            ctype = c.get("type", "")
+            if ctype == "text":
+                text = c.get("text", "")
+                if text:
+                    events.append(AgentEvent(EventKind.TEXT, {"content": text}))
+            elif ctype == "tool_use":
+                name = c.get("name", "")
+                tool_input = c.get("input", {})
+                payload = {
+                    "name": name,
+                    "input": json.dumps(tool_input, ensure_ascii=False),
+                }
+                result = c.get("result")
+                if result:
+                    payload["output"] = json.dumps(result, ensure_ascii=False)
+                events.append(AgentEvent(EventKind.TOOL_USE, payload))
+
+    elif event_type == "result":
+        subtype = raw.get("subtype", "")
+        if subtype == "error" or raw.get("is_error"):
+            msg = raw.get("result", raw.get("error", "未知错误"))
+            events.append(AgentEvent(EventKind.ERROR, {"message": str(msg)}))
+        else:
+            # success — 提取 token 用量
+            usage = raw.get("usage") or {}
+            model_usage = raw.get("modelUsage") or {}
+            # 从 modelUsage 提取总 token
+            total = 0
+            for _mid, mu in model_usage.items() if isinstance(model_usage, dict) else []:
+                if isinstance(mu, dict):
+                    total = max(total,
+                                mu.get("inputTokens", 0) + mu.get("outputTokens", 0))
+            events.append(AgentEvent(EventKind.STEP_FINISH, {
+                "reason": "completed",
+                "tokens": {
+                    "input": usage.get("input_tokens", 0),
+                    "output": usage.get("output_tokens", 0),
+                    "total": total or usage.get("input_tokens", 0) + usage.get("output_tokens", 0),
+                },
+            }))
+
+    return events

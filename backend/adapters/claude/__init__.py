@@ -1,4 +1,5 @@
-# Phase 3: Claude Code CLI Adapter（stub）
+"""Claude Code CLI 实例。"""
 
-# from adapter.protocol import CLIAdapter
-# class ClaudeAdapter(CLIAdapter): ...
+from adapters.claude.adapter import ClaudeCodeAdapter
+
+__all__ = ["ClaudeCodeAdapter"]

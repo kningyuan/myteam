@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import common.paths as paths  # noqa: E402
 from common.agent_port import AgentPort, WatchdogConfig  # noqa: E402
-from common.opencode_transport import AdapterTransport, build_worker_prompt  # noqa: E402
+from common.agent_transport import AdapterTransport, build_worker_prompt  # noqa: E402
 from common.store import Store  # noqa: E402
 from common.submit_result import submit  # noqa: E402
 

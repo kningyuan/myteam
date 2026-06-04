@@ -269,7 +269,7 @@ run_kernel.py (CLI 入口)
 | 入口 | `backend/common/run_kernel.py` | 装配 Store/AgentPort/Process，按 goal 跑项目 |
 | 状态机 | `backend/common/process.py` | DAG 调度、失败/重试、triage 委派 |
 | 交互端口 | `backend/common/agent_port.py` | InteractionRequest 投递、liveness、幂等、token 计量 |
-| 传输 | `backend/common/opencode_transport.py` | 构造 worker prompt → opencode 子进程 → AgentEvent |
+| 传输 | `backend/common/agent_transport.py` | 构造 worker prompt → opencode/claude 子进程 → AgentEvent |
 | 门禁 | `backend/common/gate.py` | 契约/格式/完整性校验（复用 `quality_gate` 证据校验工具） |
 | 注册表 | `backend/common/registry.py` | task_type 约束（读 `business/templates/templates.yaml`） |
 | 真相库 | `backend/common/store.py` | SQLite 运行态：interactions / events / tasks / tokens（`business/tasks/state.db`） |
@@ -359,4 +359,77 @@ Process → registry.get_spec(task_type)
 
 ---
 
-*文档版本：2026-06-04 · 增补 System / Strategy / Skill 三层边界、当前归属审计与策略注册表加载链路（§12）*
+## 14. 团队协作流程全景 与 必须 / 配置 / Agent 分层
+
+> 把 §11（编排内核）与 §12（三层边界）落到一条端到端流程上，并标注每一步「谁判断、归谁、确定与否」。
+> 含**派发前静态递归展开**（`evaluate`，✦本版新增）。
+
+### 14.1 一切步骤都是同一个三明治
+
+```
+框架投递一个 contract interaction      ← 必须、确定（System Kernel）
+        ↓
+   agent 做一次判断                     ← 依靠 agent、非确定
+        ↓
+框架按 registry 标准做确定性门禁         ← 必须、确定；标准 = 配置（Strategy Registry）
+        ↓
+框架持久化 / 调度 / 重试 / 恢复          ← 必须、确定（System Kernel）
+```
+
+**面包永远是框架，肉永远是 agent，菜谱永远是 registry。** `team_config` / `task_plan` /
+`evaluate` / `execute` / `review` / `triage` 六种交互全是这一个三明治。系统的全部非确定性被关进
+这 **6 个判断盒子**，盒子之间的一切都是确定的——这就是「确定性担保人 + agent 执行者」落地的样子。
+
+> 一句话边界：**agent 拥有每一个判断；框架拥有每一次状态转移、每一道门禁、每一份状态；
+> registry 拥有每一条标准。** 三者谁也替不了谁。
+
+### 14.2 端到端流程（✦=本版新增）
+
+| # | 步骤 | 判断者 | 机制归属 | 确定性 | 标准 / 参数来源 |
+|---|------|--------|----------|--------|----------------|
+| 0 | 项目落库 | 框架 | 必须 | ✅ | — |
+| 1 | 组队 `team_config` | main(agent) | 必须\* | 判断❌ / 校验✅ | roster=`agents_registry.json` |
+| 2 | 规划 `task_plan` | main(agent) | 必须\* | 判断❌ / 校验✅ | 类型=`templates.yaml` |
+| 3✦ | 展开 `evaluate` | work agent | 可开关 `split_enabled` | 判断❌ / 校验✅ | 深度·扇出=配置 |
+| 4 | 持久化 + 串行调度 | 框架 | 必须 | ✅ | — |
+| 5 | 执行 `execute` | work agent（产物+自评分） | 必须 | 判断❌ / 门禁✅ | 格式·章节·证据=`templates.yaml` |
+| 6 | 评审 `review` | reviewer(agent) | 可开关 `review_enabled` | 判断❌ / 裁决✅ | 验收标准=`templates.yaml` |
+| 7 | 失败处置 `triage` | main(agent) | 必须（失败时） | 判断❌ / 执行✅ | — |
+| 8 | 收尾 `finalize` | 框架 | 必须 | ✅ | — |
+| ∞ | Store / watchdog / 幂等 / 计量 / 恢复 / budget / 事件流 | 框架 | 必须 | ✅ | 阈值=配置 |
+
+\* 1、2 是「必须，除非预置」：`run(agents=…, tasks=…)` 可直接喂团队/DAG 跳过 main 决策
+（`process.py`），给测试与已规划场景用——这是唯一能让 agent 判断步骤消失的口子。
+
+### 14.3 四桶归类（直接回答「哪些必须 / 配置 / 靠 agent / 不靠」）
+
+- **必须（System Kernel，关不掉）**——都是**机制**，不是内容：投递 interaction、门禁引擎、状态机、
+  串行调度、重试、triage 升级、watchdog、幂等（`interaction_id`）、token 计量、崩溃恢复
+  （`reconcile_on_start`）、budget 强制、事件流。
+- **配置（Strategy Registry / config，喂给机制）**——都是**标准与参数**：task_type 及其
+  deliverable/check/acceptance（`templates.yaml`）、agent 名册（`agents_registry.json`）、开关
+  （`split_enabled`/`review_enabled`/`mode`/`inject_context`/`needs_review_blocks`）、阈值
+  （`quality_floor`/`max_gate_retries`/`max_split_depth`/`max_subtasks`/`token_budget`）。
+- **依靠 agent（6 个判断盒子，非确定）**：选团队、拆 DAG、要不要拆子任务、产物内容+自评分、
+  评审裁决、失败决策。**外加 Skill 层**教 agent 怎么把这些判断做好；Skill 影响判断**质量**，
+  框架**正确性**不依赖它。
+- **不依靠 agent（框架确定）**：表中所有「✅」行，以及每个三明治的投递/门禁/记录/调度环节。
+  关键：agent 判断的*质量*不确定，但判断*会不会发生、输出被不被接受、状态变成什么*——全确定。
+
+### 14.4 必须与配置是「叠的」，不是对立
+
+**机制必须（kernel 写死）、机制用的标准与参数配置（registry 喂）。** 你关不掉 gate，但你定义
+gate 查什么；你关不掉调度，但你调 budget 与重试次数。整个 `evaluate` 阶段可 `split_enabled=false`
+关掉，但「一旦开，拆解就必须过校验」由 kernel 保证，agent 关不掉也绕不过。
+
+### 14.5 静态展开 vs 运行时改图（本版边界）
+
+v1 的 `evaluate` 是**派发前静态递归展开**：在 `_dispatch` 之前对每个任务问一次「要不要拆」，要拆就
+就地展开成子任务、重接依赖、折回 DAG，全部展开完再照常调度——`_dispatch` / 持久化 / 恢复**全不变**。
+「执行到一半按复杂度**动态**拆」（动态改图：需中途重算拓扑序 + 中途持久化 + 递归恢复）明确留 v2。
+判断复杂度的仍是任务的 assigned agent，只是它在「开工前」判而非「开工到一半」判。
+
+---
+
+*文档版本：2026-06-04 · 增补 System / Strategy / Skill 三层边界（§12）、config/path 出处（§13）、
+团队协作流程全景与 必须/配置/Agent 分层 + 派发前静态递归展开（§14）*

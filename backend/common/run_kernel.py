@@ -29,20 +29,22 @@ from common.store import Store
 
 def run_project(project_id: str, *, goal: str = "", title: str = "",
                 mode: str = "one_shot", token_budget: Optional[int] = None,
-                max_cycles: int = 3, review: bool = False,
+                max_cycles: int = 3, review: bool = False, split: bool = False,
+                backend: str = "opencode",
                 store: Optional[Store] = None, transport=None,
                 watchdog: Optional[WatchdogConfig] = None,
                 config: Optional[ProcessConfig] = None) -> ProjectOutcome:
-    """组装并运行新内核。transport 缺省用真实 opencode（惰性导入，便于无依赖单测注入）。"""
+    """组装并运行新内核。transport/bbackend 缺省用真实 opencode（惰性导入，便于无依赖单测注入）。"""
     store = store or Store()
     reconcile_on_start(store)  # 启动对账 GC（D8）：清理上次残留的 pending/running
     if transport is None:
-        from common.opencode_transport import AdapterTransport
-        transport = AdapterTransport()
+        from common.agent_transport import AdapterTransport
+        transport = AdapterTransport(backend=backend)
     port = AgentPort(transport, store=store, config=watchdog or WatchdogConfig())
     proc = Process(store, port,
                    config or ProcessConfig(mode=mode, token_budget=token_budget,
-                                           max_cycles=max_cycles, review_enabled=review))
+                                           max_cycles=max_cycles, review_enabled=review,
+                                           split_enabled=split))
     return proc.run(project_id, title=title, goal=goal)
 
 
@@ -56,11 +58,15 @@ def main(argv: Optional[list[str]] = None) -> int:
     p.add_argument("--max-cycles", type=int, default=3, help="recurring 模式的周期上限")
     p.add_argument("--review", action="store_true",
                    help="开启同行评审（reviewer 由 main 在 task_plan 指派）")
+    p.add_argument("--split", action="store_true",
+                   help="开启派发前递归展开（evaluate；agent 按复杂度拆子任务）")
+    p.add_argument("--backend", default="opencode", choices=["opencode", "claude"],
+                   help="驱动 agent 的 CLI 后端（默认 opencode）")
     a = p.parse_args(argv)
 
     out = run_project(a.project_id, goal=a.goal, title=a.title,
                       mode=a.mode, token_budget=a.budget, max_cycles=a.max_cycles,
-                      review=a.review)
+                      review=a.review, split=a.split, backend=a.backend)
     print(json.dumps({
         "project_id": out.project_id, "status": out.status,
         "tasks": {tid: {"status": o.status, "attempts": o.attempts, "reason": o.reason}

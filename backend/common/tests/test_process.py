@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import common.paths as paths  # noqa: E402
 from common.agent_port import AgentPort, WatchdogConfig  # noqa: E402
-from common.process import Process, ProcessConfig, topological_order  # noqa: E402
+from common.process import Process, ProcessConfig, PlanCheckResult, check_plan, topological_order  # noqa: E402
 from common.registry import get_spec  # noqa: E402
 from common.store import Store  # noqa: E402
 from common.submit_result import submit  # noqa: E402
@@ -296,9 +296,84 @@ def test_task_plan_out_of_team_exhausted_raises(env):
     store, wcfg = env
     transport, calls = _plan_transport(["researcher"], lambda n: "ghost")  # 永远越界
     proc = Process(store, _port(store, wcfg, transport), ProcessConfig(max_plan_retries=2))
-    with pytest.raises(RuntimeError, match="团队外"):
+    with pytest.raises(RuntimeError, match="校验失败"):
         proc.run("pro_x", goal="GEO")
     assert calls["plan"] == 2  # 用尽重试上限
+
+
+def _transport_plan_bad(team, make_bad):
+    """构造 transport：team_config 正常；task_plan 按 attempt 返回 make_bad(n) 产生的 tasks。"""
+    calls = {"plan": 0}
+
+    def transport(ctx):
+        ctx.emit("step_start")
+        k = ctx.request.kind
+        rp = paths.response_dir(ctx.request.agent_id) / f"{ctx.request.interaction_id}.response"
+        if k == "team_config":
+            submit({"interaction_id": ctx.request.interaction_id, "kind": "team_config",
+                    "status": "ok", "result": {"agents": list(team)}}, rp)
+        elif k == "task_plan":
+            calls["plan"] += 1
+            submit({"interaction_id": ctx.request.interaction_id, "kind": "task_plan",
+                    "status": "ok", "result": {"tasks": make_bad(calls["plan"])}}, rp)
+        elif k == "execute":
+            ctx.emit("step_start")
+            _write_exec(ctx, valid_content("research"), GOOD_Q)
+
+    return transport, calls
+
+
+def test_task_plan_rejects_unregistered_type_then_retry(env):
+    """task_plan 返回未注册 task_type → check_plan 打回 → 重试后修正。"""
+    store, wcfg = env
+
+    def make_bad(n):
+        tt = "fake_type" if n == 1 else "research"
+        return [{"id": "t1", "name": "x", "agent": "researcher",
+                 "task_type": tt, "description": "x", "dependencies": []}]
+
+    transport, calls = _transport_plan_bad({"researcher"}, make_bad)
+    proc = Process(store, _port(store, wcfg, transport), ProcessConfig(max_plan_retries=2))
+    out = proc.run("pro_x", goal="GEO")
+    assert calls["plan"] == 2  # 第一次被 check_plan 打回
+    assert out.status == "completed"
+
+
+def test_task_plan_rejects_dangling_dep_then_retry(env):
+    """task_plan 返回 dangling 依赖 → check_plan 打回 → 重试后修正。"""
+    store, wcfg = env
+
+    def make_bad(n):
+        deps = ["nonexistent"] if n == 1 else []
+        return [{"id": "t1", "name": "x", "agent": "researcher",
+                 "task_type": "research", "description": "x", "dependencies": deps}]
+
+    transport, calls = _transport_plan_bad({"researcher"}, make_bad)
+    proc = Process(store, _port(store, wcfg, transport), ProcessConfig(max_plan_retries=2))
+    out = proc.run("pro_x", goal="GEO")
+    assert calls["plan"] == 2
+    assert out.status == "completed"
+
+
+def test_task_plan_rejects_cycle_then_retry(env):
+    """task_plan 返回有环 DAG → check_plan 打回 → 重试后修正。"""
+    store, wcfg = env
+
+    def make_bad(n):
+        if n == 1:
+            # t1 → t2 → t1 成环
+            return [{"id": "t1", "name": "x", "agent": "researcher", "task_type": "research",
+                     "description": "x", "dependencies": ["t2"]},
+                    {"id": "t2", "name": "y", "agent": "researcher", "task_type": "research",
+                     "description": "y", "dependencies": ["t1"]}]
+        return [{"id": "t1", "name": "x", "agent": "researcher", "task_type": "research",
+                 "description": "x", "dependencies": []}]
+
+    transport, calls = _transport_plan_bad({"researcher"}, make_bad)
+    proc = Process(store, _port(store, wcfg, transport), ProcessConfig(max_plan_retries=2))
+    out = proc.run("pro_x", goal="GEO")
+    assert calls["plan"] == 2
+    assert out.status == "completed"
 
 
 # ── 同行评审（开关 review_enabled）────────────────────────────
@@ -446,3 +521,308 @@ def test_recurring_stops_on_zero_progress(env):
     # 第一周期零完成即停，不会跑满 max_cycles
     assert set(out.tasks) == {"c1_task_001"}
     assert len(seen) == 1
+
+
+# ── check_plan 确定性门禁（plan gate）单元测试 ──────────────────
+
+
+def _task(tid, agent="researcher", task_type="research", deps=None):
+    return {"id": tid, "agent": agent, "task_type": task_type,
+            "dependencies": deps or []}
+
+
+def test_check_plan_valid():
+    team = {"researcher"}
+    tasks = [_task("a"), _task("b", deps=["a"])]
+    r = check_plan(tasks, team)
+    assert r.passed
+
+
+def test_check_plan_empty_plan():
+    r = check_plan([], {"researcher"})
+    assert r.passed
+
+
+def test_check_plan_duplicate_ids():
+    r = check_plan([_task("a"), _task("a")], {"researcher"})
+    assert not r.passed
+    assert "重复" in r.feedback
+
+
+def test_check_plan_agent_not_in_team():
+    r = check_plan([_task("a", agent="ghost")], {"researcher"})
+    assert not r.passed
+    assert "ghost" in r.feedback
+    assert "researcher" in r.feedback
+
+
+def test_check_plan_unregistered_task_type():
+    r = check_plan([_task("a", task_type="fake_type")], {"researcher"})
+    assert not r.passed
+    assert "fake_type" in r.feedback
+    assert "注册表" in r.feedback
+
+
+def test_check_plan_dangling_dependency():
+    r = check_plan([_task("a", deps=["nonexistent"])], {"researcher"})
+    assert not r.passed
+    assert "nonexistent" in r.feedback
+
+
+def test_check_plan_cycle():
+    r = check_plan([_task("a", deps=["b"]), _task("b", deps=["a"])], {"researcher"})
+    assert not r.passed
+    assert "环" in r.feedback
+
+
+def test_check_plan_fanout_exceeded():
+    tasks = [_task(f"t{i}") for i in range(10)]
+    r = check_plan(tasks, {"researcher"}, max_fanout=5)
+    assert not r.passed
+    assert "上限" in r.feedback
+
+
+def test_check_plan_mixed_errors_first_wins():
+    """check_plan 短路：先报 id 重复，不管 agent/task_type。"""
+    tasks = [{"id": "x", "agent": "ghost", "task_type": "invalid"},
+             {"id": "x", "agent": "researcher", "task_type": "research"}]
+    r = check_plan(tasks, {"researcher"})
+    assert not r.passed
+    assert "重复" in r.feedback  # id 重复最先捕获
+
+
+# ── 派发前静态递归展开（evaluate；开关 split_enabled）──────────
+
+
+def _sub(sid, agent="researcher", task_type="research", deps=None):
+    return {"id": sid, "name": sid, "agent": agent, "task_type": task_type,
+            "description": sid, "dependencies": deps or []}
+
+
+def _single_plan(req, rp, tid="t1"):
+    submit({"interaction_id": req.interaction_id, "kind": "task_plan", "status": "ok",
+            "result": {"tasks": [{"id": tid, "name": "大任务", "agent": "researcher",
+                                  "task_type": "research", "description": "x",
+                                  "dependencies": []}]}}, rp)
+
+
+def test_normalize_and_splice_units():
+    """归一（前缀/回填/兄弟依赖）与依赖重接的纯逻辑单测（不依赖 store/port）。"""
+    proc = Process(None, None, ProcessConfig())
+    parent = {"id": "t1", "agent": "researcher", "task_type": "research", "dependencies": ["up"]}
+    raw = [{"id": "a", "name": "A", "description": "x", "dependencies": []},
+           {"id": "b", "name": "B", "description": "y", "dependencies": ["a"]}]
+    subs = proc._normalize_subtasks(raw, parent)
+    assert [s["id"] for s in subs] == ["t1.a", "t1.b"]                 # 加父前缀
+    assert all(s["agent"] == "researcher" and s["task_type"] == "research" for s in subs)  # 回填父值
+    assert subs[1]["dependencies"] == ["t1.a"]                          # 兄弟依赖也加前缀
+
+    result = {"t1": parent,
+              "down": {"id": "down", "dependencies": ["t1"]},
+              "up": {"id": "up", "dependencies": []}}
+    proc._splice(result, parent, subs)
+    assert "t1" not in result                                          # 父被替换
+    assert result["t1.a"]["dependencies"] == ["up"]                    # 入口继承父上游
+    assert result["t1.b"]["dependencies"] == ["t1.a"]                  # 非入口保持兄弟依赖
+    assert result["down"]["dependencies"] == ["t1.a", "t1.b"]          # 外部重接到全部子任务
+
+
+def test_split_disabled_no_evaluate(env):
+    store, wcfg = env
+    kinds = []
+
+    def transport(ctx):
+        ctx.emit("step_start")
+        req = ctx.request
+        kinds.append(req.kind)
+        rp = paths.response_dir(req.agent_id) / f"{req.interaction_id}.response"
+        if req.kind == "task_plan":
+            _single_plan(req, rp)
+        elif req.kind == "execute":
+            _write_exec(ctx, valid_content("research"), GOOD_Q)
+
+    proc = Process(store, _port(store, wcfg, transport), ProcessConfig(split_enabled=False))
+    out = proc.run("pro_x", agents=["researcher"], goal="x")
+    assert "evaluate" not in kinds              # 开关关：从不问 evaluate
+    assert out.tasks["t1"].status == "completed"
+
+
+def test_split_expands_one_task_into_two(env):
+    store, wcfg = env
+
+    def transport(ctx):
+        ctx.emit("step_start")
+        req = ctx.request
+        rp = paths.response_dir(req.agent_id) / f"{req.interaction_id}.response"
+        if req.kind == "task_plan":
+            _single_plan(req, rp)
+        elif req.kind == "evaluate":
+            split = req.task_id == "t1"           # 只拆顶层；子任务（t1.a/t1.b）不再拆
+            subs = [_sub("a"), _sub("b", deps=["a"])] if split else []
+            submit({"interaction_id": req.interaction_id, "kind": "evaluate", "status": "ok",
+                    "result": {"should_split": split, "reason": "复杂", "sub_tasks": subs}}, rp)
+        elif req.kind == "execute":
+            _write_exec(ctx, valid_content("research"), GOOD_Q)
+
+    proc = Process(store, _port(store, wcfg, transport), ProcessConfig(split_enabled=True))
+    out = proc.run("pro_x", agents=["researcher"], goal="big")
+    assert "t1" not in out.tasks                  # 父任务被子任务替换
+    assert out.tasks["t1.a"].status == "completed"
+    assert out.tasks["t1.b"].status == "completed"
+    assert out.status == "completed"
+
+
+def test_split_rejects_out_of_team_subtask_then_retry(env):
+    store, wcfg = env
+    ev = {"n": 0}
+
+    def transport(ctx):
+        ctx.emit("step_start")
+        req = ctx.request
+        rp = paths.response_dir(req.agent_id) / f"{req.interaction_id}.response"
+        if req.kind == "task_plan":
+            _single_plan(req, rp)
+        elif req.kind == "evaluate":
+            if req.task_id != "t1":               # 子任务不再拆
+                submit({"interaction_id": req.interaction_id, "kind": "evaluate", "status": "ok",
+                        "result": {"should_split": False, "reason": "", "sub_tasks": []}}, rp)
+                return
+            ev["n"] += 1
+            agent = "ghost" if ev["n"] == 1 else "researcher"   # 先越界 → 打回；再修正
+            submit({"interaction_id": req.interaction_id, "kind": "evaluate", "status": "ok",
+                    "result": {"should_split": True, "reason": "复杂",
+                               "sub_tasks": [_sub("a", agent=agent)]}}, rp)
+        elif req.kind == "execute":
+            _write_exec(ctx, valid_content("research"), GOOD_Q)
+
+    proc = Process(store, _port(store, wcfg, transport),
+                   ProcessConfig(split_enabled=True, max_plan_retries=2))
+    out = proc.run("pro_x", agents=["researcher"], goal="x")
+    assert ev["n"] == 2                           # 越界子任务被打回、重试一次后修正
+    assert out.tasks["t1.a"].status == "completed"
+    assert "t1" not in out.tasks
+
+
+def test_split_depth_cap_terminates(env):
+    store, wcfg = env
+
+    def transport(ctx):
+        ctx.emit("step_start")
+        req = ctx.request
+        rp = paths.response_dir(req.agent_id) / f"{req.interaction_id}.response"
+        if req.kind == "task_plan":
+            _single_plan(req, rp)
+        elif req.kind == "evaluate":              # 永远想拆 → 必须靠 depth cap 收敛
+            submit({"interaction_id": req.interaction_id, "kind": "evaluate", "status": "ok",
+                    "result": {"should_split": True, "reason": "总想拆",
+                               "sub_tasks": [_sub("x")]}}, rp)
+        elif req.kind == "execute":
+            _write_exec(ctx, valid_content("research"), GOOD_Q)
+
+    proc = Process(store, _port(store, wcfg, transport),
+                   ProcessConfig(split_enabled=True, max_split_depth=2))
+    out = proc.run("pro_x", agents=["researcher"], goal="x")
+    # t1(d0)→t1.x(d1)→t1.x.x(d2 到顶不再拆)；只有最深叶子被执行
+    assert out.status == "completed"
+    assert set(out.tasks) == {"t1.x.x"}
+    assert out.tasks["t1.x.x"].status == "completed"
+
+
+def test_split_rejects_dangling_dependency(env):
+    """Bug 1 回归：子任务依赖非同组 id（会被 topological_order 静默丢）→ 必须打回重试。"""
+    store, wcfg = env
+    ev = {"n": 0}
+
+    def transport(ctx):
+        ctx.emit("step_start")
+        req = ctx.request
+        rp = paths.response_dir(req.agent_id) / f"{req.interaction_id}.response"
+        if req.kind == "task_plan":
+            _single_plan(req, rp)
+        elif req.kind == "evaluate":
+            if req.task_id != "t1":
+                submit({"interaction_id": req.interaction_id, "kind": "evaluate", "status": "ok",
+                        "result": {"should_split": False, "reason": "", "sub_tasks": []}}, rp)
+                return
+            ev["n"] += 1
+            subs = ([_sub("a", deps=["ghost_dep"])] if ev["n"] == 1      # 悬空依赖 → 打回
+                    else [_sub("a"), _sub("b", deps=["a"])])            # 修正为合法兄弟
+            submit({"interaction_id": req.interaction_id, "kind": "evaluate", "status": "ok",
+                    "result": {"should_split": True, "reason": "拆", "sub_tasks": subs}}, rp)
+        elif req.kind == "execute":
+            _write_exec(ctx, valid_content("research"), GOOD_Q)
+
+    proc = Process(store, _port(store, wcfg, transport),
+                   ProcessConfig(split_enabled=True, max_plan_retries=2))
+    out = proc.run("pro_x", agents=["researcher"], goal="x")
+    assert ev["n"] == 2                            # 悬空依赖被打回、重试一次后修正
+    assert out.tasks["t1.a"].status == "completed"
+    assert out.tasks["t1.b"].status == "completed"
+
+
+def test_split_subtask_failure_blocks_dependent(env):
+    """Gap 3 回归：子任务是普通任务——失败走 triage、依赖它的兄弟经重接后的边被阻塞。"""
+    store, wcfg = env
+
+    def transport(ctx):
+        ctx.emit("step_start")
+        req = ctx.request
+        rp = paths.response_dir(req.agent_id) / f"{req.interaction_id}.response"
+        if req.kind == "task_plan":
+            _single_plan(req, rp)
+        elif req.kind == "evaluate":
+            split = req.task_id == "t1"
+            subs = [_sub("a"), _sub("b", deps=["a"])] if split else []
+            submit({"interaction_id": req.interaction_id, "kind": "evaluate", "status": "ok",
+                    "result": {"should_split": split, "reason": "拆", "sub_tasks": subs}}, rp)
+        elif req.kind == "triage":
+            submit({"interaction_id": req.interaction_id, "kind": "triage", "status": "ok",
+                    "result": {"decision": "drop"}}, rp)
+        elif req.kind == "execute":
+            content = bad_content("research") if req.task_id == "t1.a" \
+                else valid_content("research")           # t1.a 永远缺章节 → 门禁失败
+            _write_exec(ctx, content, GOOD_Q)
+
+    proc = Process(store, _port(store, wcfg, transport),
+                   ProcessConfig(split_enabled=True, max_gate_retries=1))
+    out = proc.run("pro_x", agents=["researcher"], goal="x")
+    assert out.tasks["t1.a"].status == "failed"        # 子任务门禁耗尽 → failed
+    assert out.tasks["t1.b"].status == "blocked"       # 依赖失败子任务 → 阻塞（重接边生效）
+    assert out.status == "failed"
+
+
+def test_recurring_split_uses_distinct_ids_across_cycles(env):
+    """Bug 2 回归：recurring + split 时 evaluate 交互 id 跨周期带 :c{cycle}，不撞。"""
+    store, wcfg = env
+    ev_ids: list[str] = []
+
+    def transport(ctx):
+        ctx.emit("step_start")
+        req = ctx.request
+        rp = paths.response_dir(req.agent_id) / f"{req.interaction_id}.response"
+        if req.kind == "team_config":
+            submit({"interaction_id": req.interaction_id, "kind": "team_config", "status": "ok",
+                    "result": {"agents": ["researcher"]}}, rp)
+        elif req.kind == "task_plan":
+            submit({"interaction_id": req.interaction_id, "kind": "task_plan", "status": "ok",
+                    "result": {"tasks": [{"id": "t1", "name": "n", "agent": "researcher",
+                                          "task_type": "research", "description": "x",
+                                          "dependencies": []}]}}, rp)
+        elif req.kind == "evaluate":
+            ev_ids.append(req.interaction_id)
+            split = req.task_id == "t1"
+            subs = [_sub("a")] if split else []
+            submit({"interaction_id": req.interaction_id, "kind": "evaluate", "status": "ok",
+                    "result": {"should_split": split, "reason": "拆", "sub_tasks": subs}}, rp)
+        elif req.kind == "execute":
+            _write_exec(ctx, valid_content("research"), GOOD_Q)
+
+    proc = Process(store, _port(store, wcfg, transport),
+                   ProcessConfig(mode="recurring", max_cycles=2, split_enabled=True))
+    out = proc.run("pro_r", goal="持续", agents=["researcher"])
+    # 两周期各自展开，子任务带周期前缀互不覆盖
+    assert set(out.tasks) == {"c1_t1.a", "c2_t1.a"}
+    assert all(o.status == "completed" for o in out.tasks.values())
+    # evaluate 交互 id 跨周期不撞
+    assert "pro_r:t1:evaluate:c1" in ev_ids and "pro_r:t1:evaluate:c2" in ev_ids
+    assert len(set(ev_ids)) == len(ev_ids)
