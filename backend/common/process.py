@@ -16,6 +16,7 @@
 """
 from __future__ import annotations
 
+import json
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -24,7 +25,14 @@ from typing import Optional
 from common.agent_port import AgentPort
 from common.gate import check_execute
 from common.observability import BudgetConfig, check_budget
-from common.paths import deliverables_dir
+from common.paths import (
+    AGENTS_CONFIG_FILE,
+    AGENTS_REGISTRY_FILE,
+    WORKSPACE_PREFIX,
+    WORKSPACES_DIR,
+    deliverables_dir,
+    workspace_dir,
+)
 from common.registry import get_spec
 from common.store import Store
 
@@ -48,6 +56,9 @@ class ProcessConfig:
     split_enabled: bool = False            # 派发前静态递归展开（evaluate）；默认关，opt-in
     max_split_depth: int = 2               # 递归拆分深度上限 → 终止性硬底（无论 agent 怎么判都收敛）
     max_subtasks: int = 8                  # 单次拆分子任务数上限（防扇出爆炸）
+    auto_create_agents: bool = True        # team_config 时自动创建未就绪 agent
+    default_backend: str = "opencode"      # 自动创建 agent 时的默认后端
+    default_model: str = ""                # 自动创建 agent 时的默认模型
 
 
 @dataclass
@@ -166,6 +177,110 @@ def check_plan(tasks: list[dict], team: set[str], *,
     return PlanCheckResult(True)
 
 
+_IDENTITY_TEMPLATES = {
+    "IDENTITY.md": """# Agent Identity
+
+emoji: 🤖
+name: {name}
+role: {role}
+description: {description}
+""",
+    "AGENTS.md": """# {name} - Agent 配置
+
+## 核心定位
+{description}
+
+## 工作流程
+1. 接收任务
+2. 分析需求
+3. 执行工作
+4. 输出结果
+
+## 协作方式
+- 通过 .trigger/.response 文件系统通信
+- 返回 JSON 格式的 structured response
+""",
+    "SOUL.md": """# {name} - 灵魂与行为准则
+
+## 行为准则
+1. 准确：确保输出正确可靠
+2. 高效：快速响应，不浪费资源
+3. 协作：积极与其他 Agent 配合
+4. 透明：清晰说明工作状态
+""",
+    "USER.md": """# 用户信息
+
+用户: 待配置
+联系方式: 待配置
+偏好: 待配置
+""",
+    "TOOLS.md": """# 可用工具
+
+## 基础工具
+- 文件读写：读取和写入工作目录中的文件
+- 代码执行：执行 shell 命令
+- 网络请求：进行 HTTP 请求
+""",
+    "HEARTBEAT.md": """# 心跳检查项
+
+## 每日检查
+- [ ] 工作目录是否正常
+- [ ] 身份文件是否完整
+- [ ] 工具是否可用
+""",
+}
+
+
+def _auto_create_agent(agent_id: str, *, name: str = "", role: str = "worker",
+                        description: str = "",
+                        backend: str = "opencode", model: str = "") -> bool:
+    """自动创建 agent 工作目录、身份文件和注册项。
+
+    供 _team_config 在 Main 返回未就绪 agent 时调用。
+    纯模板生成（不调用 LLM），保证内核启动确定性。
+    """
+    ws_dir = WORKSPACES_DIR / f"{WORKSPACE_PREFIX}{agent_id}"
+    if ws_dir.exists():
+        return True  # 已存在，无需创建
+
+    ws_dir.mkdir(parents=True, exist_ok=True)
+    (ws_dir / ".trigger").mkdir(exist_ok=True)
+    (ws_dir / ".response").mkdir(exist_ok=True)
+
+    display_name = name or agent_id
+    desc = description or f"自动创建的 agent：{agent_id}"
+    for fname, template in _IDENTITY_TEMPLATES.items():
+        content = template.format(name=display_name, role=role, description=desc)
+        (ws_dir / fname).write_text(content.strip() + "\n", encoding="utf-8")
+
+    # 注册到 agents_config.json
+    AGENTS_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    cfg = {}
+    if AGENTS_CONFIG_FILE.exists():
+        try:
+            cfg = json.loads(AGENTS_CONFIG_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    cfg[agent_id] = {"backend": backend, "model": model, "extra": {}}
+    AGENTS_CONFIG_FILE.write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    # 注册到 agents_registry.json
+    reg = {"version": "1.0", "agents": {}}
+    if AGENTS_REGISTRY_FILE.exists():
+        try:
+            reg = json.loads(AGENTS_REGISTRY_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    reg.setdefault("agents", {})
+    reg["agents"][agent_id] = {
+        "name": display_name, "role": role,
+        "description": desc, "capabilities": [], "task_types": [],
+    }
+    AGENTS_REGISTRY_FILE.write_text(json.dumps(reg, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    return True
+
+
 class Process:
     def __init__(self, store: Store, port: AgentPort, config: Optional[ProcessConfig] = None):
         self.store = store
@@ -222,7 +337,22 @@ class Process:
         res = self.port.run(req)
         if res.status != "done":
             raise RuntimeError(f"team_config 失败：{res.status} {res.reason}")
-        return res.response["result"]["agents"]
+        agents = res.response["result"]["agents"]
+
+        # 动态创建：Main 返回的 agent 若无工作目录则自动创建
+        missing = [a for a in agents if not workspace_dir(a).exists()]
+        if missing and self.config.auto_create_agents:
+            self.store.append_run_event(f"{project_id}:team_config", "auto_create_agents",
+                                        {"agent_ids": missing})
+            for aid in missing:
+                _auto_create_agent(aid, description=f"自动创建的 agent：{aid}",
+                                   backend=self.config.default_backend,
+                                   model=self.config.default_model)
+        elif missing and not self.config.auto_create_agents:
+            raise RuntimeError(
+                f"team_config 返回了未就绪的 agent（auto_create_agents=False）：{missing}")
+
+        return agents
 
     def _task_plan(self, project_id: str, goal: str, agents: list[str],
                    *, cycle: int = 0, prior_summary: str = "") -> list[dict]:

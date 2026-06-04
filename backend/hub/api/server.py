@@ -730,11 +730,13 @@ async def api_create_agent(body: dict):
 
     agent_id = body.get("agent_id", "").strip() or suggest_agent_id(description)
     result = generate_agent(
-        agent_id,
-        description,
-        body.get("backend", "opencode"),
-        body.get("model", ""),
-        body.get("chinese_name", ""),
+        agent_id, description,
+        backend_id=body.get("backend", "opencode"),
+        model=body.get("model", ""),
+        chinese_name=body.get("chinese_name", ""),
+        role=body.get("role", "worker"),
+        task_types=body.get("task_types"),
+        capabilities=body.get("capabilities"),
     )
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "创建失败"))

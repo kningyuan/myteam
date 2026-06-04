@@ -86,3 +86,49 @@ def validate_agent_ids(agent_ids: list[str]) -> tuple[bool, list[str]]:
     available = set(list_available_agent_ids())
     bad = [a for a in agent_ids if a not in available]
     return len(bad) == 0, bad
+
+
+# ── 注册表写操作 ────────────────────────────────────────────────
+
+
+def register_agent(agent_id: str, *, name: str = "", role: str = "worker",
+                   description: str = "",
+                   capabilities: Optional[list[str]] = None,
+                   task_types: Optional[list[str]] = None) -> dict:
+    """在 agents_registry.json 中注册/更新 agent 元信息。
+
+    不创建 workspace 或 identity 文件——只维护注册表元数据。
+    agent_id 须已存在 workspace 目录（否则静默失败，不污染注册表）。
+    """
+    available = set(list_available_agent_ids())
+    if agent_id not in available:
+        return {"success": False,
+                "error": f"Agent '{agent_id}' 的工作目录不存在，请先创建"}
+    raw = _load_registry_file()
+    raw.setdefault("agents", {})
+    raw["agents"][agent_id] = {
+        "name": name or agent_id,
+        "role": role,
+        "description": description or "",
+        "capabilities": capabilities or [],
+        "task_types": task_types or [],
+    }
+    _save_registry_file(raw)
+    return {"success": True, "agent_id": agent_id}
+
+
+def unregister_agent(agent_id: str) -> dict:
+    """从 agents_registry.json 中移除 agent。不影响 workspace/config。"""
+    raw = _load_registry_file()
+    raw.setdefault("agents", {})
+    if agent_id not in raw["agents"]:
+        return {"success": False, "error": f"Agent '{agent_id}' 不在注册表中"}
+    del raw["agents"][agent_id]
+    _save_registry_file(raw)
+    return {"success": True, "agent_id": agent_id}
+
+
+def _save_registry_file(data: dict) -> None:
+    AGENTS_REGISTRY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(AGENTS_REGISTRY_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)

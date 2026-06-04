@@ -12,8 +12,10 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import common.paths as paths  # noqa: E402
+import common.process as process_mod  # noqa: E402
 from common.agent_port import AgentPort, WatchdogConfig  # noqa: E402
-from common.process import Process, ProcessConfig, PlanCheckResult, check_plan, topological_order  # noqa: E402
+from common.process import (Process, ProcessConfig, PlanCheckResult,
+                             _auto_create_agent, check_plan, topological_order)  # noqa: E402
 from common.registry import get_spec  # noqa: E402
 from common.store import Store  # noqa: E402
 from common.submit_result import submit  # noqa: E402
@@ -826,3 +828,108 @@ def test_recurring_split_uses_distinct_ids_across_cycles(env):
     # evaluate 交互 id 跨周期不撞
     assert "pro_r:t1:evaluate:c1" in ev_ids and "pro_r:t1:evaluate:c2" in ev_ids
     assert len(set(ev_ids)) == len(ev_ids)
+
+
+# ── 动态 Agent 创建测试 ──────────────────────────────────────────
+
+
+def test_auto_create_agent_direct(tmp_path, monkeypatch):
+    """_auto_create_agent 直接测试：创建 workspace + 身份文件 + 配置 + 注册表。"""
+    monkeypatch.setattr(process_mod, "WORKSPACES_DIR", tmp_path / "workspaces")
+    monkeypatch.setattr(process_mod, "AGENTS_CONFIG_FILE", tmp_path / "agents_config.json")
+    monkeypatch.setattr(process_mod, "AGENTS_REGISTRY_FILE", tmp_path / "agents_registry.json")
+
+    ok = _auto_create_agent("test_dev", name="测试开发者", role="developer",
+                            description="auto-created dev agent",
+                            backend="opencode", model="claude-sonnet-4")
+    assert ok
+
+    ws_dir = tmp_path / "workspaces" / "workspace-test_dev"
+    assert ws_dir.is_dir()
+    assert (ws_dir / ".trigger").is_dir()
+    assert (ws_dir / ".response").is_dir()
+    for fname in ["IDENTITY.md", "AGENTS.md", "SOUL.md"]:
+        assert (ws_dir / fname).is_file(), f"缺少 {fname}"
+        content = (ws_dir / fname).read_text(encoding="utf-8")
+        assert "测试开发者" in content or "test_dev" in content
+    for fname in ["USER.md", "TOOLS.md", "HEARTBEAT.md"]:
+        assert (ws_dir / fname).is_file(), f"缺少 {fname}"
+
+    # 验证 agents_config.json
+    import json
+    cfg = json.loads((tmp_path / "agents_config.json").read_text(encoding="utf-8"))
+    assert cfg["test_dev"]["backend"] == "opencode"
+    assert cfg["test_dev"]["model"] == "claude-sonnet-4"
+
+    # 验证 agents_registry.json
+    reg = json.loads((tmp_path / "agents_registry.json").read_text(encoding="utf-8"))
+    assert reg["agents"]["test_dev"]["name"] == "测试开发者"
+    assert reg["agents"]["test_dev"]["role"] == "developer"
+
+
+def test_auto_create_agent_already_exists(tmp_path, monkeypatch):
+    """已存在的 agent 不应重复创建。"""
+    monkeypatch.setattr(process_mod, "WORKSPACES_DIR", tmp_path / "workspaces")
+    ws_dir = tmp_path / "workspaces" / "workspace-existing"
+    ws_dir.mkdir(parents=True)
+    marker = ws_dir / "MARKER"
+    marker.write_text("original")
+
+    _auto_create_agent("existing")
+    # 不应覆盖已有文件
+    assert marker.read_text() == "original"
+
+
+def test_auto_create_agent_works_in_full_team_config(tmp_path, monkeypatch):
+    """完整流程：team_config → Main 返回新 agent → auto-create → DAG 执行。"""
+    monkeypatch.setattr(paths, "WORKSPACES_DIR", tmp_path / "workspaces")
+    monkeypatch.setattr(paths, "PROJECTS_DIR", tmp_path / "project")
+    monkeypatch.setattr(paths, "AGENTS_CONFIG_FILE", tmp_path / "agents_config.json")
+    monkeypatch.setattr(paths, "AGENTS_REGISTRY_FILE", tmp_path / "agents_registry.json")
+    monkeypatch.setattr(paths, "WORKSPACE_PREFIX", "workspace-")
+    # _auto_create_agent 使用了 process 模块级导入的副本
+    monkeypatch.setattr(process_mod, "WORKSPACES_DIR", tmp_path / "workspaces")
+    monkeypatch.setattr(process_mod, "AGENTS_CONFIG_FILE", tmp_path / "agents_config.json")
+    monkeypatch.setattr(process_mod, "AGENTS_REGISTRY_FILE", tmp_path / "agents_registry.json")
+
+    # 预创建 main agent workspace（auto-create 不会为 main 做，但 team_config 交互需要）
+    main_ws = tmp_path / "workspaces" / "workspace-main"
+    main_ws.mkdir(parents=True)
+
+    store = Store(tmp_path / "state.db")
+    wcfg = WatchdogConfig(soft_idle_sec=5, hard_idle_sec=10, poll_interval=0.02, max_attempts=1)
+
+    def transport(ctx):
+        ctx.emit("step_start")
+        req = ctx.request
+        rp = paths.response_dir(req.agent_id) / f"{req.interaction_id}.response"
+        if req.kind == "team_config":
+            # Main 返回既有 + 新 agent
+            submit({"interaction_id": req.interaction_id, "kind": "team_config",
+                    "status": "ok", "result": {"agents": ["main", "auto_created_dev"]}}, rp)
+        elif req.kind == "task_plan":
+            # 新 agent 承担一个任务
+            submit({"interaction_id": req.interaction_id, "kind": "task_plan",
+                    "status": "ok",
+                    "result": {"tasks": [{"id": "t1", "name": "开发任务",
+                                          "agent": "auto_created_dev",
+                                          "task_type": "research",
+                                          "description": "测试任务",
+                                          "dependencies": []}]}}, rp)
+        elif req.kind == "execute":
+            _write_exec(ctx, valid_content("research"), GOOD_Q)
+
+    proc = Process(store, _port(store, wcfg, transport),
+                   ProcessConfig(auto_create_agents=True))
+    out = proc.run("pro_auto", goal="test")
+
+    # auto_created_dev 应被自动创建
+    dev_ws = tmp_path / "workspaces" / "workspace-auto_created_dev"
+    assert dev_ws.is_dir()
+    assert (dev_ws / "IDENTITY.md").is_file()
+
+    # DAG 应正常完成
+    assert out.tasks["t1"].status == "completed"
+    assert out.status == "completed"
+
+    store.close()

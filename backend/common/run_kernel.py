@@ -44,7 +44,8 @@ def run_project(project_id: str, *, goal: str = "", title: str = "",
     proc = Process(store, port,
                    config or ProcessConfig(mode=mode, token_budget=token_budget,
                                            max_cycles=max_cycles, review_enabled=review,
-                                           split_enabled=split))
+                                           split_enabled=split,
+                                           default_backend=backend))
     return proc.run(project_id, title=title, goal=goal)
 
 

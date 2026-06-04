@@ -19,6 +19,7 @@ from base.agent_chat import (
     set_agent_backend_config,
     stream_chat,
 )
+from hub.services.agent_registry import register_agent
 
 
 def _default_model(backend_id: str) -> str:
@@ -36,6 +37,9 @@ def generate_agent(
     model: str = "",
     chinese_name: str = "",
     use_existing_agent_for_gen: bool = True,
+    role: str = "worker",
+    task_types: Optional[list[str]] = None,
+    capabilities: Optional[list[str]] = None,
 ) -> dict:
     werk = WORKSPACES_DIR / f"{WORKSPACE_PREFIX}{agent_id}"
 
@@ -69,6 +73,12 @@ def generate_agent(
             chinese_name = _extract_name_from_identity(content)
 
     set_agent_backend_config(agent_id, backend_id, model, workspace=to_relative_path(werk))
+
+    # 注册到 agents_registry.json
+    register_agent(agent_id, name=chinese_name or agent_id, role=role,
+                   description=description,
+                   capabilities=capabilities or [],
+                   task_types=task_types or [])
 
     return {
         "success": True,
