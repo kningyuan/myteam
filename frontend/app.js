@@ -129,7 +129,16 @@ function applyTheme(theme) {
 function setupThemeMenu() {
   DOM['btn-theme']?.addEventListener('click', e => {
     e.stopPropagation();
-    DOM['theme-dropdown']?.classList.toggle('hidden');
+    const dd = DOM['theme-dropdown'];
+    if (!dd) return;
+    if (dd.classList.contains('hidden')) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      dd.style.right = (window.innerWidth - rect.right) + 'px';
+      dd.style.top = (rect.bottom + 6) + 'px';
+      dd.classList.remove('hidden');
+    } else {
+      dd.classList.add('hidden');
+    }
   });
   DOM['theme-dropdown']?.querySelectorAll('[data-theme]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -138,7 +147,11 @@ function setupThemeMenu() {
     });
   });
   document.addEventListener('click', e => {
-    if (!e.target.closest('.theme-menu')) DOM['theme-dropdown']?.classList.add('hidden');
+    const dd = DOM['theme-dropdown'];
+    if (!dd) return;
+    if (!e.target.closest('#theme-dropdown') && e.target.id !== 'btn-theme' && !e.target.closest('#btn-theme')) {
+      dd.classList.add('hidden');
+    }
   });
 }
 

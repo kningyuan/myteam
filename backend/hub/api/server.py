@@ -749,11 +749,12 @@ async def api_suggest_id(description: str = Query("")):
 def main():
     port = int(os.environ.get("LOCAL_AGENT_PORT", "8765"))
     print("  Local Agent Chat v2")
-    print(f"  http://localhost:{port}")
-    print(f"  Agents: http://localhost:{port}/api/agents")
+    print(f"  Local:   http://localhost:{port}")
+    print(f"  Network: http://0.0.0.0:{port}  (局域网设备通过本机 IP 访问)")
+    print(f"  Agents:  http://localhost:{port}/api/agents")
     print(f"  Backends: http://localhost:{port}/api/backends")
-    print(f"  Groups: http://localhost:{port}/api/groups")
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="info")
+    print(f"  Groups:  http://localhost:{port}/api/groups")
+    uvicorn.run("hub.api.server:app", host="0.0.0.0", port=port, log_level="info", reload=True)
 
 
 if __name__ == "__main__":
