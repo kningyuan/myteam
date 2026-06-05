@@ -21,10 +21,17 @@ DEFAULT_CONFIG = {
             "cli_path": "",
             "model_aliases": {},
         },
+        "claude": {
+            "enabled": True,
+            "cli_path": "",
+        },
     },
     "models": {
         "opencode": [
             {"id": "SenseNova/sensenova-6.7-flash-lite", "name": "SenseNova-sensenova-6.7-flash-lite", "provider": "SenseNova", "default": True},
+        ],
+        "claude": [
+            {"id": "claude-sonnet-4-6", "name": "Sonnet 4.6", "provider": "claude", "default": True},
         ],
     },
 }

@@ -22,9 +22,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from common.agent_port import AgentPort
+from common.agent_port import AgentPort, finalize_interaction, read_adoptable_response
 from common.gate import check_execute
 from common.observability import BudgetConfig, check_budget
+from common.project_artifacts import (
+    artifact_rel_path,
+    is_code_project_task,
+    scan_project_dir,
+    task_deliverable_base,
+    task_project_dir,
+)
 from common.paths import (
     AGENTS_CONFIG_FILE,
     AGENTS_REGISTRY_FILE,
@@ -317,6 +324,44 @@ class Process:
         self._persist_tasks(project_id, tasks)
         return self._dispatch(project_id, tasks)
 
+    def resume(self, project_id: str) -> ProjectOutcome:
+        """断点续跑（D8）：回收孤儿响应、结算卡住任务、继续 DAG。不重跑 team_config/task_plan。"""
+        proj = self.store.get_project(project_id)
+        if not proj:
+            raise RuntimeError(f"项目不存在：{project_id}")
+        if proj.get("status") not in ("in_progress", "paused"):
+            return ProjectOutcome(project_id, proj["status"], {})
+
+        tasks = self._tasks_from_store(project_id)
+        if not tasks:
+            raise RuntimeError(f"项目无任务：{project_id}")
+
+        outcomes: dict[str, TaskOutcome] = {}
+        for task in tasks:
+            tid = task["id"]
+            row = self.store.get_task(project_id, tid) or {}
+            st = row.get("status", "pending")
+            if st in TERMINAL_OK | TERMINAL_BAD | {"blocked"}:
+                outcomes[tid] = TaskOutcome(tid, st)
+                continue
+            if st == "in_progress":
+                settled = self._settle_in_progress_task(project_id, task)
+                if settled:
+                    outcomes[tid] = settled
+
+        return self._dispatch(project_id, tasks, initial_outcomes=outcomes)
+
+    def _tasks_from_store(self, project_id: str) -> list[dict]:
+        return [{
+            "id": r["task_id"],
+            "name": r.get("name", ""),
+            "agent": r.get("agent", ""),
+            "reviewer": r.get("reviewer", ""),
+            "task_type": r.get("task_type", ""),
+            "dependencies": r.get("dependencies") or [],
+            "description": (r.get("meta") or {}).get("description", ""),
+        } for r in self.store.list_tasks(project_id)]
+
     def _persist_tasks(self, project_id: str, tasks: list[dict]) -> None:
         for t in tasks:
             self.store.upsert_task(
@@ -540,15 +585,18 @@ class Process:
     # ── DAG 调度（串行，D12）──────────────────────────────────
 
     def _dispatch(self, project_id: str, tasks: list[dict],
-                  *, persist: bool = True) -> ProjectOutcome:
+                  *, persist: bool = True,
+                  initial_outcomes: Optional[dict[str, TaskOutcome]] = None) -> ProjectOutcome:
         by_id = {t["id"]: t for t in tasks}
         order = topological_order(tasks)
-        outcomes: dict[str, TaskOutcome] = {}
+        outcomes: dict[str, TaskOutcome] = dict(initial_outcomes or {})
         aborted = False
         paused = False
         cancelled = False
 
         for tid in order:
+            if tid in outcomes:
+                continue
             if not (cancelled or aborted or paused) and self._is_cancelled(project_id):
                 cancelled = True
             if cancelled or aborted or paused:
@@ -619,8 +667,10 @@ class Process:
         tid = task["id"]
         agent = self.store.get_task(project_id, tid).get("agent") or task.get("agent", "")
         task_type = task.get("task_type", "")
-        base_dir = deliverables_dir(project_id)
-        rel_path = f"{tid}_deliverable.md"
+        base_dir = task_deliverable_base(project_id, tid, task_type)
+        if is_code_project_task(task_type):
+            task_project_dir(project_id, tid)
+        rel_path = artifact_rel_path(tid, task_type)
         feedback: list[str] = []
 
         context = self._build_context(project_id, task) if self.config.inject_context else {}
@@ -630,7 +680,11 @@ class Process:
                 "interaction_id": f"{project_id}:{tid}:execute:{attempt}",
                 "kind": "execute", "project_id": project_id, "task_id": tid,
                 "agent_id": agent, "intent": task.get("description", task.get("name", "")),
-                "input": {"task": task, "deliverable_path": rel_path},
+                "input": {
+                    "task": task,
+                    "deliverable_path": rel_path,
+                    "deliverable_base": str(base_dir),
+                },
                 "context": context,
                 "response_schema": "execute.result@1.0",
                 "constraints": {"task_type": task_type},
@@ -647,6 +701,7 @@ class Process:
             resp.setdefault("meta", {})
             if isinstance(resp["meta"], dict):
                 resp["meta"].setdefault("task_type", task_type)
+                resp["meta"].setdefault("task_id", tid)
             gate_res = check_execute(resp, base_dir=str(base_dir),
                                      enforce_must_include=self.config.enforce_must_include)
             if gate_res.passed:
@@ -655,6 +710,14 @@ class Process:
                     status = self._peer_review(project_id, task, status, task_type, rel_path)
                 self.store.set_task_status(project_id, tid, status)
                 self._capture_summary(project_id, tid, resp, rel_path)
+                if is_code_project_task(task_type):
+                    proj = task_project_dir(project_id, tid)
+                    self.store.update_task_meta(
+                        project_id, tid,
+                        artifacts=scan_project_dir(proj),
+                        artifact_base="code_project",
+                        ref=rel_path,
+                    )
                 self.store.append_run_event(req["interaction_id"], "gate_passed",
                                             {"final_status": status})
                 return TaskOutcome(tid, status, "", attempt, resp)
@@ -666,6 +729,80 @@ class Process:
 
         self.store.set_task_status(project_id, tid, "failed")
         return TaskOutcome(tid, "failed", "确定性门禁重试耗尽", self.config.max_gate_retries)
+
+    def _settle_in_progress_task(self, project_id: str, task: dict) -> Optional[TaskOutcome]:
+        """结算中断前已交卷但未入账的 execute（不重跑 agent）。"""
+        tid = task["id"]
+        exec_rows = [
+            i for i in self.store.list_interactions(project_id)
+            if i.get("task_id") == tid and i.get("kind") == "execute"
+        ]
+        if not exec_rows:
+            return None
+        latest = max(exec_rows, key=lambda i: (i.get("attempt") or 1, i.get("started_at") or ""))
+        iid = latest["interaction_id"]
+        agent = latest.get("agent_id") or task.get("agent", "")
+
+        if latest.get("status") in ("pending", "running"):
+            resp, resp_path = read_adoptable_response(agent, iid)
+            if resp is None or resp_path is None:
+                return None
+            finalize_interaction(self.store, iid, resp_path, resp)
+            self.store.append_run_event(iid, "resume_adopted", {"reason": "断点续跑回收响应"})
+            latest = self.store.get_interaction(iid) or latest
+
+        if latest.get("status") != "done":
+            return None
+
+        resp = self._load_interaction_response(latest)
+        if resp is None:
+            return None
+        return self._apply_execute_gate(project_id, task, resp, latest.get("attempt") or 1,
+                                        interaction_id=iid)
+
+    def _load_interaction_response(self, interaction: dict) -> Optional[dict]:
+        ref = interaction.get("response_ref")
+        if ref:
+            p = Path(ref)
+            if p.is_file():
+                try:
+                    return json.loads(p.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    pass
+        agent = interaction.get("agent_id") or ""
+        resp, _ = read_adoptable_response(agent, interaction["interaction_id"])
+        return resp
+
+    def _apply_execute_gate(self, project_id: str, task: dict, resp: dict, attempt: int,
+                            *, interaction_id: str) -> Optional[TaskOutcome]:
+        tid = task["id"]
+        task_type = task.get("task_type", "")
+        base_dir = task_deliverable_base(project_id, tid, task_type)
+        rel_path = artifact_rel_path(tid, task_type)
+        resp = dict(resp)
+        resp.setdefault("meta", {})
+        if isinstance(resp["meta"], dict):
+            resp["meta"].setdefault("task_type", task_type)
+            resp["meta"].setdefault("task_id", tid)
+        gate_res = check_execute(resp, base_dir=str(base_dir),
+                                 enforce_must_include=self.config.enforce_must_include)
+        if not gate_res.passed:
+            return None
+        status = self._quality_status(resp)
+        if self.config.review_enabled:
+            status = self._peer_review(project_id, task, status, task_type, rel_path)
+        self.store.set_task_status(project_id, tid, status)
+        self._capture_summary(project_id, tid, resp, rel_path)
+        if is_code_project_task(task_type):
+            proj = task_project_dir(project_id, tid)
+            self.store.update_task_meta(
+                project_id, tid,
+                artifacts=scan_project_dir(proj),
+                artifact_base="code_project",
+                ref=rel_path,
+            )
+        self.store.append_run_event(interaction_id, "gate_passed", {"final_status": status})
+        return TaskOutcome(tid, status, "", attempt, resp)
 
     # ── Context-Memory 第 1 层：直接上游摘要 + 引用注入（D16）──
 
@@ -724,8 +861,12 @@ class Process:
             "interaction_id": iid, "kind": "review",
             "project_id": project_id, "task_id": tid, "agent_id": reviewer,
             "intent": f"评审任务 {tid} 的交付物",
-            "input": {"task": task, "deliverable_path": rel_path,
-                      "acceptance_criteria": spec.acceptance_criteria if spec else []},
+            "input": {
+                "task": task,
+                "deliverable_path": rel_path,
+                "deliverable_base": str(task_deliverable_base(project_id, tid, task_type)),
+                "acceptance_criteria": spec.acceptance_criteria if spec else [],
+            },
             "response_schema": "review.result@1.0",
         })
         if res.status != "done":

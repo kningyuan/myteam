@@ -163,6 +163,45 @@ def test_meters_cumulative_opencode_tokens(env):
     assert store.get_interaction("i1")["tokens"] == 11553
 
 
+def test_transport_uses_per_agent_backend(env, monkeypatch):
+    """各 agent 按 agents_config.backend 选择 CLI，而非全局写死 opencode。"""
+    store, wcfg = env
+    used_backends = []
+
+    def write_resp(run_request):
+        rel = "task_001_deliverable.md"
+        (paths.deliverables_dir("pro_x") / rel).write_text("# x\n## 调研背景\n足够内容。\n", "utf-8")
+        submit({
+            "interaction_id": "i1", "kind": "execute", "status": "ok",
+            "quality": {"score": 0.9, "known_gaps": [], "notes": ""},
+            "result": {"outcome": {"kind": "artifact", "artifact": {"path": rel, "title": "x"}}},
+        }, paths.response_dir("researcher") / "i1.response")
+
+    class TaggedAdapter(FakeAdapter):
+        def __init__(self, tag):
+            super().__init__([FakeEvent("step_start"), "_submit"], on_run=write_resp)
+            self.tag = tag
+
+        def run(self, request):
+            used_backends.append(self.tag)
+            return super().run(request)
+
+    def fake_default(backend):
+        return TaggedAdapter(backend)
+
+    monkeypatch.setattr("common.agent_transport._default_adapter", fake_default)
+
+    transport = AdapterTransport(
+        agents_config={"researcher": {"backend": "claude", "model": "claude-sonnet-4-6"}},
+        backend="opencode",
+        request_factory=lambda **kw: types.SimpleNamespace(**kw),
+    )
+    port = AgentPort(transport, store=store, config=wcfg)
+    res = port.run(_req())
+    assert res.status == "done"
+    assert used_backends == ["claude"]
+
+
 def test_transport_cancel_event_wired(env):
     store, wcfg = env
     seen = {}

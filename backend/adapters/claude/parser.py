@@ -14,6 +14,32 @@ from typing import Any
 from adapter.events import AgentEvent, EventKind
 
 
+def _num(v) -> int:
+    if isinstance(v, (int, float)):
+        return int(v)
+    return 0
+
+
+def _extract_usage_tokens(raw: dict) -> dict:
+    """从 Claude stream-json result 行提取 token 计量（兼容多种字段名）。"""
+    usage = raw.get("usage") or {}
+    model_usage = raw.get("modelUsage") or raw.get("model_usage") or {}
+
+    inp = _num(usage.get("input_tokens") or usage.get("inputTokens"))
+    out = _num(usage.get("output_tokens") or usage.get("outputTokens"))
+    total = _num(usage.get("total_tokens") or usage.get("totalTokens"))
+
+    for _mid, mu in (model_usage.items() if isinstance(model_usage, dict) else []):
+        if not isinstance(mu, dict):
+            continue
+        cand = _num(mu.get("inputTokens")) + _num(mu.get("outputTokens"))
+        total = max(total, cand)
+
+    if not total:
+        total = inp + out
+    return {"input": inp, "output": out, "total": total}
+
+
 def parse_line(line: str) -> list[AgentEvent]:
     """解析 Claude Code stream-json 的一行 stdout，返回 0~N 个事件。"""
     line = line.strip()
@@ -67,22 +93,9 @@ def parse_line(line: str) -> list[AgentEvent]:
             msg = raw.get("result", raw.get("error", "未知错误"))
             events.append(AgentEvent(EventKind.ERROR, {"message": str(msg)}))
         else:
-            # success — 提取 token 用量
-            usage = raw.get("usage") or {}
-            model_usage = raw.get("modelUsage") or {}
-            # 从 modelUsage 提取总 token
-            total = 0
-            for _mid, mu in model_usage.items() if isinstance(model_usage, dict) else []:
-                if isinstance(mu, dict):
-                    total = max(total,
-                                mu.get("inputTokens", 0) + mu.get("outputTokens", 0))
             events.append(AgentEvent(EventKind.STEP_FINISH, {
                 "reason": "completed",
-                "tokens": {
-                    "input": usage.get("input_tokens", 0),
-                    "output": usage.get("output_tokens", 0),
-                    "total": total or usage.get("input_tokens", 0) + usage.get("output_tokens", 0),
-                },
+                "tokens": _extract_usage_tokens(raw),
             }))
 
     return events

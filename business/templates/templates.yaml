@@ -155,29 +155,30 @@ test-plan:
     min_length: 300
 
 code-deliverable:
+  outcome_kind: code_project
+  acceptance_criteria:
+    - "deliverables/<task_id>/ 目录内包含可运行脚本与 README"
+    - "output/ 中有运行产出或运行说明"
   deliverable_template:
-    required_heading_level: 2
     sections:
-      - name: "方案设计"
-        description: "说明设计思路、选型理由、关键数据结构定义、API接口设计"
-        required: true
-        example: "设计方案：采用本地YAML模板+executor嵌入模式。选型理由：零网络依赖、确定性最高、版本可追溯。关键数据结构：{task_type: str, template: dict}。"
-      - name: "实现说明"
-        description: "核心逻辑说明、错误处理、边界条件、数据流"
-        required: true
-        example: "核心逻辑：executor.py新增_read_deliverable_template()方法，在state_execute()中调用。读取YAML后解析frontmatter，提取template字段嵌入trigger。错误处理：YAML解析失败时回退到当前行为。"
+      - name: "脚本/代码"
+        description: "可执行主程序或核心源码，放工程根目录"
+        example: "collect_hw_info.sh、main.py"
+      - name: "README.md"
+        description: "使用说明：依赖、运行命令、参数、示例输出"
+        example: "说明如何 chmod +x 后执行，output/ 下生成何种报告"
+      - name: "output/"
+        description: "脚本真实运行后的产出（报告、日志、生成物）"
+        example: "output/hw_report.md"
     structure:
-      - "H1 标题作为文档主标题"
-      - "每个章节使用 H2 标题"
-      - "代码块标注语言类型"
+      - "根目录：deliverables/<task_id>/"
+      - "脚本在根目录，运行产出在 output/"
+      - "交付物是代码工程，不是单篇 Markdown"
   check_rules:
-    required_sections:
-      - "方案设计"
-      - "实现说明"
-    must_include:
-      - "数据流"
-      - "API接口"
-    min_length: 200
+    min_project_files: 2
+    require_code_file: true
+    file_exists:
+      - "README.md"
 
 strategy:
   deliverable_template:
@@ -260,6 +261,7 @@ publish-post:
       verify_title: true
 
 code-writing:
+  outcome_kind: code_project
   deliverable_template:
     required_heading_level: 2
     sections:
@@ -281,52 +283,38 @@ code-writing:
         example: "输入校验：UUID格式验证、404处理。日志：所有查询记录耗时。安全：接口限流 100req/min。错误：统一异常处理 + 结构化错误响应。"
     structure:
       - "H1 标题作为文档主标题"
-      - "每个章节使用 H2 标题"
-      - "代码块标注语言和文件路径"
+      - "交付物为 deliverables/<task_id>/ 代码工程目录"
   check_rules:
-    required_sections:
-      - "需求说明"
-      - "实现方案"
-      - "代码清单"
-      - "质量说明"
-    must_include:
-      - "文件路径"
-    min_length: 300
+    min_project_files: 2
+    require_code_file: true
+    file_exists:
+      - "README.md"
 
 code-testing:
+  outcome_kind: code_project
+  acceptance_criteria:
+    - "测试用例、测试记录、测试报告以实体文件存在于工程目录"
+    - "output/ 或 reports/ 中有执行产出"
   deliverable_template:
-    required_heading_level: 2
     sections:
-      - name: "测试范围"
-        description: "被测模块/功能说明、测试层级（单元/集成/e2e）、环境要求"
-        required: true
-        example: "测试 getUser 接口。层级：单元测试 + 集成测试。环境：Python 3.13 + pytest + httpx TestClient。覆盖率目标：>80%。"
-      - name: "测试用例"
-        description: "每个用例的输入、预期输出、边界条件，用表格呈现"
-        required: true
-        example: "| 用例 | 输入 | 预期 | 边界 |\n|------|------|------|------|\n| 正常用户 | id=valid-uuid | 200+用户JSON | UUID格式正确 |\n| 用户不存在 | id=random-uuid | 404 | 数据库无记录 |\n| 参数非法 | id=not-a-uuid | 422 | UUID格式错误 |"
-      - name: "执行结果"
-        description: "测试运行输出（覆盖率报告、通过/失败总数、失败详情）"
-        required: true
-        example: "pytest 结果：25 passed, 0 failed。覆盖率：82%（目标80%）。测试耗时：1.2s。"
-      - name: "质量评估"
-        description: "测试充分性分析、遗漏风险、补充建议"
-        required: true
-        example: "充分性：覆盖正常路径+3种异常路径。遗漏风险：并发场景未覆盖。建议：后续补充压力测试。"
+      - name: "tests/cases.md"
+        description: "测试用例清单（输入、预期、边界，可用表格）"
+        example: "TC-001 正常运行；TC-002 --help；TC-003 脱敏校验"
+      - name: "reports/test_report.md"
+        description: "测试报告：范围、结论、缺陷列表、质量评分"
+        example: "通过 10/13，P0 缺陷 2 个，附复现步骤"
+      - name: "output/"
+        description: "执行记录：命令输出、日志、覆盖率、截图路径"
+        example: "output/run.log、output/hw_report.md"
     structure:
-      - "H1 标题作为测试报告主标题"
-      - "每个章节使用 H2 标题"
-      - "用例使用表格呈现"
+      - "根目录：deliverables/<task_id>/"
+      - "tests/ 放用例，reports/ 放报告，output/ 放执行记录"
+      - "交付物是测试工程（多文件），不是单篇说明文档"
   check_rules:
-    required_sections:
-      - "测试范围"
-      - "测试用例"
-      - "执行结果"
-      - "质量评估"
-    must_include:
-      - "覆盖率"
-      - "测试用例"
-    min_length: 200
+    min_project_files: 3
+    file_exists:
+      - "tests/cases.md"
+      - "reports/test_report.md"
 
 code-deployment:
   deliverable_template:

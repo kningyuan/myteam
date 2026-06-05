@@ -69,6 +69,23 @@ from hub.api.observability_api import router as observability_router
 
 app.include_router(observability_router)
 
+
+@app.on_event("startup")
+def _startup_resume_projects() -> None:
+    """Hub 启动后自动续跑中断的 in_progress 项目（D8 恢复）。"""
+    threading.Thread(target=_auto_resume_on_startup, daemon=True).start()
+
+
+def _auto_resume_on_startup() -> None:
+    try:
+        from common.run_kernel import resume_in_progress_projects
+        resumed = resume_in_progress_projects()
+        if resumed:
+            print(f"[myteam] 自动续跑 {len(resumed)} 个中断项目: {', '.join(resumed)}")
+    except Exception as e:  # noqa: BLE001 — 启动恢复失败不阻断 Hub
+        print(f"[myteam] 自动续跑失败: {e}")
+
+
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
@@ -613,6 +630,16 @@ def _run_kernel_bg(project_id: str, goal: str, mode: str, budget, title: str,
         _KERNEL_RUNS[project_id] = {"running": False, "error": None}
 
 
+def _resume_kernel_bg(project_id: str) -> None:
+    try:
+        from common.run_kernel import resume_project
+        resume_project(project_id)
+    except Exception as e:  # noqa: BLE001
+        _KERNEL_RUNS[project_id] = {"running": False, "error": str(e)}
+    else:
+        _KERNEL_RUNS[project_id] = {"running": False, "error": None}
+
+
 @app.post("/api/projects/run")
 async def api_project_run(body: dict):
     """从 UI 发起一个项目：装配并在后台线程跑编排内核，立即返回 project_id。"""
@@ -646,21 +673,52 @@ async def api_project_run_status(project_id: str):
     return _KERNEL_RUNS.get(project_id, {"running": False, "error": None})
 
 
+@app.post("/api/projects/{project_id}/resume")
+async def api_project_resume(project_id: str):
+    """断点续跑：回收孤儿响应后继续 DAG，无需重发项目。"""
+    p = get_project(project_id)
+    if not p:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    if _KERNEL_RUNS.get(project_id, {}).get("running"):
+        raise HTTPException(status_code=409, detail="该项目正在运行")
+    if p.get("status") not in ("in_progress", "paused"):
+        return {"resumed": False, "project_id": project_id, "reason": "项目已终态"}
+    _KERNEL_RUNS[project_id] = {"running": True, "error": None}
+    threading.Thread(target=_resume_kernel_bg, args=(project_id,), daemon=True).start()
+    return {"resumed": True, "project_id": project_id}
+
+
 @app.get("/api/projects/{project_id}/deliverable/{task_id}")
 async def api_project_deliverable(project_id: str, task_id: str):
-    """读取某任务的交付物正文（business/tasks/project/<id>/deliverables/<task>_deliverable.md）。"""
+    """任务交付物包：主文档 + workspace/legacy 文件清单（代码类任务产物在 agent workspace）。"""
     if not re.fullmatch(r"[\w-]{1,64}", task_id):
         raise HTTPException(status_code=400, detail="task_id 非法")
     if "/" in project_id or "\\" in project_id or ".." in project_id:
         raise HTTPException(status_code=400, detail="project_id 非法")
-    from hub.paths import PROJECTS_DIR
-    path = PROJECTS_DIR / project_id / "deliverables" / f"{task_id}_deliverable.md"
-    if not path.is_file():
-        return {"task_id": task_id, "exists": False, "content": ""}
-    try:
-        return {"task_id": task_id, "exists": True, "content": path.read_text(encoding="utf-8")}
-    except OSError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    from common.project_artifacts import get_task_deliverable_bundle
+    from common.store import Store
+
+    bundle = get_task_deliverable_bundle(Store(), project_id, task_id)
+    primary = bundle.get("primary") or {}
+    # 兼容旧前端：保留 exists/content 顶栏字段
+    bundle["exists"] = bool(primary.get("exists"))
+    bundle["content"] = primary.get("content") or ""
+    return bundle
+
+
+@app.get("/api/projects/{project_id}/deliverable/{task_id}/file")
+async def api_project_deliverable_file(project_id: str, task_id: str, path: str = Query("")):
+    """读取任务交付物包中的单个文件（workspace 或 legacy project 目录）。"""
+    if not re.fullmatch(r"[\w-]{1,64}", task_id):
+        raise HTTPException(status_code=400, detail="task_id 非法")
+    if "/" in project_id or "\\" in project_id or ".." in project_id:
+        raise HTTPException(status_code=400, detail="project_id 非法")
+    if not path or ".." in path:
+        raise HTTPException(status_code=400, detail="path 非法")
+    from common.project_artifacts import read_task_artifact_file
+    from common.store import Store
+
+    return read_task_artifact_file(Store(), project_id, task_id, path)
 
 
 _PROJECT_TERMINAL = {"completed", "failed", "partially_failed", "aborted", "cancelled", "paused"}
@@ -729,9 +787,10 @@ async def api_create_agent(body: dict):
         raise HTTPException(status_code=400, detail="Agent 描述不能为空")
 
     agent_id = body.get("agent_id", "").strip() or suggest_agent_id(description)
+    default_backend = system_config.get("system", "default_backend", default="opencode")
     result = generate_agent(
         agent_id, description,
-        backend_id=body.get("backend", "opencode"),
+        backend_id=body.get("backend") or default_backend,
         model=body.get("model", ""),
         chinese_name=body.get("chinese_name", ""),
         role=body.get("role", "worker"),

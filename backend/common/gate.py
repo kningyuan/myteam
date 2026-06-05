@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Optional
 
 from common.contracts import validate_response_dict
-from common.registry import FormatSpec, get_spec, is_stub
+from common.registry import FormatSpec, get_spec, is_stub  # FormatSpec used by check_code_project
 
 # 复用 quality_gate 的证据校验工具，避免重复实现
 from common.quality_gate import (  # noqa: E402
@@ -140,6 +140,42 @@ def check_action_evidence(spec: FormatSpec, content: str,
     return res
 
 
+_CODE_EXTS = {".py", ".sh", ".js", ".ts", ".go", ".rb", ".java", ".rs"}
+
+
+def check_code_project(spec: FormatSpec, proj_dir: Path) -> GateResult:
+    """代码工程型交付物：校验目录存在、最少文件数、必选文件、代码文件。"""
+    res = GateResult(passed=True)
+    if not proj_dir.is_dir():
+        res.add("code_project", f"代码工程目录 {proj_dir}", "目录不存在")
+        return res
+
+    files = []
+    for p in proj_dir.rglob("*"):
+        if not p.is_file():
+            continue
+        rel = p.relative_to(proj_dir)
+        if any(part.startswith(".") for part in rel.parts):
+            continue
+        files.append(p)
+
+    if len(files) < spec.min_project_files:
+        res.add("min_project_files",
+                f"至少 {spec.min_project_files} 个文件",
+                f"仅 {len(files)} 个")
+
+    for ref in spec.file_exists:
+        if not (proj_dir / ref).exists():
+            res.add("file_exists", ref, "文件不存在")
+
+    if spec.require_code_file and not any(p.suffix in _CODE_EXTS for p in files):
+        res.add("code_file", "至少一个代码/脚本文件", "未找到 .py/.sh 等")
+
+    if not res.passed:
+        res.feedback = _feedback(spec.task_type, res.failures)
+    return res
+
+
 def check_execute(response: dict, *, base_dir: Optional[str] = None,
                   enforce_must_include: bool = False) -> GateResult:
     """execute 串联门禁（D14）：契约 → 格式/完整性 →（action）证据。质量不在此。"""
@@ -162,6 +198,17 @@ def check_execute(response: dict, *, base_dir: Optional[str] = None,
         if dv_path and not Path(dv_path).exists():
             res.add("file_exists", dv_path, "交付物文件不存在")
         return res
+
+    if spec.outcome_kind == "code_project":
+        proj = Path(dv_path) if dv_path else Path(".")
+        if proj.is_file():
+            proj = proj.parent
+        if not proj.is_dir():
+            tid = (rel_path.strip("/").split("/")[0] if rel_path else "") or \
+                  (response.get("meta") or {}).get("task_id") or ""
+            if tid and base_dir:
+                proj = Path(base_dir) / tid
+        return check_code_project(spec, proj)
 
     if not dv_path or not Path(dv_path).exists():
         res = GateResult(passed=True)

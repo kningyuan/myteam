@@ -41,6 +41,9 @@ class FormatSpec:
     stub_floor: int = DEFAULT_STUB_FLOOR
     must_include: list[str] = field(default_factory=list)
     acceptance_criteria: list[str] = field(default_factory=list)
+    min_project_files: int = 1
+    require_code_file: bool = False
+    structure: list[str] = field(default_factory=list)
 
 
 def _load_yaml(path: Path) -> dict:
@@ -58,7 +61,7 @@ def _load_yaml(path: Path) -> dict:
 def _derive_outcome_kind(task_cfg: dict, check_rules: dict) -> str:
     """显式 outcome_kind 优先；否则有 evidence_url 配置者推断为 action（D15）。"""
     explicit = task_cfg.get("outcome_kind")
-    if explicit in ("artifact", "action"):
+    if explicit in ("artifact", "action", "code_project"):
         return explicit
     return "action" if check_rules.get("evidence_url") else "artifact"
 
@@ -86,6 +89,9 @@ def _build_spec(task_type: str, task_cfg: dict) -> FormatSpec:
         stub_floor=int(check_rules.get("stub_floor", DEFAULT_STUB_FLOOR)),
         must_include=list(check_rules.get("must_include", []) or []),
         acceptance_criteria=_derive_acceptance_criteria(task_cfg, required_sections),
+        min_project_files=int(check_rules.get("min_project_files", 1) or 1),
+        require_code_file=bool(check_rules.get("require_code_file", False)),
+        structure=list(dt.get("structure", []) or []),
     )
 
 

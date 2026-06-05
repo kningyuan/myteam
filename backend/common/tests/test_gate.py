@@ -23,6 +23,23 @@ def test_registry_loads_real_types():
     assert "research" in reg and "publish-post" in reg
     assert get_spec("research").outcome_kind == "artifact"
     assert get_spec("publish-post").outcome_kind == "action"  # 有 evidence_url → action
+    assert get_spec("code-deliverable").outcome_kind == "code_project"
+
+
+def test_code_project_gate(tmp_path):
+    proj = tmp_path / "t1"
+    proj.mkdir()
+    (proj / "README.md").write_text("readme", encoding="utf-8")
+    (proj / "main.sh").write_text("#!/bin/bash", encoding="utf-8")
+    env = {
+        "interaction_id": "i1", "kind": "execute", "status": "ok",
+        "quality": {"score": 0.9, "known_gaps": [], "notes": "ok"},
+        "meta": {"task_type": "code-deliverable", "task_id": "t1"},
+        "result": {"outcome": {"kind": "artifact",
+                               "artifact": {"path": "t1/", "format": "code_project"}}},
+    }
+    res = check_execute(env, base_dir=str(tmp_path))
+    assert res.passed
 
 
 def test_registry_acceptance_criteria_shared():

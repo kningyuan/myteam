@@ -143,8 +143,17 @@ class AgentPort:
 
             resp = self._read_valid_response(resp_path, iid, req_mtime)
             if resp is not None:
+                # 响应先落盘时传输可能仍在跑；短暂收尾以接收 Claude result 行的 step_finish
+                grace_deadline = time.time() + 2.5
+                while th.is_alive() and time.time() < grace_deadline:
+                    _, tok = self._drain(q, iid)
+                    event_tokens = max(event_tokens, tok)
+                    if tok > 0:
+                        break
+                    time.sleep(0.05)
                 ctx._cancel.set()
-                _, tok = self._drain(q, iid)  # 收尾排空已入队事件
+                th.join(timeout=3.0)
+                _, tok = self._drain(q, iid)
                 event_tokens = max(event_tokens, tok)
                 self._finalize_done(iid, resp_path, resp, event_tokens)
                 return AgentPortResult("done", resp, iid, attempt)
@@ -200,32 +209,11 @@ class AgentPort:
         return drained, tokens
 
     def _read_valid_response(self, resp_path: Path, iid: str, req_mtime: float) -> Optional[dict]:
-        """只采纳：存在 + mtime 晚于请求 + 合法信封 + interaction_id 匹配（D12 防残留误用）。"""
-        if not resp_path.exists():
-            return None
-        try:
-            if resp_path.stat().st_mtime < req_mtime:
-                return None
-            data = json.loads(resp_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return None
-        ok, _model, _errs = validate_response_dict(data)
-        if not ok:
-            return None
-        if data.get("interaction_id") != iid:
-            return None
-        return data
+        return _parse_adoptable_response(resp_path, iid, req_mtime)
 
     def _finalize_done(self, iid: str, resp_path: Path, resp: dict,
                        event_tokens: int = 0) -> None:
-        # 计量优先级：适配器 step_finish 累计 > 响应 meta.tokens（D17）。
-        meta = resp.get("meta") or {}
-        meta_tokens = meta.get("tokens") if isinstance(meta, dict) else None
-        tokens = event_tokens if event_tokens > 0 else (
-            meta_tokens if isinstance(meta_tokens, int) else None)
-        self.store.update_interaction(
-            iid, status="done", response_ref=str(resp_path), tokens=tokens,
-        )
+        finalize_interaction(self.store, iid, resp_path, resp, event_tokens)
 
     @staticmethod
     def _unlink(path: Path) -> None:
@@ -262,17 +250,65 @@ def _extract_tokens(payload: dict) -> int:
     return 0
 
 
-def reconcile_on_start(store: Optional[Store] = None) -> int:
-    """启动对账 GC（D8/D12）：进程重启后，把卡在 pending/running 的 interaction 标 timed_out。
+def _parse_adoptable_response(resp_path: Path, iid: str, req_mtime: float) -> Optional[dict]:
+    """只采纳：存在 + mtime 晚于请求 + 合法信封 + interaction_id 匹配（D12 防残留误用）。"""
+    if not resp_path.exists():
+        return None
+    try:
+        if resp_path.stat().st_mtime < req_mtime:
+            return None
+        data = json.loads(resp_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    ok, _model, _errs = validate_response_dict(data)
+    if not ok:
+        return None
+    if data.get("interaction_id") != iid:
+        return None
+    return data
 
-    返回被对账的条数。
-    """
+
+def read_adoptable_response(agent_id: str, interaction_id: str) -> tuple[Optional[dict], Optional[Path]]:
+    """从 agent workspace 读取可采纳的孤儿响应（进程中断后的回收入口）。"""
+    req_path = trigger_dir(agent_id) / f"{interaction_id}.request"
+    resp_path = response_dir(agent_id) / f"{interaction_id}.response"
+    req_mtime = req_path.stat().st_mtime if req_path.exists() else 0.0
+    data = _parse_adoptable_response(resp_path, interaction_id, req_mtime)
+    if data is None:
+        return None, None
+    return data, resp_path
+
+
+def finalize_interaction(store: Store, interaction_id: str, resp_path: Path, resp: dict,
+                         event_tokens: int = 0) -> None:
+    """把合法响应写入 store 真相（interaction=done）。"""
+    meta = resp.get("meta") or {}
+    meta_tokens = meta.get("tokens") if isinstance(meta, dict) else None
+    tokens = event_tokens if event_tokens > 0 else (
+        meta_tokens if isinstance(meta_tokens, int) else None)
+    store.update_interaction(
+        interaction_id, status="done", response_ref=str(resp_path), tokens=tokens,
+    )
+
+
+def reconcile_on_start(store: Optional[Store] = None) -> dict[str, int]:
+    """启动对账 GC（D8/D12）：优先回收磁盘孤儿响应；无响应才标 timed_out。"""
     store = store or Store()
     rows = store._conn.execute(
-        "SELECT interaction_id FROM interaction WHERE status IN ('pending','running')"
+        """SELECT interaction_id, agent_id FROM interaction
+           WHERE status IN ('pending','running')"""
     ).fetchall()
+    adopted = timed_out = 0
     for r in rows:
-        store.update_interaction(r["interaction_id"], status="timed_out")
-        store.append_run_event(r["interaction_id"], "reconcile_timed_out",
-                               {"reason": "进程重启对账"})
-    return len(rows)
+        iid = r["interaction_id"]
+        agent = r["agent_id"] or ""
+        resp, resp_path = read_adoptable_response(agent, iid)
+        if resp is not None and resp_path is not None:
+            finalize_interaction(store, iid, resp_path, resp)
+            store.append_run_event(iid, "reconcile_adopted", {"reason": "磁盘响应回收"})
+            adopted += 1
+        else:
+            store.update_interaction(iid, status="timed_out")
+            store.append_run_event(iid, "reconcile_timed_out", {"reason": "进程重启对账"})
+            timed_out += 1
+    return {"adopted": adopted, "timed_out": timed_out}

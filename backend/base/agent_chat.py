@@ -116,8 +116,9 @@ def set_agent_backend_config(
 
 def _derive_backend_config(agent_id: str) -> BackendConfig:
     """从系统配置推导后端配置"""
-    default_model = system_config.get_default_model("opencode")
-    return BackendConfig(backend_id="opencode", model=default_model)
+    default_backend = system_config.get("system", "default_backend", default="opencode")
+    default_model = system_config.get_default_model(default_backend)
+    return BackendConfig(backend_id=default_backend, model=default_model)
 
 
 def list_all_backends_with_models() -> list[dict]:

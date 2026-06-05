@@ -200,3 +200,8 @@ class ClaudeCodeAdapter(CLIAdapter):
                 proc.terminate()
             except Exception:
                 pass
+
+
+from adapter.registry import registry  # noqa: E402
+
+registry.register(ClaudeCodeAdapter())

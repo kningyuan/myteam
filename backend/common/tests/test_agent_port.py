@@ -144,5 +144,24 @@ def test_reconcile_on_start(env):
     store.create_interaction("i_stuck", "execute", "pro_x")
     store.update_interaction("i_stuck", status="running", touch_event=True)
     n = reconcile_on_start(store)
-    assert n == 1
+    assert n["timed_out"] == 1
     assert store.get_interaction("i_stuck")["status"] == "timed_out"
+
+
+def test_reconcile_adopts_orphan_response(env, monkeypatch):
+    store, cfg = env
+    monkeypatch.setattr(paths, "WORKSPACES_DIR", paths.WORKSPACES_DIR)
+    agent = "researcher"
+    iid = "i_orphan"
+    store.create_interaction(iid, "execute", "pro_x", task_id="task_001", agent_id=agent)
+    store.update_interaction(iid, status="running", touch_event=True)
+    trig = paths.trigger_dir(agent)
+    resp = paths.response_dir(agent)
+    trig.mkdir(parents=True, exist_ok=True)
+    resp.mkdir(parents=True, exist_ok=True)
+    (trig / f"{iid}.request").write_text("{}", encoding="utf-8")
+    submit(_valid_execute(iid), resp / f"{iid}.response")
+
+    n = reconcile_on_start(store)
+    assert n["adopted"] == 1
+    assert store.get_interaction(iid)["status"] == "done"

@@ -42,7 +42,7 @@ function cacheDom() {
    'project-tasks','project-fleet','project-cost','project-events',
    'project-trace','trace-title','trace-body','trace-close',
    'home-stats','home-projects','btn-home-new-project',
-   'project-deliverable','deliverable-title','deliverable-meta','deliverable-body',
+   'project-deliverable','deliverable-title','deliverable-task-nav','deliverable-meta','deliverable-files','deliverable-body',
    'btn-deliverable-copy','btn-deliverable-download',
    'btn-sidebar-toggle','sidebar-backdrop','sidebar','btn-open-group','btn-open-project',
    'btn-new-project','btn-new-project-welcome','new-project-modal','btn-cancel-project',
@@ -300,6 +300,26 @@ function formatToolInputJson(input) {
   const obj = parseToolInputObj(input);
   if (obj.raw != null) return obj.raw;
   try { return JSON.stringify(obj, null, 2); } catch (e) { return String(input || ''); }
+}
+
+/** 将 payload（对象或 JSON 字符串）统一格式化为可读的 pre 块内容 */
+function formatPayloadPretty(value, maxLen = 8000) {
+  if (value == null || value === '') return '';
+  let parsed = value;
+  if (typeof value === 'string') {
+    const s = value.trim();
+    try { parsed = JSON.parse(s); } catch {
+      try { parsed = JSON.parse(s.replace(/^"(.*)"$/, '$1')); } catch { parsed = s; }
+    }
+  }
+  if (typeof parsed === 'string') return parsed.slice(0, maxLen);
+  try { return JSON.stringify(parsed, null, 2).slice(0, maxLen); } catch { return String(value).slice(0, maxLen); }
+}
+
+function renderPayloadPre(value, maxLen = 8000) {
+  const text = formatPayloadPretty(value, maxLen);
+  if (!text) return '<span class="hint">（空）</span>';
+  return `<pre class="trace-pre">${esc(text)}</pre>`;
 }
 
 function shortPath(p) {
@@ -863,11 +883,14 @@ async function updateBoundGroupButton(projectId) {
   btn.classList.toggle('hidden', !grp);
 }
 
-function switchProjectTab(ptab) {
+function switchProjectTab(ptab, opts = {}) {
   document.querySelectorAll('.project-subnav .ptab').forEach(b =>
     b.classList.toggle('active', b.dataset.ptab === ptab));
   document.querySelectorAll('.ptab-panel').forEach(p =>
     p.classList.toggle('active', p.dataset.ptab === ptab));
+  if (ptab === 'deliverable' && !opts.skipDeliverableLoad) {
+    void ensureDeliverablePanel();
+  }
 }
 
 // 幂等渲染：内容没变就不动 DOM（消除轮询导致的闪烁/丢滚动/丢 hover）
@@ -893,9 +916,10 @@ async function selectProject(id, opts = {}) {
   DOM['project-welcome'].classList.add('hidden');
   DOM['project-detail-view'].classList.remove('hidden');
   switchProjectTab('overview');
-  DOM['project-trace']?.classList.add('hidden');
-  if (DOM['deliverable-meta']) DOM['deliverable-meta'].textContent = '在「概览」点任意任务查看其交付物正文。';
+  if (DOM['deliverable-meta']) DOM['deliverable-meta'].textContent = '选择任务或从「概览」点任务查看交付物。';
   if (DOM['deliverable-body']) DOM['deliverable-body'].innerHTML = '';
+  if (DOM['deliverable-files']) { DOM['deliverable-files'].innerHTML = ''; DOM['deliverable-files'].classList.add('hidden'); }
+  if (DOM['deliverable-task-nav']) { DOM['deliverable-task-nav'].innerHTML = ''; DOM['deliverable-task-nav'].classList.add('hidden'); }
   _deliverable = { content: '', taskId: '' };
   setDeliverableActions(false);
   await updateBoundGroupButton(id);
@@ -950,6 +974,10 @@ async function refreshProjectDetail(id) {
         el.addEventListener('click', () => openDeliverable(id, el.dataset.task));
       });
     }
+    _deliverableTasks = tasks.map(t => ({ id: t.id, name: t.name || t.id }));
+    if (document.querySelector('.ptab-panel[data-ptab="deliverable"]')?.classList.contains('active')) {
+      void ensureDeliverablePanel();
+    }
 
     // 舰队状态
     const fl = (fleet && fleet.fleet) || {};
@@ -990,124 +1018,515 @@ const INTERACTION_LABELS = {
   team_config:'组队配置', task_plan:'任务拆分', execute:'执行', review:'评审', triage:'分诊',
 };
 
+const EXEC_TIMELINE_KINDS = new Set([
+  'tool_use', 'text', 'gate_passed', 'gate_failed', 'review_done', 'review_unreachable',
+  'error', 'transport_error', 'watchdog_soft_idle', 'watchdog_hard_kill',
+  'step_finish', 'prompt_sent', 'plan_rejected',
+]);
+const EXEC_CHILD_LABELS = {
+  tool_use: 'skill 调用', text: '模型输出', step_finish: 'Token 计量', prompt_sent: '发送给 CLI',
+  error: '错误', transport_error: '传输错误',
+};
+
 function eventDetail(e) {
   const p = e.payload || {};
   if (e.kind === 'gate_failed' && Array.isArray(p.failures)) return p.failures.join('；');
   if (e.kind === 'review_done') return (p.passed ? '通过' : '打回') + (p.feedback ? ' · ' + p.feedback : '');
   if (e.kind === 'message') return (p.sender ? p.sender + '：' : '') + (p.text || '');
-  if (e.kind === 'tool_use') return p.tool || p.name || JSON.stringify(p).slice(0, 120);
+  if (e.kind === 'tool_use') return toolUseSummary(p);
   if (e.kind === 'blocked' || e.kind === 'plan_rejected') return p.reason || (p.invalid_agents || []).join(', ');
   if (e.kind === 'budget_alert' || e.kind === 'budget_over') return JSON.stringify(p);
-  return p && Object.keys(p).length ? JSON.stringify(p).slice(0, 120) : '';
+  if (e.kind === 'text') return String(p.content || '').slice(0, 160);
+  if (e.kind === 'step_finish') {
+    const t = p.tokens;
+    if (t && typeof t === 'object') return `${t.total || t.input + t.output || 0} tok`;
+    return t ? `${t} tok` : '';
+  }
+  return p && Object.keys(p).length ? JSON.stringify(p).slice(0, 160) : '';
+}
+
+function toolUseSummary(p) {
+  const name = p.name || p.tool || 'tool';
+  const act = describeToolAction(name, p.input);
+  return `${name} · ${act.verb} ${act.target}`.trim().slice(0, 120);
+}
+
+function _execOpenState(box) {
+  const nodes = new Set();
+  const children = new Set();
+  const cache = {};
+  box.querySelectorAll('.exec-node.open').forEach(n => {
+    nodes.add(n.dataset.iid);
+    const body = n.querySelector('.exec-node-body');
+    if (body && body.dataset.loaded && body.innerHTML) cache[n.dataset.iid] = body.innerHTML;
+  });
+  box.querySelectorAll('.exec-child.open').forEach(c => children.add(c.dataset.childId));
+  return { nodes, children, cache };
+}
+
+function _interactionIds(events) {
+  const s = new Set();
+  for (const e of events) {
+    if (e.category === 'interaction' && e.interaction_id) s.add(e.interaction_id);
+  }
+  return s;
+}
+
+function renderInteractionNode(e) {
+  const label = INTERACTION_LABELS[e.kind] || e.kind || '交互';
+  const att = e.attempt > 1 ? ` ×${e.attempt}` : '';
+  const who = [e.task_id, e.agent_id].filter(Boolean).map(esc).join(' · ');
+  const tok = e.tokens ? `${e.tokens} tok` : '';
+  const ts = (e.ts || '').replace('T', ' ').slice(5, 16);
+  const iid = e.interaction_id || '';
+  return `<div class="exec-node status-${esc(e.status || '')}" data-iid="${esc(iid)}">
+    <div class="exec-node-head" role="button" tabindex="0" aria-expanded="false">
+      <span class="exec-chevron">▸</span>
+      <span class="exec-node-title">${esc(label)}${att}</span>
+      <span class="exec-node-meta">${who ? esc(who) : ''}</span>
+      <span class="exec-node-status">${esc(e.status || '')}${tok ? ' · ' + esc(tok) : ''}</span>
+      <span class="exec-node-ts">${esc(ts)}</span>
+    </div>
+    <div class="exec-node-body hidden" data-body-for="${esc(iid)}"></div>
+  </div>`;
+}
+
+function renderStandaloneEvent(e) {
+  const label = EVENT_LABELS[e.kind] || e.kind;
+  const detail = eventDetail(e);
+  const ts = (e.ts || '').replace('T', ' ').slice(5, 16);
+  const childId = `standalone:${e.kind}:${e.ts}:${ts}`;
+  return `<div class="exec-standalone evk-${esc(e.kind)}" data-child-id="${esc(childId)}">
+    <div class="exec-child-head" role="button" tabindex="0">
+      <span class="exec-chevron">▸</span>
+      <span class="exec-child-label">${esc(label)}</span>
+      <span class="exec-child-summary">${esc(detail)}</span>
+      <span class="exec-child-ts">${esc(ts)}</span>
+    </div>
+    <div class="exec-child-body hidden">${renderEventDetailBody(e)}</div>
+  </div>`;
 }
 
 function renderEventFeed(events) {
   const box = DOM['project-events'];
   if (!box) return;
-  const html = !events.length ? '<span class="hint">暂无执行事件</span>' : events.map(e => {
-    const ts = (e.ts || '').replace('T', ' ').slice(5);
-    const who = [e.task_id, e.agent_id].filter(Boolean).map(esc).join(' · ');
-    if (e.category === 'interaction') {
-      const label = INTERACTION_LABELS[e.kind] || e.kind || '交互';
-      const att = e.attempt > 1 ? ` ×${e.attempt}` : '';
-      const tok = e.tokens ? ` · ${e.tokens} tok` : '';
-      return `<div class="feed-row feed-interaction clickable status-${esc(e.status || '')}" data-iid="${esc(e.interaction_id || '')}" title="点击查看该次交互明细（工具调用 + CLI 返回）">
-        <span class="feed-ts">${esc(ts)}</span>
-        <span class="feed-kind">${esc(label)}${att}</span>
-        <span class="feed-who">${who}</span>
-        <span class="feed-state">${esc(e.status || '')}${tok} ›</span>
-      </div>`;
+  const sig = JSON.stringify(events.map(e => [e.category, e.kind, e.interaction_id, e.status, e.ts]));
+  const prev = _execOpenState(box);
+  if (_renderSig.execTree === sig && prev.nodes.size) return;
+  _renderSig.execTree = sig;
+
+  const iids = _interactionIds(events);
+  let html = '';
+  if (!events.length) {
+    html = '<span class="hint">暂无执行事件</span>';
+  } else {
+    for (const e of events) {
+      if (e.category === 'interaction') html += renderInteractionNode(e);
+      else if (e.category === 'event') {
+        const iid = e.interaction_id || '';
+        if (!iid || !iids.has(iid)) html += renderStandaloneEvent(e);
+      }
     }
-    const label = EVENT_LABELS[e.kind] || e.kind;
-    const detail = eventDetail(e);
-    return `<div class="feed-row feed-event evk-${esc(e.kind)}">
-      <span class="feed-ts">${esc(ts)}</span>
-      <span class="feed-kind">${esc(label)}</span>
-      <span class="feed-detail" title="${esc(detail)}">${esc(detail)}</span>
-    </div>`;
-  }).join('');
-  if (setHtmlIfChanged(box, 'events', html)) {
-    box.querySelectorAll('.feed-interaction.clickable').forEach(el => {
-      el.addEventListener('click', () => openTrace(el.dataset.iid));
-    });
+  }
+  box.innerHTML = html;
+  bindExecTree(box);
+
+  for (const iid of prev.nodes) {
+    const node = box.querySelector(`.exec-node[data-iid="${cssEsc(iid)}"]`);
+    if (!node) continue;
+    setExecNodeOpen(node, true);
+    const body = node.querySelector('.exec-node-body');
+    if (body && prev.cache[iid]) {
+      body.innerHTML = prev.cache[iid];
+      body.dataset.loaded = '1';
+      bindExecChildToggles(body);
+      for (const cid of prev.children) {
+        const ch = body.querySelector(`.exec-child[data-child-id="${cssEsc(cid)}"]`);
+        if (ch) setExecChildOpen(ch, true);
+      }
+    } else if (body) {
+      loadExecNodeBody(iid, body).then(() => {
+        for (const cid of prev.children) {
+          const ch = body.querySelector(`.exec-child[data-child-id="${cssEsc(cid)}"]`);
+          if (ch) setExecChildOpen(ch, true);
+        }
+      });
+    }
+  }
+  for (const cid of prev.children) {
+    const el = box.querySelector(`[data-child-id="${cssEsc(cid)}"]`);
+    if (el && el.classList.contains('exec-standalone')) setExecChildOpen(el, true);
   }
 }
 
-function fmtToolInput(name, inputStr) {
-  let o; try { o = JSON.parse(inputStr); } catch { return esc(inputStr || ''); }
-  if (o && o.filePath) {
-    const body = o.content != null ? `\n${o.content}` : '';
-    return `<span class="trace-path">${esc(o.filePath)}</span>${body ? `<pre class="trace-pre">${esc(String(body).trim())}</pre>` : ''}`;
-  }
-  if (o && o.command) return `<pre class="trace-pre">$ ${esc(o.command)}</pre>`;
-  return `<pre class="trace-pre">${esc(JSON.stringify(o, null, 2))}</pre>`;
+function cssEsc(s) {
+  return (window.CSS && CSS.escape) ? CSS.escape(s) : String(s).replace(/"/g, '\\"');
 }
 
-async function openTrace(iid) {
-  if (!iid) return;
-  const panel = DOM['project-trace'];
-  if (!panel) return;
-  panel.classList.remove('hidden');
-  DOM['trace-title'].textContent = `交互明细 · ${iid.split(':').slice(1).join(':') || iid}`;
-  DOM['trace-body'].innerHTML = '<span class="hint">加载中…</span>';
+function bindExecTree(box) {
+  if (box.dataset.execBound) return;
+  box.dataset.execBound = '1';
+  box.addEventListener('click', ev => {
+    const nodeHead = ev.target.closest('.exec-node-head');
+    if (nodeHead) {
+      ev.preventDefault();
+      toggleExecNode(nodeHead.closest('.exec-node'));
+      return;
+    }
+    const childHead = ev.target.closest('.exec-child-head');
+    if (childHead) {
+      ev.preventDefault();
+      toggleExecChild(childHead.closest('.exec-child, .exec-standalone'));
+    }
+  });
+}
+
+function setExecNodeOpen(node, open) {
+  if (!node) return;
+  const body = node.querySelector('.exec-node-body');
+  const head = node.querySelector('.exec-node-head');
+  const chev = node.querySelector('.exec-chevron');
+  node.classList.toggle('open', open);
+  body?.classList.toggle('hidden', !open);
+  if (head) head.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (chev) chev.textContent = open ? '▾' : '▸';
+}
+
+async function toggleExecNode(node) {
+  if (!node) return;
+  const open = !node.classList.contains('open');
+  setExecNodeOpen(node, open);
+  if (open) await loadExecNodeBody(node.dataset.iid, node.querySelector('.exec-node-body'));
+}
+
+function setExecChildOpen(el, open) {
+  if (!el) return;
+  const body = el.querySelector('.exec-child-body');
+  const chev = el.querySelector('.exec-chevron');
+  el.classList.toggle('open', open);
+  body?.classList.toggle('hidden', !open);
+  if (chev) chev.textContent = open ? '▾' : '▸';
+}
+
+function toggleExecChild(el) {
+  if (!el) return;
+  setExecChildOpen(el, !el.classList.contains('open'));
+}
+
+function bindExecChildToggles(container) {
+  /* 事件委托在 bindExecTree，无需逐条绑定 */
+}
+
+async function loadExecNodeBody(iid, bodyEl) {
+  if (!iid || !bodyEl || bodyEl.dataset.loaded) return;
+  bodyEl.innerHTML = '<div class="exec-loading hint">加载明细…</div>';
   try {
     const r = await fetch(`/api/obs/interactions/${encodeURIComponent(iid)}/timeline`);
     const d = await r.json();
-    const tl = (d.timeline || []).filter(e => ['tool_use','text','gate_passed','gate_failed','review_done','review_unreachable','error','transport_error','watchdog_soft_idle','watchdog_hard_kill'].includes(e.kind));
-    if (!tl.length) { DOM['trace-body'].innerHTML = '<span class="hint">暂无明细事件</span>'; return; }
-    DOM['trace-body'].innerHTML = tl.map(e => {
-      const p = e.payload || {};
-      if (e.kind === 'tool_use') {
-        const out = p.output ? `<div class="trace-out"><span class="trace-tag">CLI 返回</span><pre class="trace-pre">${esc(String(p.output).slice(0, 4000))}</pre></div>` : '<div class="trace-out trace-noout">（无返回/未完成）</div>';
-        return `<div class="trace-item trace-tool">
-          <div class="trace-head">🛠️ <b>${esc(p.name || 'tool')}</b> ${p.status ? `<span class="trace-status">${esc(p.status)}</span>` : ''}</div>
-          <div class="trace-in">${fmtToolInput(p.name, p.input)}</div>
-          ${out}
-        </div>`;
-      }
-      if (e.kind === 'text') {
-        return `<div class="trace-item trace-text"><div class="trace-head">💬 模型输出</div><div class="trace-msg">${esc(String(p.content || '').slice(0, 4000))}</div></div>`;
-      }
-      const label = EVENT_LABELS[e.kind] || e.kind;
-      return `<div class="trace-item trace-mile"><div class="trace-head">${esc(label)}</div><div class="trace-msg">${esc(eventDetail(e))}</div></div>`;
-    }).join('');
-    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    const tl = (d.timeline || []).filter(e => EXEC_TIMELINE_KINDS.has(e.kind));
+    if (!tl.length) {
+      bodyEl.innerHTML = '<div class="exec-empty hint">该步骤暂无 skill 调用或其它明细</div>';
+    } else {
+      bodyEl.innerHTML = tl.map((ev, idx) => renderExecChild(ev, iid, idx)).join('');
+    }
+    bodyEl.dataset.loaded = '1';
   } catch (e) {
-    DOM['trace-body'].innerHTML = '加载失败：' + esc(e.message || String(e));
+    bodyEl.innerHTML = `<div class="exec-empty">加载失败：${esc(e.message || String(e))}</div>`;
   }
 }
 
-let _deliverable = { content: '', taskId: '' };
+function renderExecChild(ev, iid, idx) {
+  const childId = `${iid}:${ev.seq ?? idx}`;
+  const p = ev.payload || {};
+  const summary = eventDetail({ kind: ev.kind, payload: p });
+  if (ev.kind === 'tool_use') {
+    const name = p.name || p.tool || 'tool';
+    return `<div class="exec-child exec-child-tool" data-child-id="${esc(childId)}">
+      <div class="exec-child-head" role="button" tabindex="0">
+        <span class="exec-chevron">▸</span>
+        <span class="exec-child-label">🛠️ ${esc(name)}</span>
+        <span class="exec-child-summary">${esc(summary)}</span>
+      </div>
+      <div class="exec-child-body hidden">${renderToolDetailBody(p)}</div>
+    </div>`;
+  }
+  const label = EVENT_LABELS[ev.kind] || EXEC_CHILD_LABELS[ev.kind] || ev.kind;
+  const cls = ev.kind === 'text' ? 'exec-child-text'
+    : (['error', 'transport_error', 'watchdog_hard_kill'].includes(ev.kind) ? 'exec-child-error' : 'exec-child-mile');
+  return `<div class="exec-child ${cls}" data-child-id="${esc(childId)}">
+    <div class="exec-child-head" role="button" tabindex="0">
+      <span class="exec-chevron">▸</span>
+      <span class="exec-child-label">${esc(label)}</span>
+      <span class="exec-child-summary">${esc(summary)}</span>
+    </div>
+    <div class="exec-child-body hidden">${renderTimelineDetailBody(ev)}</div>
+  </div>`;
+}
+
+function renderToolDetailBody(p) {
+  const name = p.name || p.tool || 'tool';
+  const act = describeToolAction(name, p.input);
+  const icon = TOOL_ICONS[name] || '🔧';
+  const targetHtml = act.mono
+    ? `<code class="activity-target">${esc(act.target)}</code>`
+    : `<span class="activity-target-text">${esc(act.target)}</span>`;
+  const summary =
+    `<div class="exec-tool-summary">` +
+    `<span class="activity-icon">${icon}</span>` +
+    `<span class="activity-verb">${esc(act.verb)}</span>${targetHtml}` +
+    `</div>`;
+  const args = `<div class="trace-section"><span class="trace-tag">参数</span>${renderPayloadPre(p.input)}</div>`;
+  const out = p.output
+    ? `<div class="trace-out"><span class="trace-tag">CLI 返回</span>${renderPayloadPre(p.output)}</div>`
+    : '<div class="trace-out trace-noout">（无返回 / 未完成）</div>';
+  return summary + args + out;
+}
+
+function renderTimelineDetailBody(ev) {
+  const p = ev.payload || {};
+  if (ev.kind === 'text') {
+    return `<div class="trace-section"><span class="trace-tag">输出</span><div class="trace-msg">${esc(String(p.content || '').slice(0, 8000))}</div></div>`;
+  }
+  if (ev.kind === 'gate_failed' && Array.isArray(p.failures)) {
+    return `<ul class="exec-fail-list">${p.failures.map(f => `<li>${esc(f)}</li>`).join('')}</ul>`;
+  }
+  if (ev.kind === 'step_finish') {
+    return `<div class="trace-section"><span class="trace-tag">Token 计量</span>${renderPayloadPre(p)}</div>`;
+  }
+  if (ev.kind === 'tool_use') {
+    return renderToolDetailBody(p);
+  }
+  if (typeof p.text === 'string' && p.text) {
+    return `<div class="trace-msg">${esc(p.text)}</div>`;
+  }
+  return `<div class="trace-section"><span class="trace-tag">详情</span>${renderPayloadPre(p)}</div>`;
+}
+
+function renderEventDetailBody(e) {
+  return renderTimelineDetailBody({ kind: e.kind, payload: e.payload || {} });
+}
+
+let _deliverable = { content: '', taskId: '', projectId: '', files: [], activePath: '' };
+let _deliverableTasks = [];
+
+const DELIV_KIND_LABELS = { script: '脚本', doc: '文档', output: '产出', test: '测试', data: '数据', file: '文件' };
+
+function _deliverableTasksFromDom() {
+  const rows = DOM['project-tasks']?.querySelectorAll('.task-row.clickable') || [];
+  return [...rows].map(el => ({
+    id: el.dataset.task,
+    name: el.querySelector('.task-name')?.textContent?.split('\n')[0]?.trim() || el.dataset.task,
+  })).filter(t => t.id);
+}
+
+async function _fetchProjectTasks(projectId) {
+  try {
+    const ov = await fetch(`/api/obs/projects/${encodeURIComponent(projectId)}/overview`).then(r => r.json());
+    return (ov.tasks || []).map(t => ({ id: t.id, name: t.name || t.id }));
+  } catch (_) {
+    return [];
+  }
+}
+
+function renderDeliverableTaskNav(projectId, activeTaskId, tasks) {
+  const nav = DOM['deliverable-task-nav'];
+  if (!nav) return;
+  if (!tasks || !tasks.length) {
+    nav.innerHTML = '';
+    nav.classList.add('hidden');
+    return;
+  }
+  nav.classList.remove('hidden');
+  nav.innerHTML = tasks.map(t => {
+    const active = t.id === activeTaskId ? ' active' : '';
+    const label = t.name && t.name !== t.id ? `${t.id} · ${esc(t.name)}` : esc(t.id);
+    return `<button type="button" class="task-chip${active}" data-task="${esc(t.id)}">${label}</button>`;
+  }).join('');
+  nav.querySelectorAll('.task-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.task && btn.dataset.task !== _deliverable.taskId) {
+        void openDeliverable(projectId, btn.dataset.task);
+      }
+    });
+  });
+}
+
+async function ensureDeliverablePanel() {
+  const pid = S.currentProjectId;
+  if (!pid) return;
+
+  const bodyReady = !!(DOM['deliverable-body']?.innerHTML || '').trim();
+  const filesReady = _deliverable.projectId === pid && !!_deliverable.files.length;
+  if (_deliverable.projectId === pid && _deliverable.taskId && bodyReady && filesReady) {
+    renderDeliverableTaskNav(pid, _deliverable.taskId, _deliverableTasks);
+    renderDeliverableFileList(_deliverable.files, _deliverable.activePath);
+    return;
+  }
+
+  if (DOM['deliverable-meta']) DOM['deliverable-meta'].textContent = '加载中…';
+
+  let tasks = _deliverableTasks.length ? _deliverableTasks : _deliverableTasksFromDom();
+  if (!tasks.length) tasks = await _fetchProjectTasks(pid);
+  _deliverableTasks = tasks;
+
+  const taskId = (_deliverable.projectId === pid && _deliverable.taskId)
+    ? _deliverable.taskId
+    : (tasks[0]?.id || '');
+  if (!taskId) {
+    if (DOM['deliverable-meta']) DOM['deliverable-meta'].textContent = '暂无任务，交付物将在任务完成后出现。';
+    return;
+  }
+  try {
+    await openDeliverable(pid, taskId, { fromTabSwitch: true });
+  } catch (e) {
+    if (DOM['deliverable-meta']) DOM['deliverable-meta'].textContent = '加载失败：' + (e.message || e);
+  }
+}
 
 function setDeliverableActions(visible) {
   DOM['btn-deliverable-copy']?.classList.toggle('hidden', !visible);
   DOM['btn-deliverable-download']?.classList.toggle('hidden', !visible);
 }
 
-async function openDeliverable(projectId, taskId) {
+function renderDeliverablePreview(content, path) {
+  const body = DOM['deliverable-body'];
+  if (!body) return;
+  const low = (path || '').toLowerCase();
+  if (low.endsWith('.md') && typeof renderAgentMarkdown === 'function') {
+    body.innerHTML = renderAgentMarkdown(content);
+  } else if (low.endsWith('.sh') || low.endsWith('.py') || low.endsWith('.js')) {
+    body.innerHTML = `<pre class="trace-pre code-preview">${esc(content)}</pre>`;
+  } else {
+    body.innerHTML = `<pre class="trace-pre">${esc(content)}</pre>`;
+  }
+}
+
+function sortDeliverableFiles(files) {
+  const kindOrder = { doc: 0, script: 1, test: 2, data: 3, output: 4, file: 5 };
+  return [...files].sort((a, b) => {
+    const ad = (a.path || '').includes('/') ? (a.path || '').split('/').slice(0, -1).join('/') : '';
+    const bd = (b.path || '').includes('/') ? (b.path || '').split('/').slice(0, -1).join('/') : '';
+    if (ad !== bd) return ad.localeCompare(bd);
+    if (a.path === 'README.md') return -1;
+    if (b.path === 'README.md') return 1;
+    const ka = kindOrder[a.kind] ?? 9;
+    const kb = kindOrder[b.kind] ?? 9;
+    return ka - kb || (a.path || '').localeCompare(b.path || '');
+  });
+}
+
+function renderDeliverableFileList(files, activePath) {
+  const box = DOM['deliverable-files'];
+  if (!box) return;
+  if (!files || !files.length) {
+    box.classList.add('hidden');
+    box.innerHTML = '';
+    return;
+  }
+  box.classList.remove('hidden');
+  const sorted = sortDeliverableFiles(files);
+  const groups = new Map();
+  for (const f of sorted) {
+    const parts = (f.path || '').split('/');
+    const dir = parts.length > 1 ? parts.slice(0, -1).join('/') : '';
+    if (!groups.has(dir)) groups.set(dir, []);
+    groups.get(dir).push(f);
+  }
+  let html = '';
+  for (const [dir, items] of groups) {
+    html += `<div class="deliverable-dir">${dir ? `<div class="deliverable-dir-label">${esc(dir)}/</div>` : ''}`;
+    html += items.map(f => {
+      const kind = DELIV_KIND_LABELS[f.kind] || f.kind || '文件';
+      const loc = f.location === 'legacy' ? '旧' : (f.location === 'workspace' ? 'ws' : '');
+      const active = f.path === activePath ? ' active' : '';
+      return `<button type="button" class="deliverable-file${active}" data-path="${esc(f.path)}">` +
+        `<span class="deliverable-file-kind">${esc(kind)}</span>` +
+        `<span class="deliverable-file-name">${esc(f.name || f.path)}</span>` +
+        (loc ? `<span class="deliverable-file-badge">${esc(loc)}</span>` : '') +
+        `</button>`;
+    }).join('');
+    html += '</div>';
+  }
+  box.innerHTML = html;
+  box.querySelectorAll('.deliverable-file').forEach(btn => {
+    btn.addEventListener('click', () => loadDeliverableFile(_deliverable.projectId, _deliverable.taskId, btn.dataset.path));
+  });
+}
+
+async function loadDeliverableFile(projectId, taskId, path) {
+  if (!path) return;
+  DOM['deliverable-meta'].textContent = `加载 ${path}…`;
+  try {
+    const r = await fetch(
+      `/api/projects/${encodeURIComponent(projectId)}/deliverable/${encodeURIComponent(taskId)}/file?path=${encodeURIComponent(path)}`
+    );
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || '加载失败');
+    if (!d.exists) {
+      DOM['deliverable-meta'].textContent = `文件不存在：${path}`;
+      DOM['deliverable-body'].innerHTML = '';
+      setDeliverableActions(false);
+      return;
+    }
+    _deliverable.content = d.content || '';
+    _deliverable.activePath = path;
+    setDeliverableActions(!!_deliverable.content);
+    DOM['deliverable-title'].textContent = `交付物 · ${taskId} · ${path}`;
+    DOM['deliverable-meta'].textContent =
+      `${DELIV_KIND_LABELS[d.kind] || '文件'} · ${(d.content || '').length} 字符 · ${path}`;
+    renderDeliverablePreview(d.content || '', path);
+    renderDeliverableFileList(_deliverable.files, path);
+  } catch (e) {
+    DOM['deliverable-meta'].textContent = '加载失败：' + (e.message || e);
+  }
+}
+
+async function openDeliverable(projectId, taskId, opts = {}) {
   const panel = DOM['project-deliverable'];
   if (!panel) return;
-  switchProjectTab('deliverable');
+  if (!opts.fromTabSwitch) switchProjectTab('deliverable', { skipDeliverableLoad: true });
+
+  let tasks = _deliverableTasksFromDom();
+  if (!tasks.length) tasks = await _fetchProjectTasks(projectId);
+  _deliverableTasks = tasks.length ? tasks : [{ id: taskId, name: taskId }];
+  renderDeliverableTaskNav(projectId, taskId, _deliverableTasks);
   DOM['deliverable-title'].textContent = `交付物 · ${taskId}`;
   DOM['deliverable-meta'].textContent = '加载中…';
   DOM['deliverable-body'].innerHTML = '';
-  _deliverable = { content: '', taskId };
+  DOM['deliverable-files']?.classList.add('hidden');
+  _deliverable = { content: '', taskId, projectId, files: [], activePath: '' };
   setDeliverableActions(false);
   try {
     const r = await fetch(`/api/projects/${encodeURIComponent(projectId)}/deliverable/${encodeURIComponent(taskId)}`);
     const d = await r.json();
     if (!r.ok) throw new Error(d.detail || '加载失败');
-    if (!d.exists || !d.content) {
-      DOM['deliverable-meta'].textContent = '该任务暂无交付物文件';
-      DOM['deliverable-body'].innerHTML = '';
+    const files = d.files || [];
+    const primary = d.primary || {};
+    _deliverable.files = files;
+
+    if (!files.length && !primary.exists && !d.exists) {
+      DOM['deliverable-meta'].textContent = '该任务暂无交付物';
       return;
     }
-    _deliverable = { content: d.content, taskId };
-    setDeliverableActions(true);
-    DOM['deliverable-meta'].textContent = `${d.content.length} 字符`;
-    DOM['deliverable-body'].innerHTML = typeof renderAgentMarkdown === 'function'
-      ? renderAgentMarkdown(d.content)
-      : esc(d.content).replace(/\n/g, '<br>');
+
+    const taskName = (S.projects || []).find(p => p.id === projectId)?.title || '';
+    const baseHint = d.base === 'code_project'
+      ? `deliverables/${d.project_dir || taskId + '/'}`
+      : 'deliverables/*.md';
+    DOM['deliverable-title'].textContent = `交付物 · ${taskId}${taskName ? ' · ' + taskName : ''}`;
+    DOM['deliverable-meta'].textContent =
+      `${d.task_type || '任务'} · ${baseHint} · ${files.length} 个文件 · 左侧选文件预览`;
+
+    renderDeliverableFileList(files, '');
+
+    const defaultPath = primary.path || (files[0] && files[0].path) || '';
+    if (defaultPath) {
+      await loadDeliverableFile(projectId, taskId, defaultPath);
+    } else if (d.content) {
+      _deliverable.content = d.content;
+      setDeliverableActions(true);
+      renderDeliverablePreview(d.content, `${taskId}_deliverable.md`);
+    }
     panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   } catch (e) {
     DOM['deliverable-meta'].textContent = '加载失败：' + (e.message || e);
@@ -1130,7 +1549,10 @@ function downloadDeliverable() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${(_deliverable.taskId || 'deliverable').replace(/[^\w.\-]/g, '_')}.md`;
+  const ext = (_deliverable.activePath || '').includes('.')
+    ? _deliverable.activePath.split('.').pop()
+    : 'md';
+  a.download = `${(_deliverable.taskId || 'deliverable').replace(/[^\w.\-]/g, '_')}.${ext}`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -2002,10 +2424,21 @@ function closeCreateModal() {
   DOM['create-agent-modal'].classList.add('hidden');
 }
 
-function populateCreateForm() {
+async function populateCreateForm() {
+  let defBackend = 'opencode';
+  let defModel = '';
+  try {
+    const r = await fetch('/api/config');
+    const cfg = (await r.json()).config || {};
+    defBackend = cfg.system?.default_backend || defBackend;
+    defModel = cfg.system?.default_model || '';
+  } catch (_) { /* ignore */ }
+
   const bSel = DOM['cf-backend'];
-  bSel.innerHTML = S.backends.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
-  updateCreateModels(bSel.value);
+  bSel.innerHTML = S.backends.map(b =>
+    `<option value="${b.id}" ${b.id === defBackend ? 'selected' : ''}>${b.name}</option>`
+  ).join('');
+  updateCreateModels(bSel.value, defModel);
   bSel.onchange = () => updateCreateModels(bSel.value);
   DOM['cf-description'].oninput = () => {
     const desc = DOM['cf-description'].value.trim();
@@ -2013,10 +2446,12 @@ function populateCreateForm() {
   };
 }
 
-function updateCreateModels(backendId) {
+function updateCreateModels(backendId, selected) {
   const models = getBackendModels(backendId);
   const mSel = DOM['cf-model'];
-  mSel.innerHTML = models.map(m => `<option value="${m.id}" ${m.default?'selected':''}>${m.name}</option>`).join('');
+  mSel.innerHTML = models.map(m =>
+    `<option value="${m.id}" ${m.id === selected || (!selected && m.default) ? 'selected' : ''}>${m.name}</option>`
+  ).join('');
 }
 
 async function suggestId(desc) {
@@ -2096,13 +2531,23 @@ async function renderTaskTypes() {
     const items = (await r.json()).task_types || [];
     DOM['manage-tasktype-count'].textContent = items.length;
     if (!items.length) { box.innerHTML = '<div class="empty">暂无任务类型</div>'; return; }
-    box.innerHTML = `<table class="manage-table">
-      <thead><tr><th>类型</th><th>产出</th><th>必需章节</th><th>章节数</th></tr></thead>
-      <tbody>${items.map(t => `<tr>
-        <td><code>${esc(t.task_type)}</code></td>
-        <td>${esc(t.outcome_kind)}</td>
-        <td>${(t.required_sections || []).map(s => `<span class="chip">${esc(s)}</span>`).join(' ') || '—'}</td>
-        <td>${t.section_count}</td></tr>`).join('')}</tbody></table>`;
+    const kindLabel = { artifact: '文档', action: '动作证据', code_project: '代码工程' };
+    box.innerHTML = `<table class="manage-table tasktype-table">
+      <thead><tr><th>类型</th><th>产出形态</th><th>交付指引</th><th>门禁（客观）</th></tr></thead>
+      <tbody>${items.map(t => {
+        const kind = kindLabel[t.outcome_kind] || t.outcome_kind;
+        const guide = (t.sections || []).map(s =>
+          `<span class="chip" title="${esc(s.description || '')}">${esc(s.name)}</span>`
+        ).join(' ') || '—';
+        const gate = (t.gate_checks || []).map(s => `<span class="chip chip-gate">${esc(s)}</span>`).join(' ') || '—';
+        const structHint = (t.structure || []).length
+          ? `<div class="hint tasktype-struct">${(t.structure || []).map(esc).join(' · ')}</div>` : '';
+        return `<tr>
+          <td><code>${esc(t.task_type)}</code></td>
+          <td>${esc(kind)}</td>
+          <td>${guide}${structHint}</td>
+          <td>${gate}</td></tr>`;
+      }).join('')}</tbody></table>`;
   } catch(e) { box.innerHTML = `<div class="empty">加载失败：${esc(e.message)}</div>`; }
 }
 
@@ -2178,6 +2623,29 @@ async function saveManageModal() {
 }
 
 // ============ System Settings ============
+let _settingsCfg = {};
+
+const CLI_PATH_LABELS = {
+  opencode: 'OpenCode CLI 路径',
+  claude: 'Claude CLI 路径',
+};
+
+function updateSettingsCliPath(backendId) {
+  const label = DOM['set-cli-path-label'];
+  const hint = DOM['set-cli-path-hint'];
+  const input = DOM['set-cli-path'];
+  if (label) label.textContent = CLI_PATH_LABELS[backendId] || `${backendId} CLI 路径`;
+  if (input) {
+    input.value = _settingsCfg.backends?.[backendId]?.cli_path || '';
+    input.placeholder = backendId === 'claude' ? '留空则从 PATH 检测 claude' : '留空则自动检测';
+  }
+  if (hint) {
+    hint.textContent = backendId === 'opencode'
+      ? 'OpenCode 可执行文件；模型别名仅作用于 OpenCode'
+      : 'Claude Code 可执行文件；留空则依次尝试配置路径、CLAUDE_CLI_PATH、PATH';
+  }
+}
+
 async function loadSettings() {
   await loadBackends();
   try {
@@ -2186,6 +2654,7 @@ async function loadSettings() {
       fetch('/api/skill-config'),
     ]);
     const cfg = (await rSys.json()).config || {};
+    _settingsCfg = cfg;
     const skillCfg = (await rSkill.json()).config || {};
 
     const defBackend = cfg.system?.default_backend || 'opencode';
@@ -2196,10 +2665,13 @@ async function loadSettings() {
 
     const defModel = cfg.system?.default_model || '';
     updateDefaultModelSelect(defBackend, defModel);
-    bSel.onchange = () => updateDefaultModelSelect(bSel.value);
+    bSel.onchange = () => {
+      updateDefaultModelSelect(bSel.value);
+      updateSettingsCliPath(bSel.value);
+    };
+    updateSettingsCliPath(defBackend);
 
     DOM['set-port'].value = cfg.system?.port || 8765;
-    DOM['set-cli-path'].value = cfg.backends?.opencode?.cli_path || '';
     DOM['set-debug'].checked = !!cfg.system?.debug;
     DOM['set-price'].value = cfg.system?.price_per_mtok || '';
     DOM['set-default-review'].checked = !!cfg.system?.default_review;
@@ -2267,9 +2739,11 @@ async function saveSettings() {
     cfg.system.price_per_mtok = Number(DOM['set-price']?.value) || 0;
     cfg.system.default_review = !!DOM['set-default-review']?.checked;
     cfg.backends = cfg.backends || {};
-    cfg.backends.opencode = cfg.backends.opencode || {};
-    cfg.backends.opencode.model_aliases = aliases;
-    cfg.backends.opencode.cli_path = cliPath;
+    cfg.backends[backend] = cfg.backends[backend] || {};
+    cfg.backends[backend].cli_path = cliPath;
+    if (backend === 'opencode') {
+      cfg.backends.opencode.model_aliases = aliases;
+    }
 
     const allModels = getBackendModels(backend);
     cfg.models = cfg.models || {};
@@ -2318,6 +2792,7 @@ async function saveSettings() {
     ]);
     if (!rSys.ok || !rSkill.ok) throw new Error('保存失败');
     _sysCfg = null;
+    _settingsCfg = cfg;
     showSetStatus('✓ 已保存（端口变更需重启 Hub）', 'success');
   } catch(e) {
     showSetStatus('保存失败: '+e.message, 'error');
@@ -2681,7 +3156,6 @@ function setupEventListeners() {
     loadGroups();
     renderGroupList();
   });
-  DOM['trace-close']?.addEventListener('click', () => DOM['project-trace']?.classList.add('hidden'));
   DOM['group-modal-close']?.addEventListener('click', () => DOM['group-config-modal'].classList.add('hidden'));
   DOM['group-config-modal']?.querySelector('.modal-close')?.addEventListener('click', () => DOM['group-config-modal'].classList.add('hidden'));
 

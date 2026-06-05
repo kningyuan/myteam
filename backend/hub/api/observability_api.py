@@ -84,6 +84,16 @@ async def list_task_types():
     from common.registry import load_registry  # noqa: WPS433
     out = []
     for tt, spec in load_registry().items():
+        gate_checks = []
+        if spec.outcome_kind == "code_project":
+            gate_checks.append(f"≥{spec.min_project_files} 个文件")
+            if spec.require_code_file:
+                gate_checks.append("须含脚本/代码")
+            gate_checks.extend(spec.file_exists)
+        else:
+            gate_checks.extend(spec.required_sections)
+            gate_checks.extend(spec.file_exists)
+
         out.append({
             "task_type": tt,
             "outcome_kind": spec.outcome_kind,
@@ -92,6 +102,15 @@ async def list_task_types():
             "stub_floor": spec.stub_floor,
             "acceptance_criteria": spec.acceptance_criteria,
             "section_count": len(spec.sections),
+            "sections": [
+                {"name": s.get("name", ""), "description": s.get("description", "")}
+                for s in spec.sections if isinstance(s, dict)
+            ],
+            "structure": spec.structure,
+            "file_exists": spec.file_exists,
+            "min_project_files": spec.min_project_files,
+            "require_code_file": spec.require_code_file,
+            "gate_checks": gate_checks,
         })
     out.sort(key=lambda x: x["task_type"])
     return {"task_types": out}

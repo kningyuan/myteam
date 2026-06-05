@@ -22,6 +22,7 @@ from common.paths import (
     response_dir,
     workspace_dir,
 )
+from common.project_artifacts import is_code_project_task, task_project_dir
 from common.registry import get_spec, load_registry
 
 # 决策类 kind 的 result 具体骨架（弱模型靠 response_schema 名字猜不出结构，须给样例，D11）。
@@ -96,25 +97,66 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
 
     if kind == "execute":
         rel = (req.input or {}).get("deliverable_path", f"{req.task_id}_deliverable.md")
-        abs_dv = deliv_dir / rel
+        base = (req.input or {}).get("deliverable_base")
+        abs_dv = (Path(base) / rel) if base else (deliv_dir / rel)
         task_type = (req.constraints or {}).get("task_type", "")
         spec = get_spec(task_type) if task_type else None
-        lines.append(f"请完成任务并把交付物写入文件：{abs_dv}")
-        if spec and spec.required_sections:
-            lines.append(f"交付物须为 Markdown，包含 {spec.required_heading_level} 级标题章节：")
-            for s in spec.required_sections:
-                lines.append(f"  - {s}")
-        if spec and spec.outcome_kind == "action":
+        if spec and spec.outcome_kind == "code_project":
+            proj = task_project_dir(req.project_id, req.task_id)
+            lines.append("【交付物形态】代码工程目录（不是单篇说明文档）")
+            lines.append(f"工程根目录（必须把所有产出写入此目录）：{proj}")
+            if spec.structure:
+                lines.append("【目录结构要求】")
+                for row in spec.structure:
+                    lines.append(f"  - {row}")
+            if spec.sections:
+                lines.append("【应包含的产出（每项须有对应实体文件）】")
+                for sec in spec.sections:
+                    if not isinstance(sec, dict):
+                        continue
+                    name = sec.get("name", "")
+                    desc = sec.get("description", "")
+                    ex = sec.get("example", "")
+                    if name:
+                        lines.append(f"  - {name}：{desc or '见示例'}")
+                    if ex:
+                        lines.append(f"    示例：{ex}")
+            if spec.file_exists:
+                lines.append("【门禁必选文件】")
+                for f in spec.file_exists:
+                    lines.append(f"  - {f}")
+            lines.append(f"- submit_result 中 artifact.path 填 \"{req.task_id}/\"，artifact.format 填 \"code_project\"")
+        elif spec and spec.outcome_kind == "action":
+            lines.append(f"请完成任务并把交付物写入文件：{abs_dv}")
             lines.append("这是动作型任务：必须真实执行动作并在交付物中记录【已发布URL】与【证据截图】路径。")
-        outcome_hint = (
-            '{"kind":"artifact","artifact":{"path":"%s","format":"markdown","title":"..."}}' % rel
-        )
+        else:
+            lines.append(f"请完成任务并把交付物写入文件：{abs_dv}")
+            if spec and spec.required_sections:
+                lines.append(f"交付物须为 Markdown，包含 {spec.required_heading_level} 级标题章节：")
+                for s in spec.required_sections:
+                    lines.append(f"  - {s}")
+        if spec and spec.outcome_kind == "code_project":
+            outcome_hint = (
+                '{"kind":"artifact","artifact":{"path":"%s/","format":"code_project","title":"..."}}'
+                % req.task_id
+            )
+        else:
+            outcome_hint = (
+                '{"kind":"artifact","artifact":{"path":"%s","format":"markdown","title":"..."}}' % rel
+            )
         result_hint = '"result": {"outcome": %s}' % outcome_hint
     elif kind == "review":
         rel = (req.input or {}).get("deliverable_path", f"{req.task_id}_deliverable.md")
-        abs_dv = deliv_dir / rel
+        base = (req.input or {}).get("deliverable_base")
+        abs_dv = (Path(base) / rel) if base else (deliv_dir / rel)
         criteria = (req.input or {}).get("acceptance_criteria") or []
-        lines.append(f"请打开并通读交付物文件：{abs_dv}")
+        task_type = (req.constraints or {}).get("task_type", "")
+        if is_code_project_task(task_type):
+            proj = Path(base) if base else (deliv_dir / req.task_id)
+            lines.append(f"请通读代码工程目录内全部相关文件：{proj}")
+            lines.append("（脚本、README、测试用例/记录/报告、output/ 产出等均在此目录）")
+        else:
+            lines.append(f"请打开并通读交付物文件：{abs_dv}")
         if criteria:
             lines.append("逐条对照以下验收标准评审：")
             for c in criteria:
@@ -175,16 +217,23 @@ class AdapterTransport:
                  session_resolver: Optional[Callable[[str], Optional[str]]] = None):
         self._adapter = adapter
         self._backend = backend
+        self._adapter_cache: dict[str, object] = {}
         self._agents_config = agents_config
         self.rules_file = rules_file
         self._request_factory = request_factory or _default_request_factory
         self.prompt_builder = prompt_builder
         self.session_resolver = session_resolver
 
-    def _adapter_obj(self):
-        if self._adapter is None:
-            self._adapter = _default_adapter(self._backend)
-        return self._adapter
+    def _backend_for(self, agent_id: str) -> str:
+        return (self._config().get(agent_id, {}) or {}).get("backend") or self._backend
+
+    def _adapter_obj(self, agent_id: str):
+        if self._adapter is not None:
+            return self._adapter
+        backend = self._backend_for(agent_id)
+        if backend not in self._adapter_cache:
+            self._adapter_cache[backend] = _default_adapter(backend)
+        return self._adapter_cache[backend]
 
     def _config(self) -> dict:
         if self._agents_config is None:
@@ -198,7 +247,10 @@ class AdapterTransport:
         req = ctx.request
         ws = str(workspace_dir(req.agent_id))
         resp_path = response_dir(req.agent_id) / f"{req.interaction_id}.response"
-        deliv_dir = deliverables_dir(req.project_id)
+        if (req.input or {}).get("deliverable_base"):
+            deliv_dir = Path((req.input or {})["deliverable_base"])
+        else:
+            deliv_dir = deliverables_dir(req.project_id)
         prompt = self.prompt_builder(req, resp_path, deliv_dir)
         session_id = self.session_resolver(req.agent_id) if self.session_resolver else None
 
@@ -208,7 +260,7 @@ class AdapterTransport:
             agent_id=req.agent_id, cancel_event=ctx.cancel_event,
         )
 
-        for ev in self._adapter_obj().run(run_req):
+        for ev in self._adapter_obj(req.agent_id).run(run_req):
             kind = getattr(ev.kind, "value", ev.kind)
             data = dict(getattr(ev, "data", {}) or {})
             ctx.emit(str(kind), data)

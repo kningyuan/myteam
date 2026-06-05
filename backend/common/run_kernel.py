@@ -27,14 +27,23 @@ from common.process import Process, ProcessConfig, ProjectOutcome
 from common.store import Store
 
 
+def _system_default_backend() -> str:
+    try:
+        from store.system_config import system_config
+        return system_config.get("system", "default_backend", default="opencode")
+    except Exception:
+        return "opencode"
+
+
 def run_project(project_id: str, *, goal: str = "", title: str = "",
                 mode: str = "one_shot", token_budget: Optional[int] = None,
                 max_cycles: int = 3, review: bool = False, split: bool = False,
-                backend: str = "opencode",
+                backend: Optional[str] = None,
                 store: Optional[Store] = None, transport=None,
                 watchdog: Optional[WatchdogConfig] = None,
                 config: Optional[ProcessConfig] = None) -> ProjectOutcome:
-    """组装并运行新内核。transport/bbackend 缺省用真实 opencode（惰性导入，便于无依赖单测注入）。"""
+    """组装并运行新内核。transport 按各 agent 的 agents_config.backend 选择 CLI（缺省读系统默认）。"""
+    backend = backend or _system_default_backend()
     store = store or Store()
     reconcile_on_start(store)  # 启动对账 GC（D8）：清理上次残留的 pending/running
     if transport is None:
@@ -47,6 +56,42 @@ def run_project(project_id: str, *, goal: str = "", title: str = "",
                                            split_enabled=split,
                                            default_backend=backend))
     return proc.run(project_id, title=title, goal=goal)
+
+
+def resume_project(project_id: str, *,
+                   store: Optional[Store] = None, transport=None,
+                   watchdog: Optional[WatchdogConfig] = None,
+                   config: Optional[ProcessConfig] = None,
+                   backend: Optional[str] = None) -> ProjectOutcome:
+    """断点续跑 in_progress 项目：回收孤儿响应后继续 DAG（D8）。"""
+    backend = backend or _system_default_backend()
+    store = store or Store()
+    reconcile_on_start(store)
+    if transport is None:
+        from common.agent_transport import AdapterTransport
+        transport = AdapterTransport(backend=backend)
+    port = AgentPort(transport, store=store, config=watchdog or WatchdogConfig())
+    proc = Process(store, port,
+                   config or ProcessConfig(default_backend=backend))
+    return proc.resume(project_id)
+
+
+def resume_in_progress_projects(*, store: Optional[Store] = None,
+                                backend: Optional[str] = None) -> list[str]:
+    """Hub 启动时自动续跑所有 in_progress / paused 项目。返回已续跑的 project_id 列表。"""
+    store = store or Store()
+    reconcile_on_start(store)
+    resumed: list[str] = []
+    for proj in store.list_projects():
+        pid = proj["project_id"]
+        if proj.get("status") not in ("in_progress", "paused"):
+            continue
+        try:
+            resume_project(pid, store=store, backend=backend)
+            resumed.append(pid)
+        except Exception:
+            continue
+    return resumed
 
 
 def main(argv: Optional[list[str]] = None) -> int:
