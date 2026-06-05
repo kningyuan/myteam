@@ -1339,8 +1339,10 @@ function renderDeliverableTaskNav(projectId, activeTaskId, tasks) {
   nav.classList.remove('hidden');
   nav.innerHTML = tasks.map(t => {
     const active = t.id === activeTaskId ? ' active' : '';
-    const label = t.name && t.name !== t.id ? `${t.id} · ${esc(t.name)}` : esc(t.id);
-    return `<button type="button" class="task-chip${active}" data-task="${esc(t.id)}">${label}</button>`;
+    const name = t.name && t.name !== t.id
+      ? `<span class="task-chip-name" title="${esc(t.name)}">${esc(t.name)}</span>` : '';
+    return `<button type="button" class="task-chip${active}" data-task="${esc(t.id)}">` +
+      `<span class="task-chip-id">${esc(t.id)}</span>${name}</button>`;
   }).join('');
   nav.querySelectorAll('.task-chip').forEach(btn => {
     btn.addEventListener('click', () => {
