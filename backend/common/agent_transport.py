@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 from typing import Callable, Optional
 
+from common.audit_log import audit_enabled, clip_text
 from common.paths import (
     BUSINESS_CONFIG_DIR,
     MYTEAM_ROOT,
@@ -236,9 +237,10 @@ class AdapterTransport:
         return self._adapter_cache[backend]
 
     def _config(self) -> dict:
-        if self._agents_config is None:
-            self._agents_config = _load_agents_config()
-        return self._agents_config
+        # 未注入固定配置时每次从磁盘读取，便于运行中改模型/backend 后下一交互生效。
+        if self._agents_config is not None:
+            return self._agents_config
+        return _load_agents_config()
 
     def _model(self, agent_id: str) -> str:
         return (self._config().get(agent_id, {}) or {}).get("model", "")
@@ -252,6 +254,13 @@ class AdapterTransport:
         else:
             deliv_dir = deliverables_dir(req.project_id)
         prompt = self.prompt_builder(req, resp_path, deliv_dir)
+        if audit_enabled():
+            ctx.emit("prompt_sent", {
+                "agent_id": req.agent_id,
+                "model": self._model(req.agent_id),
+                "prompt_len": len(prompt),
+                "prompt": clip_text(prompt),
+            })
         session_id = self.session_resolver(req.agent_id) if self.session_resolver else None
 
         run_req = self._request_factory(

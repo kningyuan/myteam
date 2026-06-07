@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
 
+from common.audit_log import audit_enabled, clip_json
 from common.contracts import InteractionRequest, parse_request, validate_response_dict
 from common.paths import response_dir, trigger_dir
 from common.store import Store
@@ -117,8 +118,14 @@ class AgentPort:
         )
 
         # 写请求文件（原子）
-        _atomic_write_json(json.loads(req.model_dump_json()), req_path)
+        req_dict = json.loads(req.model_dump_json())
+        _atomic_write_json(req_dict, req_path)
         req_mtime = req_path.stat().st_mtime
+        if audit_enabled():
+            self.store.append_run_event(iid, "request_snapshot", {
+                "request": clip_json(req_dict),
+                "request_path": str(req_path),
+            })
 
         # 事件队列 + 传输线程（事件在子线程产生，store 写入只在本线程，避免跨线程 sqlite）
         q: "queue.Queue[tuple[str, Optional[dict]]]" = queue.Queue()
@@ -175,10 +182,14 @@ class AgentPort:
                 ctx._cancel.set()
                 self.store.append_run_event(iid, "watchdog_hard_kill", {"idle_sec": round(idle, 1)})
                 self.store.update_interaction(iid, status="timed_out")
+                agent_label = self._interaction_agent_label(iid)
+                print(f"  ✖ agent「{agent_label}」无响应超过 {cfg.hard_idle_sec:.0f}s，将终止并重试")
                 return AgentPortResult("timed_out", None, iid, attempt, "hard_idle 看门狗取消")
             if idle >= cfg.soft_idle_sec and not soft_warned:
                 soft_warned = True
                 self.store.append_run_event(iid, "watchdog_soft_idle", {"idle_sec": round(idle, 1)})
+                agent_label = self._interaction_agent_label(iid)
+                print(f"  ⚠ agent「{agent_label}」已 {idle:.0f}s 无响应（阈值 {cfg.soft_idle_sec:.0f}s），仍在等待...")
 
             time.sleep(cfg.poll_interval)
 
@@ -189,6 +200,12 @@ class AgentPort:
             self.transport(ctx)
         except Exception as e:  # 传输异常归一为一个事件，主循环据此收尾
             q.put(("transport_error", {"error": str(e)}))
+
+    def _interaction_agent_label(self, iid: str) -> str:
+        inter = self.store.get_interaction(iid)
+        if inter:
+            return inter.get("agent_id", "?")
+        return "?"
 
     def _drain(self, q: "queue.Queue", iid: str) -> tuple[bool, int]:
         """排空事件入库；返回 (是否有事件, 本次见到的最大 step_finish 累计 token)。
@@ -205,7 +222,10 @@ class AgentPort:
             self.store.append_run_event(iid, kind, payload)
             drained = True
             if kind in ("step_finish", "step-finish") and isinstance(payload, dict):
-                tokens = max(tokens, _extract_tokens(payload))
+                t = _extract_tokens(payload)
+                tokens = max(tokens, t)
+                if t > 0:
+                    self.store.bump_interaction_tokens(iid, t)
         return drained, tokens
 
     def _read_valid_response(self, resp_path: Path, iid: str, req_mtime: float) -> Optional[dict]:
@@ -285,10 +305,35 @@ def finalize_interaction(store: Store, interaction_id: str, resp_path: Path, res
     meta = resp.get("meta") or {}
     meta_tokens = meta.get("tokens") if isinstance(meta, dict) else None
     tokens = event_tokens if event_tokens > 0 else (
-        meta_tokens if isinstance(meta_tokens, int) else None)
+        meta_tokens if isinstance(meta_tokens, int) else 0)
+    if tokens > 0:
+        store.bump_interaction_tokens(interaction_id, tokens)
     store.update_interaction(
-        interaction_id, status="done", response_ref=str(resp_path), tokens=tokens,
+        interaction_id, status="done", response_ref=str(resp_path),
     )
+    if audit_enabled():
+        store.append_run_event(interaction_id, "response_snapshot", {
+            "response": clip_json(resp),
+            "response_path": str(resp_path),
+        })
+
+
+def _reconcile_rows(store: Store, rows, *, adopted_kind: str, timed_out_kind: str,
+                    adopted_reason: str, timed_out_reason: str) -> dict[str, int]:
+    adopted = timed_out = 0
+    for r in rows:
+        iid = r["interaction_id"]
+        agent = r["agent_id"] or ""
+        resp, resp_path = read_adoptable_response(agent, iid)
+        if resp is not None and resp_path is not None:
+            finalize_interaction(store, iid, resp_path, resp)
+            store.append_run_event(iid, adopted_kind, {"reason": adopted_reason})
+            adopted += 1
+        else:
+            store.update_interaction(iid, status="timed_out")
+            store.append_run_event(iid, timed_out_kind, {"reason": timed_out_reason})
+            timed_out += 1
+    return {"adopted": adopted, "timed_out": timed_out}
 
 
 def reconcile_on_start(store: Optional[Store] = None) -> dict[str, int]:
@@ -298,17 +343,8 @@ def reconcile_on_start(store: Optional[Store] = None) -> dict[str, int]:
         """SELECT interaction_id, agent_id FROM interaction
            WHERE status IN ('pending','running')"""
     ).fetchall()
-    adopted = timed_out = 0
-    for r in rows:
-        iid = r["interaction_id"]
-        agent = r["agent_id"] or ""
-        resp, resp_path = read_adoptable_response(agent, iid)
-        if resp is not None and resp_path is not None:
-            finalize_interaction(store, iid, resp_path, resp)
-            store.append_run_event(iid, "reconcile_adopted", {"reason": "磁盘响应回收"})
-            adopted += 1
-        else:
-            store.update_interaction(iid, status="timed_out")
-            store.append_run_event(iid, "reconcile_timed_out", {"reason": "进程重启对账"})
-            timed_out += 1
-    return {"adopted": adopted, "timed_out": timed_out}
+    return _reconcile_rows(
+        store, rows,
+        adopted_kind="reconcile_adopted", timed_out_kind="reconcile_timed_out",
+        adopted_reason="磁盘响应回收", timed_out_reason="进程重启对账",
+    )

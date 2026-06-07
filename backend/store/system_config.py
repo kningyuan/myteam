@@ -14,6 +14,8 @@ DEFAULT_CONFIG = {
         "debug": False,
         "price_per_mtok": 0,
         "default_review": False,
+        "audit_log": False,
+        "audit_log_max_bytes": 500000,
     },
     "backends": {
         "opencode": {

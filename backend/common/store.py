@@ -144,6 +144,46 @@ CREATE INDEX IF NOT EXISTS idx_interaction_task ON interaction(project_id, task_
 CREATE INDEX IF NOT EXISTS idx_run_event_iid ON run_event(interaction_id, seq);
 CREATE INDEX IF NOT EXISTS idx_memory_project ON memory(project_id);
 CREATE INDEX IF NOT EXISTS idx_message_conv ON message(conversation_id, seq);
+
+CREATE TABLE IF NOT EXISTS workspace_event (
+    id              TEXT PRIMARY KEY,
+    type            TEXT NOT NULL,
+    source          TEXT NOT NULL,
+    target          TEXT DEFAULT '',
+    payload         TEXT NOT NULL DEFAULT '{}',
+    metadata        TEXT NOT NULL DEFAULT '{}',
+    visibility      TEXT NOT NULL DEFAULT 'project',
+    timestamp       TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_we_project ON workspace_event(json_extract(metadata, '$.project_id'));
+CREATE INDEX IF NOT EXISTS idx_we_type ON workspace_event(type);
+
+CREATE TABLE IF NOT EXISTS projection_state (
+    key             TEXT PRIMARY KEY,
+    value           TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS agent_runtime (
+    agent_id        TEXT PRIMARY KEY,
+    status          TEXT NOT NULL DEFAULT 'offline',
+    last_seen       TEXT,
+    current_task    TEXT DEFAULT '',
+    current_project TEXT DEFAULT '',
+    backend         TEXT DEFAULT '',
+    model           TEXT DEFAULT '',
+    workspace_ok    INTEGER DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS job (
+    job_id          TEXT PRIMARY KEY,
+    project_id      TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'pending',
+    pid             INTEGER,
+    started_at      TEXT,
+    updated_at      TEXT,
+    cancel_requested INTEGER DEFAULT 0,
+    error           TEXT
+);
 """
 
 
@@ -351,6 +391,16 @@ class Store:
                 f"UPDATE interaction SET {', '.join(sets)} WHERE interaction_id=?", vals
             )
 
+    def bump_interaction_tokens(self, interaction_id: str, tokens: int) -> None:
+        """CLI step_finish 报会话累计 token；取 MAX 写入，避免与 finalize 重复累加。"""
+        if tokens <= 0:
+            return
+        with self._conn:
+            self._conn.execute(
+                "UPDATE interaction SET tokens=MAX(COALESCE(tokens,0), ?) WHERE interaction_id=?",
+                (tokens, interaction_id),
+            )
+
     def get_interaction(self, interaction_id: str) -> Optional[dict]:
         row = self._conn.execute(
             "SELECT * FROM interaction WHERE interaction_id=?", (interaction_id,)
@@ -426,6 +476,133 @@ class Store:
             "task_id": r["task_id"] or "", "agent_id": r["agent_id"] or "",
             "interaction_kind": r["interaction_kind"] or "",
         } for r in rows]
+
+    # ── 投影轮询（R2-1a）──────────────
+
+    # ── Job（R2-3）──────────────
+
+    def create_job(self, project_id: str, pid: int = 0) -> str:
+        job_id = f"job_{int(time.time())}_{project_id[:8]}"
+        with self._conn:
+            self._conn.execute(
+                "INSERT INTO job (job_id, project_id, status, pid, started_at, updated_at) "
+                "VALUES (?,?,?,?,?,?)",
+                (job_id, project_id, "running", pid, _now(), _now())
+            )
+        return job_id
+
+    def update_job_status(self, job_id: str, status: str, error: str = ""):
+        self._conn.execute(
+            "UPDATE job SET status=?, updated_at=?, error=? WHERE job_id=?",
+            (status, _now(), error, job_id)
+        )
+        self._conn.commit()
+
+    def get_latest_job(self, project_id: str):
+        row = self._conn.execute(
+            "SELECT * FROM job WHERE project_id=? ORDER BY rowid DESC LIMIT 1",
+            (project_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def list_jobs(self, status: str = "") -> list[dict]:
+        sql = "SELECT * FROM job"
+        params = []
+        if status:
+            sql += " WHERE status=?"
+            params.append(status)
+        sql += " ORDER BY updated_at DESC"
+        return [dict(r) for r in self._conn.execute(sql, params).fetchall()]
+
+    def cancel_job_request(self, project_id: str) -> bool:
+        self._conn.execute(
+            "UPDATE job SET cancel_requested=1, updated_at=? WHERE project_id=?",
+            (_now(), project_id)
+        )
+        self._conn.commit()
+        return True
+
+    # ── Agent Runtime（R2-3）──────────────
+
+    def upsert_agent_runtime(self, agent_id: str, **kw):
+        cols = ", ".join(kw.keys())
+        vals = ", ".join("?" for _ in kw)
+        self._conn.execute(
+            f"INSERT OR REPLACE INTO agent_runtime (agent_id, {cols}) "
+            f"VALUES (?, {vals})",
+            (agent_id, *kw.values())
+        )
+        self._conn.commit()
+
+    def get_agent_runtime(self, agent_id: str):
+        row = self._conn.execute(
+            "SELECT * FROM agent_runtime WHERE agent_id=?", (agent_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def list_agent_runtimes(self) -> list[dict]:
+        return [dict(r) for r in self._conn.execute(
+            "SELECT * FROM agent_runtime ORDER BY agent_id"
+        ).fetchall()]
+
+    # ── 投影轮询（R2-1a）──────────────
+
+    def list_run_events_since(self, after_id: int = 0, limit: int = 200) -> list[dict]:
+        """读取 run_event 表中 id > after_id 的行，按 id 升序。投影器轮询用。"""
+        rows = self._conn.execute(
+            "SELECT * FROM run_event WHERE id > ? ORDER BY id LIMIT ?",
+            (after_id, limit)
+        ).fetchall()
+        return [self._row(r) for r in rows]
+
+    def get_projection_checkpoint(self) -> int:
+        row = self._conn.execute(
+            "SELECT value FROM projection_state WHERE key='run_event_last_id'"
+        ).fetchone()
+        return int(row["value"]) if row else 0
+
+    def set_projection_checkpoint(self, last_id: int):
+        self._conn.execute(
+            "REPLACE INTO projection_state (key, value) VALUES ('run_event_last_id', ?)",
+            (str(last_id),)
+        )
+        self._conn.commit()
+
+    # ── WorkspaceEvent（R2-1）──────────────
+
+    def append_workspace_event(self, event: dict) -> str:
+        """写入一条 WorkspaceEvent。返回 event id。"""
+        eid = event.get("id") or f"evt_{int(time.time())}_{hash(json.dumps(event, sort_keys=True)) % 10000:04d}"
+        def _json(v):
+            return _dumps(v) if isinstance(v, (dict, list)) else (v or "{}")
+        with self._conn:
+            self._conn.execute(
+                "INSERT INTO workspace_event (id, type, source, target, payload, metadata, visibility, timestamp) "
+                "VALUES (?,?,?,?,?,?,?,?)",
+                (eid, event["type"], event["source"], event.get("target", ""),
+                 _json(event.get("payload")), _json(event.get("metadata")),
+                 event.get("visibility", "project"), event.get("timestamp", _now()))
+            )
+        return eid
+
+    def list_workspace_events(self, project_id: str = None, type: str = None,
+                              limit: int = 50, before: str = None) -> list[dict]:
+        """查询 WorkspaceEvent。支持按 project_id / type 过滤。"""
+        sql = "SELECT * FROM workspace_event WHERE 1=1"
+        params = []
+        if project_id:
+            sql += " AND json_extract(metadata, '$.project_id') = ?"
+            params.append(project_id)
+        if type:
+            sql += " AND type = ?"
+            params.append(type)
+        if before:
+            sql += " AND timestamp < ?"
+            params.append(before)
+        sql += " ORDER BY timestamp DESC, id DESC LIMIT ?"
+        params.append(limit)
+        rows = self._conn.execute(sql, params).fetchall()
+        return [self._row(r) for r in rows]
 
     # ── memory（KB SQLite 默认后端，详见 Phase 6）──────────────
 

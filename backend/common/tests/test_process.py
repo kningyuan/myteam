@@ -565,6 +565,13 @@ def test_check_plan_unregistered_task_type():
     assert "注册表" in r.feedback
 
 
+def test_check_plan_agent_task_type_mismatch():
+    r = check_plan([_task("a", agent="researcher", task_type="code-writing")], {"researcher"})
+    assert not r.passed
+    assert "code-writing" in r.feedback
+    assert "researcher" in r.feedback
+
+
 def test_check_plan_dangling_dependency():
     r = check_plan([_task("a", deps=["nonexistent"])], {"researcher"})
     assert not r.passed
@@ -610,11 +617,11 @@ def _single_plan(req, rp, tid="t1"):
 
 def test_normalize_and_splice_units():
     """归一（前缀/回填/兄弟依赖）与依赖重接的纯逻辑单测（不依赖 store/port）。"""
-    proc = Process(None, None, ProcessConfig())
+    from common.plan_splice import normalize_subtasks, splice_subtasks
     parent = {"id": "t1", "agent": "researcher", "task_type": "research", "dependencies": ["up"]}
     raw = [{"id": "a", "name": "A", "description": "x", "dependencies": []},
            {"id": "b", "name": "B", "description": "y", "dependencies": ["a"]}]
-    subs = proc._normalize_subtasks(raw, parent)
+    subs = normalize_subtasks(raw, parent)
     assert [s["id"] for s in subs] == ["t1.a", "t1.b"]                 # 加父前缀
     assert all(s["agent"] == "researcher" and s["task_type"] == "research" for s in subs)  # 回填父值
     assert subs[1]["dependencies"] == ["t1.a"]                          # 兄弟依赖也加前缀
@@ -622,7 +629,7 @@ def test_normalize_and_splice_units():
     result = {"t1": parent,
               "down": {"id": "down", "dependencies": ["t1"]},
               "up": {"id": "up", "dependencies": []}}
-    proc._splice(result, parent, subs)
+    splice_subtasks(result, parent, subs)
     assert "t1" not in result                                          # 父被替换
     assert result["t1.a"]["dependencies"] == ["up"]                    # 入口继承父上游
     assert result["t1.b"]["dependencies"] == ["t1.a"]                  # 非入口保持兄弟依赖
@@ -835,9 +842,9 @@ def test_recurring_split_uses_distinct_ids_across_cycles(env):
 
 def test_auto_create_agent_direct(tmp_path, monkeypatch):
     """_auto_create_agent 直接测试：创建 workspace + 身份文件 + 配置 + 注册表。"""
-    monkeypatch.setattr(process_mod, "WORKSPACES_DIR", tmp_path / "workspaces")
-    monkeypatch.setattr(process_mod, "AGENTS_CONFIG_FILE", tmp_path / "agents_config.json")
-    monkeypatch.setattr(process_mod, "AGENTS_REGISTRY_FILE", tmp_path / "agents_registry.json")
+    monkeypatch.setattr(paths, "WORKSPACES_DIR", tmp_path / "workspaces")
+    monkeypatch.setattr(paths, "AGENTS_CONFIG_FILE", tmp_path / "agents_config.json")
+    monkeypatch.setattr(paths, "AGENTS_REGISTRY_FILE", tmp_path / "agents_registry.json")
 
     ok = _auto_create_agent("test_dev", name="测试开发者", role="developer",
                             description="auto-created dev agent",
@@ -869,7 +876,7 @@ def test_auto_create_agent_direct(tmp_path, monkeypatch):
 
 def test_auto_create_agent_already_exists(tmp_path, monkeypatch):
     """已存在的 agent 不应重复创建。"""
-    monkeypatch.setattr(process_mod, "WORKSPACES_DIR", tmp_path / "workspaces")
+    monkeypatch.setattr(paths, "WORKSPACES_DIR", tmp_path / "workspaces")
     ws_dir = tmp_path / "workspaces" / "workspace-existing"
     ws_dir.mkdir(parents=True)
     marker = ws_dir / "MARKER"
@@ -887,10 +894,6 @@ def test_auto_create_agent_works_in_full_team_config(tmp_path, monkeypatch):
     monkeypatch.setattr(paths, "AGENTS_CONFIG_FILE", tmp_path / "agents_config.json")
     monkeypatch.setattr(paths, "AGENTS_REGISTRY_FILE", tmp_path / "agents_registry.json")
     monkeypatch.setattr(paths, "WORKSPACE_PREFIX", "workspace-")
-    # _auto_create_agent 使用了 process 模块级导入的副本
-    monkeypatch.setattr(process_mod, "WORKSPACES_DIR", tmp_path / "workspaces")
-    monkeypatch.setattr(process_mod, "AGENTS_CONFIG_FILE", tmp_path / "agents_config.json")
-    monkeypatch.setattr(process_mod, "AGENTS_REGISTRY_FILE", tmp_path / "agents_registry.json")
 
     # 预创建 main agent workspace（auto-create 不会为 main 做，但 team_config 交互需要）
     main_ws = tmp_path / "workspaces" / "workspace-main"

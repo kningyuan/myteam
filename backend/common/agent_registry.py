@@ -46,8 +46,13 @@ def format_registry_for_prompt(*, workers_only: bool = False) -> str:
             continue
         name = info.get("name", aid)
         desc = info.get("description", "")
-        caps = "、".join(info.get("capabilities") or [])[:100]
-        lines.append(f"- {aid}（{name}）：{desc}；擅长：{caps}")
+        caps = "、".join(info.get("capabilities") or [])[:80]
+        tts = "、".join(info.get("task_types") or [])
+        bound = (info.get("boundaries") or "")[:120]
+        extra = f"；可执行 task_type：{tts}" if tts else ""
+        if bound:
+            extra += f"；边界：{bound}"
+        lines.append(f"- {aid}（{name}）：{desc}；擅长：{caps}{extra}")
     if not workers_only:
         lines.append("")
         lines.append("说明：main 为协调者，通常不必放入 agents 列表；deputy 用于持续项目轮次评审。")
@@ -58,3 +63,15 @@ def validate_agent_ids(agent_ids: list[str]) -> tuple[bool, list[str]]:
     available = set(list_available_agent_ids())
     bad = [a for a in agent_ids if a not in available]
     return len(bad) == 0, bad
+
+
+def get_agent_task_types(agent_id: str) -> list[str]:
+    """注册表中声明的 task_type 列表；未配置或未知 agent 返回空列表。"""
+    info = (_load_registry().get("agents") or {}).get(agent_id) or {}
+    return list(info.get("task_types") or [])
+
+
+def agent_task_type_map() -> dict[str, list[str]]:
+    """agent_id → task_types（仅静态注册表，不含 filesystem 扫描）。"""
+    raw = _load_registry().get("agents") or {}
+    return {aid: list(info.get("task_types") or []) for aid, info in raw.items()}

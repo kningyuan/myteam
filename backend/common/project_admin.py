@@ -9,8 +9,9 @@ from __future__ import annotations
 import shutil
 from typing import Optional
 
-from common.paths import project_dir, response_dir, trigger_dir
+from common.paths import project_dir
 from common.store import Store
+from common.workspace_gc import remove_interaction_files, remove_legacy_task_files
 
 
 def delete_project(project_id: str, store: Optional[Store] = None) -> dict:
@@ -29,11 +30,11 @@ def delete_project(project_id: str, store: Optional[Store] = None) -> dict:
         iid = it["interaction_id"]
         if not agent:
             continue
-        for p in (trigger_dir(agent) / f"{iid}.request",
-                  response_dir(agent) / f"{iid}.response"):
-            if p.exists():
-                p.unlink()
-                files_removed += 1
+        files_removed += remove_interaction_files(agent, iid)
+
+    agents = {it.get("agent_id") for it in interactions if it.get("agent_id")}
+    for agent in agents:
+        files_removed += remove_legacy_task_files(agent, project_id)
 
     pdir = project_dir(project_id)
     pdir_removed = pdir.exists()

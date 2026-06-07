@@ -6,6 +6,7 @@ Process（单内核）→ AgentPort（串行/看门狗/计量）→ AdapterTrans
 
 证明七层抽象可组合跑通一个 DAG 项目，不依赖真实 opencode。
 """
+import json
 import sys
 import types
 from pathlib import Path
@@ -15,6 +16,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import common.paths as paths  # noqa: E402
+import common.agent_registry as agent_registry_mod  # noqa: E402
 from common.agent_port import AgentPort, WatchdogConfig  # noqa: E402
 from common.observability import cost, project_overview  # noqa: E402
 from common.agent_transport import AdapterTransport  # noqa: E402
@@ -68,6 +70,15 @@ def _line_after(s, marker):
 def env(tmp_path, monkeypatch):
     monkeypatch.setattr(paths, "WORKSPACES_DIR", tmp_path / "workspaces")
     monkeypatch.setattr(paths, "PROJECTS_DIR", tmp_path / "project")
+    reg_path = tmp_path / "agents_registry.json"
+    reg_path.write_text(json.dumps({
+        "version": "2.0",
+        "agents": {
+            "researcher": {"task_types": ["research"]},
+            "seo": {"task_types": ["research", "seo-plan"]},
+        },
+    }, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setattr(agent_registry_mod, "REGISTRY_FILE", reg_path)
     store = Store(tmp_path / "state.db")
     wcfg = WatchdogConfig(soft_idle_sec=5, hard_idle_sec=10, poll_interval=0.02, max_attempts=1)
     yield store, wcfg

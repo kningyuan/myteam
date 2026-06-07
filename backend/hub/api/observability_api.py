@@ -168,24 +168,45 @@ async def project_events(project_id: str):
 
 
 def _project_signature(project_id: str) -> tuple[str, str | None]:
-    """计算项目变更签名（状态 + 进度 + 各任务状态 + token），用于 SSE 去抖。"""
+    """计算项目变更签名（状态 + 进度 + 任务 + token + 执行事件），用于 SSE 去抖。"""
     store = _store()
     try:
         ov = _obs().project_overview(store, project_id)
+        ev = _obs().project_events(store, project_id)
+        status = ov.get("status")
+        ev_fp = [
+            (e.get("ts"), e.get("category"), e.get("kind"), e.get("interaction_id"),
+             e.get("status"), e.get("attempt"))
+            for e in ev
+        ]
+        # 运行中 interaction 的时间线尾部：text/step 等不进 project_events，但需触发 SSE 刷新钻取视图
+        tl_fp = []
+        for i in store.list_interactions(project_id):
+            iid = i.get("interaction_id")
+            if not iid or i.get("status") != "running":
+                continue
+            events = store.list_run_events(iid)
+            if events:
+                last = events[-1]
+                tl_fp.append((iid, len(events), last["seq"], last["kind"]))
+            else:
+                tl_fp.append((iid, 0, 0, ""))
+        tl_fp.sort()
+        sig = json.dumps(
+            {
+                "s": status,
+                "p": ov.get("progress"),
+                "t": sorted((t.get("id"), t.get("status")) for t in ov.get("tasks", [])),
+                "tok": ov.get("tokens"),
+                "ev": ev_fp,
+                "tl": tl_fp,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        return sig, status
     finally:
         store.close()
-    status = ov.get("status")
-    sig = json.dumps(
-        {
-            "s": status,
-            "p": ov.get("progress"),
-            "t": sorted((t.get("id"), t.get("status")) for t in ov.get("tasks", [])),
-            "tok": ov.get("tokens"),
-        },
-        ensure_ascii=False,
-        sort_keys=True,
-    )
-    return sig, status
 
 
 @router.get("/projects/{project_id}/stream")

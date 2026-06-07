@@ -5,6 +5,7 @@
 只挂载该 router（不拉起整个 Hub），避免引入重依赖。
 """
 import sys
+import threading
 from pathlib import Path
 
 import pytest
@@ -124,18 +125,26 @@ def test_timeline(client):
 
 
 def test_project_stream_until_done(client):
-    # 终态项目：stream 应推一帧 data 后立即收尾 [DONE]
     s = obs_api._store()
     s.upsert_project("pdone", title="done", status="completed")
     s.close()
-    with client.stream("GET", "/api/obs/projects/pdone/stream") as resp:
-        assert resp.status_code == 200
-        body = ""
-        for chunk in resp.iter_text():
-            body += chunk
-            if "[DONE]" in body:
-                break
-    assert '"status": "completed"' in body
+    body = ""
+    done = threading.Event()
+
+    def read():
+        nonlocal body
+        with client.stream("GET", "/api/obs/projects/pdone/stream") as resp:
+            for chunk in resp.iter_text():
+                body += chunk
+                if "[DONE]" in body:
+                    done.set()
+                    break
+
+    t = threading.Thread(target=read, daemon=True)
+    t.start()
+    done.wait(timeout=30)
+    assert body, f"no SSE data (timeout 30s)"
+    assert '"status": "completed"' in body, body[:200]
     assert "[DONE]" in body
 
 
@@ -143,10 +152,20 @@ def test_events_sse_streams_until_done(client):
     with client.stream("GET", f"/api/obs/interactions/{IID}/events") as resp:
         assert resp.status_code == 200
         body = ""
-        for chunk in resp.iter_text():
-            body += chunk
-            if "[DONE]" in body:
-                break
+        done = threading.Event()
+
+        def read():
+            nonlocal body
+            for chunk in resp.iter_text():
+                body += chunk
+                if "[DONE]" in body:
+                    done.set()
+                    break
+
+        t = threading.Thread(target=read, daemon=True)
+        t.start()
+        done.wait(timeout=30)
+    assert "[DONE]" in body, f"SSE stream did not finish within 30s (body={body[:200]})"
     assert "step_start" in body
     assert "step_finish" in body
     assert "[DONE]" in body

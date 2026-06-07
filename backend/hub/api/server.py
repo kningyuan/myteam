@@ -7,6 +7,7 @@ import re
 import sys
 import threading
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent.parent.parent
@@ -15,7 +16,7 @@ if str(_ROOT) not in sys.path:
 
 try:
     from fastapi import FastAPI, HTTPException, Query, Request
-    from fastapi.responses import FileResponse, StreamingResponse
+    from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.staticfiles import StaticFiles
     import uvicorn
@@ -55,7 +56,82 @@ from hub.services.project_service import get_project, get_project_log, list_proj
 from store.system_config import system_config
 from store.skill_config import skill_config
 
-app = FastAPI(title="Local Agent Chat v2")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """FastAPI lifespan 上下文：启动恢复 + 关闭清理。"""
+    threading.Thread(target=_auto_resume_on_startup, daemon=True).start()
+    yield
+
+
+def _auto_resume_on_startup() -> None:
+    try:
+        from common.store import Store
+        from common.workspace_gc import gc_workspace
+        from common.run_kernel import resume_in_progress_projects
+        store = Store()
+        try:
+            gc_workspace(store)
+        finally:
+            store.close()
+        # 续跑期间同步运行态：让 run-status 在自动续跑时正确报 running=true，
+        # 并使续跑端点的并发守卫生效（堵住启动线程 vs 用户点击的二次续跑）。
+        def _mark_run(pid):
+            _KERNEL_RUNS[pid] = {"running": True, "error": None}
+
+        def _clear_run(pid, err):
+            _KERNEL_RUNS[pid] = {"running": False, "error": str(err) if err else None}
+
+        resumed = resume_in_progress_projects(on_start=_mark_run, on_end=_clear_run)
+        if resumed:
+            print(f"[myteam] 自动续跑 {len(resumed)} 个中断项目: {', '.join(resumed)}")
+        # 扫描 orphan job
+        try:
+            from common.job_supervisor import JobSupervisor
+            jsv = JobSupervisor(store)
+            orphans = jsv.resume_orphans()
+            if orphans:
+                print(f"[myteam] 标记 {len(orphans)} 个 orphan job: {[o['project_id'] for o in orphans]}")
+        except Exception:
+            pass
+    except Exception as e:
+        print(f"[myteam] 自动续跑失败: {e}")
+
+
+class APIError(Exception):
+    """统一 API 错误，含机器可读 code、人话 message、建议动作 hint、排查链接 doc_url。"""
+    def __init__(self, code: str, message: str, hint: str = "", doc_url: str = "", status_code: int = 400):
+        self.code = code
+        self.message = message
+        self.hint = hint
+        self.doc_url = doc_url
+        self.status_code = status_code
+        super().__init__(message)
+
+    def to_dict(self) -> dict:
+        return {
+            "error": {
+                "code": self.code,
+                "message": self.message,
+                "hint": self.hint,
+                "doc_url": self.doc_url,
+            }
+        }
+
+
+ERROR_CODES = {
+    "WORKSPACE_NOT_FOUND":     (404, "找不到 agent 工作空间", "执行 --init"),
+    "CONFIG_NOT_FOUND":        (404, "缺少配置文件", "执行 --init"),
+    "PLAN_OUT_OF_BOUNDS":      (400, "规划分配了名册外 agent", "检查 registry"),
+    "CLI_EXECUTION_FAILED":    (502, "CLI 后端执行失败", "检查 CLI 安装"),
+    "PROJECT_NOT_FOUND":       (404, "项目不存在", "检查项目 ID"),
+    "PROJECT_RUNNING":         (409, "项目正在运行中", "等待完成或先取消"),
+    "DELIVERABLE_NOT_FOUND":   (404, "交付物不存在或尚未就绪", "等待任务完成"),
+    "INVALID_GOAL":            (400, "Goal 不能为空", "填写项目目标"),
+}
+
+
+app = FastAPI(title="Local Agent Chat v2", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -70,20 +146,217 @@ from hub.api.observability_api import router as observability_router
 app.include_router(observability_router)
 
 
-@app.on_event("startup")
-def _startup_resume_projects() -> None:
-    """Hub 启动后自动续跑中断的 in_progress 项目（D8 恢复）。"""
-    threading.Thread(target=_auto_resume_on_startup, daemon=True).start()
+@app.exception_handler(APIError)
+async def api_error_handler(request: Request, exc: APIError):
+    return JSONResponse(status_code=exc.status_code, content=exc.to_dict())
 
 
-def _auto_resume_on_startup() -> None:
-    try:
-        from common.run_kernel import resume_in_progress_projects
-        resumed = resume_in_progress_projects()
-        if resumed:
-            print(f"[myteam] 自动续跑 {len(resumed)} 个中断项目: {', '.join(resumed)}")
-    except Exception as e:  # noqa: BLE001 — 启动恢复失败不阻断 Hub
-        print(f"[myteam] 自动续跑失败: {e}")
+@app.exception_handler(HTTPException)
+async def http_exception_envelope(request: Request, exc: HTTPException):
+    """手抛的 fastapi.HTTPException 归一化为统一 error 信封（落实 api-reference.md 附录 B），
+    同时保留 detail 向后兼容。仅接管代码里手抛的 fastapi 异常；Starlette 路由 404 /
+    校验 422（RequestValidationError）是不同异常类，仍走默认形状，不误伤。"""
+    return JSONResponse(status_code=exc.status_code, content={
+        "error": {"code": f"HTTP_{exc.status_code}", "message": exc.detail,
+                  "hint": "", "doc_url": ""},
+        "detail": exc.detail,  # 向后兼容：旧前端 / 现有测试仍读 detail
+    })
+
+
+# ── 系统状态（R3-3 Home 趋势微标） ──────────────────
+@app.get("/api/status")
+async def api_status():
+    from common.paths import WORKSPACES_DIR
+    initialized = WORKSPACES_DIR.is_dir() and any(WORKSPACES_DIR.iterdir())
+    store = _we_store()
+    projects = store.list_projects()
+    total = len(projects)
+    running = sum(1 for p in projects if p.get("status") == "in_progress")
+    monthly_tokens = sum(p.get("meta", {}).get("tokens", 0) if isinstance(p.get("meta"), dict) else 0 for p in projects)
+    return {
+        "status": "ok",
+        "initialized": initialized,
+        "project_count": total,
+        "running_count": running,
+        "version": "1.0.0",
+        "trends": {
+            "project_count": {"direction": "up" if total > 0 else "flat", "value": total},
+            "running_count": {"direction": "flat", "value": running},
+            "monthly_tokens": {"direction": "up" if monthly_tokens > 0 else "flat", "value": 0},
+            "cumulative_cost": {"direction": "flat", "value": 0},
+        },
+    }
+
+
+# ── WorkspaceEvent（R2-1） ─────────────────────────────
+from common.store import Store as _Store
+
+_WE_STORE = None
+
+def _we_store():
+    global _WE_STORE
+    if _WE_STORE is None:
+        _WE_STORE = _Store()
+    return _WE_STORE
+
+
+@app.get("/api/workspace/events")
+async def api_workspace_events(project_id: str = "", type: str = "", limit: int = 50):
+    store = _we_store()
+    events = store.list_workspace_events(
+        project_id=project_id or None,
+        type=type or None,
+        limit=min(limit, 200),
+    )
+    return {"events": events}
+
+
+@app.get("/api/workspace/events/stream")
+async def api_workspace_events_stream(request: Request, project_id: str = ""):
+    """WorkspaceEvent SSE 流。轮询最新事件推送到前端。"""
+    async def event_stream():
+        last_id = ""
+        while True:
+            if await request.is_disconnected():
+                break
+            store = _we_store()
+            events = store.list_workspace_events(
+                project_id=project_id or None,
+                limit=20,
+            )
+            fresh = [e for e in events if e["id"] != last_id]
+            if fresh:
+                last_id = fresh[0]["id"]
+                for e in reversed(fresh):
+                    yield f"data: {json.dumps(e, ensure_ascii=False)}\n\n"
+            else:
+                yield ": keepalive\n\n"
+            await asyncio.sleep(2.0)
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+# ── Channels（R2-2） ─────────────────────────────────
+@app.get("/api/workspace/channels")
+async def api_list_channels(project_id: str = ""):
+    store = _we_store()
+    if project_id:
+        conv = store.get_conversation(f"channel/project-{project_id}")
+        channels = [conv] if conv else []
+    else:
+        # fallback: scan conversations via raw query
+        rows = store._conn.execute(
+            "SELECT * FROM conversation ORDER BY updated_at DESC"
+        ).fetchall()
+        channels = [dict(r) for r in rows]
+    return {"channels": [
+        {
+            "channel_id": c.get("conversation_id", c.get("conversation_id", "")),
+            "kind": c.get("kind", ""),
+            "project_id": c.get("project_id", ""),
+            "title": c.get("title", ""),
+            "last_activity": c.get("updated_at", ""),
+        }
+        for c in channels
+    ]}
+
+
+@app.post("/api/workspace/channels")
+async def api_create_channel(body: dict):
+    kind = body.get("kind", "project")
+    project_id = body.get("project_id", "")
+    title = body.get("title", "新频道")
+    channel_id = f"channel/project-{project_id}" if kind == "project" else f"direct/{body.get('agent_id', '')}"
+    store = _we_store()
+    store.create_conversation(
+        channel_id,
+        kind=kind,
+        participants=body.get("members", []),
+        project_id=project_id,
+        title=title,
+    )
+    return {"channel_id": channel_id, "created": True}
+
+
+@app.get("/api/workspace/channels/{channel_id}/messages")
+async def api_channel_messages(channel_id: str, limit: int = 50):
+    if ".." in channel_id or "/" in channel_id.strip("/"):
+        raise APIError("INVALID_CHANNEL", "channel_id 非法")
+    store = _we_store()
+    msgs = store.list_messages(channel_id, limit=limit)
+    return {"messages": msgs}
+
+
+@app.post("/api/workspace/channels/{channel_id}/messages")
+async def api_channel_post_message(channel_id: str, body: dict):
+    if ".." in channel_id or "/" in channel_id.strip("/"):
+        raise APIError("INVALID_CHANNEL", "channel_id 非法")
+    store = _we_store()
+    from common.store import _now
+    seq = store.append_message(
+        channel_id,
+        role="user" if body.get("author") != "agent" else "agent",
+        author=body.get("author", "user"),
+        text=body.get("content", ""),
+    )
+    # @mention → WorkspaceEvent
+    content = body.get("content", "")
+    mentions = [w.lstrip("@") for w in content.split() if w.startswith("@") and len(w) > 1]
+    if mentions:
+        store.append_workspace_event({
+            "type": "chat.message.posted",
+            "source": "hub/channel",
+            "target": channel_id,
+            "payload": json.dumps({"author": body.get("author"), "text": content, "mentions": mentions}),
+            "metadata": json.dumps({"channel_id": channel_id}),
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        })
+    return {"message_id": seq, "seq": seq, "created_at": _now()}
+
+
+# ── Jobs（R2-3） ─────────────────────────────────
+@app.get("/api/jobs")
+async def api_list_jobs(status: str = ""):
+    store = _we_store()
+    jobs = store.list_jobs(status=status)
+    return {"jobs": jobs}
+
+
+@app.get("/api/jobs/{job_id}")
+async def api_get_job(job_id: str):
+    store = _we_store()
+    row = store._conn.execute(
+        "SELECT * FROM job WHERE job_id=?", (job_id,)
+    ).fetchone()
+    if not row:
+        raise APIError("JOB_NOT_FOUND", f"Job {job_id} 不存在", status_code=404)
+    return dict(row)
+
+
+# ── Agent Runtime（R2-3） ─────────────────────────
+@app.get("/api/obs/agents")
+async def api_list_agent_runtimes():
+    store = _we_store()
+    runtimes = store.list_agent_runtimes()
+    return {"agents": runtimes}
+
+
+@app.get("/api/obs/agents/{agent_id}")
+async def api_get_agent_runtime(agent_id: str):
+    store = _we_store()
+    rt = store.get_agent_runtime(agent_id)
+    if not rt:
+        # fallback: return offline status
+        rt = {"agent_id": agent_id, "status": "offline", "workspace_ok": 1}
+    return rt
 
 
 if STATIC_DIR.exists():
@@ -598,7 +871,7 @@ async def api_list_projects():
 async def api_get_project(project_id: str):
     p = get_project(project_id)
     if not p:
-        raise HTTPException(status_code=404, detail="项目不存在")
+        raise APIError("PROJECT_NOT_FOUND", "项目不存在", status_code=404)
     return {"project": p}
 
 
@@ -611,6 +884,34 @@ async def api_project_log(project_id: str, tail: int = Query(500, ge=1, le=5000)
 
 # ── 发起项目：UI → 编排内核（后台线程跑 run_kernel）──────────────
 _KERNEL_RUNS: dict[str, dict] = {}  # project_id -> {running, error}
+
+
+@app.post("/api/init")
+async def api_init():
+    """初始化所有 Agent 工作空间（幂等）。"""
+    try:
+        from common.run_kernel import cmd_init
+        count = cmd_init()
+        return {"success": True, "message": f"已完成 {count} 个 Agent 工作空间初始化"}
+    except Exception as e:
+        raise APIError("INIT_FAILED", f"初始化失败：{e}", hint="检查 agents_registry.json 配置")
+
+
+@app.post("/api/demo")
+async def api_demo():
+    """在后台线程运行 demo 项目。"""
+    from common.run_kernel import _read_demo_goal, _system_default_backend
+    project_id = f"demo-ui-{int(time.time())}"
+    if _KERNEL_RUNS.get(project_id, {}).get("running"):
+        raise APIError("PROJECT_RUNNING", "Demo 项目已在运行")
+    demo_goal = _read_demo_goal()
+    backend = _system_default_backend()
+    _KERNEL_RUNS[project_id] = {"running": True, "error": None}
+    threading.Thread(
+        target=_run_kernel_bg, args=(project_id, demo_goal, "one_shot", 100000, "Demo 项目", False),
+        daemon=True
+    ).start()
+    return {"project_id": project_id, "started": True}
 
 
 def _slug(text: str, limit: int = 24) -> str:
@@ -645,10 +946,10 @@ async def api_project_run(body: dict):
     """从 UI 发起一个项目：装配并在后台线程跑编排内核，立即返回 project_id。"""
     goal = (body.get("goal") or "").strip()
     if not goal:
-        raise HTTPException(status_code=400, detail="goal 必填")
+        raise APIError("INVALID_GOAL", "Goal 不能为空", hint="填写项目目标")
     mode = body.get("mode") or "one_shot"
     if mode not in ("one_shot", "recurring"):
-        raise HTTPException(status_code=400, detail="mode 非法")
+        raise APIError("INVALID_MODE", f"不支持的 mode: {mode}")
     try:
         budget = int(body.get("budget")) if body.get("budget") else None
     except (TypeError, ValueError):
@@ -710,15 +1011,44 @@ async def api_project_deliverable(project_id: str, task_id: str):
 async def api_project_deliverable_file(project_id: str, task_id: str, path: str = Query("")):
     """读取任务交付物包中的单个文件（workspace 或 legacy project 目录）。"""
     if not re.fullmatch(r"[\w-]{1,64}", task_id):
-        raise HTTPException(status_code=400, detail="task_id 非法")
+        raise APIError("INVALID_TASK_ID", "task_id 非法", status_code=400)
     if "/" in project_id or "\\" in project_id or ".." in project_id:
-        raise HTTPException(status_code=400, detail="project_id 非法")
+        raise APIError("INVALID_PROJECT_ID", "project_id 非法", status_code=400)
     if not path or ".." in path:
-        raise HTTPException(status_code=400, detail="path 非法")
+        raise APIError("INVALID_PATH", "path 非法", status_code=400)
     from common.project_artifacts import read_task_artifact_file
     from common.store import Store
 
     return read_task_artifact_file(Store(), project_id, task_id, path)
+
+
+@app.get("/api/obs/projects/{project_id}/deliverables")
+async def api_project_deliverables(project_id: str):
+    """项目级交付物聚合列表：合并所有任务的 deliverable 文件树。"""
+    if "/" in project_id or "\\" in project_id or ".." in project_id:
+        raise APIError("INVALID_PROJECT_ID", "project_id 非法")
+    from common.store import Store
+    from common.project_artifacts import get_task_deliverable_bundle
+    store = Store()
+    try:
+        tasks = store.list_tasks(project_id)
+        result = {}
+        for t in tasks:
+            tid = t["task_id"]
+            bundle = get_task_deliverable_bundle(store, project_id, tid)
+            files = bundle.get("files", [])
+            primary = bundle.get("primary", {})
+            result[tid] = {
+                "task_id": tid,
+                "name": t.get("name", ""),
+                "agent": t.get("agent", ""),
+                "status": t.get("status", ""),
+                "deliverables": files,
+                "primary": primary.get("content", "")[:200] if primary.get("exists") else "",
+            }
+        return {"project_id": project_id, "tasks": result}
+    finally:
+        store.close()
 
 
 _PROJECT_TERMINAL = {"completed", "failed", "partially_failed", "aborted", "cancelled", "paused"}
@@ -735,7 +1065,7 @@ async def api_project_cancel(project_id: str):
     try:
         proj = store.get_project(project_id)
         if not proj:
-            raise HTTPException(status_code=404, detail="项目不存在")
+            raise APIError("PROJECT_NOT_FOUND", "项目不存在", status_code=404)
         if proj.get("status") in _PROJECT_TERMINAL:
             return {"success": False, "status": proj.get("status"), "message": "项目已结束"}
         store.set_project_status(project_id, "cancelled")
@@ -748,14 +1078,14 @@ async def api_project_cancel(project_id: str):
 async def api_project_delete(project_id: str):
     """彻底删除项目：清 state.db 5 表 + agent 工作目录临时件 + 项目目录。运行中需先取消。"""
     if "/" in project_id or "\\" in project_id or ".." in project_id:
-        raise HTTPException(status_code=400, detail="project_id 非法")
+        raise APIError("INVALID_PROJECT_ID", "project_id 非法")
     if _KERNEL_RUNS.get(project_id, {}).get("running"):
-        raise HTTPException(status_code=409, detail="项目运行中，请先取消再删除")
+        raise APIError("PROJECT_RUNNING", "项目运行中，请先取消再删除", status_code=409)
     from common.store import Store
     store = Store()
     try:
         if not store.get_project(project_id):
-            raise HTTPException(status_code=404, detail="项目不存在")
+            raise APIError("PROJECT_NOT_FOUND", "项目不存在", status_code=404)
     finally:
         store.close()
     from common.project_admin import delete_project

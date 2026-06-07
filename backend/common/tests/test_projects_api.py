@@ -63,6 +63,8 @@ def test_deliverable_path_safety(client):
 
 def test_deliverable_read(client, tmp_path, monkeypatch):
     monkeypatch.setattr(hub_paths, "PROJECTS_DIR", tmp_path)
+    import common.paths as cpaths
+    monkeypatch.setattr(cpaths, "PROJECTS_DIR", tmp_path)
     d = tmp_path / "proj1" / "deliverables"
     d.mkdir(parents=True)
     (d / "t1_deliverable.md").write_text("# 标题\n正文内容", encoding="utf-8")
@@ -78,6 +80,7 @@ def test_deliverable_read(client, tmp_path, monkeypatch):
 
 def test_deliverable_file_read(client, tmp_path, monkeypatch):
     import common.paths as cpaths
+    import common.store as cstore
     from common.store import Store
 
     monkeypatch.setattr(hub_paths, "PROJECTS_DIR", tmp_path / "project")
@@ -87,8 +90,11 @@ def test_deliverable_file_read(client, tmp_path, monkeypatch):
     db = tmp_path / "state.db"
     store = Store(db)
     store.upsert_project("proj2", title="P", status="completed")
-    store.upsert_task("proj2", "t1", agent="developer", task_type="code-deliverable", status="completed")
+    store.upsert_task("proj2", "t1", agent="developer", task_type="code-deliverable", status="completed",
+                       meta={"artifact_base": "workspace"})
     store.close()
+    orig = cstore.Store
+    monkeypatch.setattr(cstore, "Store", lambda *a, **k: orig(db))
 
     ws = tmp_path / "workspaces" / "workspace-developer"
     ws.mkdir(parents=True)

@@ -223,3 +223,29 @@ def test_transport_cancel_event_wired(env):
     port.run(_req())
     # cancel_event 是 AgentPort 的取消 Event，done 后被 set
     assert seen["cancel_event"] is not None
+
+
+def test_config_reloads_from_disk_when_not_injected(monkeypatch):
+    calls = {"n": 0}
+
+    def load():
+        calls["n"] += 1
+        return {"researcher": {"model": f"m{calls['n']}"}}
+
+    monkeypatch.setattr("common.agent_transport._load_agents_config", load)
+    transport = AdapterTransport(adapter=FakeAdapter([]))
+    assert transport._model("researcher") == "m1"
+    assert transport._model("researcher") == "m2"
+
+
+def test_config_uses_injected_dict(monkeypatch):
+    monkeypatch.setattr(
+        "common.agent_transport._load_agents_config",
+        lambda: {"researcher": {"model": "from_disk"}},
+    )
+    transport = AdapterTransport(
+        adapter=FakeAdapter([]),
+        agents_config={"researcher": {"model": "fixed"}},
+    )
+    assert transport._model("researcher") == "fixed"
+    assert transport._model("researcher") == "fixed"

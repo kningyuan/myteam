@@ -234,6 +234,7 @@ def list_groups(include_dissolved: bool = False) -> list[dict]:
             "status": status,
             "member_count": len(g.get("members", [])),
             "msg_count": len(g.get("messages", [])),
+            "last_message_at": _last_message_ts(g),  # 与 search_groups() 字段对齐；重启后按最近活跃排序的依据
             "created_at": g.get("created_at", 0),
             "dissolved_at": g.get("dissolved_at"),
         })

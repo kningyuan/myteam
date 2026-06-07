@@ -76,8 +76,9 @@ def format_registry_for_prompt(*, role_filter: Optional[str] = None) -> str:
         if not info.get("available"):
             continue
         caps = "、".join(info.get("capabilities") or [])[:80]
-        desc = info.get("description") or ""
-        lines.append(f"- {aid}（{info.get('name', aid)}）：{desc}；能力：{caps}")
+        tts = "、".join(info.get("task_types") or [])
+        extra = f"；task_types：{tts}" if tts else ""
+        lines.append(f"- {aid}（{info.get('name', aid)}）：{desc}；能力：{caps}{extra}")
     return "\n".join(lines)
 
 

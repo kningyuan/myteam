@@ -72,6 +72,7 @@ def project_overview(store: Store, project_id: str) -> dict:
     ratio, bstate = _budget_state(used, budget)
     return {
         "project_id": project_id,
+        "title": proj.get("title") or project_id,  # 与 api-reference.md §11.1 + 前端 project.js 对齐；proj 兜底时退化为 pid
         "status": proj.get("status"),
         "mode": proj.get("mode"),
         "task_counts": counts,
@@ -144,7 +145,9 @@ _FEED_KINDS = {
     "review_done", "review_unreachable",
     "blocked", "budget_alert", "budget_over", "cycle_done",
     "watchdog_soft_idle", "watchdog_hard_kill", "transport_error",
-    "reconcile_timed_out", "tool_use", "prompt_sent", "message",
+    "reconcile_timed_out", "reconcile_adopted",
+    "tool_use", "tool_result", "prompt_sent", "request_snapshot", "response_snapshot",
+    "message",
 }
 
 
