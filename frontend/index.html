@@ -4,7 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Agent Hub v2.1</title>
-<link rel="stylesheet" href="/static/style.css?v=45">
+<link rel="stylesheet" href="/static/tokens.css?v=1">
+<link rel="stylesheet" href="/static/layout.css?v=1">
+<link rel="stylesheet" href="/static/components.css?v=1">
+<link rel="stylesheet" href="/static/pages.css?v=1">
+<link rel="stylesheet" href="/static/style.css?v=46">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -52,7 +56,7 @@
       <div id="sidebar-groups" class="sidebar-panel">
         <div class="sidebar-title">
           <span>群组列表</span>
-          <button id="btn-new-group" class="btn-sm" title="创建群组" data-icon="plus"></button>
+          <button id="btn-new-group" class="btn-sm-icon" title="创建群组" data-icon="plus"></button>
         </div>
         <div class="sidebar-search">
           <input id="group-search" type="search" placeholder="搜索 / 找回已解散群组…" autocomplete="off">
@@ -66,7 +70,7 @@
         <div class="sidebar-title">
           <span>项目列表</span>
           <span class="badge" id="project-count">0</span>
-          <button id="btn-new-project" class="btn-sm" title="发起项目" data-icon="plus"></button>
+          <button id="btn-new-project" class="btn-sm-icon" title="发起项目" data-icon="plus"></button>
         </div>
         <div id="project-list" class="sidebar-list"><div class="loading">加载中...</div></div>
       </div>
@@ -118,6 +122,7 @@
           </div>
           <div id="messages" class="messages"></div>
           <button id="new-msg-floater" class="new-msg-floater hidden" type="button" title="回到最新"><span data-icon="arrow-down"></span> 新消息</button>
+          <div id="context-indicator" class="context-indicator hidden"><div class="ctx-bar"><div class="ctx-fill" style="width:0%"></div></div><span class="ctx-label">0 / 25k tokens</span></div>
           <div class="input-area">
             <textarea id="message-input" rows="2" placeholder="输入消息...（Enter 发送，Shift+Enter 换行）"
                       autocomplete="off"></textarea>
@@ -184,6 +189,7 @@
             </div>
             <div class="chat-actions">
               <button id="btn-open-group" class="btn-clear hidden" title="打开该项目的协作群组"><span data-icon="users"></span> 协作群组</button>
+              <button id="btn-resume-project" class="btn-clear hidden" title="从断点续跑（内核中断后回收已完成步骤并继续 DAG）"><span data-icon="play"></span> 续跑</button>
               <button id="btn-cancel-project" class="btn-clear hidden" title="取消项目（当前任务跑完后停止派发）"><span data-icon="x"></span> 取消项目</button>
             </div>
           </div>
@@ -198,7 +204,9 @@
 
             <div class="project-subnav">
               <button class="ptab active" data-ptab="overview">概览</button>
+              <button class="ptab" data-ptab="dag">DAG</button>
               <button class="ptab" data-ptab="exec">执行过程</button>
+              <button class="ptab" data-ptab="timeline">时间线</button>
               <button class="ptab" data-ptab="deliverable">交付物</button>
               <button class="ptab" data-ptab="cost">成本</button>
             </div>
@@ -213,6 +221,15 @@
                 <h3>舰队状态</h3>
                 <div id="project-fleet" class="fleet-list">—</div>
               </div>
+              <div class="project-section">
+                <h3>成本 <small class="hint">Token 来自 CLI 计量；人民币需在设置里填单价</small></h3>
+                <div id="project-cost-overview" class="cost-view">—</div>
+              </div>
+            </div>
+
+            <!-- DAG 图：拓扑任务依赖 -->
+            <div class="ptab-panel" data-ptab="dag">
+              <div id="dag-container" class="dag-container" style="min-height:300px;padding:16px"></div>
             </div>
 
             <!-- 执行过程：折叠树（关键节点 → skill/事件，就地展开） -->
@@ -242,10 +259,16 @@
               </div>
             </div>
 
+            <!-- 时间线：统一 WorkspaceEvent 视图 -->
+            <div class="ptab-panel" data-ptab="timeline">
+              <div id="timeline-container" class="timeline-container" style="min-height:300px;padding:16px"></div>
+            </div>
+
             <!-- 成本 -->
             <div class="ptab-panel" data-ptab="cost">
               <div class="project-section">
                 <h3>成本（Token / 预算）</h3>
+                <p class="hint cost-tab-hint">Token 由 opencode/claude 的 step_finish 事件汇总；若 CLI 无输出或交互被看门狗中止，可能为 0。预估人民币请在「设置 → 每百万 Token 单价」填写。</p>
                 <div id="project-cost" class="cost-view">—</div>
               </div>
             </div>
@@ -322,6 +345,10 @@
               </div>
               <div class="form-group form-row-check">
                 <label><input type="checkbox" id="set-debug"> 调试模式</label>
+              </div>
+              <div class="form-group form-row-check">
+                <label><input type="checkbox" id="set-audit-log"> 协作审计日志</label>
+                <small class="field-hint">开启后把发给 Agent 的 prompt、请求/响应快照写入执行过程，便于排查（体积较大，默认关）</small>
               </div>
               <div class="form-group">
                 <label>模型别名（JSON）</label>
@@ -612,7 +639,16 @@
 </div>
 
 <script src="/static/markdown.js?v=1"></script>
-<script src="/static/app.js?v=37"></script>
+<script src="/static/dag-renderer.js?v=1"></script>
+<script src="/static/timeline.js?v=1"></script>
+<script src="/static/ui-core.js?v=1"></script>
+<script src="/static/chat.js?v=1"></script>
+<script src="/static/group.js?v=1"></script>
+<script src="/static/project.js?v=1"></script>
+<script src="/static/manage.js?v=1"></script>
+<script src="/static/settings.js?v=1"></script>
+<script src="/static/dashboard.js?v=1"></script>
+<script src="/static/app.js?v=41"></script>
 <div id="theme-dropdown" class="theme-dropdown hidden">
   <button type="button" data-theme="dark"><span data-icon="moon"></span> 深色</button>
   <button type="button" data-theme="light"><span data-icon="sun"></span> 浅色</button>
