@@ -143,10 +143,11 @@ class AgentPort:
         running = False
         soft_warned = False
         event_tokens = 0
+        token_acc = {"running": 0}
         cfg = self.config
 
         while True:
-            drained, tok = self._drain(q, iid)
+            drained, tok = self._drain(q, iid, token_acc)
             event_tokens = max(event_tokens, tok)
             if drained:
                 last_event = time.monotonic()
@@ -159,21 +160,21 @@ class AgentPort:
                 # 响应先落盘时传输可能仍在跑；短暂收尾以接收 Claude result 行的 step_finish
                 grace_deadline = time.monotonic() + 2.5
                 while th.is_alive() and time.monotonic() < grace_deadline:
-                    _, tok = self._drain(q, iid)
+                    _, tok = self._drain(q, iid, token_acc)
                     event_tokens = max(event_tokens, tok)
                     if tok > 0:
                         break
                     time.sleep(0.05)
                 ctx._cancel.set()
                 th.join(timeout=3.0)
-                _, tok = self._drain(q, iid)
+                _, tok = self._drain(q, iid, token_acc)
                 event_tokens = max(event_tokens, tok)
                 self._finalize_done(iid, resp_path, resp, event_tokens)
                 return AgentPortResult("done", resp, iid, attempt)
 
             if not th.is_alive():
                 # 传输结束：再排空一次队列 + 看一眼响应文件
-                _, tok = self._drain(q, iid)
+                _, tok = self._drain(q, iid, token_acc)
                 event_tokens = max(event_tokens, tok)
                 resp = self._read_valid_response(resp_path, iid, req_mtime)
                 if resp is not None:
@@ -213,11 +214,15 @@ class AgentPort:
             return inter.get("agent_id", "?")
         return "?"
 
-    def _drain(self, q: "queue.Queue", iid: str) -> tuple[bool, int]:
-        """排空事件入库；返回 (是否有事件, 本次见到的最大 step_finish 累计 token)。
+    def _drain(self, q: "queue.Queue", iid: str,
+               token_acc: Optional[dict] = None) -> tuple[bool, int]:
+        """排空事件入库；返回 (是否有事件, 当前会话 token 累计)。
 
-        opencode 的 step_finish 报的是**会话累计** total（单调递增），故取 max 而非求和。
+        - cumulative=True（默认，opencode / claude result）：step_finish 报会话累计 total → MAX。
+        - cumulative=False（claude per-message assistant.usage）：Σ input + Σ output 累加。
         """
+        if token_acc is None:
+            token_acc = {"running": 0}
         drained = False
         tokens = 0
         while True:
@@ -228,10 +233,10 @@ class AgentPort:
             self.store.append_run_event(iid, kind, payload)
             drained = True
             if kind in ("step_finish", "step-finish") and isinstance(payload, dict):
-                t = _extract_tokens(payload)
-                tokens = max(tokens, t)
-                if t > 0:
-                    self.store.bump_interaction_tokens(iid, t)
+                running = _apply_step_finish_tokens(payload, token_acc)
+                tokens = max(tokens, running)
+                if running > 0:
+                    self.store.bump_interaction_tokens(iid, running)
         return drained, tokens
 
     def _read_valid_response(self, resp_path: Path, iid: str, req_mtime: float) -> Optional[dict]:
@@ -249,6 +254,29 @@ class AgentPort:
             pass
         except OSError:
             pass
+
+
+def _token_dict_increment(tok: dict) -> int:
+    if not isinstance(tok, dict):
+        return 0
+    inp = tok.get("input") or tok.get("input_tokens") or tok.get("inputTokens") or 0
+    out = tok.get("output") or tok.get("output_tokens") or tok.get("outputTokens") or 0
+    if isinstance(inp, (int, float)) and isinstance(out, (int, float)):
+        return int(inp) + int(out)
+    return 0
+
+
+def _apply_step_finish_tokens(payload: dict, token_acc: dict) -> int:
+    """按 cumulative 标志更新 running 累计并返回当前总值。"""
+    cumulative = payload.get("cumulative", True)
+    if cumulative:
+        t = _extract_tokens(payload)
+        token_acc["running"] = max(token_acc.get("running", 0), t)
+    else:
+        tok = payload.get("tokens") or {}
+        inc = _token_dict_increment(tok) or _extract_tokens(payload)
+        token_acc["running"] = token_acc.get("running", 0) + inc
+    return token_acc.get("running", 0)
 
 
 def _extract_tokens(payload: dict) -> int:

@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Agent Hub v2.1</title>
-<link rel="stylesheet" href="/static/tokens.css?v=1">
-<link rel="stylesheet" href="/static/layout.css?v=1">
-<link rel="stylesheet" href="/static/components.css?v=1">
-<link rel="stylesheet" href="/static/pages.css?v=1">
-<link rel="stylesheet" href="/static/style.css?v=46">
+<link rel="stylesheet" href="/static/tokens.css?v=5">
+<link rel="stylesheet" href="/static/layout.css?v=5">
+<link rel="stylesheet" href="/static/components.css?v=5">
+<link rel="stylesheet" href="/static/pages.css?v=5">
+<link rel="stylesheet" href="/static/style.css?v=50">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -18,7 +18,7 @@
   <!-- Top Nav -->
   <nav id="top-nav">
     <button id="btn-sidebar-toggle" class="btn-icon" title="菜单" type="button" aria-label="菜单" data-icon="menu"></button>
-    <span class="nav-logo">🤖 Agent Hub</span>
+    <span class="nav-logo">Agent Hub</span>
     <div class="nav-tabs">
       <button class="nav-tab active" data-tab="home"><span data-icon="home"></span> 首页</button>
       <button class="nav-tab" data-tab="chat"><span data-icon="chat"></span> 对话</button>
@@ -95,7 +95,7 @@
       <div id="tab-chat" class="tab-content">
         <!-- Welcome -->
         <div id="welcome" class="welcome">
-          <div class="welcome-icon">💬</div>
+          <div class="welcome-icon" data-icon="chat" aria-hidden="true"></div>
           <h2>选择一个 Agent 开始对话</h2>
           <p>左侧列出了所有可用 AI Agent，点击即可开始 1-on-1 对话</p>
         </div>
@@ -103,7 +103,7 @@
         <div id="chat-view" class="chat-view hidden">
           <div class="chat-header">
             <div class="agent-info">
-              <span class="agent-avatar" id="chat-agent-avatar">🤖</span>
+              <span class="agent-avatar avatar-badge" id="chat-agent-avatar" aria-hidden="true">—</span>
               <div>
                 <span class="agent-name" id="chat-agent-name"></span>
                 <span class="agent-id" id="chat-agent-id"></span>
@@ -135,7 +135,7 @@
       <div id="tab-groups" class="tab-content">
         <!-- Group welcome -->
         <div id="group-welcome" class="welcome">
-          <div class="welcome-icon">👥</div>
+          <div class="welcome-icon" data-icon="users" aria-hidden="true"></div>
           <h2>选择一个群组或创建新群组</h2>
           <p>在群组中 @Agent 可以让 Agent 执行任务</p>
         </div>
@@ -143,14 +143,14 @@
         <div id="group-chat-view" class="chat-view hidden">
           <div class="chat-header">
             <div class="agent-info">
-              <span class="agent-avatar" id="group-avatar">👥</span>
+              <span class="agent-avatar avatar-badge avatar-group" id="group-avatar" aria-hidden="true">群</span>
               <div>
                 <span class="agent-name" id="group-name"></span>
                 <span class="agent-id" id="group-members"></span>
               </div>
             </div>
             <div class="chat-actions">
-              <button id="btn-open-project" class="btn-clear hidden" title="打开该群组对应的项目"><span data-icon="clipboard"></span> 项目详情</button>
+              <button id="btn-open-project" class="btn-ghost hidden" title="打开该群组对应的项目"><span data-icon="clipboard"></span> 项目详情</button>
               <button id="btn-group-config" class="btn-icon" title="管理群组成员" data-icon="settings"></button>
               <div class="more-menu">
                 <button id="btn-group-more" class="btn-icon" title="更多" type="button" data-icon="more"></button>
@@ -173,7 +173,7 @@
       <!-- Tab: Projects -->
       <div id="tab-projects" class="tab-content">
         <div id="project-welcome" class="welcome">
-          <div class="welcome-icon">📋</div>
+          <div class="welcome-icon" data-icon="clipboard" aria-hidden="true"></div>
           <h2>发起一个项目，或从左侧选择查看进度</h2>
           <p>给一个目标，Main 自动配团队 + 规划任务 DAG，交编排内核执行。</p>
           <button id="btn-new-project-welcome" class="btn-primary"><span data-icon="plus"></span> 发起项目</button>
@@ -181,15 +181,15 @@
         <div id="project-detail-view" class="project-view hidden">
           <div class="chat-header">
             <div class="agent-info">
-              <span class="agent-avatar">📋</span>
+              <span class="agent-avatar avatar-badge avatar-project" aria-hidden="true">项</span>
               <div>
                 <span class="agent-name" id="project-title"></span>
                 <span class="agent-id" id="project-meta"></span>
               </div>
             </div>
             <div class="chat-actions">
-              <button id="btn-open-group" class="btn-clear hidden" title="打开该项目的协作群组"><span data-icon="users"></span> 协作群组</button>
-              <button id="btn-resume-project" class="btn-clear hidden" title="从断点续跑（内核中断后回收已完成步骤并继续 DAG）"><span data-icon="play"></span> 续跑</button>
+              <button id="btn-open-group" class="btn-ghost hidden" title="打开该项目的协作群组"><span data-icon="users"></span> 协作群组</button>
+              <button id="btn-resume-project" class="btn-ghost hidden" title="从断点续跑（内核中断后回收已完成步骤并继续 DAG）"><span data-icon="play"></span> 续跑</button>
               <button id="btn-cancel-project" class="btn-clear hidden" title="取消项目（当前任务跑完后停止派发）"><span data-icon="x"></span> 取消项目</button>
             </div>
           </div>
@@ -229,7 +229,8 @@
 
             <!-- DAG 图：拓扑任务依赖 -->
             <div class="ptab-panel" data-ptab="dag">
-              <div id="dag-container" class="dag-container" style="min-height:300px;padding:16px"></div>
+              <p class="hint dag-hint">滚轮缩放 · 拖拽空白处平移 · 点击节点查看交付物</p>
+              <div id="dag-container" class="dag-container"></div>
             </div>
 
             <!-- 执行过程：折叠树（关键节点 → skill/事件，就地展开） -->
@@ -261,7 +262,7 @@
 
             <!-- 时间线：统一 WorkspaceEvent 视图 -->
             <div class="ptab-panel" data-ptab="timeline">
-              <div id="timeline-container" class="timeline-container" style="min-height:300px;padding:16px"></div>
+              <div id="timeline-container" class="timeline-container"></div>
             </div>
 
             <!-- 成本 -->
@@ -281,7 +282,7 @@
         <div class="manage-panel">
           <div class="manage-header">
             <div class="manage-header-left">
-              <h2>🤖 Agent 管理</h2>
+              <h2>Agent 管理</h2>
               <span class="badge" id="manage-agent-count">0</span>
             </div>
             <button id="btn-create-agent" class="btn-primary"><span data-icon="plus"></span> 创建 Agent</button>
@@ -291,7 +292,7 @@
 
           <div class="manage-header mt-section">
             <div class="manage-header-left">
-              <h2>🧩 任务类型</h2>
+              <h2>任务类型</h2>
               <span class="badge" id="manage-tasktype-count">0</span>
             </div>
           </div>
@@ -300,7 +301,7 @@
 
           <div class="manage-header mt-section">
             <div class="manage-header-left">
-              <h2>📚 知识库</h2>
+              <h2>知识库</h2>
               <span class="badge" id="manage-memory-count">0</span>
             </div>
           </div>
@@ -312,7 +313,7 @@
       <!-- Tab: Settings -->
       <div id="tab-settings" class="tab-content">
         <div class="settings-panel">
-          <h2>⚙️ 设置</h2>
+          <h2>设置</h2>
           <p class="subtitle">Hub 服务与协作引擎；各 Agent 的后端/模型在「管理」Tab 配置</p>
           <div class="settings-grid">
             <section class="settings-card">
@@ -409,8 +410,10 @@
             </section>
           </div>
           <p class="settings-advanced-hint">更多底层参数见 <code>config/skill_config.json</code> 与 <code>skill/team/.env</code></p>
-          <div id="set-status" class="form-status"></div>
-          <button id="btn-save-settings" class="btn-primary">保存设置</button>
+          <div class="settings-actions">
+            <div id="set-status" class="form-status"></div>
+            <button id="btn-save-settings" class="btn-primary" type="button">保存设置</button>
+          </div>
         </div>
       </div>
     </main>
@@ -497,10 +500,17 @@
 <div id="new-project-modal" class="modal hidden">
   <div class="modal-content">
     <div class="modal-header">
-      <h3>✨ 发起项目</h3>
+      <h3>发起项目</h3>
       <button class="modal-close" data-icon="x"></button>
     </div>
     <div class="modal-body">
+      <div class="form-group">
+        <label>工作流</label>
+        <select id="np-workflow">
+          <option value="">自由规划（main 即兴 task_plan）</option>
+        </select>
+        <p id="np-workflow-hint" class="field-hint"></p>
+      </div>
       <div class="form-group">
         <label>项目目标 <span class="required">*</span></label>
         <textarea id="np-goal" rows="3" placeholder="例：为 example.com 做一次 GEO 快速评估并给出改进清单"></textarea>
@@ -535,7 +545,7 @@
 <div id="create-agent-modal" class="modal hidden">
   <div class="modal-content modal-wide">
     <div class="modal-header">
-      <h3>✨ 创建 Agent</h3>
+      <h3>创建 Agent</h3>
       <button class="modal-close" data-icon="x"></button>
     </div>
     <div class="modal-body">
@@ -566,7 +576,7 @@
           </div>
         </div>
         <div id="cf-result" class="create-result hidden">
-          <h3>✅ Agent 创建成功</h3>
+          <h3>Agent 创建成功</h3>
           <div class="result-details"></div>
         </div>
         <div id="cf-status" class="form-status"></div>
@@ -639,16 +649,16 @@
 </div>
 
 <script src="/static/markdown.js?v=1"></script>
-<script src="/static/dag-renderer.js?v=1"></script>
-<script src="/static/timeline.js?v=1"></script>
-<script src="/static/ui-core.js?v=1"></script>
-<script src="/static/chat.js?v=1"></script>
-<script src="/static/group.js?v=1"></script>
-<script src="/static/project.js?v=1"></script>
-<script src="/static/manage.js?v=1"></script>
+<script src="/static/dag-renderer.js?v=3"></script>
+<script src="/static/timeline.js?v=2"></script>
+<script src="/static/ui-core.js?v=3"></script>
+<script src="/static/chat.js?v=3"></script>
+<script src="/static/group.js?v=3"></script>
+<script src="/static/project.js?v=4"></script>
+<script src="/static/manage.js?v=3"></script>
 <script src="/static/settings.js?v=1"></script>
 <script src="/static/dashboard.js?v=1"></script>
-<script src="/static/app.js?v=41"></script>
+<script src="/static/app.js?v=42"></script>
 <div id="theme-dropdown" class="theme-dropdown hidden">
   <button type="button" data-theme="dark"><span data-icon="moon"></span> 深色</button>
   <button type="button" data-theme="light"><span data-icon="sun"></span> 浅色</button>

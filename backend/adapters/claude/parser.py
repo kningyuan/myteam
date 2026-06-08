@@ -86,6 +86,15 @@ def parse_line(line: str) -> list[AgentEvent]:
                 if result:
                     payload["output"] = json.dumps(result, ensure_ascii=False)
                 events.append(AgentEvent(EventKind.TOOL_USE, payload))
+        usage = msg.get("usage") or {}
+        inp = _num(usage.get("input_tokens") or usage.get("inputTokens"))
+        out = _num(usage.get("output_tokens") or usage.get("outputTokens"))
+        if inp or out:
+            events.append(AgentEvent(EventKind.STEP_FINISH, {
+                "reason": "assistant_message",
+                "cumulative": False,
+                "tokens": {"input": inp, "output": out, "total": inp + out},
+            }))
 
     elif event_type == "result":
         subtype = raw.get("subtype", "")
@@ -93,8 +102,16 @@ def parse_line(line: str) -> list[AgentEvent]:
             msg = raw.get("result", raw.get("error", "未知错误"))
             events.append(AgentEvent(EventKind.ERROR, {"message": str(msg)}))
         else:
+            result_text = raw.get("result", "")
+            if isinstance(result_text, str) and result_text.strip():
+                # 工具型回合可能无 assistant 文本块，最终答复仅在 result 行
+                events.append(AgentEvent(EventKind.TEXT, {
+                    "content": result_text.strip(),
+                    "source": "result",
+                }))
             events.append(AgentEvent(EventKind.STEP_FINISH, {
                 "reason": "completed",
+                "cumulative": True,
                 "tokens": _extract_usage_tokens(raw),
             }))
 

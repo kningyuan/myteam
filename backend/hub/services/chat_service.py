@@ -178,7 +178,15 @@ class ChatService:
                     yield encode_error(event.data.get("message", ""))
                     return
                 if event.kind == EventKind.TEXT:
-                    buf.append(event.data.get("content", ""))
+                    content = event.data.get("content", "") or ""
+                    if not content:
+                        continue
+                    # claude result 行兜底：仅当流中尚无文本时采纳，避免与 assistant 块重复
+                    if event.data.get("source") == "result":
+                        if not buf:
+                            buf.append(content)
+                    else:
+                        buf.append(content)
                 if cancel_event is not None and cancel_event.is_set():
                     cancelled = True
                 encoded = encode_event(event)

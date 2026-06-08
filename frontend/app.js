@@ -107,10 +107,13 @@ async function init() {
 // ============ Event Listeners ============
 function setupEventListeners() {
   DOM['btn-send'].addEventListener('click', () => {
-    if (S.isStreaming) cancelActiveStream(); else sendAgentMsg();
+    if (isStreamBusy(streamKeyAgent(S.currentAgentId))) cancelActiveStream(); else sendAgentMsg();
   });
   DOM['message-input'].addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (S.isStreaming) cancelActiveStream(); else sendAgentMsg(); }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (isStreamBusy(streamKeyAgent(S.currentAgentId))) cancelActiveStream(); else sendAgentMsg();
+    }
   });
   DOM['message-input'].addEventListener('input', () => {
     DOM['message-input'].style.height = 'auto';
@@ -133,7 +136,9 @@ function setupEventListeners() {
   DOM['agent-search']?.addEventListener('input', e => searchChatArchives(e.target.value));
   DOM['agent-search']?.addEventListener('blur', () => setTimeout(() => hideSearchResults('agent'), 200));
 
-  DOM['btn-group-send'].addEventListener('click', () => { if (S.isStreaming) cancelActiveStream(); else sendGroupMsg(); });
+  DOM['btn-group-send'].addEventListener('click', () => {
+    if (isStreamBusy(streamKeyGroup(S.currentGroupId))) cancelActiveStream(); else sendGroupMsg();
+  });
   DOM['group-input'].addEventListener('keydown', e => {
     if (S.mentionActive) {
       const dd = DOM['mention-dropdown']; const items = dd ? dd.querySelectorAll('.mention-item') : [];
@@ -189,7 +194,41 @@ function setupEventListeners() {
   DOM['ng-cancel']?.addEventListener('click', () => DOM['new-group-modal'].classList.add('hidden'));
   DOM['new-group-modal']?.querySelector('.modal-close')?.addEventListener('click', () => DOM['new-group-modal'].classList.add('hidden'));
 
-  const openNewProject = async () => { DOM['new-project-modal'].classList.remove('hidden'); DOM['np-goal']?.focus(); if (DOM['np-review']) DOM['np-review'].checked = !!(await getSysConfig()).default_review; };
+  let _workflows = [];
+  const loadWorkflows = async () => {
+    try {
+      const r = await fetch('/api/workflows');
+      const d = await r.json();
+      _workflows = Array.isArray(d.workflows) ? d.workflows.filter(w => !w.error) : [];
+    } catch { _workflows = []; }
+    const sel = DOM['np-workflow'];
+    if (!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">自由规划（main 即兴 task_plan）</option>';
+    _workflows.forEach(w => {
+      const o = document.createElement('option');
+      o.value = w.id;
+      o.textContent = `${w.id}（${w.task_count || '?'} 步）`;
+      sel.appendChild(o);
+    });
+    if (cur) sel.value = cur;
+    updateWorkflowHint();
+  };
+  const updateWorkflowHint = () => {
+    const hint = DOM['np-workflow-hint'];
+    const sel = DOM['np-workflow'];
+    if (!hint || !sel) return;
+    const w = _workflows.find(x => x.id === sel.value);
+    hint.textContent = w?.description || (sel.value ? '' : '不选工作流时由 main 根据 goal 即兴规划任务。');
+    if (w?.options?.review_enabled && DOM['np-review']) DOM['np-review'].checked = true;
+  };
+  const openNewProject = async () => {
+    DOM['new-project-modal'].classList.remove('hidden');
+    await loadWorkflows();
+    DOM['np-goal']?.focus();
+    if (DOM['np-review']) DOM['np-review'].checked = !!(await getSysConfig()).default_review;
+  };
+  DOM['np-workflow']?.addEventListener('change', updateWorkflowHint);
   const closeNewProject = () => DOM['new-project-modal'].classList.add('hidden');
   document.querySelectorAll('.project-subnav .ptab').forEach(b => b.addEventListener('click', () => switchProjectTab(b.dataset.ptab)));
   DOM['btn-deliverable-copy']?.addEventListener('click', copyDeliverable);
@@ -217,6 +256,8 @@ function setupEventListeners() {
   DOM['np-submit']?.addEventListener('click', async () => {
     const goal = DOM['np-goal'].value.trim(); if (!goal) return;
     const payload = { goal, title: DOM['np-title'].value.trim(), mode: DOM['np-mode'].value };
+    const wf = DOM['np-workflow']?.value?.trim();
+    if (wf) payload.workflow = wf;
     const budget = parseInt(DOM['np-budget'].value, 10); if (!isNaN(budget) && budget > 0) payload.budget = budget;
     if (DOM['np-review']?.checked) payload.review = true;
     DOM['np-submit'].disabled = true;
@@ -238,16 +279,16 @@ function setupEventListeners() {
       const r = await fetch('/api/agents/create', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ description: desc, agent_id: aid, chinese_name: DOM['cf-name'].value.trim(), backend: DOM['cf-backend'].value, model: DOM['cf-model'].value }) });
       if (!r.ok) { const e = await r.json(); throw new Error(apiErr(e, '创建失败')); }
       const d = await r.json(); const a = d.agent;
-      DOM['cf-result'].classList.remove('hidden'); DOM['cf-result'].querySelector('.result-details').innerHTML = `<div>📁 工作目录: ${esc(a.workspace)}</div><div>📝 文件: ${(a.files||[]).join(', ')}</div><div>⚙️ 后端: ${a.backend} / ${a.model}</div>`;
-      showFormStatus('✓ Agent 已创建', 'success'); await loadAgents(); renderAgentList(); renderManageAgents();
+      DOM['cf-result'].classList.remove('hidden'); DOM['cf-result'].querySelector('.result-details').innerHTML = `<div><span class="result-k">工作目录</span><span>${esc(a.workspace)}</span></div><div><span class="result-k">文件</span><span>${esc((a.files||[]).join(', '))}</span></div><div><span class="result-k">后端</span><span>${esc(a.backend)} / ${esc(a.model)}</span></div>`;
+      showFormStatus('Agent 已创建', 'success'); await loadAgents(); renderAgentList(); renderManageAgents();
       setTimeout(closeCreateModal, 1200);
-    } catch(e) { showFormStatus(e.message, 'error'); } finally { DOM['cf-submit'].disabled = false; DOM['cf-submit'].textContent = '🚀 创建 Agent'; }
+    } catch(e) { showFormStatus(e.message, 'error'); } finally { DOM['cf-submit'].disabled = false; DOM['cf-submit'].innerHTML = ic('plus') + ' 创建 Agent'; }
   });
   DOM.messages.addEventListener('click', e => {
     const thHeader = e.target.closest('.thinking-header');
     if (thHeader) { const sec = thHeader.closest('.thinking-section'); if (!sec) return; sec.classList.toggle('collapsed'); sec.setAttribute('aria-expanded', !sec.classList.contains('collapsed')); return; }
     const cp = e.target.closest('.msg-copy');
-    if (cp) { const mc = cp.closest('.message')?.querySelector('.msg-content'); const txt = mc ? (mc.innerText || mc.textContent || '') : ''; if (txt && navigator.clipboard) { navigator.clipboard.writeText(txt).then(() => { cp.textContent = '✓'; setTimeout(() => { cp.textContent = '⧉'; }, 1200); }).catch(() => {}); } }
+    if (cp) { const mc = cp.closest('.message')?.querySelector('.msg-content'); const txt = mc ? (mc.innerText || mc.textContent || '') : ''; if (txt && navigator.clipboard) { navigator.clipboard.writeText(txt).then(() => { cp.classList.add('copied'); cp.setAttribute('aria-label', '已复制'); setTimeout(() => { cp.classList.remove('copied'); cp.setAttribute('aria-label', '复制'); cp.innerHTML = ic('copy'); }, 1200); }).catch(() => {}); } }
   });
   DOM.messages.addEventListener('scroll', () => { if (isNearBottom(DOM.messages)) hideNewMsgFloater(); });
 }

@@ -1,0 +1,13 @@
+{
+  "main": {
+    "backend": "claude",
+    "model": "claude-haiku-4-5",
+    "extra": {},
+    "name": "项目总负责人"
+  },
+  "researcher": {
+    "backend": "claude",
+    "model": "",
+    "extra": {}
+  }
+}

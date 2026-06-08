@@ -1,0 +1,95 @@
+# PGD Profile: 紧急修复（压缩版 software-delivery）
+id: hotfix
+version: "1.0"
+description: >
+  需求→实现→测试→验收的压缩路径；各阶段仍保留 decision-record 闸门。
+  适用于已定位根因的 P0/P1 修复。
+
+roster:
+  required: [main, product, arch, qa]
+
+options:
+  review_enabled: true
+  split_enabled: false
+
+phases:
+  - id: requirements
+    name: 需求确认
+  - id: deliver
+    name: 修复与验证
+  - id: acceptance
+    name: 验收
+
+tasks:
+  - id: req-draft
+    phase: requirements
+    name: 修复需求
+    agent: product
+    task_type: requirements
+    dependencies: []
+    description: 简明需求：现象、根因、修复范围、验收标准（R1…）。
+
+  - id: review-req-arch
+    phase: requirements
+    name: 研发评需求
+    agent: arch
+    task_type: architecture-review
+    dependencies: [req-draft]
+    description: 评审修复范围与风险；🔴 须可关闭。
+
+  - id: review-req-qa
+    phase: requirements
+    name: 测试评需求
+    agent: qa
+    task_type: test-plan
+    dependencies: [req-draft]
+    description: 验收与回归范围。
+
+  - id: req-decision
+    phase: requirements
+    name: 需求决策
+    agent: main
+    task_type: decision-record
+    dependencies: [review-req-arch, review-req-qa]
+    description: 需求阶段仲裁；开放 🔴：0。
+
+  - id: impl-fix
+    phase: deliver
+    name: 修复实现
+    agent: arch
+    task_type: code-writing
+    dependencies: [req-decision]
+    reviewer: qa
+    description: 按 req-decision 实现修复。
+
+  - id: review-code
+    phase: deliver
+    name: 代码审查
+    agent: qa
+    task_type: code-review
+    dependencies: [impl-fix]
+    description: 审查修复 diff 与需求一致性。
+
+  - id: test-regression
+    phase: deliver
+    name: 回归测试
+    agent: qa
+    task_type: code-testing
+    dependencies: [review-code]
+    description: 执行回归；附 test_report。
+
+  - id: acceptance
+    phase: acceptance
+    name: 验收
+    agent: product
+    task_type: acceptance-report
+    dependencies: [test-regression]
+    description: 对照需求验收。
+
+  - id: release-decision
+    phase: acceptance
+    name: 发布决策
+    agent: main
+    task_type: decision-record
+    dependencies: [acceptance]
+    description: 是否合入/发布；遗留项说明。

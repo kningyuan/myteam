@@ -16,12 +16,31 @@ const TL_TYPE_META = {
   'chat.message.posted':     { label: '聊天消息', color: '#06b6d4' },
   'budget.threshold.reached': { label: '预算告警', color: '#ef4444' },
   'agent.status.changed':    { label: 'Agent 状态', color: '#64748b' },
+  // ↓ 补齐 project.js 中 event→type 映射的目标类型
+  'project.cycle.completed':   { label: '周期完成', color: '#22c55e' },
+  'budget.threshold.exceeded': { label: '预算超限', color: '#dc2626' },
+  'agent.error':               { label: 'Agent 异常', color: '#ef4444' },
+  'project.plan.rejected':     { label: '计划被拒', color: '#f97316' },
 };
 
 function formatTime(ts) {
   if (!ts) return '';
   try { return new Date(ts).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }); }
   catch(_) { return ts; }
+}
+
+function tlDateLabel(ts) {
+  if (!ts) return '';
+  try {
+    const d = new Date(ts);
+    const today = new Date();
+    const key = d.toLocaleDateString('zh-CN');
+    if (key === today.toLocaleDateString('zh-CN')) return '今天';
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    if (key === yesterday.toLocaleDateString('zh-CN')) return '昨天';
+    return d.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
+  } catch (_) { return ''; }
 }
 
 function tlTypeMeta(type) {
@@ -39,7 +58,13 @@ function renderTimeline(container, events) {
   const sorted = [...events].sort((a, b) => (a.timestamp || '').localeCompare(b.timestamp || ''));
 
   let html = '<div class="tl-list">';
+  let lastDate = '';
   sorted.forEach((ev, i) => {
+    const dateLabel = tlDateLabel(ev.timestamp);
+    if (dateLabel && dateLabel !== lastDate) {
+      html += `<div class="date-sep tl-date-sep">${escHtml(dateLabel)}</div>`;
+      lastDate = dateLabel;
+    }
     const meta = tlTypeMeta(ev.type);
     const payload = typeof ev.payload === 'string' ? tryJson(ev.payload) : (ev.payload || {});
     const time = formatTime(ev.timestamp);

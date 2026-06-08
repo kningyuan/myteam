@@ -49,7 +49,8 @@ def prefix_cycle(tasks: list[dict], cycle: int) -> list[dict]:
 
 
 def check_plan(tasks: list[dict], team: set[str], *,
-               max_fanout: Optional[int] = None) -> PlanCheckResult:
+               max_fanout: Optional[int] = None,
+               check_capabilities: bool = True) -> PlanCheckResult:
     """确定性门禁：校验 task DAG 的 agent/类型/依赖/无环/扇出。"""
     ids = [t.get("id", "") for t in tasks]
     if len(set(ids)) != len(ids):
@@ -72,23 +73,24 @@ def check_plan(tasks: list[dict], team: set[str], *,
             f"以下 task_type 未在注册表中：{', '.join(bad_types)}；"
             f"只能用已注册的类型。")
 
-    from common.agent_registry import agent_task_type_map
-    cap_map = agent_task_type_map()
-    cap_errors: list[str] = []
-    for t in tasks:
-        aid = t.get("agent", "")
-        tt = t.get("task_type", "")
-        allowed = cap_map.get(aid)
-        if allowed is None:
-            continue
-        if not allowed:
-            cap_errors.append(f"{aid} 未配置 task_types，不能执行 {tt}")
-        elif tt not in allowed:
-            cap_errors.append(
-                f"{aid} 不能执行 task_type「{tt}」（仅允许：{', '.join(allowed)}）")
-    if cap_errors:
-        return PlanCheckResult(False,
-            "以下任务违反 agent 能力边界：\n- " + "\n- ".join(sorted(cap_errors)))
+    if check_capabilities:
+        from common.agent_registry import agent_task_type_map
+        cap_map = agent_task_type_map()
+        cap_errors: list[str] = []
+        for t in tasks:
+            aid = t.get("agent", "")
+            tt = t.get("task_type", "")
+            allowed = cap_map.get(aid)
+            if allowed is None:
+                continue
+            if not allowed:
+                cap_errors.append(f"{aid} 未配置 task_types，不能执行 {tt}")
+            elif tt not in allowed:
+                cap_errors.append(
+                    f"{aid} 不能执行 task_type「{tt}」（仅允许：{', '.join(allowed)}）")
+        if cap_errors:
+            return PlanCheckResult(False,
+                "以下任务违反 agent 能力边界：\n- " + "\n- ".join(sorted(cap_errors)))
 
     dangling = sorted({d for t in tasks for d in t.get("dependencies", [])
                        if d not in id_set})

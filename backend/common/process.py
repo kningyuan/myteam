@@ -64,16 +64,18 @@ class Process:
 
     def run(self, project_id: str, *, title: str = "", goal: str = "",
             agents: Optional[list[str]] = None,
-            tasks: Optional[list[dict]] = None) -> ProjectOutcome:
+            tasks: Optional[list[dict]] = None,
+            workflow: Optional[str] = None) -> ProjectOutcome:
         """跑一个项目。
 
         若给定 agents/tasks 则直接用（便于测试与已规划场景）；否则走 team_config / task_plan
         两个 Interaction 由 Main 决策（live 路径）。
         """
+        proj_meta: dict = {"token_budget": self.config.token_budget, "goal": goal}
+        if workflow:
+            proj_meta["workflow"] = workflow
         self.store.upsert_project(project_id, title=title, mode=self.config.mode,
-                                  status="in_progress",
-                                  meta={"token_budget": self.config.token_budget,
-                                        "goal": goal})
+                                  status="in_progress", meta=proj_meta)
         logging.info("▶ 启动项目：%s", project_id)
         if agents is None:
             agents = self._decisions.team_config(project_id, goal)

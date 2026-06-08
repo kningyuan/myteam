@@ -1,0 +1,55 @@
+{
+  "version": "1.0",
+  "description": "PGD（阶段闸门会诊）通用角色注册表模板；workflow 启动时自动合并进 agents_registry.json",
+  "agents": {
+    "main": {
+      "name": "项目经理",
+      "role": "coordinator",
+      "description": "项目协调与阶段仲裁；产出 decision-record；部署记录",
+      "capabilities": ["协调", "决策", "阶段闸门", "部署记录"],
+      "task_types": ["strategy", "decision-record", "code-deployment"]
+    },
+    "product": {
+      "name": "产品专家",
+      "role": "worker",
+      "description": "需求、策略、验收；问题优先，明确范围与验收标准",
+      "capabilities": ["需求", "策略", "验收", "优先级"],
+      "task_types": ["strategy", "research", "requirements", "acceptance-report", "architecture-review"]
+    },
+    "arch": {
+      "name": "架构师",
+      "role": "worker",
+      "description": "后端/内核方案与实现；架构评审",
+      "capabilities": ["系统设计", "内核", "API", "代码审查"],
+      "task_types": ["system-design", "architecture-review", "code-writing", "code-review"]
+    },
+    "frontend": {
+      "name": "前端架构师",
+      "role": "worker",
+      "description": "前端/UI 方案与实现；交互与数据流评审",
+      "capabilities": ["前端架构", "UI", "交互", "代码实现"],
+      "task_types": ["system-design", "architecture-review", "code-writing", "code-review"]
+    },
+    "qa": {
+      "name": "测试专家",
+      "role": "worker",
+      "description": "测试计划、回归测试、质量评审",
+      "capabilities": ["测试计划", "回归", "质量评审", "验收支持"],
+      "task_types": ["test-plan", "architecture-review", "code-review", "code-testing"]
+    },
+    "research": {
+      "name": "研究员",
+      "role": "worker",
+      "description": "行业/竞品/受众调研",
+      "capabilities": ["调研", "竞品分析", "证据整理"],
+      "task_types": ["research", "architecture-review"]
+    },
+    "content": {
+      "name": "内容专家",
+      "role": "worker",
+      "description": "长文内容生产与发布",
+      "capabilities": ["内容写作", "发布", "读者体验"],
+      "task_types": ["content", "architecture-review", "publish-post"]
+    }
+  }
+}

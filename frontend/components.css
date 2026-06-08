@@ -31,13 +31,15 @@
 .btn-xs.primary:hover { background:var(--primary-hover); }
 .btn-xs.danger { background:rgba(239,68,68,.15); color:var(--error); }
 .btn-xs.danger:hover { background:rgba(239,68,68,.25); }
+.btn-ghost { display:inline-flex; align-items:center; gap:4px; padding:4px 10px; font-size:12px; background:transparent; border:1px solid var(--border); border-radius:6px; color:var(--text-secondary); cursor:pointer; white-space:nowrap; transition:all var(--transition-fast); }
+.btn-ghost:hover { background:var(--bg-interactive); border-color:var(--border-hover); color:var(--text-primary); }
 .btn-clear { display:inline-flex; align-items:center; gap:4px; padding:4px 10px; font-size:12px; background:transparent; border:1px solid var(--border); border-radius:6px; color:var(--text-secondary); cursor:pointer; white-space:nowrap; }
 .btn-clear:hover { background:rgba(239,68,68,.08); border-color:rgba(239,68,68,.35); color:var(--error); }
 .btn-ghost-sm { background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text-secondary); font-size:12px; padding:4px 8px; cursor:pointer; }
 .btn-ghost-sm:hover { color:var(--text-primary); border-color:var(--primary); }
 .btn-danger { background:var(--error) !important; border-color:var(--error) !important; color:#fff !important; }
 .chat-actions { display:flex; flex-wrap:wrap; gap:var(--space-2); align-items:center; }
-.chat-actions .btn-clear, .chat-actions .btn-icon { min-height:32px; padding:6px 12px; font-size:12px; }
+.chat-actions .btn-ghost, .chat-actions .btn-clear, .chat-actions .btn-icon { min-height:32px; padding:6px 12px; font-size:12px; }
 #btn-send, #btn-group-send { min-width:72px; min-height:40px; padding:8px 16px; font-size:14px; }
 #btn-send, #btn-group-send { padding:8px 18px; border:none; border-radius:8px; background:var(--primary); color:#fff; font-size:13px; font-weight:500; cursor:pointer; transition:background var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast); white-space:nowrap; }
 #btn-send:hover:not(:disabled), #btn-group-send:hover:not(:disabled) { background:var(--primary-hover); transform:translateY(-1px); box-shadow:var(--shadow-glow); }

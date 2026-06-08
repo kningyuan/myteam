@@ -101,11 +101,15 @@ def _friendly_traceback(e: BaseException) -> str:
 def run_project(project_id: str, *, goal: str = "", title: str = "",
                 mode: str = "one_shot", token_budget: Optional[int] = None,
                 max_cycles: int = 3, review: bool = False, split: bool = False,
+                workflow: Optional[str] = None,
                 backend: Optional[str] = None,
                 store: Optional[Store] = None, transport=None,
                 watchdog: Optional[WatchdogConfig] = None,
                 config: Optional[ProcessConfig] = None) -> ProjectOutcome:
-    """组装并运行新内核。transport 按各 agent 的 agents_config.backend 选择 CLI（缺省读系统默认）。"""
+    """组装并运行新内核。transport 按各 agent 的 agents_config.backend 选择 CLI（缺省读系统默认）。
+
+    指定 workflow 时加载 business/workflows/<id>.yaml，跳过 team_config/task_plan。
+    """
     backend = backend or _system_default_backend()
     store = store or Store()
     reconcile_on_start(store)  # 启动对账 GC（D8）：清理上次残留的 pending/running
@@ -113,13 +117,32 @@ def run_project(project_id: str, *, goal: str = "", title: str = "",
     if transport is None:
         from common.agent_transport import AdapterTransport
         transport = AdapterTransport(backend=backend)
+
+    agents: Optional[list[str]] = None
+    tasks: Optional[list[dict]] = None
+    wf_review = review
+    wf_split = split
+    workflow_id: Optional[str] = None
+    if workflow:
+        from common.workflow_bootstrap import ensure_workflow_ready
+        profile = ensure_workflow_ready(workflow, backend=backend)
+        workflow_id = profile.id
+        agents = profile.roster
+        tasks = profile.instantiate_tasks(goal=goal)
+        opts = profile.options or {}
+        if not review and opts.get("review_enabled"):
+            wf_review = True
+        if not split and opts.get("split_enabled"):
+            wf_split = True
+
     port = AgentPort(transport, store=store, config=watchdog or WatchdogConfig())
     proc = Process(store, port,
                    config or ProcessConfig(mode=mode, token_budget=token_budget,
-                                           max_cycles=max_cycles, review_enabled=review,
-                                           split_enabled=split,
+                                           max_cycles=max_cycles, review_enabled=wf_review,
+                                           split_enabled=wf_split,
                                            default_backend=backend))
-    return proc.run(project_id, title=title, goal=goal)
+    return proc.run(project_id, title=title, goal=goal, agents=agents, tasks=tasks,
+                    workflow=workflow_id)
 
 
 def resume_project(project_id: str, *,
@@ -262,6 +285,8 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--mode", choices=["one_shot", "recurring"], default="one_shot")
     p.add_argument("--budget", type=int, default=None, help="per-project token 硬上限")
     p.add_argument("--max-cycles", type=int, default=3, help="recurring 模式的周期上限")
+    p.add_argument("--workflow", default=None, metavar="ID",
+                   help="PGD 工作流 profile（business/workflows/<ID>.yaml），跳过 task_plan")
     p.add_argument("--review", action="store_true",
                    help="开启同行评审（reviewer 由 main 在 task_plan 指派）")
     p.add_argument("--split", action="store_true",
@@ -309,7 +334,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     try:
         out = run_project(a.project_id, goal=a.goal, title=a.title,
                           mode=a.mode, token_budget=a.budget, max_cycles=a.max_cycles,
-                          review=a.review, split=a.split, backend=a.backend)
+                          review=a.review, split=a.split, workflow=a.workflow,
+                          backend=a.backend)
     except FileNotFoundError as e:
         print(f"\n❌ {_friendly_traceback(e)}", file=sys.stderr)
         return 1

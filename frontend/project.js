@@ -1,17 +1,22 @@
 // ============ Project Detail ============
 const PROJECT_TERMINAL = new Set(['completed', 'failed', 'partially_failed', 'aborted', 'cancelled', 'paused', 'timed_out']);
 const PROJ_STATUS_LABEL = { in_progress:'运行中', running:'运行中', pending:'排队', completed:'已完成', needs_review:'待确认', failed:'失败', cancelled:'已取消', blocked:'阻塞' };
+const TASK_STATUS_LABEL = { pending:'等待', in_progress:'运行中', running:'运行中', completed:'已完成', needs_review:'待评审', failed:'失败', cancelled:'已取消', blocked:'阻塞', awaiting_gate:'等待门禁' };
 const DELIV_KIND_LABELS = { script: '脚本', doc: '文档', output: '产出', test: '测试', data: '数据', file: '文件' };
 const EVENT_LABELS = {
-  gate_passed:'✅ 门禁通过', gate_failed:'⛔ 门禁未过', review_done:'🔎 评审完成',
-  review_unreachable:'⚠️ 评审不可达', plan_rejected:'↩️ 计划被拒', blocked:'🚧 任务阻塞',
-  budget_alert:'💰 预算告警', budget_over:'🛑 预算超限', cycle_done:'🔁 周期完成',
-  watchdog_soft_idle:'😴 疑似卡住', watchdog_hard_kill:'🔪 看门狗中止',
-  transport_error:'💥 传输错误', reconcile_timed_out:'⏱️ 重启对账超时',
-  reconcile_adopted:'♻️ 对账回收',
-  tool_use:'🛠️ skill 调用', tool_result:'📥 工具返回',
-  prompt_sent:'📤 发送 prompt', request_snapshot:'📋 请求快照',
-  response_snapshot:'📨 响应快照', message:'💬 消息',
+  gate_passed:'门禁通过', gate_failed:'门禁未过', review_done:'评审完成',
+  review_unreachable:'评审不可达', plan_rejected:'计划被拒', blocked:'任务阻塞',
+  budget_alert:'预算告警', budget_over:'预算超限', cycle_done:'周期完成',
+  watchdog_soft_idle:'疑似卡住', watchdog_hard_kill:'看门狗中止',
+  transport_error:'传输错误', reconcile_timed_out:'重启对账超时',
+  reconcile_adopted:'对账回收',
+  tool_use:'skill 调用', tool_result:'工具返回',
+  prompt_sent:'发送 prompt', request_snapshot:'请求快照',
+  response_snapshot:'响应快照', message:'消息',
+};
+const INTERACTION_STATUS_LABEL = {
+  running:'运行中', completed:'已完成', failed:'失败', cancelled:'已取消',
+  timed_out:'超时', blocked:'阻塞', pending:'等待',
 };
 const INTERACTION_LABELS = { team_config:'组队配置', task_plan:'任务拆分', execute:'执行', review:'评审', triage:'分诊' };
 const EXEC_TIMELINE_KINDS = new Set([
@@ -32,6 +37,17 @@ const _renderSig = {};
 const _execStreams = {};
 let _deliverable = { content: '', taskId: '', projectId: '', files: [], activePath: '' };
 let _deliverableTasks = [];
+let _selectedTaskId = '';
+
+function highlightProjectTask(taskId) {
+  _selectedTaskId = taskId || '';
+  document.querySelectorAll('.task-row.clickable').forEach(row => {
+    row.classList.toggle('task-selected', !!taskId && row.dataset.task === taskId);
+  });
+  document.querySelectorAll('.dag-node').forEach(node => {
+    node.classList.toggle('dag-selected', !!taskId && node.dataset.id === taskId);
+  });
+}
 
 // ============ Config ============
 async function getSysConfig() {
@@ -61,10 +77,10 @@ function renderProjectList() {
   if (!S.projects.length) { DOM['project-list'].innerHTML = '<div class="empty">暂无项目<br><small>点击 + 发起一个项目</small></div>'; return; }
   DOM['project-list'].innerHTML = S.projects.map(p =>
     `<div class="sidebar-item ${S.currentProjectId === p.id ? 'active' : ''}" data-id="${p.id}">
-      <span class="s-icon">📋</span>
+      <span class="s-icon avatar-badge">${esc(getAvatar(p.id))}</span>
       <span class="s-name">${esc(p.title || p.id)}</span>
       <span class="s-sub">${Math.round((p.progress || 0) * 100)}% · ${p.task_count || 0}任务 · ${esc(p.status || '')}</span>
-      <button class="s-del" data-del="${p.id}" title="删除项目">🗑</button>
+      <button class="s-del" data-del="${p.id}" title="删除项目" aria-label="删除项目">${ic('trash')}</button>
     </div>`
   ).join('');
   DOM['project-list'].querySelectorAll('.sidebar-item').forEach(el => { el.addEventListener('click', () => selectProject(el.dataset.id)); });
@@ -94,6 +110,14 @@ function setTextIfChanged(el, val) { if (el && el.textContent !== val) el.textCo
 
 async function selectProject(id, opts = {}) {
   S.currentProjectId = id; S.currentAgentId = null; S.currentGroupId = null;
+  _selectedTaskId = '';
+  const dagEl = document.getElementById('dag-container');
+  if (dagEl) {
+    delete dagEl.dataset.dagScale;
+    delete dagEl.dataset.dagPanX;
+    delete dagEl.dataset.dagPanY;
+    delete dagEl._dagPanSetup;
+  }
   stopProjectPoll();
   for (const k in _renderSig) delete _renderSig[k];
   renderProjectList();
@@ -130,7 +154,7 @@ async function refreshProjectDetail(id) {
     DOM['btn-resume-project']?.classList.toggle('hidden', !resumable);
     DOM['btn-cancel-project']?.classList.toggle('hidden', !active);
     setTextIfChanged(DOM['project-title'], ov.title || id);
-    const launchErr = rs && rs.error ? ` · ⚠️ ${rs.error}` : '';
+    const launchErr = rs && rs.error ? ` · 异常: ${rs.error}` : '';
     const totalTok = (cost && cost.project) || ov.tokens || 0;
     const rateEarly = await getPriceRate();
     const tokHint = totalTok ? ` · ${totalTok.toLocaleString()} tok${fmtYuan(totalTok, rateEarly)}` : '';
@@ -142,22 +166,26 @@ async function refreshProjectDetail(id) {
     const tasks = ov.tasks || [];
     const byTask = (cost && cost.by_task) || {};
     const tasksHtml = tasks.length
-      ? tasks.map(t => {
+      ? `<div class="task-list-header"><span>任务 ID</span><span>名称</span><span>Agent</span><span>Token</span><span>状态</span></div>` + tasks.map(t => {
           const st = t.status || 'pending';
           const deps = (t.dependencies || []).join(', ');
-          const tok = byTask[t.id] ? `${byTask[t.id]} tok` : '';
+          const tok = byTask[t.id] ? `${Number(byTask[t.id]).toLocaleString()} tok` : '';
           const sub = t.summary ? `<small class="hint">${esc(t.summary)}</small>` : (deps ? `<small class="hint">依赖: ${esc(deps)}</small>` : '');
+          const stLabel = TASK_STATUS_LABEL[st] || st;
           return `<div class="task-row status-${st} clickable" data-task="${esc(t.id)}">
-            <span class="task-id">${esc(t.id)}</span>
-            <span class="task-name">${esc(t.name || '')}${sub ? '<br>' + sub : ''}</span>
-            <span class="task-agent">${esc(t.agent || '-')}</span>
-            <span class="task-tokens">${tok}</span>
-            <span class="task-status">${esc(st)}</span>
+            <span class="task-id" data-label="任务 ID">${esc(t.id)}</span>
+            <span class="task-name" data-label="名称">${esc(t.name || '')}${sub ? '<br>' + sub : ''}</span>
+            <span class="task-agent" data-label="Agent">${esc(t.agent || '-')}</span>
+            <span class="task-tokens" data-label="Token">${tok || '—'}</span>
+            <span class="task-status" data-label="状态"><span class="status-chip s-${esc(st)}">${esc(stLabel)}</span></span>
           </div>`;
         }).join('')
       : (rs.running ? '<div class="empty">内核启动中（team_config / task_plan 决策中）…</div>' : '<div class="empty">暂无任务</div>');
     if (setHtmlIfChanged(DOM['project-tasks'], 'tasks', tasksHtml)) {
-      DOM['project-tasks'].querySelectorAll('.task-row.clickable').forEach(el => { el.addEventListener('click', () => openDeliverable(id, el.dataset.task)); });
+      DOM['project-tasks'].querySelectorAll('.task-row.clickable').forEach(el => {
+        el.addEventListener('click', () => { highlightProjectTask(el.dataset.task); openDeliverable(id, el.dataset.task); });
+      });
+      if (_selectedTaskId) highlightProjectTask(_selectedTaskId);
     }
     _deliverableTasks = tasks.map(t => ({ id: t.id, name: t.name || t.id }));
     if (document.querySelector('.ptab-panel[data-ptab="deliverable"]')?.classList.contains('active')) { void ensureDeliverablePanel(); }
@@ -188,34 +216,44 @@ async function refreshProjectDetail(id) {
     setHtmlIfChanged(DOM['project-cost-overview'], 'costOverview', costHtml);
     renderEventFeed((ev && ev.events) || []);
 
+    // 给 DAG 注入 token 计量（cost.by_task 来自 /cost API）
+    const dagTasks = tasks.map(t => ({ ...t, token: byTask[t.id] || null }));
     if (tasks.length && typeof renderDAG === 'function') {
-      window._onDagNodeClick = (taskId) => openDeliverable(id, taskId);
-      const dagContainer = document.getElementById('dag-container');
-      if (dagContainer) renderDAG(dagContainer, tasks);
+      try {
+        window._onDagNodeClick = (taskId) => { highlightProjectTask(taskId); openDeliverable(id, taskId); };
+        const dagContainer = document.getElementById('dag-container');
+        if (dagContainer) renderDAG(dagContainer, dagTasks, _selectedTaskId);
+      } catch (dagErr) {
+        console.warn('DAG render failed:', dagErr);
+      }
     }
     if (typeof renderTimeline === 'function') {
-      const tlContainer = document.getElementById('timeline-container');
-      const rawEvents = (ev && ev.events) || [];
-      // 适配：interaction events（kind/ts）→ timeline（type/timestamp）
-      const mappedEvents = rawEvents.map(e => ({
-        type: (
-          e.kind === 'gate_passed' ? 'project.gate.completed' :
-          e.kind === 'gate_failed' ? 'project.gate.rejected' :
-          e.kind === 'cycle_done' ? 'project.cycle.completed' :
-          e.kind === 'message' ? 'chat.message.posted' :
-          e.kind === 'budget_alert' ? 'budget.threshold.reached' :
-          e.kind === 'budget_over' ? 'budget.threshold.exceeded' :
-          e.kind === 'watchdog_hard_kill' ? 'agent.error' :
-          e.kind === 'plan_rejected' ? 'project.plan.rejected' :
-          e.kind === 'blocked' ? 'project.task.blocked' :
-          e.kind === 'review_done' ? 'project.gate.completed' :
-          'project.event'
-        ),
-        timestamp: e.ts || '',
-        payload: e.payload || {},
-        metadata: { task_id: e.task_id, agent_id: e.agent_id, interaction_id: e.interaction_id },
-      }));
-      if (tlContainer && mappedEvents.length) renderTimeline(tlContainer, mappedEvents);
+      try {
+        const tlContainer = document.getElementById('timeline-container');
+        const rawEvents = (ev && ev.events) || [];
+        // 适配：interaction events（kind/ts）→ timeline（type/timestamp）
+        const mappedEvents = rawEvents.map(e => ({
+          type: (
+            e.kind === 'gate_passed' ? 'project.gate.completed' :
+            e.kind === 'gate_failed' ? 'project.gate.rejected' :
+            e.kind === 'cycle_done' ? 'project.cycle.completed' :
+            e.kind === 'message' ? 'chat.message.posted' :
+            e.kind === 'budget_alert' ? 'budget.threshold.reached' :
+            e.kind === 'budget_over' ? 'budget.threshold.exceeded' :
+            e.kind === 'watchdog_hard_kill' ? 'agent.error' :
+            e.kind === 'plan_rejected' ? 'project.plan.rejected' :
+            e.kind === 'blocked' ? 'project.task.blocked' :
+            e.kind === 'review_done' ? 'project.gate.completed' :
+            'project.event'
+          ),
+          timestamp: e.ts || '',
+          payload: e.payload || {},
+          metadata: { task_id: e.task_id, agent_id: e.agent_id, interaction_id: e.interaction_id },
+        }));
+        if (tlContainer && mappedEvents.length) renderTimeline(tlContainer, mappedEvents);
+      } catch (tlErr) {
+        console.warn('Timeline render failed:', tlErr);
+      }
     }
     return PROJECT_TERMINAL.has(status) && !rs.running;
   } catch (e) { DOM['project-meta'].textContent = `${id} · 加载失败：${String(e.message || e)}`; return false; }
@@ -327,7 +365,8 @@ function renderInteractionNode(e) {
   const label = INTERACTION_LABELS[e.kind] || e.kind || '交互';
   const att = e.attempt > 1 ? ` ×${e.attempt}` : '';
   const who = [e.task_id, e.agent_id].filter(Boolean).map(esc).join(' · ');
-  const tok = e.tokens ? `${e.tokens} tok` : '';
+  const tok = e.tokens ? `${Number(e.tokens).toLocaleString()} tok` : '';
+  const stLabel = INTERACTION_STATUS_LABEL[e.status] || e.status || '';
   const ts = (e.ts || '').replace('T', ' ').slice(5, 16);
   const iid = e.interaction_id || '';
   return `<div class="exec-node status-${esc(e.status || '')}" data-iid="${esc(iid)}" data-status="${esc(e.status || '')}">
@@ -335,7 +374,7 @@ function renderInteractionNode(e) {
       <span class="exec-chevron">▸</span>
       <span class="exec-node-title">${esc(label)}${att}</span>
       <span class="exec-node-meta">${who ? esc(who) : ''}</span>
-      <span class="exec-node-status">${esc(e.status || '')}${tok ? ' · ' + esc(tok) : ''}</span>
+      <span class="exec-node-status">${esc(stLabel)}${tok ? ' · ' + esc(tok) : ''}</span>
       <span class="exec-node-ts">${esc(ts)}</span>
     </div>
     <div class="exec-node-body hidden" data-body-for="${esc(iid)}"></div>
@@ -456,7 +495,7 @@ function renderExecChild(ev, iid, idx) {
     return `<div class="exec-child exec-child-tool" data-child-id="${esc(childId)}">
       <div class="exec-child-head" role="button" tabindex="0">
         <span class="exec-chevron">▸</span>
-        <span class="exec-child-label">🛠️ ${esc(name)}</span>
+        <span class="exec-child-label"><span class="activity-icon" title="${esc(name)}">${esc(toolIconAbbr(name))}</span> ${esc(name)}</span>
         <span class="exec-child-summary">${esc(summary)}</span>
       </div>
       <div class="exec-child-body hidden">${renderToolDetailBody(p)}</div>
@@ -476,9 +515,8 @@ function renderExecChild(ev, iid, idx) {
 function renderToolDetailBody(p) {
   const name = p.name || p.tool || 'tool';
   const act = describeToolAction(name, p.input);
-  const icon = TOOL_ICONS[name] || '🔧';
   const targetHtml = act.mono ? `<code class="activity-target">${esc(act.target)}</code>` : `<span class="activity-target-text">${esc(act.target)}</span>`;
-  const summary = `<div class="exec-tool-summary"><span class="activity-icon">${icon}</span><span class="activity-verb">${esc(act.verb)}</span>${targetHtml}</div>`;
+  const summary = `<div class="exec-tool-summary"><span class="activity-icon" title="${esc(name)}">${esc(toolIconAbbr(name))}</span><span class="activity-verb">${esc(act.verb)}</span>${targetHtml}</div>`;
   const args = `<div class="trace-section"><span class="trace-tag">参数</span>${renderPayloadPre(p.input)}</div>`;
   const out = p.output ? `<div class="trace-out"><span class="trace-tag">CLI 返回</span>${renderPayloadPre(p.output)}</div>` : '<div class="trace-out trace-noout">（无返回 / 未完成）</div>';
   return summary + args + out;
@@ -567,8 +605,29 @@ function renderDeliverableFileList(files, activePath) {
     }).join('');
     html += '</div>';
   }
+  box.setAttribute('role', 'tree');
+  box.setAttribute('aria-label', '交付物文件');
+  box.tabIndex = 0;
   box.innerHTML = html;
   box.querySelectorAll('.deliverable-file').forEach(btn => { btn.addEventListener('click', () => loadDeliverableFile(_deliverable.projectId, _deliverable.taskId, btn.dataset.path)); });
+  bindDeliverableFileKeys(box);
+}
+function bindDeliverableFileKeys(box) {
+  if (!box || box.dataset.keysBound) return;
+  box.dataset.keysBound = '1';
+  box.addEventListener('keydown', e => {
+    const items = [...box.querySelectorAll('.deliverable-file')];
+    if (!items.length) return;
+    const idx = items.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown') { e.preventDefault(); (items[idx + 1] || items[0])?.focus(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); (items[idx - 1] || items[items.length - 1])?.focus(); }
+    else if (e.key === 'Home') { e.preventDefault(); items[0]?.focus(); }
+    else if (e.key === 'End') { e.preventDefault(); items[items.length - 1]?.focus(); }
+    else if (e.key === 'Enter' && document.activeElement?.classList.contains('deliverable-file')) {
+      e.preventDefault();
+      document.activeElement.click();
+    }
+  });
 }
 async function loadDeliverableFile(projectId, taskId, path) {
   if (!path) return;
@@ -588,6 +647,7 @@ async function loadDeliverableFile(projectId, taskId, path) {
 }
 async function openDeliverable(projectId, taskId, opts = {}) {
   const panel = DOM['project-deliverable']; if (!panel) return;
+  highlightProjectTask(taskId);
   if (!opts.fromTabSwitch) switchProjectTab('deliverable', { skipDeliverableLoad: true });
   let tasks = _deliverableTasksFromDom();
   if (!tasks.length) tasks = await _fetchProjectTasks(projectId);

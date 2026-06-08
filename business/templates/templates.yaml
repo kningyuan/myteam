@@ -260,6 +260,112 @@ publish-post:
       screenshot_field: "证据截图"
       verify_title: true
 
+system-design:
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+      - name: "问题与约束"
+        description: "业务目标、非功能性需求、边界条件、不可逆风险"
+        required: true
+        example: "目标：为编排内核增加任务重试策略配置。约束：不改变 Gate 契约；NFR：配置热加载 <1s。"
+      - name: "领域与边界"
+        description: "Bounded context、模块划分、上下游依赖、数据流"
+        required: true
+        example: "Process 负责调度；Store 负责持久化；Registry 提供 task_type 约束。配置从 Strategy Registry 读取。"
+      - name: "架构方案"
+        description: "至少两个可选方案 + trade-off 矩阵与推荐结论"
+        required: true
+        example: "方案 A：YAML 扩展字段（可逆、低改动）；方案 B：独立 retry_policy 表（灵活、迁移成本高）。推荐 A。"
+      - name: "接口契约"
+        description: "API/事件/存储接口、错误语义、版本与兼容策略"
+        required: true
+        example: "RetryPolicy(max_attempts, backoff_ms, task_types[])；Store 新增 get_retry_policy(task_type)。"
+      - name: "演化与风险"
+        description: "迁移路径、回滚策略、技术债与后续拆分建议"
+        required: true
+        example: "Phase1 仅支持全局默认；Phase2 按 task_type 覆盖。回滚：删除新字段，默认值兜底。"
+    structure:
+      - "H1 标题作为方案主标题"
+      - "每个章节使用 H2 标题"
+      - "重要决策附 ADR 编号或内嵌 ADR 小节"
+  check_rules:
+    required_sections:
+      - "问题与约束"
+      - "领域与边界"
+      - "架构方案"
+      - "接口契约"
+      - "演化与风险"
+    must_include:
+      - "trade-off"
+    min_length: 400
+
+architecture-review:
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+      - name: "评审范围"
+        description: "被评审的模块/PR/设计文档与评审标准"
+        required: true
+        example: "范围：backend/common/process.py 重试逻辑与 Store 交互。标准：依赖方向、可测试性、可观测性。"
+      - name: "现状摘要"
+        description: "当前架构、数据流、关键依赖的客观描述"
+        required: true
+        example: "Process 在任务失败时直接 mark_failed；无退避；Store 无 retry 计数持久化。"
+      - name: "发现与分级"
+        description: "按 🔴/🟡/💭 分级列出问题，附位置与理由"
+        required: true
+        example: "🔴 失败路径无幂等保护，重复执行可能双写。🟡 缺结构化日志关联 run_id。"
+      - name: "技术债务"
+        description: "债务清单、影响面、建议偿还优先级"
+        required: true
+        example: "TD-1：Gate 与 Registry 重复校验逻辑 — 中优先级，合并为单入口。"
+      - name: "演进建议"
+        description: "可执行的改进路线与依赖顺序"
+        required: true
+        example: "1) 补 ADR-012 重试语义；2) Store 增 retry_count；3) 单测覆盖边界。"
+    structure:
+      - "H1 标题作为评审报告主标题"
+      - "发现项使用分级标记"
+  check_rules:
+    required_sections:
+      - "评审范围"
+      - "现状摘要"
+      - "发现与分级"
+      - "技术债务"
+      - "演进建议"
+    min_length: 300
+
+code-review:
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+      - name: "变更摘要"
+        description: "本次审查的 diff 范围、整体印象、主要关注点"
+        required: true
+        example: "审查 PR：新增 retry_policy 模块，+320/-45 行。整体结构清晰；关注并发与 Store 事务边界。"
+      - name: "审查意见"
+        description: "按 🔴 blocker / 🟡 suggestion / 💭 nit 列出，每条含位置、原因、建议"
+        required: true
+        example: "🔴 store.py:142 — 更新 retry_count 未在事务内，可能丢计数。建议：与 task 状态同事务提交。"
+      - name: "优点"
+        description: "值得保留的好模式与清晰实现"
+        required: true
+        example: "RetryPolicy 用 Pydantic 建模，与 contracts 风格一致；单测覆盖退避计算。"
+      - name: "结论"
+        description: "是否建议合并、阻塞项清单、后续跟进"
+        required: true
+        example: "修复 1 个 🔴 后可合并；建议补集成测验证失败重试全路径。"
+    structure:
+      - "H1 标题作为审查报告主标题"
+      - "意见项带文件/行号引用"
+  check_rules:
+    required_sections:
+      - "变更摘要"
+      - "审查意见"
+      - "优点"
+      - "结论"
+    min_length: 200
+
 code-writing:
   outcome_kind: code_project
   deliverable_template:
@@ -315,6 +421,121 @@ code-testing:
     file_exists:
       - "tests/cases.md"
       - "reports/test_report.md"
+
+# PGD 通用阶段闸门：需求定稿（software-delivery / content-campaign 等 workflow 共用）
+requirements:
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+      - name: "背景与目标"
+        description: "触发原因、要解决的问题、成功标准（可量化）"
+        required: true
+        example: "背景：多 Agent 切换会误杀后台流。目标：切换不中断其它 Agent 任务；DAG/时间线可观测。"
+      - name: "范围"
+        description: "In Scope / Out of Scope、边界与假设"
+        required: true
+        example: "In：frontend 流隔离、claude usage 采集。Out：Hub API 契约变更、kernel DAG 重写。"
+      - name: "用户故事与验收标准"
+        description: "按角色列用户故事；每条附可验证的验收条件（R1/R2…）"
+        required: true
+        example: "| ID | 故事 | 验收 |\n| R1 | 切换 Agent 不杀后台流 | 2 Agent 并发手工场景通过 |"
+      - name: "方案方向"
+        description: "可选方案摘要或推荐路径（细节在 system-design 阶段展开）"
+        required: true
+        example: "推荐：按 agentId 隔离 AbortController；Token 在 parser 末行采 usage。"
+      - name: "风险与依赖"
+        description: "技术/进度风险、外部依赖、需协调方"
+        required: true
+        example: "风险：Phase2 DOM 改造范围上浮。依赖：FIX-② 字段名对齐后方可验 DAG。"
+    structure:
+      - "H1 标题作为需求文档主标题"
+      - "验收标准使用表格"
+      - "版本号写在标题或文首 meta（如 v1 / v2）"
+  check_rules:
+    required_sections:
+      - "背景与目标"
+      - "范围"
+      - "用户故事与验收标准"
+      - "方案方向"
+      - "风险与依赖"
+    must_include:
+      - "Out of Scope"
+    min_length: 400
+
+# PGD 通用：仲裁者对各角色评审的采纳记录；无未关闭 🔴 方可过 Gate
+decision-record:
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+      - name: "评审范围"
+        description: "本决策针对的上游 artifact（task_id、版本、链接）"
+        required: true
+        example: "范围：req-draft v1；输入：review-arch / review-frontend / review-qa 三份评审。"
+      - name: "反馈汇总"
+        description: "按来源汇总意见；🔴/🟡/💭 分级"
+        required: true
+        example: "| 来源 | 级别 | 摘要 |\n| qa | 🔴 | 缺 R3 验收口径 |"
+      - name: "采纳决策"
+        description: "每条反馈：采纳/不采纳 + 理由；采纳项如何反映到下一版 artifact"
+        required: true
+        example: "采纳 qa-R3：在 req-final 补并发验收表。不采纳：暂不做法务评审（本期无对外发布）。"
+      - name: "阻塞项处理"
+        description: "所有 🔴 的处理结果；必须明确已关闭或升级路径"
+        required: true
+        example: "🔴-1（qa 验收口径）→ 已纳入 req-final §验收。当前开放 🔴：0。"
+      - name: "阶段结论"
+        description: "本阶段是否通过、锁定版本号、下游可开始的 task"
+        required: true
+        example: "结论：requirements 阶段通过；锁定 req-final v2；可开始 design-backend / design-frontend。"
+    structure:
+      - "H1 标题含阶段名（如「需求阶段决策记录」）"
+      - "阻塞项处理须含开放 🔴 计数"
+  check_rules:
+    required_sections:
+      - "评审范围"
+      - "反馈汇总"
+      - "采纳决策"
+      - "阻塞项处理"
+      - "阶段结论"
+    must_include:
+      - "🔴"
+      - "结论"
+      - "开放 🔴：0"
+    min_length: 250
+
+# PGD 通用：产品+测试对交付物的联合验收
+acceptance-report:
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+      - name: "验收范围"
+        description: "对照的需求版本、交付 commit/版本、环境"
+        required: true
+        example: "需求：req-final v2。交付：upgrade/continued @ abc123。环境：本地 Hub 8765。"
+      - name: "验收结果"
+        description: "逐条对照 R1/Rn；通过/不通过 + 证据"
+        required: true
+        example: "| 标准 | 结果 | 证据 |\n| R1 | 通过 | 并发场景录屏 + 日志 |"
+      - name: "遗留项"
+        description: "未通过项、已知限制、是否阻塞发布"
+        required: true
+        example: "遗留：群聊 Phase2 实时滚动（非阻塞，记入下一迭代）。"
+      - name: "发布建议"
+        description: "建议发布/暂缓；回滚要点；需人工确认项"
+        required: true
+        example: "建议：可合入。回滚：revert PR-1~3。需大元帅确认：无。"
+    structure:
+      - "H1 标题作为验收报告主标题"
+      - "验收结果使用表格对照需求 ID"
+  check_rules:
+    required_sections:
+      - "验收范围"
+      - "验收结果"
+      - "遗留项"
+      - "发布建议"
+    must_include:
+      - "通过"
+    min_length: 200
 
 code-deployment:
   deliverable_template:

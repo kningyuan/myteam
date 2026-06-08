@@ -19,7 +19,7 @@ function renderAgentList() {
     const rel = formatRelativeTime(lastTs);
     const unread = (S.agentMessages[a.id] || []).filter(m => m._new).length;
     return `<div class="sidebar-item ${S.currentAgentId === a.id ? 'active' : ''}${unread ? ' has-new' : ''}" data-id="${a.id}">
-      <span class="s-icon">${getAvatar(a.id)}</span>
+      <span class="s-icon avatar-badge">${esc(getAvatar(a.id))}</span>
       <span class="s-name">${esc(a.name)}</span>
       <span class="s-sub">${rel ? esc(rel) : ''}</span>
       ${unread ? `<span class="s-badge">${unread > 99 ? '99+' : unread}</span>` : ''}
@@ -63,17 +63,17 @@ async function renderManageAgents() {
   if (!S.agents.length) { DOM['manage-agent-table'].innerHTML = '<div class="empty">暂无 Agent，点击右上角「创建 Agent」开始</div>'; return; }
   const rows = S.agents.map(a => {
     return `<tr data-id="${esc(a.id)}">
-      <td><div class="agent-cell"><span class="icon">${getAvatar(a.id)}</span><span><strong>${esc(a.name)}</strong><br><span style="color:var(--text-tertiary);font-size:11px">${esc(a.id)}</span></span></div></td>
-      <td><span style="font-size:12px">${esc(a.backend)}</span></td>
-      <td><span style="font-size:11px;color:var(--text-secondary)">${esc(a.model||'').slice(0,30)}</span></td>
-      <td><span style="font-size:10px;color:var(--text-tertiary);word-break:break-all">${esc(a.workspace||'')}</span></td>
-      <td style="text-align:right;white-space:nowrap">
+      <td><div class="agent-cell"><span class="icon avatar-badge">${esc(getAvatar(a.id))}</span><span><strong>${esc(a.name)}</strong><br><span class="cell-sub">${esc(a.id)}</span></span></div></td>
+      <td><span class="cell-meta">${esc(a.backend)}</span></td>
+      <td><span class="cell-mono">${esc(a.model||'').slice(0,30)}</span></td>
+      <td><span class="cell-path">${esc(a.workspace||'')}</span></td>
+      <td class="cell-actions">
         <button class="btn-xs primary am-config">配置</button>
         <button class="btn-xs danger am-del">删除</button>
       </td>
     </tr>`;
   }).join('');
-  DOM['manage-agent-table'].innerHTML = `<table class="manage-table"><thead><tr><th>Agent</th><th>后端</th><th>模型</th><th>工作目录</th><th style="text-align:right">操作</th></tr></thead><tbody>${rows}</tbody></table>`;
+  DOM['manage-agent-table'].innerHTML = `<table class="manage-table"><thead><tr><th>Agent</th><th>后端</th><th>模型</th><th>工作目录</th><th class="cell-actions">操作</th></tr></thead><tbody>${rows}</tbody></table>`;
   DOM['manage-agent-table'].querySelectorAll('.am-config').forEach(btn => { btn.addEventListener('click', (e) => { const tr = e.target.closest('tr'); openManageModal(tr.dataset.id); }); });
   DOM['manage-agent-table'].querySelectorAll('.am-del').forEach(btn => {
     btn.addEventListener('click', async (e) => {
@@ -142,7 +142,7 @@ async function saveManageModal() {
 function resetCreateForm() {
   DOM['cf-description'].value = ''; DOM['cf-agent-id'].value = ''; DOM['cf-name'].value = '';
   DOM['cf-result'].classList.add('hidden'); DOM['cf-result'].querySelector('.result-details').innerHTML = '';
-  showFormStatus('', ''); DOM['cf-submit'].disabled = false; DOM['cf-submit'].textContent = '🚀 创建 Agent';
+  showFormStatus('', ''); DOM['cf-submit'].disabled = false; DOM['cf-submit'].innerHTML = ic('plus') + ' 创建 Agent';
 }
 async function openCreateModal() { await loadBackends(); resetCreateForm(); populateCreateForm(); DOM['create-agent-modal'].classList.remove('hidden'); }
 function closeCreateModal() { DOM['create-agent-modal'].classList.add('hidden'); }

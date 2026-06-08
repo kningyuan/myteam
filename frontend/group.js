@@ -28,7 +28,7 @@ function renderGroupList() {
   const sorted = [...active].sort((a, b) => groupLastActivityTs(b) - groupLastActivityTs(a));
   DOM['group-list'].innerHTML = sorted.map(g => {
     const rel = formatRelativeTime(groupLastActivityTs(g));
-    const projTag = g.project_id ? '<span class="s-tag" title="属于一个项目（自动建群）">📋</span>' : '';
+    const projTag = g.project_id ? '<span class="s-tag s-tag-project" title="属于一个项目（自动建群）">项目</span>' : '';
     return `<div class="sidebar-item ${S.currentGroupId === g.id ? 'active' : ''}" data-id="${g.id}">
       <span class="s-icon">👥</span>
       <span class="s-name">${esc(g.name)}${projTag}</span>
@@ -63,6 +63,7 @@ async function selectGroup(id, opts = {}) {
   } catch(e) { console.error(e); }
   DOM['group-input'].disabled = false;
   DOM['group-input'].focus();
+  refreshStatusBadge();
   updateGroupSendBtn();
   populateGroupMemberSelect();
   connectGroupEvents(id);
@@ -72,18 +73,27 @@ async function selectGroup(id, opts = {}) {
 // --- Send ---
 async function sendGroupMsg() {
   const text = DOM['group-input'].value.trim();
-  if (!text || S.isStreaming || !S.currentGroupId) return;
+  const gid = S.currentGroupId;
+  const skey = streamKeyGroup(gid);
+  if (!text || !gid || isStreamBusy(skey)) return;
   const uMsg = { sender:'user', text, id:`m_${Date.now()}` };
   renderGroupMsg(uMsg);
   DOM['group-input'].value = ''; DOM['group-input'].style.height = 'auto';
-  S.isStreaming = true; setStatus('busy');
+  const st = ensureStream(skey);
+  st.busy = true;
+  S.isStreaming = true;
+  setStatus('busy');
   updateGroupSendBtn();
   try {
-    S.abortCtrl = new AbortController();
-    S.streamContext = { mode: 'group', userText: text };
-    const resp = await fetch(`/api/groups/${S.currentGroupId}/chat?sender=user&text=${encodeURIComponent(text)}`, { signal: S.abortCtrl.signal });
+    st.abortCtrl = new AbortController();
+    S.abortCtrl = st.abortCtrl;
+    st.ctx = { mode: 'group', userText: text, groupId: gid };
+    S.streamContext = st.ctx;
+    const resp = await fetch(`/api/groups/${gid}/chat?sender=user&text=${encodeURIComponent(text)}`, { signal: st.abortCtrl.signal });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const reader = resp.body.getReader(); S.currentReader = reader;
+    const reader = resp.body.getReader();
+    st.reader = reader;
+    S.currentReader = reader;
     const dec = new TextDecoder(); let buf = '';
     while (true) {
       const { done, value } = await reader.read();
@@ -101,8 +111,16 @@ async function sendGroupMsg() {
     if (e.name === 'AbortError') { rollbackGroupTurn(text); }
     else { renderGroupMsg({ sender:'system', text:`错误: ${e.message}`, id:`e_${Date.now()}` }); }
   } finally {
-    S.currentReader = null; S.streamContext = null;
-    S.isStreaming = false; setStatus('online');
+    st.busy = false;
+    st.abortCtrl = null;
+    st.reader = null;
+    st.ctx = null;
+    if (S.currentGroupId === gid) {
+      S.currentReader = null;
+      S.streamContext = null;
+      S.isStreaming = false;
+    }
+    refreshStatusBadge();
     updateGroupSendBtn();
   }
 }
@@ -123,8 +141,8 @@ function handleGroupStreamEvent(ev) {
     case 'group_message': if (ev.data?.sender && ev.data.sender !== 'user') renderGroupMsg({ sender: ev.data.sender, text: ev.data.text, id: ev.data.msg_id || `m_${Date.now()}` }); break;
     case 'routing': renderGroupMsg({ sender: 'system', text: `🔄 路由到 @${ev.data.to}...`, id: `r_${Date.now()}` }); break;
     case 'agent_thinking': handleGroupThinking(ev.data); break;
-    case 'agent_done': renderGroupMsg({ sender: 'system', text: `✅ @${ev.data.agent_id} 已完成`, id: `d_${Date.now()}` }); break;
-    case 'error': renderGroupMsg({ sender: 'system', text: `❌ ${ev.data.message}`, id: `e_${Date.now()}` }); break;
+    case 'agent_done': renderGroupMsg({ sender: 'system', text: `@${ev.data.agent_id} 已完成`, id: `d_${Date.now()}` }); break;
+    case 'error': renderGroupMsg({ sender: 'system', text: `错误：${ev.data.message}`, id: `e_${Date.now()}` }); break;
   }
 }
 function connectGroupEvents(groupId) {
@@ -150,7 +168,7 @@ function handleGroupThinking(data) {
     const div = document.createElement('div');
     div.className = 'message group-agent' + (grouped ? ' grouped' : ''); div.id = `gt-${aId}`;
     div.dataset.gkey = gkey; div.dataset.ts = String(mts); div.dataset.day = dayKeyOf(mts);
-    div.innerHTML = '<div class="msg-avatar">' + getAvatar(aId) + '</div>' +
+    div.innerHTML = '<div class="msg-avatar avatar-badge" aria-label="' + esc(aId) + '">' + esc(getAvatar(aId)) + '</div>' +
       '<div class="bubble">' + (grouped ? '' : '<div class="bubble-name">@' + esc(aId) + '</div>') +
       '<div class="thinking-section collapsed" aria-expanded="false"><div class="thinking-header"><span class="thinking-toggle">▼</span><span class="thinking-title">Agent 活动</span></div><div class="thinking-body"></div></div>' +
       '<div class="msg-content"></div>' + msgMetaHtml(mts) + '</div>';
@@ -188,7 +206,7 @@ function renderGroupMsg(msg, container) {
   } else {
     const aId = sender;
     div.className = 'message group-agent' + (grouped ? ' grouped' : '');
-    div.innerHTML = '<div class="msg-avatar">' + getAvatar(aId) + '</div>' +
+    div.innerHTML = '<div class="msg-avatar avatar-badge" aria-label="' + esc(aId) + '">' + esc(getAvatar(aId)) + '</div>' +
       '<div class="bubble">' + (grouped ? '' : '<div class="bubble-name">@' + esc(aId) + '</div>') +
       '<div class="msg-content"></div>' + msgMetaHtml(mts) + '</div>';
     const ce = div.querySelector('.msg-content');
@@ -201,7 +219,7 @@ function renderGroupMsg(msg, container) {
 // --- Clear ---
 async function clearGroupChat() {
   if (!S.currentGroupId) return;
-  if (S.isStreaming) cancelActiveStream();
+  if (isStreamBusy(streamKeyGroup(S.currentGroupId))) cancelActiveStream();
   const ok = await showConfirm('清空后将删除本群组的所有消息记录。\n说明：各 Agent 的私聊上下文需在对应 Agent 对话里单独清空。', {title:'清空群消息', okText:'清空', danger:true});
   if (!ok) return;
   try {
@@ -273,7 +291,7 @@ function showMentionDropdown(filter) {
   dd.innerHTML = matched.map((m, i) => {
     const agent = S.agents.find(a => a.id === m);
     return `<div class="mention-item ${i === 0 ? 'active' : ''}" data-id="${m}">
-      <span class="m-icon">${agent ? getAvatar(m) : '🤖'}</span>
+      <span class="m-icon avatar-badge">${esc(agent ? getAvatar(m) : '?')}</span>
       <span class="m-name">${agent ? esc(agent.name) : esc(m)}</span>
       <span class="m-id">@${esc(m)}</span>
     </div>`;

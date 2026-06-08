@@ -33,6 +33,9 @@ from common.quality_gate import (  # noqa: E402
     verify_published_url,
 )
 
+# PGD 阶段闸门：决策/验收类交付物始终校验 must_include（阻塞项清零等）
+_PGD_STRICT_TYPES = frozenset({"decision-record", "acceptance-report"})
+
 
 @dataclass
 class GateResult:
@@ -216,7 +219,8 @@ def check_execute(response: dict, *, base_dir: Optional[str] = None,
         return res
     content = Path(dv_path).read_text(encoding="utf-8")
 
-    fmt = check_format(spec, content, dv_path, enforce_must_include=enforce_must_include)
+    strict_mi = enforce_must_include or task_type in _PGD_STRICT_TYPES
+    fmt = check_format(spec, content, dv_path, enforce_must_include=strict_mi)
     if spec.outcome_kind == "action":
         ev = check_action_evidence(spec, content, dv_path)
         fmt.failures.extend(ev.failures)

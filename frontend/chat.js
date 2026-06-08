@@ -81,7 +81,6 @@ function hideSearchResults(kind) {
 
 // --- Agent Selection ---
 function selectAgent(id, opts = {}) {
-  if (S.isStreaming) stopStream();
   S.currentAgentId = id;
   S.currentGroupId = null;
   S.currentProjectId = null;
@@ -93,17 +92,20 @@ function selectAgent(id, opts = {}) {
   if (a) {
     DOM['chat-agent-name'].textContent = a.name;
     DOM['chat-agent-id'].textContent = [a.id, a.backend, a.model].filter(Boolean).join(' · ');
-    DOM['chat-agent-avatar'].textContent = getAvatar(id);
+    applyAvatar(DOM['chat-agent-avatar'], id, 'agent');
+    updateContextIndicator(S.contextTokens[id] || 0);
   }
   DOM.messages.innerHTML = '';
   if (S.agentMessages[id]) {
     S.agentMessages[id].forEach(m => renderAgentMsg(m, DOM.messages, id));
     scrollBottom(DOM.messages, true);
   }
+  if (isStreamBusy(streamKeyAgent(id))) rebindAgentStreamDom(id);
   hideNewMsgFloater();
-  loadDmHistory(id);
+  void syncAgentChatFromServer(id);
   DOM['message-input'].disabled = false;
   DOM['message-input'].focus();
+  refreshStatusBadge();
   updateSendBtn();
   connectAgentEvents(id);
   if (!opts.restore) saveUiState();
@@ -111,24 +113,7 @@ function selectAgent(id, opts = {}) {
 
 // --- DM History ---
 async function loadDmHistory(id) {
-  try {
-    const r = await fetch(`/api/chat/${encodeURIComponent(id)}/messages`);
-    if (r.ok) {
-      const d = await r.json();
-      if (S.currentAgentId === id && !S.isStreaming) {
-        const mapped = (d.messages || []).map(m => ({
-          role: m.role === 'user' ? 'user' : (m.role === 'agent' ? 'agent' : 'system'),
-          content: m.text || '', parts: m.parts || null, ts: tsFromIso(m.created_at),
-        }));
-        if (mapped.length) {
-          S.agentMessages[id] = mapped;
-          DOM.messages.innerHTML = '';
-          mapped.forEach(m => renderAgentMsg(m, DOM.messages, id));
-          scrollBottom(DOM.messages, true);
-        }
-      }
-    }
-  } catch (e) { /* offline: keep local cache */ }
+  await syncAgentChatFromServer(id);
   loadBackgroundChats(id);
 }
 
@@ -145,9 +130,12 @@ async function loadBackgroundChats(agentId) {
     if (changed) {
       S.agentMessages[agentId] = existing;
       if (agentId === S.currentAgentId) {
-        DOM.messages.innerHTML = '';
-        existing.forEach(m => renderAgentMsg(m, DOM.messages, agentId));
-        scrollBottom(DOM.messages, true);
+        if (isStreamBusy(streamKeyAgent(agentId))) rebindAgentStreamDom(agentId);
+        else {
+          DOM.messages.innerHTML = '';
+          existing.forEach(m => renderAgentMsg(m, DOM.messages, agentId));
+          scrollBottom(DOM.messages, true);
+        }
       }
     }
   } catch (e) { /* ignore */ }
@@ -156,27 +144,37 @@ async function loadBackgroundChats(agentId) {
 // --- Send ---
 async function sendAgentMsg() {
   const text = DOM['message-input'].value.trim();
-  if (!text || S.isStreaming || !S.currentAgentId) return;
+  const aid = S.currentAgentId;
+  const skey = streamKeyAgent(aid);
+  if (!text || !aid || isStreamBusy(skey)) return;
   const msg = { role:'user', content:text, ts: Date.now() };
-  addAgentMsg(S.currentAgentId, msg);
-  renderAgentMsg(msg, DOM.messages, S.currentAgentId);
+  addAgentMsg(aid, msg);
+  renderAgentMsg(msg, DOM.messages, aid);
   scrollBottom(DOM.messages, true);
   DOM['message-input'].value = ''; DOM['message-input'].style.height = 'auto';
-  S.isStreaming = true; setStatus('busy');
+  const st = ensureStream(skey);
+  st.busy = true;
+  S.isStreaming = true;
+  setStatus('busy');
   updateSendBtn();
   const aMsg = { role:'agent', content:'', thinking:[], ts: Date.now() };
-  addAgentMsg(S.currentAgentId, aMsg);
-  const el = renderAgentMsg(aMsg, DOM.messages, S.currentAgentId);
+  addAgentMsg(aid, aMsg);
+  const el = renderAgentMsg(aMsg, DOM.messages, aid);
   const tb = el?.querySelector('.thinking-body');
   const ts = el?.querySelector('.thinking-section');
   const ce = el?.querySelector('.msg-content');
   try {
-    S.abortCtrl = new AbortController();
-    const resp = await fetch(`/api/chat/${S.currentAgentId}?message=${encodeURIComponent(text)}`, { signal: S.abortCtrl.signal });
+    st.abortCtrl = new AbortController();
+    S.abortCtrl = st.abortCtrl;
+    const resp = await fetch(`/api/chat/${aid}?message=${encodeURIComponent(text)}`, { signal: st.abortCtrl.signal });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const reader = resp.body.getReader();
+    st.reader = reader;
     S.currentReader = reader;
-    S.streamContext = { mode: 'agent', userText: text, agentEl: el };
+    st.ctx = { mode: 'agent', userText: text, agentEl: el, agentId: aid, aMsg,
+      contentEl: ce, tb, ts };
+    st.userCancelled = false;
+    S.streamContext = st.ctx;
     const dec = new TextDecoder();
     let buf = '';
     while (true) {
@@ -189,28 +187,62 @@ async function sendAgentMsg() {
         const t = line.trim();
         if (!t || t === 'data: [DONE]') continue;
         if (!t.startsWith('data: ')) continue;
-        try { const ev = JSON.parse(t.slice(6)); handleChatEvent(ev, aMsg, ce, tb, ts, el); } catch(e) {}
+        try {
+          const ev = JSON.parse(t.slice(6));
+          const ui = resolveAgentStreamUi(aid, aMsg);
+          handleChatEvent(ev, aMsg, ui.ce, ui.tb, ui.ts, ui.el);
+        } catch(e) {}
       }
     }
     if (ce && !aMsg.content && !aMsg.thinking.length) { renderBubbleMarkdown(ce, '(空响应)'); }
   } catch(e) {
-    if (e.name === 'AbortError') { rollbackAgentTurn(text, el); }
-    else { showAgentError(el, e.message); }
+    if (e.name === 'AbortError' && st.userCancelled) rollbackAgentTurn(text, el, aid);
+    else if (e.name !== 'AbortError' && S.currentAgentId === aid) showAgentError(el, e.message);
+    else if (e.name !== 'AbortError') aMsg.content = aMsg.content || `错误：${e.message}`;
   } finally {
-    S.currentReader = null; S.streamContext = null;
-    S.isStreaming = false; setStatus('online');
-    updateSendBtn(); scrollBottom(DOM.messages); removeTyping(el);
-    const tsEl = el?.querySelector('.thinking-section');
-    const tbEl = el?.querySelector('.thinking-body');
-    if (tsEl && tbEl && !tbEl.children.length && !S.isStreaming) tsEl.style.display = 'none';
-    if (tsEl) updateThinkingHeader(tsEl, aMsg, false);
-    saveChatHistory();
+    const wasCancelled = st.userCancelled;
+    const onView = S.currentAgentId === aid;
+    const liveEl = onView ? (st.ctx?.agentEl?.isConnected ? st.ctx.agentEl : el) : null;
+    st.busy = false;
+    st.userCancelled = false;
+    st.abortCtrl = null;
+    st.reader = null;
+    st.ctx = null;
+    if (onView) {
+      S.currentReader = null;
+      S.streamContext = null;
+      S.isStreaming = false;
+    }
+    refreshStatusBadge();
+    updateSendBtn();
+    if (onView && liveEl) {
+      scrollBottom(DOM.messages);
+      removeTyping(liveEl);
+      const tsEl = liveEl.querySelector('.thinking-section');
+      const tbEl = liveEl.querySelector('.thinking-body');
+      const ceFin = liveEl.querySelector('.msg-content');
+      if (tsEl && tbEl && !tbEl.children.length) tsEl.style.display = 'none';
+      if (tsEl) updateThinkingHeader(tsEl, aMsg, false);
+      if (ceFin && !aMsg.content && !aMsg.thinking?.length) renderBubbleMarkdown(ceFin, '(空响应)');
+    } else if (!onView) {
+      renderAgentList();
+    }
+    if (!wasCancelled) {
+      finalizeAgentMsgFromThinking(aMsg);
+      void syncAgentChatFromServer(aid);
+    } else {
+      saveChatHistory();
+    }
   }
 }
 
 // --- Agent Events ---
-function disconnectAgentEvents() {
-  if (S.agentEventSource) { S.agentEventSource.close(); S.agentEventSource = null; }
+function disconnectAgentEvents(agentId) {
+  const id = agentId || S.currentAgentId;
+  if (!id) return;
+  const es = S.agentEventSources[id];
+  if (es) { es.close(); delete S.agentEventSources[id]; }
+  if (S.agentEventSource === es) S.agentEventSource = null;
 }
 function ensureAgentTaskBlock(agentId) {
   const live = S.agentTaskBlocks[agentId];
@@ -244,29 +276,29 @@ function handleAgentBackgroundEvent(ev) {
     }
     case 'agent_done': delete S.agentTaskBlocks[agentId]; break;
     case 'error':
-      if (S.currentAgentId === agentId) renderAgentMsg({ role: 'agent', content: `❌ ${ev.data?.message || '错误'}`, ts: Date.now() }, DOM.messages, agentId);
+      if (S.currentAgentId === agentId) renderAgentMsg({ role: 'agent', content: `错误：${ev.data?.message || '未知错误'}`, ts: Date.now() }, DOM.messages, agentId);
       break;
   }
 }
 function connectAgentEvents(agentId) {
-  disconnectAgentEvents();
-  if (!agentId) return;
+  if (!agentId || S.agentEventSources[agentId]) return;
   const es = new EventSource(`/api/agents/${encodeURIComponent(agentId)}/events`);
+  S.agentEventSources[agentId] = es;
   S.agentEventSource = es;
   es.onmessage = (e) => {
     if (!e.data || e.data === '[DONE]') return;
     try { handleAgentBackgroundEvent(JSON.parse(e.data)); } catch (err) { console.warn('agent event parse:', err); }
   };
   es.onerror = () => {
-    disconnectAgentEvents();
-    setTimeout(() => { if (S.currentAgentId === agentId) connectAgentEvents(agentId); }, 3000);
+    disconnectAgentEvents(agentId);
+    setTimeout(() => { connectAgentEvents(agentId); }, 3000);
   };
 }
 
 // --- Clear ---
 async function clearChat() {
   if (!S.currentAgentId) return;
-  if (S.isStreaming) cancelActiveStream();
+  if (isStreamBusy(streamKeyAgent(S.currentAgentId))) cancelActiveStream();
   const ok = await showConfirm('清空后将删除：\n· 本页所有对话记录（浏览器本地）\n· Agent 多轮上下文（OpenCode Session）\n下次对话 Agent 不会记得之前聊过什么。');
   if (!ok) return;
   try {
@@ -275,6 +307,7 @@ async function clearChat() {
     if (!r.ok) throw new Error(apiErr(d, d.message || `HTTP ${r.status}`));
   } catch (e) { alert('清空失败: ' + e.message); return; }
   S.agentMessages[S.currentAgentId] = [];
+  resetContextTokens(S.currentAgentId);
   DOM.messages.innerHTML = '';
   saveChatHistory();
   DOM['message-input'].focus();

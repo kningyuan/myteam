@@ -1,91 +1,18 @@
-/* ============== style.css — 核心入口（Reset + 设计 Token + 主题） ============== */
+/* ============== style.css — Reset + 主题组件补丁（Token 见 tokens.css） ============== */
 
 * { margin:0; padding:0; box-sizing:border-box; }
 
-:root {
-  --primary: #6366f1;
-  --primary-hover: #4f46e5;
-  --primary-light: rgba(99, 102, 241, 0.12);
-  --bg-base: #0a0a0f;
-  --bg-elevated: #16161d;
-  --bg-interactive: #1e1e28;
-  --bg-overlay: rgba(10, 10, 15, 0.8);
-  --glass-bg: rgba(22, 22, 29, 0.85);
-  --glass-border: rgba(255, 255, 255, 0.06);
-  --glass-blur: blur(12px);
-  --bg-deep: #111318;
-  --bg-code: #0d0f14;
-  --text-primary: #e4e4e7;
-  --text-secondary: #a1a1aa;
-  --text-tertiary: #71717a;
-  --text-disabled: #52525b;
-  --text-xs: 10px;
-  --text-sm: 11px;
-  --text-base: 13px;
-  --text-md: 14px;
-  --text-lg: 16px;
-  --text-xl: 18px;
-  --text-2xl: 20px;
-  --text-3xl: 28px;
-  --border: rgba(255, 255, 255, 0.08);
-  --border-hover: rgba(255, 255, 255, 0.12);
-  --success: #10b981;
-  --success-light: rgba(16, 185, 129, 0.12);
-  --warning: #f59e0b;
-  --warning-light: rgba(245, 158, 11, 0.12);
-  --error: #ef4444;
-  --error-light: rgba(239, 68, 68, 0.12);
-  --info: #3b82f6;
-  --gradient-brand: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-  --gradient-subtle: linear-gradient(180deg, rgba(99, 102, 241, 0.05) 0%, transparent 100%);
-  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-  --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
-  --font-display: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
-  --radius-full: 9999px;
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
-  --space-8: 32px;
-  --space-12: 48px;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.12);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.16);
-  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.20);
-  --shadow-xl: 0 8px 32px rgba(0, 0, 0, 0.24);
-  --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.15);
-  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-spring: 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+html, body { font-size: var(--text-base); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
-/* ============== Light Theme ============== */
-[data-theme="light"] {
-  --bg-base: #f1f5f9;
-  --bg-elevated: #ffffff;
-  --bg-interactive: #e2e8f0;
-  --bg-overlay: rgba(15, 23, 42, 0.4);
-  --bg-deep: #f8fafc;
-  --bg-code: #f1f5f9;
-  --glass-bg: rgba(248, 250, 252, 0.92);
-  --glass-border: rgba(15, 23, 42, 0.10);
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-tertiary: #475569;
-  --text-disabled: #94a3b8;
-  --border: rgba(15, 23, 42, 0.1);
-  --border-hover: rgba(15, 23, 42, 0.16);
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
-  --shadow-md: 0 2px 8px rgba(15, 23, 42, 0.08);
-  --shadow-lg: 0 4px 16px rgba(15, 23, 42, 0.1);
-  --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.10);
-}
+/* ============== Light Theme 组件补丁 ============== */
 [data-theme="light"] .step-block,
 [data-theme="light"] .step-tool-call .tool-input,
 [data-theme="light"] .step-tool-result details pre { background: var(--bg-deep); }
@@ -98,9 +25,26 @@
 [data-theme="light"] .markdown-body .md-table tbody tr:nth-child(even) { background: rgba(15, 23, 42, 0.02); }
 [data-theme="light"] .messages::-webkit-scrollbar-thumb { background: rgba(15, 23, 42, 0.15); }
 [data-theme="light"] .messages::-webkit-scrollbar-thumb:hover { background: rgba(15, 23, 42, 0.25); }
+[data-theme="light"] .tl-item.tl-new .tl-body { background: rgba(99, 102, 241, 0.06); }
+[data-theme="light"] .hint,
+[data-theme="light"] .field-hint,
+[data-theme="light"] .subtitle,
+[data-theme="light"] .welcome p { color: var(--text-secondary); }
+[data-theme="light"] .msg-time { opacity: 1; color: var(--text-secondary); }
+[data-theme="light"] .stat-lbl,
+[data-theme="light"] .home-card-foot { color: var(--text-secondary); }
+[data-theme="light"] .deliverable-files,
+[data-theme="light"] .deliverable-file-kind { background: var(--bg-interactive); }
+[data-theme="light"] .empty::before { border-color: var(--border-hover); }
+[data-theme="light"] .dag-stage-wrap { background: var(--bg-deep); }
+[data-theme="light"] .activity-row { background: rgba(15, 23, 42, 0.03); }
+[data-theme="light"] .sidebar-item .s-sub { color: var(--text-secondary); }
+[data-theme="light"] .search-results .search-item .sub { color: var(--text-secondary); }
+[data-theme="light"] .ctx-label { color: var(--text-secondary); }
 
 /* ============== Narrow screen responsive overrides ============== */
 @media (max-width: 820px) {
+  :root { --content-padding-x: var(--space-4); }
   #manage-agent-table, #manage-tasktype-table, #manage-memory-table { overflow-x:auto; }
   .manage-table { min-width:600px; }
   .manage-panel, .settings-panel { padding:20px 16px; }
@@ -108,7 +52,6 @@
   .more-dropdown { right: 12px; }
 }
 @media (max-width: 700px) {
-  .task-list, .event-feed { overflow-x:auto; }
-  .task-row { min-width:460px; }
+  .task-list, .event-feed { overflow-x:visible; }
   .feed-row { min-width:520px; }
 }

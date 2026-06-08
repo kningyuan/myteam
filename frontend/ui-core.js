@@ -4,8 +4,10 @@ const S = {
   currentAgentId: null, currentGroupId: null, currentProjectId: null,
   isStreaming: false, abortCtrl: null, currentReader: null,
   streamContext: null,
+  streams: {},
   groupEventSource: null,
   agentEventSource: null,
+  agentEventSources: {},
   agentTaskBlocks: {},
   sidebarPollTimer: null,
   groupActivityTs: {},
@@ -14,7 +16,10 @@ const S = {
   backendsCache: {},
   mentionActive: false, mentionFilter: '',
   mentionIdx: -1, groupMembers: [],
+  contextTokens: {},
 };
+
+const CONTEXT_TOKEN_BUDGET = 25000;
 
 // 统一错误提取：兼容 {error:{message}}（APIError）与 {detail}（HTTPException）两种信封；
 // detail 为数组（422 校验错误）时摊平为可读文案。契约见 docs/接口一致性整改方案.md §4.2
@@ -83,7 +88,7 @@ function cacheDom() {
    'btn-deliverable-copy','btn-deliverable-download',
    'btn-sidebar-toggle','sidebar-backdrop','sidebar','btn-open-group','btn-open-project',
    'btn-new-project','btn-new-project-welcome','new-project-modal','btn-resume-project','btn-cancel-project',
-   'np-goal','np-title','np-mode','np-budget','np-review','np-submit','np-cancel',
+   'np-goal','np-title','np-mode','np-budget','np-review','np-workflow','np-workflow-hint','np-submit','np-cancel',
    'btn-theme','theme-dropdown',
    'modal-overlay','agent-config-modal','modal-backend','modal-model','modal-agent-info',
    'modal-save','modal-cancel','btn-agent-config',
@@ -189,11 +194,53 @@ function _grouped(c, gkey, mts) {
   }
   return false;
 }
-function getAvatar(id) {
-  const m = { main:'👑', product:'📋', developer:'💻', designer:'🎨', researcher:'🔍',
-    content:'✍️', ops:'⚙️', docs:'📖', consultation:'💡', coordinator:'✅',
-    social:'📱', seo:'📈', email:'📧', deputy:'👥', tester:'🧪', ops2:'🛠️' };
-  return m[id] || '🤖';
+function getAvatarInitials(id) {
+  if (!id) return '?';
+  const parts = String(id).split(/[-_]/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  const s = String(id);
+  return (s.length >= 2 ? s.slice(0, 2) : s).toUpperCase();
+}
+function getAvatar(id) { return getAvatarInitials(id); }
+function applyAvatar(el, id, kind) {
+  if (!el) return;
+  el.classList.add('avatar-badge');
+  if (kind) el.classList.add(`avatar-${kind}`);
+  el.textContent = getAvatarInitials(id);
+  if (id) el.setAttribute('aria-label', id);
+}
+function updateContextIndicator(used, budget = CONTEXT_TOKEN_BUDGET) {
+  const el = DOM['context-indicator'];
+  if (!el) return;
+  const n = Number(used) || 0;
+  if (!S.currentAgentId || n <= 0) {
+    el.classList.add('hidden');
+    return;
+  }
+  el.classList.remove('hidden');
+  const pct = Math.min(100, (n / budget) * 100);
+  const fill = el.querySelector('.ctx-fill');
+  const label = el.querySelector('.ctx-label');
+  if (fill) fill.style.width = `${pct}%`;
+  if (label) label.textContent = `${n.toLocaleString()} / ${Math.round(budget / 1000)}k tokens`;
+  el.classList.toggle('ctx-warn', pct >= 75 && pct < 90);
+  el.classList.toggle('ctx-over', pct >= 90);
+}
+function accumulateContextTokens(agentId, tokenData) {
+  if (!agentId || !tokenData) return;
+  const add = tokenData.total || (Number(tokenData.input) || 0) + (Number(tokenData.output) || 0);
+  if (!add) return;
+  S.contextTokens[agentId] = (S.contextTokens[agentId] || 0) + add;
+  if (agentId === S.currentAgentId) updateContextIndicator(S.contextTokens[agentId]);
+}
+function resetContextTokens(agentId) {
+  if (agentId) S.contextTokens[agentId] = 0;
+  if (agentId === S.currentAgentId) updateContextIndicator(0);
+}
+function toolIconAbbr(name) {
+  const n = String(name || 'tool');
+  if (n.length <= 2) return n.toUpperCase();
+  return n.replace(/[^A-Z]/g, '').slice(0, 2) || n.slice(0, 2).toUpperCase();
 }
 function formatRelativeTime(ts) {
   if (!ts) return '';
@@ -316,6 +363,114 @@ function saveChatHistory() {
     console.warn('saveChatHistory:', e);
   }
 }
+function mapServerChatMessages(rows) {
+  return (rows || []).map(m => ({
+    role: m.role === 'user' ? 'user' : (m.role === 'agent' ? 'agent' : 'system'),
+    content: m.text || '',
+    parts: m.parts || null,
+    ts: tsFromIso(m.created_at) || 0,
+    seq: m.seq,
+  })).filter(m => m.ts);
+}
+function finalizeAgentMsgFromThinking(msg) {
+  if (!msg || String(msg.content || '').trim()) return;
+  const chunks = (msg.thinking || []).filter(t => t && t.type === 'text' && t.content).map(t => t.content);
+  if (!chunks.length) return;
+  msg.content = normalizeBubbleText(chunks.join(''));
+}
+function attachInflightAgent(serverMsgs, localMsgs) {
+  if (!serverMsgs?.length) return localMsgs || [];
+  const local = localMsgs || [];
+  const out = serverMsgs.slice();
+  const lastLocal = local[local.length - 1];
+  const prevLocal = local[local.length - 2];
+  if (lastLocal?.role === 'agent' && prevLocal?.role === 'user') {
+    const lastSrv = out[out.length - 1];
+    if (lastSrv?.role === 'user') {
+      finalizeAgentMsgFromThinking(lastLocal);
+      out.push({
+        ...lastLocal,
+        thinking: Array.isArray(lastLocal.thinking) ? [...lastLocal.thinking] : [],
+      });
+    }
+  }
+  return out;
+}
+/** 以 Store 为准同步 DM；进行中回合保留本地 agent 气泡。 */
+async function syncAgentChatFromServer(agentId) {
+  if (!agentId) return;
+  const skey = streamKeyAgent(agentId);
+  const busy = isStreamBusy(skey);
+  try {
+    const r = await fetch(`/api/chat/${encodeURIComponent(agentId)}/messages`);
+    if (!r.ok) return;
+    const d = await r.json();
+    const mapped = mapServerChatMessages(d.messages);
+    const local = S.agentMessages[agentId] || [];
+    let next;
+    if (busy) {
+      next = attachInflightAgent(mapped, local);
+    } else {
+      next = mapped.length ? mapped : local;
+      const last = next[next.length - 1];
+      if (last?.role === 'agent') finalizeAgentMsgFromThinking(last);
+    }
+    if (!next.length) return;
+    S.agentMessages[agentId] = next;
+    saveChatHistory();
+    if (S.currentAgentId === agentId) {
+      if (busy) rebindAgentStreamDom(agentId);
+      else rerenderAgentChat(agentId);
+    } else if (!busy) {
+      next.slice(-2).forEach(m => { m._new = true; });
+      renderAgentList();
+    }
+  } catch (e) {
+    console.warn('syncAgentChatFromServer:', e);
+  }
+}
+function rerenderAgentChat(agentId) {
+  if (S.currentAgentId !== agentId || !DOM.messages) return;
+  DOM.messages.innerHTML = '';
+  (S.agentMessages[agentId] || []).forEach(m => renderAgentMsg(m, DOM.messages, agentId));
+  scrollBottom(DOM.messages, true);
+}
+function rebindAgentStreamDom(agentId) {
+  const skey = streamKeyAgent(agentId);
+  const st = S.streams[skey];
+  if (!st?.busy || !st.ctx || st.ctx.agentId !== agentId || S.currentAgentId !== agentId) return;
+  rerenderAgentChat(agentId);
+  const msgs = S.agentMessages[agentId] || [];
+  const aMsg = st.ctx.aMsg || msgs[msgs.length - 1];
+  const agentNodes = DOM.messages.querySelectorAll('.message.agent');
+  const el = agentNodes[agentNodes.length - 1];
+  if (!el || !aMsg) return;
+  const ce = el.querySelector('.msg-content');
+  const tb = el.querySelector('.thinking-body');
+  const ts = el.querySelector('.thinking-section');
+  st.ctx.agentEl = el;
+  st.ctx.contentEl = ce;
+  st.ctx.tb = tb;
+  st.ctx.ts = ts;
+  st.ctx.aMsg = aMsg;
+  if (ce && aMsg.content) renderBubbleMarkdown(ce, aMsg.content);
+  if (tb && aMsg.thinking?.length) {
+    tb.innerHTML = buildThinkingBodyHtml(aMsg.thinking);
+    if (ts) { ts.style.display = ''; updateThinkingHeader(ts, aMsg, true); }
+  }
+  const td = el.querySelector('.typing-dots');
+  if (td && !aMsg.content && !(aMsg.thinking?.length)) td.style.display = 'flex';
+}
+function resolveAgentStreamUi(agentId, aMsg) {
+  const skey = streamKeyAgent(agentId);
+  const st = S.streams[skey];
+  if (!st?.ctx) return { el: null, ce: null, tb: null, ts: null };
+  if (S.currentAgentId === agentId && (!st.ctx.agentEl || !st.ctx.agentEl.isConnected)) {
+    rebindAgentStreamDom(agentId);
+  }
+  const ctx = st.ctx;
+  return { el: ctx.agentEl || null, ce: ctx.contentEl || null, tb: ctx.tb || null, ts: ctx.ts || null };
+}
 function addAgentMsg(id, msg) {
   if (!S.agentMessages[id]) S.agentMessages[id] = [];
   S.agentMessages[id].push(msg);
@@ -344,6 +499,23 @@ function removeTyping(el) {
   const td = el?.querySelector('.typing-dots');
   if (td) td.style.display = 'none';
 }
+function streamKeyAgent(agentId) { return agentId ? `agent:${agentId}` : null; }
+function streamKeyGroup(groupId) { return groupId ? `group:${groupId}` : null; }
+function ensureStream(key) {
+  if (!key) return null;
+  if (!S.streams[key]) S.streams[key] = { abortCtrl: null, reader: null, ctx: null, busy: false };
+  return S.streams[key];
+}
+function isStreamBusy(key) { return !!(key && S.streams[key]?.busy); }
+function currentViewStreamKey() {
+  if (S.currentAgentId) return streamKeyAgent(S.currentAgentId);
+  if (S.currentGroupId) return streamKeyGroup(S.currentGroupId);
+  return null;
+}
+function refreshStatusBadge() {
+  const key = currentViewStreamKey();
+  setStatus(key && isStreamBusy(key) ? 'busy' : 'online');
+}
 function setStatus(s) {
   const badge = DOM['status-badge'];
   badge.className = `status ${s}`;
@@ -357,21 +529,36 @@ function setSendBtnMode(btn, streaming, hasText, enabled) {
   btn.disabled = !hasText || !enabled;
 }
 function updateSendBtn() {
-  setSendBtnMode(DOM['btn-send'], S.isStreaming, !!DOM['message-input'].value.trim(), !!S.currentAgentId);
+  const busy = isStreamBusy(streamKeyAgent(S.currentAgentId));
+  setSendBtnMode(DOM['btn-send'], busy, !!DOM['message-input'].value.trim(), !!S.currentAgentId);
 }
 function updateGroupSendBtn() {
-  setSendBtnMode(DOM['btn-group-send'], S.isStreaming, !!DOM['group-input'].value.trim(), !!S.currentGroupId);
+  const busy = isStreamBusy(streamKeyGroup(S.currentGroupId));
+  setSendBtnMode(DOM['btn-group-send'], busy, !!DOM['group-input'].value.trim(), !!S.currentGroupId);
+}
+function stopStreamKey(key, opts = {}) {
+  const st = key ? S.streams[key] : null;
+  if (!st) return;
+  if (opts.userInitiated) st.userCancelled = true;
+  if (st.abortCtrl) { st.abortCtrl.abort(); st.abortCtrl = null; }
+  if (st.reader) { st.reader.cancel().catch(() => {}); st.reader = null; }
 }
 function stopStream() {
-  if (S.abortCtrl) { S.abortCtrl.abort(); S.abortCtrl = null; }
-  if (S.currentReader) { S.currentReader.cancel().catch(() => {}); S.currentReader = null; }
+  stopStreamKey(currentViewStreamKey());
+  S.abortCtrl = null;
+  S.currentReader = null;
 }
 function cancelActiveStream() {
-  if (!S.isStreaming) return;
-  stopStream();
+  const key = currentViewStreamKey();
+  if (!key || !isStreamBusy(key)) return;
+  stopStreamKey(key, { userInitiated: true });
+  refreshStatusBadge();
+  updateSendBtn();
+  updateGroupSendBtn();
 }
-function rollbackAgentTurn(userText, agentEl) {
-  const msgs = S.agentMessages[S.currentAgentId];
+function rollbackAgentTurn(userText, agentEl, agentId) {
+  const aid = agentId || S.currentAgentId;
+  const msgs = S.agentMessages[aid];
   if (msgs?.length >= 2 && msgs[msgs.length - 1].role === 'agent') {
     msgs.pop();
     if (msgs[msgs.length - 1]?.role === 'user') msgs.pop();
@@ -387,17 +574,12 @@ function rollbackGroupTurn(userText) {
   const users = DOM['group-messages']?.querySelectorAll('.message.group-user');
   users?.[users.length - 1]?.remove();
   DOM['group-messages']?.querySelectorAll('[id^="gt-"]').forEach(el => el.remove());
-  renderGroupMsg({ sender:'system', text:'⏹ 已中断', id:`x_${Date.now()}` });
+  renderGroupMsg({ sender:'system', text:'已中断', id:`x_${Date.now()}` });
   DOM['group-input'].value = userText;
   DOM['group-input'].style.height = 'auto';
 }
 
 // ============ Tool Parsing ============
-const TOOL_ICONS = {
-  Read: '📖', Edit: '✏️', Write: '📝', Bash: '💻',
-  Run: '⚡', Search: '🔍', Grep: '🔎', Glob: '📁',
-  WebSearch: '🌐', WebFetch: '📄', Task: '📋', Think: '🧠',
-};
 function parseToolInputObj(input) {
   if (!input) return {};
   if (typeof input === 'object') return input;
@@ -452,11 +634,11 @@ function buildActivityStep(stepNum) {
 }
 function buildActivityRow(toolUse, toolResult) {
   const act = describeToolAction(toolUse.name, toolUse.input);
-  const icon = TOOL_ICONS[toolUse.name] || '🔧';
+  const abbr = toolIconAbbr(toolUse.name);
   const pending = !toolResult;
   const args = formatToolInputJson(toolUse.input);
   const targetHtml = act.mono ? `<code class="activity-target">${esc(act.target)}</code>` : `<span class="activity-target-text">${esc(act.target)}</span>`;
-  let html = `<div class="activity-row${pending ? ' pending' : ' done'}"><div class="activity-main"><span class="activity-icon">${icon}</span><span class="activity-verb">${esc(act.verb)}</span>${targetHtml}<span class="activity-status">${pending ? '…' : '✓'}</span></div><details class="activity-detail"><summary>参数</summary><pre class="activity-pre">${esc(args)}</pre></details>`;
+  let html = `<div class="activity-row${pending ? ' pending' : ' done'}"><div class="activity-main"><span class="activity-icon" title="${esc(toolUse.name || '')}">${esc(abbr)}</span><span class="activity-verb">${esc(act.verb)}</span>${targetHtml}<span class="activity-status">${pending ? '…' : '✓'}</span></div><details class="activity-detail"><summary>参数</summary><pre class="activity-pre">${esc(args)}</pre></details>`;
   if (toolResult) html += buildActivityResultInner(toolResult);
   html += '</div>';
   return html;
@@ -551,39 +733,65 @@ function appendBubbleText(msg, contentEl, chunk) {
   return msg.content;
 }
 function handleChatEvent(ev, msg, contentEl, tb, ts, rootEl) {
-  if (!ev || !rootEl) return;
+  if (!ev || !msg) return;
+  const live = rootEl && rootEl.isConnected;
   if (ev.event === 'thinking') { handleThinking(ev.data, msg, contentEl, tb, ts, rootEl); }
   else if (ev.event === 'citations') {
     const cites = Array.isArray(ev.data) ? ev.data : [];
     if (cites.length) {
       msg.parts = cites;
-      const bubble = rootEl.querySelector('.bubble');
-      if (bubble) {
-        bubble.querySelector('.citations')?.remove();
-        renderCitations(bubble, cites, bubble.querySelector('.msg-meta'));
+      if (live) {
+        const bubble = rootEl.querySelector('.bubble');
+        if (bubble) {
+          bubble.querySelector('.citations')?.remove();
+          renderCitations(bubble, cites, bubble.querySelector('.msg-meta'));
+        }
+        scrollBottom(DOM.messages);
       }
-      scrollBottom(DOM.messages);
+      saveChatHistory();
     }
-  } else if (ev.event === 'error') { showAgentError(rootEl, ev.data?.message || '未知错误'); }
-  else if (ev.event === 'done') { msg.sessionId = ev.data?.session_id || ''; }
+  } else if (ev.event === 'error') {
+    if (live) showAgentError(rootEl, ev.data?.message || '未知错误');
+    else msg.content = msg.content || `错误：${ev.data?.message || '未知错误'}`;
+    saveChatHistory();
+  } else if (ev.event === 'done') {
+    msg.sessionId = ev.data?.session_id || '';
+    saveChatHistory();
+  }
 }
 function handleThinking(d, msg, contentEl, tb, ts, rootEl) {
-  if (!d) return;
-  if (d.type === 'text') { appendBubbleText(msg, contentEl, d.content); scrollBottom(DOM.messages); return; }
-  if (!ts && rootEl) { ts = rootEl.querySelector('.thinking-section'); tb = rootEl.querySelector('.thinking-body'); }
-  if (ts) ts.style.display = '';
-  if (d.type === 'step_start' || d.type === 'tool_use' || d.type === 'tool_result' || d.type === 'step_finish') {
-    appendThinkingEvent(msg, tb, d);
-    updateThinkingHeader(ts, msg, true);
+  if (!d || !msg) return;
+  const liveEl = rootEl && rootEl.isConnected;
+  let ce = contentEl;
+  let thinkingBody = tb;
+  let thinkingSec = ts;
+  if (liveEl && !thinkingSec) {
+    thinkingSec = rootEl.querySelector('.thinking-section');
+    thinkingBody = rootEl.querySelector('.thinking-body');
+    ce = ce || rootEl.querySelector('.msg-content');
   }
-  scrollBottom(DOM.messages);
+  if (d.type === 'text') {
+    msg.content = normalizeBubbleText((msg.content || '') + (d.content || ''));
+    if (ce?.isConnected) renderBubbleMarkdown(ce, msg.content);
+    if (ce?.isConnected) scrollBottom(DOM.messages);
+    saveChatHistory();
+    return;
+  }
+  if (thinkingSec?.isConnected) thinkingSec.style.display = '';
+  if (d.type === 'step_start' || d.type === 'tool_use' || d.type === 'tool_result' || d.type === 'step_finish') {
+    appendThinkingEvent(msg, thinkingBody?.isConnected ? thinkingBody : null, d);
+    if (d.type === 'step_finish' && d.tokens && S.currentAgentId) accumulateContextTokens(S.currentAgentId, d.tokens);
+    if (thinkingSec?.isConnected) updateThinkingHeader(thinkingSec, msg, true);
+    saveChatHistory();
+  }
+  if (thinkingBody?.isConnected || ce?.isConnected) scrollBottom(DOM.messages);
 }
 function showAgentError(rootEl, message) {
   const ce = rootEl?.querySelector('.msg-content');
   if (ce) { ce.classList.remove('markdown-body'); ce.textContent = message; ce.classList.add('error'); }
 }
 function msgMetaHtml(mts) {
-  return '<div class="msg-meta"><button class="msg-copy" type="button" title="复制" aria-label="复制">⧉</button><span class="msg-time">' + fmtMsgTime(mts) + '</span></div>';
+  return '<div class="msg-meta"><button class="msg-copy" type="button" title="复制" aria-label="复制">' + ic('copy') + '</button><span class="msg-time">' + fmtMsgTime(mts) + '</span></div>';
 }
 function renderCitations(bubbleEl, parts, beforeEl) {
   if (!Array.isArray(parts)) return;
@@ -596,7 +804,7 @@ function renderCitations(bubbleEl, parts, beforeEl) {
     card.className = 'citation-card';
     const title = c.title || c.source || c.ref || '引用';
     const snippet = c.snippet || c.text || '';
-    card.innerHTML = '<div class="cite-head">🔗 ' + esc(title) + '</div>' + (snippet ? '<div class="cite-snippet">' + esc(snippet) + '</div>' : '');
+    card.innerHTML = '<div class="cite-head"><span class="cite-label">引用</span> ' + esc(title) + '</div>' + (snippet ? '<div class="cite-snippet">' + esc(snippet) + '</div>' : '');
     if (c.url) { card.classList.add('clickable'); card.addEventListener('click', () => window.open(c.url, '_blank', 'noopener')); }
     wrap.appendChild(card);
   });
@@ -624,7 +832,7 @@ function renderAgentMsg(msg, container, agentId) {
     const nm = a ? a.name : 'Agent';
     const hasThinking = msg.thinking && msg.thinking.length;
     div.innerHTML =
-      '<div class="msg-avatar">' + getAvatar(aid) + '</div>' +
+      '<div class="msg-avatar avatar-badge" aria-label="' + esc(aid) + '">' + esc(getAvatar(aid)) + '</div>' +
       '<div class="bubble">' +
       (grouped ? '' : '<div class="bubble-name">' + esc(nm) + '</div>') +
       '<div class="thinking-section collapsed"><div class="thinking-header"><span class="thinking-toggle">▼</span><span class="thinking-title">' + esc(thinkingSectionTitle(msg.thinking, !!(msg.ts && S.isStreaming))) + '</span></div><div class="thinking-body">' + buildThinkingBodyHtml(msg.thinking) + '</div></div>' +

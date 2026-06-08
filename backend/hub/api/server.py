@@ -9,6 +9,7 @@ import threading
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Optional
 
 _ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_ROOT) not in sys.path:
@@ -920,11 +921,11 @@ def _slug(text: str, limit: int = 24) -> str:
 
 
 def _run_kernel_bg(project_id: str, goal: str, mode: str, budget, title: str,
-                   review: bool = False) -> None:
+                   review: bool = False, workflow: Optional[str] = None) -> None:
     try:
         from common.run_kernel import run_project
         run_project(project_id, goal=goal, title=title, mode=mode, token_budget=budget,
-                    review=review)
+                    review=review, workflow=workflow)
     except Exception as e:  # noqa: BLE001 — 后台线程，错误回灌给状态查询
         _KERNEL_RUNS[project_id] = {"running": False, "error": str(e)}
     else:
@@ -939,6 +940,13 @@ def _resume_kernel_bg(project_id: str) -> None:
         _KERNEL_RUNS[project_id] = {"running": False, "error": str(e)}
     else:
         _KERNEL_RUNS[project_id] = {"running": False, "error": None}
+
+
+@app.get("/api/workflows")
+async def api_list_workflows():
+    """列出 PGD workflow profile（阶段闸门项目模板）。"""
+    from common.workflow_bootstrap import list_workflow_summaries
+    return {"workflows": list_workflow_summaries()}
 
 
 @app.post("/api/projects/run")
@@ -956,17 +964,31 @@ async def api_project_run(body: dict):
         budget = None
     title = (body.get("title") or "").strip()
     review = bool(body.get("review"))
+    workflow = (body.get("workflow") or "").strip() or None
+    if workflow:
+        from common.workflow_loader import load_workflow
+        try:
+            load_workflow(workflow)
+        except (FileNotFoundError, ValueError) as e:
+            raise APIError("INVALID_WORKFLOW", str(e), hint="选择有效的 workflow 或留空")
     project_id = (body.get("project_id") or "").strip()
     if not project_id:
-        project_id = f"ui_{_slug(title or goal)}_{time.strftime('%Y%m%d_%H%M%S')}"
+        slug = _slug(title or goal)
+        project_id = f"ui_{slug}_{time.strftime('%Y%m%d_%H%M%S')}"
     if _KERNEL_RUNS.get(project_id, {}).get("running"):
         raise HTTPException(status_code=409, detail="该项目正在运行")
     _KERNEL_RUNS[project_id] = {"running": True, "error": None}
     threading.Thread(
-        target=_run_kernel_bg, args=(project_id, goal, mode, budget, title, review),
-        daemon=True
+        target=_run_kernel_bg,
+        args=(project_id, goal, mode, budget, title, review, workflow),
+        daemon=True,
     ).start()
-    return {"project_id": project_id, "title": title or project_id, "started": True}
+    return {
+        "project_id": project_id,
+        "title": title or project_id,
+        "started": True,
+        "workflow": workflow,
+    }
 
 
 @app.get("/api/projects/run-status/{project_id}")
