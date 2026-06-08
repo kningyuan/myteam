@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import json
+import os
 import queue
 import threading
 import time
@@ -34,6 +35,11 @@ class WatchdogConfig:
     hard_idle_sec: float = 300.0   # 无事件超此 = 取消 + 重试
     poll_interval: float = 0.5
     max_attempts: int = 3
+
+    def __post_init__(self) -> None:
+        # 环境变量可覆盖阈值，便于运行时绕过而不改代码
+        self.soft_idle_sec = float(os.environ.get("MYTEAM_SOFT_IDLE_SEC", str(self.soft_idle_sec)))
+        self.hard_idle_sec = float(os.environ.get("MYTEAM_HARD_IDLE_SEC", str(self.hard_idle_sec)))
 
 
 @dataclass
@@ -133,7 +139,7 @@ class AgentPort:
         th = threading.Thread(target=self._safe_transport, args=(ctx, q), daemon=True)
         th.start()
 
-        last_event = time.time()
+        last_event = time.monotonic()
         running = False
         soft_warned = False
         event_tokens = 0
@@ -143,7 +149,7 @@ class AgentPort:
             drained, tok = self._drain(q, iid)
             event_tokens = max(event_tokens, tok)
             if drained:
-                last_event = time.time()
+                last_event = time.monotonic()
                 if not running:
                     running = True
                     self.store.update_interaction(iid, status="running")
@@ -151,8 +157,8 @@ class AgentPort:
             resp = self._read_valid_response(resp_path, iid, req_mtime)
             if resp is not None:
                 # 响应先落盘时传输可能仍在跑；短暂收尾以接收 Claude result 行的 step_finish
-                grace_deadline = time.time() + 2.5
-                while th.is_alive() and time.time() < grace_deadline:
+                grace_deadline = time.monotonic() + 2.5
+                while th.is_alive() and time.monotonic() < grace_deadline:
                     _, tok = self._drain(q, iid)
                     event_tokens = max(event_tokens, tok)
                     if tok > 0:
@@ -177,7 +183,7 @@ class AgentPort:
                 return AgentPortResult("no_response", None, iid, attempt,
                                        "传输结束但未取回合法响应")
 
-            idle = time.time() - last_event
+            idle = time.monotonic() - last_event
             if idle >= cfg.hard_idle_sec:
                 ctx._cancel.set()
                 self.store.append_run_event(iid, "watchdog_hard_kill", {"idle_sec": round(idle, 1)})
