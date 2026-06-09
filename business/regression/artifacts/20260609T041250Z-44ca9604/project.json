@@ -1,0 +1,11 @@
+[
+  {
+    "project_id": "reg-l2-3role",
+    "title": "",
+    "mode": "one_shot",
+    "status": "partially_failed",
+    "created_at": "2026-06-09T11:28:46",
+    "updated_at": "2026-06-09T12:12:50",
+    "meta": "{\"token_budget\": 5000000, \"goal\": \"对 myteam L2 协作机制做三角色并行评审：A）产品视角 B）架构视角 C）测试视角，每视角约200字，最后汇总\", \"workflow\": \"reg-l2-3role\"}"
+  }
+]

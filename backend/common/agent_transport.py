@@ -11,9 +11,15 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import sys
+import tempfile
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from common.store import Store
 
 from common.audit_log import audit_enabled, clip_text
 from common.paths import (
@@ -26,6 +32,40 @@ from common.paths import (
 from common.project_artifacts import is_code_project_task, task_project_dir
 from common.registry import get_spec, load_registry
 
+RULES_DIR = BUSINESS_CONFIG_DIR.parent / "rules"
+
+_IDENTITY_FILES = ("AGENTS.md", "IDENTITY.md", "SOUL.md", "MEMORY.md")
+
+
+def parallel_execute_workspace(agent_id: str, req) -> Path:
+    """L2 并行：同 agent 多任务时使用独立 cwd，避免 CLI 子进程争用同一 workspace。"""
+    base = workspace_dir(agent_id)
+    pid = getattr(req, "project_id", None) or ""
+    tid = getattr(req, "task_id", None) or ""
+    kind = getattr(req, "kind", None) or ""
+    if kind != "execute" or not pid or not tid:
+        return base
+    iso = base / "_parallel" / pid / tid
+    iso.mkdir(parents=True, exist_ok=True)
+    for name in _IDENTITY_FILES:
+        src = base / name
+        dst = iso / name
+        if not src.is_file() or dst.exists():
+            continue
+        try:
+            os.symlink(src, dst)
+        except OSError:
+            shutil.copy2(src, dst)
+    return iso
+
+_AGENT_DISPLAY_NAMES = {
+    "main": "项目协调专家",
+    "product": "产品经理",
+    "developer": "开发工程师",
+    "researcher": "调研专家",
+    "content": "内容创作者",
+}
+
 # 决策类 kind 的 result 具体骨架（弱模型靠 response_schema 名字猜不出结构，须给样例，D11）。
 _RESULT_SKELETON = {
     "team_config": '{"agents": ["<agent_id>", "..."]}',
@@ -36,7 +76,10 @@ _RESULT_SKELETON = {
                  '[{"id": "s1", "name": "子任务名", "agent": "", "task_type": "", '
                  '"description": "做什么", "reviewer": "", "dependencies": []}]}'),
     "review": '{"passed": true, "feedback": "评审意见", "checklist": []}',
-    "triage": '{"decision": "retry", "target_agent": "", "notes": "理由"}',
+    "triage": (
+        '{"decision": "retry|reassign|drop", "target_agent": "", "notes": "理由"}'
+        " — 参考 input.fail_reason / fail_detail 决策，勿忽略具体失败原因"
+    ),
 }
 
 
@@ -59,6 +102,33 @@ def _default_request_factory(**kw):
     _ensure_backend_importable()
     from adapter.protocol import RunRequest
     return RunRequest(**kw)
+
+
+def _build_rules_file(agent_id: str) -> Optional[str]:
+    """合并 universal-rules + AGENTS.md，供内核 execute 与 Hub 聊天同源（D1）。"""
+    ws = str(workspace_dir(agent_id))
+    universal = RULES_DIR / "universal-rules.md"
+    agents_md = Path(ws) / "AGENTS.md"
+    try:
+        fd, temp_path = tempfile.mkstemp(
+            suffix=".md", prefix=f"rules-{agent_id}-", dir="/tmp",
+        )
+        chinese_name = _AGENT_DISPLAY_NAMES.get(agent_id, agent_id)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(f"# {chinese_name} - 完整规则\n\n")
+            if universal.exists():
+                f.write(universal.read_text(encoding="utf-8"))
+                f.write("\n\n---\n\n")
+            for name in ["brainstorming-guide.md", "worker-template.md"]:
+                fp = RULES_DIR / name
+                if agent_id != "main" and fp.exists():
+                    f.write(fp.read_text(encoding="utf-8"))
+                    f.write("\n\n---\n\n")
+            if agents_md.exists():
+                f.write(agents_md.read_text(encoding="utf-8"))
+        return temp_path
+    except Exception:
+        return None
 
 
 def _load_agents_config() -> dict:
@@ -132,10 +202,47 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
             lines.append("这是动作型任务：必须真实执行动作并在交付物中记录【已发布URL】与【证据截图】路径。")
         else:
             lines.append(f"请完成任务并把交付物写入文件：{abs_dv}")
-            if spec and spec.required_sections:
-                lines.append(f"交付物须为 Markdown，包含 {spec.required_heading_level} 级标题章节：")
-                for s in spec.required_sections:
-                    lines.append(f"  - {s}")
+            if abs_dv.is_file():
+                lines.append(
+                    f"（框架已预写章节骨架：{abs_dv} — 请直接编辑该文件补全各节正文，勿另建路径。）"
+                )
+            lines += [
+                "",
+                "【必须完成的两步（缺一不可）】",
+                f"  1. 把完整交付物写入：{abs_dv}",
+                f"  2. 运行文末 submit_result 命令提交 JSON（仅聊天不算交卷）",
+            ]
+            intent = getattr(req, "intent", None) or (req.get("intent") if isinstance(req, dict) else "") or ""
+            if "200字" in intent or "简短" in intent:
+                lines.append(
+                    "【短评任务】约200字即可；禁止全仓库扫描或长篇探索；"
+                    "先写入交付物文件，再立即 submit_result。"
+                )
+            if spec:
+                level = spec.required_heading_level or 2
+                heading = "#" * level
+                if spec.required_sections:
+                    lines.append(
+                        f"交付物须为 Markdown；下列章节标题必须是 {level} 级标题"
+                        f"（行首 `{heading} 章节名`，不能只写在正文里提及）："
+                    )
+                    for s in spec.required_sections:
+                        lines.append(f"  - {s}")
+                if spec.sections:
+                    lines.append("【章节标题逐字示例】")
+                    for sec in spec.sections:
+                        if not isinstance(sec, dict):
+                            continue
+                        name = sec.get("name", "")
+                        if not name or not sec.get("required", True):
+                            continue
+                        lines.append(f"  - `{heading} {name}`")
+                        desc = sec.get("description", "")
+                        ex = sec.get("example", "")
+                        if desc:
+                            lines.append(f"    说明：{desc}")
+                        if ex:
+                            lines.append(f"    示例：{ex}")
         if spec and spec.outcome_kind == "code_project":
             outcome_hint = (
                 '{"kind":"artifact","artifact":{"path":"%s/","format":"code_project","title":"..."}}'
@@ -204,6 +311,58 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
     return "\n".join(lines)
 
 
+# ── Gate retry session ───────────────────────────────────────
+
+
+def _parse_execute_attempt(interaction_id: str) -> int:
+    try:
+        return int(interaction_id.rsplit(":", 1)[-1])
+    except ValueError:
+        return 1
+
+
+def lookup_interaction_session(store: "Store", interaction_id: str) -> Optional[str]:
+    """从 run_event 中取该 interaction 最后一次 session 事件里的 session_id。"""
+    sid = None
+    for ev in store.list_run_events(interaction_id):
+        if ev.get("kind") != "session":
+            continue
+        payload = ev.get("payload") or {}
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+            except json.JSONDecodeError:
+                payload = {}
+        if isinstance(payload, dict):
+            sid = payload.get("session_id") or sid
+    return sid
+
+
+def resolve_gate_retry_session(store: "Store", req) -> Optional[str]:
+    """execute 门禁重试（attempt>1）时复用上一轮 CLI session。"""
+    if getattr(req, "kind", None) != "execute":
+        return None
+    attempt = _parse_execute_attempt(req.interaction_id)
+    if attempt <= 1:
+        return None
+    inp = req.input or {}
+    ctx = req.context or {}
+    sid = inp.get("session_id") or ctx.get("session_id")
+    if sid:
+        return sid
+    prev_iid = f"{req.project_id}:{req.task_id}:execute:{attempt - 1}"
+    return lookup_interaction_session(store, prev_iid)
+
+
+def make_gate_session_resolver(store: "Store"):
+    """供 run_kernel 注入 AdapterTransport.session_resolver。"""
+
+    def resolver(agent_id: str, req) -> Optional[str]:
+        return resolve_gate_retry_session(store, req)
+
+    return resolver
+
+
 # ── Transport ────────────────────────────────────────────────
 
 
@@ -215,7 +374,7 @@ class AdapterTransport:
                  rules_file: Optional[str] = None,
                  request_factory: Optional[Callable] = None,
                  prompt_builder: Callable = build_worker_prompt,
-                 session_resolver: Optional[Callable[[str], Optional[str]]] = None):
+                 session_resolver: Optional[Callable[..., Optional[str]]] = None):
         self._adapter = adapter
         self._backend = backend
         self._adapter_cache: dict[str, object] = {}
@@ -247,7 +406,7 @@ class AdapterTransport:
 
     def __call__(self, ctx) -> None:
         req = ctx.request
-        ws = str(workspace_dir(req.agent_id))
+        ws = str(parallel_execute_workspace(req.agent_id, req))
         resp_path = response_dir(req.agent_id) / f"{req.interaction_id}.response"
         if (req.input or {}).get("deliverable_base"):
             deliv_dir = Path((req.input or {})["deliverable_base"])
@@ -261,11 +420,27 @@ class AdapterTransport:
                 "prompt_len": len(prompt),
                 "prompt": clip_text(prompt),
             })
-        session_id = self.session_resolver(req.agent_id) if self.session_resolver else None
+        session_id = None
+        if self.session_resolver:
+            try:
+                session_id = self.session_resolver(req.agent_id, req)
+            except TypeError:
+                session_id = self.session_resolver(req.agent_id)
+        attempt = _parse_execute_attempt(req.interaction_id)
+        if session_id and attempt > 1:
+            ctx.emit("gate_retry_session", {
+                "session_id": session_id,
+                "attempt": attempt,
+                "task_id": req.task_id,
+                "project_id": req.project_id,
+            })
+        if not session_id:
+            session_id = (req.input or {}).get("session_id")
+        rules_file = self.rules_file or _build_rules_file(req.agent_id)
 
         run_req = self._request_factory(
             workspace=ws, message=prompt, model=self._model(req.agent_id),
-            session_id=session_id, rules_file=self.rules_file,
+            session_id=session_id, rules_file=rules_file,
             agent_id=req.agent_id, cancel_event=ctx.cancel_event,
         )
 

@@ -1,0 +1,97 @@
+# PGD Profile: myteam 自升级周期（L3 scaffold）
+id: self-upgrade
+version: "1.0"
+description: >
+  自升级 workflow 骨架：plan（方案）→ execute（实现 + skill 草案）→ review（审查验收）。
+  配合 run_kernel --workflow self-upgrade 使用；L3 门禁见 scripts/regression/reg_l3_self_upgrade.py。
+
+roster:
+  required: [main, arch, qa, product]
+
+options:
+  review_enabled: true
+  split_enabled: false
+  skill_extract_enabled: true
+
+phases:
+  - id: plan
+    name: 升级规划
+  - id: execute
+    name: 变更实现
+  - id: review
+    name: 审查验收
+
+tasks:
+  - id: upgrade-plan
+    phase: plan
+    name: 升级方案
+    agent: product
+    task_type: requirements
+    dependencies: []
+    description: >
+      基于 goal 编写 myteam 自升级方案：范围、风险、验收标准（R1…）、
+      是否涉及 skill 抽提/回读与 budget 降级策略。
+      上下文仅读 docs/0608/ 与 business/templates/templates.yaml；
+      禁止 find/glob/ls 扫仓库其他目录，docs/0607 已删勿访问。
+      尽快写交付物并 submit_result，避免长探索。
+      上下文仅读 docs/0608/ 与 business/templates/templates.yaml；勿扫已删 docs/0607。
+      尽快写交付物并 submit_result，避免长探索。
+
+  - id: plan-review
+    phase: plan
+    name: 方案评审
+    agent: qa
+    task_type: architecture-review
+    dependencies: [upgrade-plan]
+    description: 评审升级方案可行性与回归覆盖；🔴 须可关闭。
+
+  - id: plan-decision
+    phase: plan
+    name: 规划决策
+    agent: main
+    task_type: decision-record
+    dependencies: [plan-review]
+    description: 规划阶段仲裁；开放 🔴：0 方可进入 execute。
+
+  - id: impl-upgrade
+    phase: execute
+    name: 升级实现
+    agent: arch
+    task_type: code-writing
+    dependencies: [plan-decision]
+    reviewer: qa
+    description: 按 plan-decision 实现代码变更；附 diff 说明。
+
+  - id: skill-extract
+    phase: execute
+    name: Skill 抽提草案
+    agent: product
+    task_type: research
+    dependencies: [impl-upgrade]
+    description: >
+      从本次升级 run 提炼可复用 pattern，输出 skill 草案与回读要点（L3 scaffold；
+      暂不自动写入 business/skills/）。
+
+  - id: code-review
+    phase: review
+    name: 代码审查
+    agent: qa
+    task_type: code-review
+    dependencies: [skill-extract]
+    description: 审查 impl-upgrade 变更与 plan-decision 一致性。
+
+  - id: acceptance
+    phase: review
+    name: 升级验收
+    agent: product
+    task_type: acceptance-report
+    dependencies: [code-review]
+    description: 对照 upgrade-plan 验收标准逐项确认。
+
+  - id: release-decision
+    phase: review
+    name: 合入决策
+    agent: main
+    task_type: decision-record
+    dependencies: [acceptance]
+    description: 是否合入 main/upgrade；须人确认后 git commit（L3 不自推远端）。

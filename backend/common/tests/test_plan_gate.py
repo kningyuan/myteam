@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """plan_gate 单元测试 — 从 test_process 拆出，覆盖纯函数门禁。"""
+import json
 import sys
 from pathlib import Path
 
@@ -58,7 +59,15 @@ def test_check_plan_unregistered_task_type():
     assert "fake_type" in r.feedback
 
 
-def test_check_plan_agent_task_type_mismatch():
+def test_check_plan_agent_task_type_mismatch(monkeypatch, tmp_path):
+    import common.agent_registry as agent_registry_mod
+
+    reg_path = tmp_path / "agents_registry.json"
+    reg_path.write_text(json.dumps({
+        "agents": {"researcher": {"task_types": ["research"]}},
+    }, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setattr(agent_registry_mod, "REGISTRY_FILE", reg_path)
+
     r = check_plan([_task("a", agent="researcher", task_type="code-writing")], {"researcher"})
     assert not r.passed
     assert "能力边界" in r.feedback

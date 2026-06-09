@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Optional
 
 from common import paths
+from common.agent_port import read_adoptable_response
 from common.paths import response_dir, trigger_dir
 from common.store import Store
 
@@ -77,9 +78,14 @@ def gc_project_workspace(store: Store, project_id: str) -> dict:
 
 
 def gc_terminal_interactions(store: Store) -> dict:
-    """按 DB 终态 interaction 清理磁盘临时件（启动对账 / Hub 启动时可调用）。"""
+    """按 DB 终态 interaction 清理磁盘临时件（启动对账 / Hub 启动时可调用）。
+
+    timed_out/failed 且磁盘仍有可采纳 .response 时跳过删除，留给 reconcile /
+    settle 回收，避免启动 gc 与对账竞态。
+    """
     rows = store._conn.execute(
-        "SELECT interaction_id, agent_id FROM interaction WHERE status IN ('done','timed_out','failed')"
+        "SELECT interaction_id, agent_id, status FROM interaction "
+        "WHERE status IN ('done','timed_out','failed')"
     ).fetchall()
     files_removed = 0
     seen: set[tuple[str, str]] = set()
@@ -90,6 +96,10 @@ def gc_terminal_interactions(store: Store) -> dict:
         if not agent or not iid or key in seen:
             continue
         seen.add(key)
+        if r["status"] in ("timed_out", "failed"):
+            resp, _ = read_adoptable_response(agent, iid)
+            if resp is not None:
+                continue
         files_removed += remove_interaction_files(agent, iid)
     return {"interactions": len(seen), "files_removed": files_removed}
 
@@ -113,7 +123,12 @@ def gc_orphan_workspace_files(store: Store, *, grace_sec: int = _ORPHAN_GRACE_SE
                 iid = p.name[: -len(suffix)]
                 row = store.get_interaction(iid)
                 if row is not None:
-                    if row.get("status") in _TERMINAL:
+                    st = row.get("status")
+                    if st in _TERMINAL:
+                        if st in ("timed_out", "failed"):
+                            resp, _ = read_adoptable_response(agent_id, iid)
+                            if resp is not None:
+                                continue
                         try:
                             p.unlink()
                             files_removed += 1

@@ -5,12 +5,57 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from common.dag_dispatch import deps_block, derive_project_status  # noqa: E402
+from common.dag_dispatch import deps_block, derive_project_status, ready_tasks  # noqa: E402
 from common.process_types import TaskOutcome  # noqa: E402
 
 
 def _out(tid, status, reason=""):
     return TaskOutcome(tid, status, reason)
+
+
+def _tasks(*specs):
+    return [{"id": tid, "dependencies": deps} for tid, deps in specs]
+
+
+def test_ready_tasks_independent_leaves_same_wave():
+    order = ["a", "b", "c"]
+    by_id = {t["id"]: t for t in _tasks(("a", []), ("b", []), ("c", []))}
+    ready = ready_tasks(order, by_id, {}, needs_review_blocks=False)
+    assert ready == ["a", "b", "c"]
+
+
+def test_ready_tasks_skips_completed():
+    order = ["a", "b"]
+    by_id = {t["id"]: t for t in _tasks(("a", []), ("b", ["a"]))}
+    outcomes = {"a": _out("a", "completed")}
+    assert ready_tasks(order, by_id, outcomes, needs_review_blocks=False) == ["b"]
+
+
+def test_ready_tasks_waits_for_upstream():
+    order = ["a", "b"]
+    by_id = {t["id"]: t for t in _tasks(("a", []), ("b", ["a"]))}
+    assert ready_tasks(order, by_id, {}, needs_review_blocks=False) == ["a"]
+
+
+def test_ready_tasks_upstream_failed_blocked():
+    order = ["a", "b"]
+    by_id = {t["id"]: t for t in _tasks(("a", []), ("b", ["a"]))}
+    outcomes = {"a": _out("a", "failed")}
+    assert ready_tasks(order, by_id, outcomes, needs_review_blocks=False) == []
+
+
+def test_ready_tasks_needs_review_pass_when_not_blocking():
+    order = ["a", "b"]
+    by_id = {t["id"]: t for t in _tasks(("a", []), ("b", ["a"]))}
+    outcomes = {"a": _out("a", "needs_review")}
+    assert ready_tasks(order, by_id, outcomes, needs_review_blocks=False) == ["b"]
+
+
+def test_ready_tasks_needs_review_blocks_when_configured():
+    order = ["a", "b"]
+    by_id = {t["id"]: t for t in _tasks(("a", []), ("b", ["a"]))}
+    outcomes = {"a": _out("a", "needs_review")}
+    assert ready_tasks(order, by_id, outcomes, needs_review_blocks=True) == []
 
 
 def test_deps_block_upstream_failed():

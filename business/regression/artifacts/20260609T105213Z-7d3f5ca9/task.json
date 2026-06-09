@@ -1,0 +1,17 @@
+[
+  {
+    "project_id": "reg-budget-guard-r3",
+    "task_id": "t1",
+    "parent_id": null,
+    "name": "十大前沿科技领域战略全景分析",
+    "agent": "main",
+    "reviewer": "",
+    "task_type": "strategy",
+    "status": "in_progress",
+    "dependencies": "[]",
+    "started_at": null,
+    "completed_at": "2026-06-09T17:53:09",
+    "updated_at": "2026-06-09T18:47:12",
+    "meta": "{\"description\": \"对AI伦理、量子计算、气候变化、区块链、生物技术、元宇宙、空间技术、自动驾驶、数字经济、网络安全十大领域进行战略级分析：各领域现状、趋势判断、交叉影响，输出一份结构化战略报告（背景→分析→方案→建议）\", \"fail_reason\": \"timeout_idle\", \"fail_detail\": \"端口 timed_out: hard_idle 看门狗取消\"}"
+  }
+]

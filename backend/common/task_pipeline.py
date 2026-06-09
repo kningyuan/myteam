@@ -8,8 +8,9 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from common.agent_port import AgentPort, finalize_interaction, read_adoptable_response
+from common.agent_transport import lookup_interaction_session
 from common.gate import check_execute
-from common.process_types import ProcessConfig, TaskOutcome
+from common.process_types import BudgetExceededError, ProcessConfig, TaskOutcome
 from common.project_artifacts import (
     artifact_rel_path,
     is_code_project_task,
@@ -17,8 +18,39 @@ from common.project_artifacts import (
     task_deliverable_base,
     task_project_dir,
 )
+from common.deliverable_guarantee import deliverable_abs_path, scaffold_markdown_deliverable
+from common.prompt_templates import render_execute_intent
 from common.registry import get_spec
 from common.store import Store
+
+# 纯格式门禁失败：仅章节标题结构问题，可短 retry 修标题而不重写正文
+_FORMAT_ONLY_RULES = frozenset({"section_level", "required_sections"})
+
+
+def _is_pure_format_failure(failures: list[dict]) -> bool:
+    return bool(failures) and all(f.get("rule") in _FORMAT_ONLY_RULES for f in failures)
+
+
+def _port_fail_reason(status: str, detail: str) -> str:
+    if status == "timed_out":
+        return "timeout_idle"
+    if status == "no_response":
+        return "no_response"
+    if "门禁" in detail or "gate" in detail.lower():
+        return "gate_exhausted"
+    return status
+
+
+def _resolve_deliverable_path(resp: dict, base_dir: Path) -> Optional[str]:
+    outcome = (resp.get("result") or {}).get("outcome") or {}
+    artifact = outcome.get("artifact") or {}
+    rel_path = artifact.get("path", "")
+    if not rel_path:
+        return None
+    p = Path(rel_path)
+    if p.is_absolute():
+        return str(p)
+    return str(base_dir / rel_path)
 
 
 @dataclass
@@ -40,26 +72,50 @@ class TaskPipeline:
 
         context = self.build_context(project_id, task) if self.config.inject_context else {}
 
+        spec = get_spec(task_type)
         for attempt in range(1, self.config.max_gate_retries + 1):
+            if attempt == 1 and not is_code_project_task(task_type):
+                scaffold_markdown_deliverable(
+                    deliverable_abs_path(base_dir, rel_path, task_type),
+                    spec,
+                    title=task.get("name", tid),
+                    intent=task.get("description", task.get("name", "")),
+                )
+            inp = {
+                "task": task,
+                "deliverable_path": rel_path,
+                "deliverable_base": str(base_dir),
+            }
+            if attempt > 1:
+                prev_sid = lookup_interaction_session(
+                    self.store, f"{project_id}:{tid}:execute:{attempt - 1}",
+                )
+                if prev_sid:
+                    inp["session_id"] = prev_sid
             req = {
                 "interaction_id": f"{project_id}:{tid}:execute:{attempt}",
                 "kind": "execute", "project_id": project_id, "task_id": tid,
-                "agent_id": agent, "intent": task.get("description", task.get("name", "")),
-                "input": {
-                    "task": task,
-                    "deliverable_path": rel_path,
-                    "deliverable_base": str(base_dir),
-                },
+                "agent_id": agent, "intent": render_execute_intent(task),
+                "input": inp,
                 "context": context,
                 "response_schema": "execute.result@1.0",
                 "constraints": {"task_type": task_type},
                 "retry_feedback": feedback,
             }
             res = self.port.run(req)
+            if res.status == "budget_exceeded":
+                self.release_files(agent, req["interaction_id"])
+                raise BudgetExceededError(res.reason or "交互级 token 超预算")
             if res.status != "done":
                 self.release_files(agent, req["interaction_id"])
                 self.store.set_task_status(project_id, tid, "failed")
-                return TaskOutcome(tid, "failed", f"端口 {res.status}: {res.reason}", attempt)
+                detail = f"端口 {res.status}: {res.reason}"
+                self.store.update_task_meta(
+                    project_id, tid,
+                    fail_reason=_port_fail_reason(res.status, detail),
+                    fail_detail=detail,
+                )
+                return TaskOutcome(tid, "failed", detail, attempt)
 
             resp = res.response
             resp.setdefault("meta", {})
@@ -77,16 +133,39 @@ class TaskPipeline:
 
             feedback = [f"[{f['rule']}] 期望：{f['expected']}；实际：{f['actual']}"
                         for f in gate_res.failures]
-            self.store.append_run_event(req["interaction_id"], "gate_failed",
-                                        {"failures": gate_res.failures})
+            if _is_pure_format_failure(gate_res.failures):
+                dv_abs = _resolve_deliverable_path(resp, base_dir)
+                if dv_abs:
+                    feedback.append(f"上一轮交付物文件：{dv_abs}")
+                feedback.append(
+                    "请只调整 Markdown 标题结构以通过门禁，保留正文内容；"
+                    "禁止重读仓库或重写内容。"
+                )
+            gf_payload: dict = {"failures": gate_res.failures}
+            sid = inp.get("session_id") or lookup_interaction_session(
+                self.store, req["interaction_id"],
+            )
+            if sid:
+                gf_payload["session_id"] = sid
+            self.store.append_run_event(req["interaction_id"], "gate_failed", gf_payload)
             self.release_files(agent, req["interaction_id"])
 
         self.store.set_task_status(project_id, tid, "failed")
+        self.store.update_task_meta(
+            project_id, tid,
+            fail_reason="gate_exhausted",
+            fail_detail="确定性门禁重试耗尽",
+        )
         return TaskOutcome(tid, "failed", "确定性门禁重试耗尽", self.config.max_gate_retries)
 
     def settle_in_progress_task(self, project_id: str, task: dict) -> Optional[TaskOutcome]:
         """结算中断前已交卷但未入账的 execute（不重跑 agent）。"""
         tid = task["id"]
+        row = self.store.get_task(project_id, tid) or {}
+        task_st = row.get("status", "pending")
+        if task_st in ("completed", "needs_review", "failed", "blocked"):
+            return None  # 任务已终态，防双写
+
         exec_rows = [
             i for i in self.store.list_interactions(project_id)
             if i.get("task_id") == tid and i.get("kind") == "execute"
@@ -97,10 +176,13 @@ class TaskPipeline:
         iid = latest["interaction_id"]
         agent = latest.get("agent_id") or task.get("agent", "")
 
-        if latest.get("status") in ("pending", "running"):
+        if latest.get("status") in ("pending", "running", "timed_out"):
             resp, resp_path = read_adoptable_response(agent, iid)
             if resp is None or resp_path is None:
                 return None
+            cur = self.store.get_interaction(iid)
+            if not cur or cur.get("status") not in ("pending", "running", "timed_out"):
+                return None  # interaction 已被其他路径结算
             finalize_interaction(self.store, iid, resp_path, resp)
             self.store.append_run_event(iid, "resume_adopted", {"reason": "断点续跑回收响应"})
             latest = self.store.get_interaction(iid) or latest

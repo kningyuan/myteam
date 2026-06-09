@@ -24,6 +24,25 @@ def deps_block(task: dict, outcomes: dict[str, TaskOutcome], *,
     return ""
 
 
+def ready_tasks(order: list[str], by_id: dict, outcomes: dict[str, "TaskOutcome"], *,
+                needs_review_blocks: bool) -> list[str]:
+    """返回当前波次可调度任务 id（全部上游已有 outcome 且未阻塞）。"""
+    ready: list[str] = []
+    for tid in order:
+        if tid in outcomes:
+            continue
+        task = by_id.get(tid)
+        if not task:
+            continue
+        deps = task.get("dependencies") or []
+        if any(dep not in outcomes for dep in deps):
+            continue
+        if deps_block(task, outcomes, needs_review_blocks=needs_review_blocks):
+            continue
+        ready.append(tid)
+    return ready
+
+
 def derive_project_status(outcomes: dict[str, TaskOutcome], *,
                           aborted: bool = False,
                           paused: bool = False,

@@ -1,0 +1,16 @@
+{
+  "project_id": "reg-parallel-4leaf",
+  "exported_at": "20260609T025436Z",
+  "db_row_counts": {
+    "project": 0,
+    "task": 0,
+    "interaction": 0,
+    "run_event": 0,
+    "kernel_job": 0,
+    "workspace_event": 0
+  },
+  "response_files_copied": 0,
+  "response_files": [],
+  "task_count": 0,
+  "task_statuses": []
+}

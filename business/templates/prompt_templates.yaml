@@ -1,0 +1,80 @@
+# 标准 Prompt 模板（Strategy Registry）
+# 原则：按 task_type / interaction kind 定壳；agent 身份来自 workspace，不在此重复。
+# 变量：{task_description} {task_name} {task_id} {goal} {team}
+
+version: "1.0"
+
+kinds:
+  team_config: |
+    【决策】为目标配置执行团队（team_config）
+    【目标】{goal}
+    【约束】agents 列表须覆盖完成任务所需角色；agent_id 使用注册表已有 id
+    【输出】JSON result.agents
+
+  task_plan: |
+    【决策】规划任务 DAG（task_plan）
+    【目标】{goal}
+    【团队】{team}
+    【约束】
+    - 每步须指定 task_type（见注册表）与 agent（仅限团队成员）
+    - description 只写「本任务变量」：对象、视角、范围、输入依赖；通用格式由 task_type 模板承担
+    - 控制步数：调研类优先 research，4–6 步为宜；避免 main 承担过重 strategy
+    - 每步 description 只写变量（对象/视角/范围/输入），禁止在 description 重复通用格式条款
+    - dependencies 须为已有任务 id
+    【输出】JSON result.tasks
+
+  evaluate: |
+    【决策】评估是否拆分子任务（evaluate）
+    【约束】仅在任务明显过大时拆分；子任务须继承父任务 task_type 或显式指定合法 task_type
+
+task_types:
+  research:
+    execute: |
+      【任务类型】research 调研报告（与 agent 角色无关，按本章节约束写即可）
+      【本任务】
+      {task_description}
+      【通用约束】
+      - 范围以本任务【范围】为准；仅读 README、docs/、Releases、构建清单等公开材料
+      - 禁止全仓扫描、禁止深入逐文件读源码树、禁止执行安装命令
+      - 每章 5–8 句，全文 1000–1500 字（除非本任务另有篇幅说明）
+      - 信息来源须列至少 3 条可追溯来源（README/docs/Release 链接）
+      - 行首二级标题须与注册表一致：## 调研背景、## 信息来源、## 关键发现、## 结论
+      - 无公开来源不写；不确定写在结论，勿编造
+      【交卷】先编辑框架预写的 deliverable 文件，再运行 submit_result（仅聊天不算交卷）
+      【自评】信息已充分覆盖各章时 quality.known_gaps 填 []；仅真实缺口才列举
+
+  strategy:
+    execute: |
+      【任务类型】strategy 综合分析（与 agent 角色无关）
+      【本任务】
+      {task_description}
+      【通用约束】
+      - 优先只读上游交付物摘要与文件；勿重新做一遍调研
+      - 行首二级标题：## 背景、## 分析、## 方案、## 建议
+      - 正文须出现「不确定性」一词（局限、待验证点）
+      - 全文 800–1200 字；须引用上游交付物中的具体结论（勿空泛复述）
+      【交卷】先写 deliverable 再 submit_result
+      【自评】已综合上游且结构完整时 known_gaps 可留空 []
+
+  content:
+    execute: |
+      【任务类型】content 内容产出
+      【本任务】
+      {task_description}
+      【通用约束】按注册表章节撰写；引用须标注出处
+      【交卷】先写 deliverable 再 submit_result
+
+  requirements:
+    execute: |
+      【任务类型】requirements 需求文档
+      【本任务】
+      {task_description}
+      【通用约束】按注册表章节撰写；需求须可验证、可测试
+      【交卷】先写 deliverable 再 submit_result
+
+  _default:
+    execute: |
+      【任务类型】{task_type}
+      【本任务】
+      {task_description}
+      【交卷】先写 deliverable 再 submit_result

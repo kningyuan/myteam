@@ -1,0 +1,21 @@
+{
+  "agent_id": "main",
+  "path": "/Users/user/myteam/business/workspaces/workspace-main/.response",
+  "files": [
+    "_critique_team_config.json",
+    "_team_config_result.json",
+    "pgd-verify-hotfix-1320:req-draft:triage.tmp.json",
+    "reg-budget-guard-r3-team_config.json",
+    "reg-budget-guard-r3:team_config.json",
+    "reg-budget-guard:t2:triage.tmp.json",
+    "reg-l2-3role:t1:triage.response.tmp",
+    "reg-l2-3role:t2:triage.response.json",
+    "reg-parallel-4leaf:t1:triage.response.json",
+    "reg-parallel-4leaf:t3:triage.response.json",
+    "reg-parallel-4leaf:t5:triage.response.tmp",
+    "task_plan_result.json",
+    "tmp_result_demo-ui.json",
+    "triage-reg-parallel-4leaf-t3.json",
+    "ui_验证项目_20260605_162913:t1:triage.json"
+  ]
+}

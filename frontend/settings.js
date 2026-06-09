@@ -19,8 +19,9 @@ async function loadSettings() {
     const bSel = DOM['set-default-backend'];
     bSel.innerHTML = S.backends.map(b => `<option value="${b.id}" ${b.id === defBackend ? 'selected' : ''}>${b.name}</option>`).join('');
     const defModel = cfg.system?.default_model || '';
-    updateDefaultModelSelect(defBackend, defModel);
-    bSel.onchange = () => { updateDefaultModelSelect(bSel.value); updateSettingsCliPath(bSel.value); };
+  // 首屏用 /api/backends 已缓存的模型，避免每次打开设置都 refresh CLI（OpenCode 要数秒）
+    await refreshSettingsModelSelect(defBackend, defModel, { refresh: false });
+    bSel.onchange = () => onSettingsBackendChange(bSel.value);
     updateSettingsCliPath(defBackend);
     DOM['set-port'].value = cfg.system?.port || 8765;
     DOM['set-debug'].checked = !!cfg.system?.debug;
@@ -38,24 +39,111 @@ async function loadSettings() {
     DOM['set-team-config-timeout'].value = skillCfg.executor?.team_config_timeout ?? 600;
     DOM['set-task-plan-timeout'].value = skillCfg.executor?.task_plan_timeout ?? 600;
     DOM['set-max-retries'].value = skillCfg.executor?.max_retries ?? 3;
+    const pd = skillCfg.process_defaults || {};
+    if (DOM['set-max-gate-retries']) DOM['set-max-gate-retries'].value = pd.max_gate_retries ?? 3;
+    if (DOM['set-soft-idle']) DOM['set-soft-idle'].value = pd.soft_idle_sec ?? 120;
+    if (DOM['set-hard-idle']) DOM['set-hard-idle'].value = pd.hard_idle_sec ?? 300;
+    if (DOM['set-max-cycles']) DOM['set-max-cycles'].value = pd.max_cycles ?? 3;
+    if (DOM['set-split-default']) DOM['set-split-default'].checked = !!pd.split_enabled;
+    const degThr = pd.budget_degrade_threshold ?? 0.8;
+    if (DOM['set-budget-degrade-threshold']) {
+      DOM['set-budget-degrade-threshold'].value = Math.round(degThr * 100);
+    }
+    const degBackend = pd.budget_degrade_backend || '';
+    updateSettingsDegradeBackendSelect(degBackend);
+    const degBSel = DOM['set-budget-degrade-backend'];
+    if (degBSel) {
+      degBSel.onchange = () => refreshSettingsDegradeModel(degBSel.value, '', { refresh: true });
+      await refreshSettingsDegradeModel(degBackend, pd.budget_degrade_model || '', { refresh: false });
+    }
   } catch(e) { showSetStatus('加载配置失败: '+e.message, 'error'); }
 }
 
 function updateDefaultModelSelect(backendId, selected) {
   const models = getBackendModels(backendId);
   const mSel = DOM['set-default-model'];
+  if (!mSel) return;
+  if (!models.length) {
+    // 模型列表拉取失败时仍保留已保存的 default_model，避免「应用到全部」无法点击
+    if (selected) {
+      mSel.innerHTML = `<option value="${esc(selected)}" selected>${esc(selected)}</option>`;
+      return;
+    }
+    mSel.innerHTML = '<option value="">（无可用模型）</option>';
+    return;
+  }
   mSel.innerHTML = models.map(m => `<option value="${m.id}" ${m.id === selected || (!selected && m.default) ? 'selected' : ''}>${m.name}</option>`).join('');
+}
+
+function setModelSelectLoading(loading) {
+  const mSel = DOM['set-default-model'];
+  if (!mSel) return;
+  mSel.disabled = loading;
+  if (loading) mSel.innerHTML = '<option value="">加载模型中…</option>';
+}
+
+async function refreshSettingsModelSelect(backendId, selected, { refresh = true } = {}) {
+  setModelSelectLoading(true);
+  try {
+    await loadBackendModels(backendId, { refresh });
+    updateDefaultModelSelect(backendId, selected);
+  } catch (e) {
+    updateDefaultModelSelect(backendId, selected);
+    showSetStatus('模型列表加载失败: ' + e.message, 'error');
+  } finally {
+    setModelSelectLoading(false);
+  }
+}
+
+async function onSettingsBackendChange(backendId) {
+  updateSettingsCliPath(backendId);
+  const prev = DOM['set-default-model']?.value || '';
+  await refreshSettingsModelSelect(backendId, prev, { refresh: true });
+}
+
+function updateSettingsDegradeBackendSelect(selected) {
+  const bSel = DOM['set-budget-degrade-backend'];
+  if (!bSel) return;
+  const opts = ['<option value="">（不修改 backend）</option>'];
+  opts.push(...S.backends.map(b =>
+    `<option value="${b.id}" ${b.id === selected ? 'selected' : ''}>${b.name}</option>`));
+  bSel.innerHTML = opts.join('');
+}
+
+async function refreshSettingsDegradeModel(backendId, selected, { refresh = false } = {}) {
+  const mSel = DOM['set-budget-degrade-model'];
+  if (!mSel) return;
+  if (!backendId) {
+    mSel.disabled = true;
+    mSel.innerHTML = '<option value="">（先选降级 backend）</option>';
+    return;
+  }
+  mSel.disabled = false;
+  try {
+    await loadBackendModels(backendId, { refresh });
+  } catch (_) { /* 保留已有列表 */ }
+  const models = getBackendModels(backendId);
+  if (!models.length) {
+    mSel.innerHTML = '<option value="">（无可用模型）</option>';
+    return;
+  }
+  mSel.innerHTML = ['<option value="">（不修改 model）</option>',
+    ...models.map(m => `<option value="${m.id}" ${m.id === selected ? 'selected' : ''}>${m.name}</option>`),
+  ].join('');
 }
 
 async function applyModelToAll() {
   const backend = DOM['set-default-backend'].value; const model = DOM['set-default-model'].value;
   if (!model) { showSetStatus('请先选择模型', 'error'); return; }
-  if (!await showConfirm(`把后端「${backend}」下的所有 agent 模型都改成：\n${model}\n（其它后端的 agent 不受影响）`, {title:'批量应用模型', okText:'应用'})) return;
+  if (!await showConfirm(`将全部 agent 的后端改为「${backend}」，模型改为：\n${model}`, {title:'批量应用模型', okText:'应用'})) return;
   try {
     const r = await fetch('/api/agents/apply-model', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ backend, model }) });
     const d = await r.json();
     if (!r.ok) throw new Error(apiErr(d, '应用失败'));
-    showSetStatus(`✓ 已应用到 ${d.applied.length} 个 agent，跳过 ${d.skipped.length} 个（非 ${backend}）`, 'success');
+    if (!d.applied?.length) throw new Error('没有可更新的 agent（请确认已创建 agent workspace）');
+    const mig = (d.migrated || []).length;
+    const extra = mig ? `，其中 ${mig} 个已切换后端` : '';
+    showSetStatus(`✓ 已应用到 ${d.applied.length} 个 agent${extra}`, 'success');
   } catch(e) { showSetStatus('应用失败: '+e.message, 'error'); }
 }
 
@@ -80,6 +168,20 @@ async function saveSettings() {
       hub: { ...(existingSkill.hub || {}), url: (DOM['set-hub-url']?.value || '').trim() || 'http://127.0.0.1:8765' },
       executor: { ...(existingSkill.executor || {}), poll_interval: parseInt(DOM['set-poll-interval']?.value) || 5, ack_timeout: parseInt(DOM['set-ack-timeout']?.value) || 300, task_timeout: parseInt(DOM['set-task-timeout']?.value) || 3600, agent_msg_timeout: parseInt(DOM['set-agent-msg-timeout']?.value) || 1800, team_config_timeout: parseInt(DOM['set-team-config-timeout']?.value) || 600, task_plan_timeout: parseInt(DOM['set-task-plan-timeout']?.value) || 600, max_retries: parseInt(DOM['set-max-retries']?.value) || 3 },
       auto_group: { ...(existingSkill.auto_group || {}), enabled: DOM['set-auto-group']?.checked !== false, include_main: existingSkill.auto_group?.include_main !== false, name_prefix: existingSkill.auto_group?.name_prefix ?? '' },
+      process_defaults: (() => {
+        const thrPct = parseFloat(DOM['set-budget-degrade-threshold']?.value);
+        const thr = (!Number.isNaN(thrPct) && thrPct > 0 && thrPct < 100) ? thrPct / 100 : 0.8;
+        return {
+          max_gate_retries: parseInt(DOM['set-max-gate-retries']?.value, 10) || 3,
+          split_enabled: !!DOM['set-split-default']?.checked,
+          soft_idle_sec: parseInt(DOM['set-soft-idle']?.value, 10) || 120,
+          hard_idle_sec: parseInt(DOM['set-hard-idle']?.value, 10) || 300,
+          max_cycles: parseInt(DOM['set-max-cycles']?.value, 10) || 3,
+          budget_degrade_threshold: thr,
+          budget_degrade_backend: (DOM['set-budget-degrade-backend']?.value || '').trim(),
+          budget_degrade_model: (DOM['set-budget-degrade-model']?.value || '').trim(),
+        };
+      })(),
     };
     const [rSys, rSkill] = await Promise.all([
       fetch('/api/config', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ config: cfg }) }),

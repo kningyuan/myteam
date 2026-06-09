@@ -1,0 +1,36 @@
+# 并行冒烟：2 个 research 叶子 + 汇总
+id: smoke-parallel-2
+version: "1.0"
+description: 验证 L2 并行 + 交付物保证
+
+roster:
+  required: [main, research]
+
+options:
+  review_enabled: false
+  parallel_enabled: true
+  max_parallel: 2
+
+tasks:
+  - id: p1
+    name: 架构速览
+    agent: research
+    task_type: research
+    dependencies: []
+    description: |
+      基于 https://github.com/iOfficeAI/AionUi 公开信息，写架构视角短调研（research 四章节，每节 3 句）。
+
+  - id: p2
+    name: 工程速览
+    agent: research
+    task_type: research
+    dependencies: []
+    description: |
+      基于 https://github.com/iOfficeAI/AionUi 公开信息，写工程化视角短调研（research 四章节，每节 3 句）。
+
+  - id: p3
+    name: 并行汇总
+    agent: main
+    task_type: strategy
+    dependencies: [p1, p2]
+    description: 汇总 p1、p2，200 字以内。

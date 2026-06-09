@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
-"""R2/R3 核心功能单元测试 — workspace_event, projection, pipeline, job, agent_runtime。
+"""R2/R3 基础设施单元测试 — workspace_event / projection / pipeline / job / agent_runtime。
 
-运行：PYTHONPATH=backend venv/bin/python3 -m pytest backend/common/tests/test_r2_features.py -q
+覆盖 ProjectionRunner、EventPipeline、JobSupervisor 等 R2/R3 期基础设施层，
+**非 L2 发版门禁**。上述模块在 L2 尚未产品化接通主链路；本套测试 **L2 发版不阻塞**。
+
+运行：
+    PYTHONPATH=backend venv/bin/python3 -m pytest backend/common/tests/test_r2_features.py -q
+L2 门禁套件可排除：
+    pytest -m "not r2_infra"
 """
 
 import sys, json, asyncio, tempfile
@@ -16,6 +22,7 @@ from common.workspace_events import ProjectionRunner, _map_to_workspace_event, _
 from common.event_handler import EventPipeline
 from common.job_supervisor import JobSupervisor
 
+pytestmark = pytest.mark.r2_infra
 
 # ── Fixtures ────────────────────────────────────────────
 

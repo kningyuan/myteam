@@ -1,0 +1,11 @@
+[
+  {
+    "project_id": "reg-budget-guard-r3",
+    "title": "",
+    "mode": "one_shot",
+    "status": "failed",
+    "created_at": "2026-06-09T17:33:31",
+    "updated_at": "2026-06-09T18:52:13",
+    "meta": "{\"token_budget\": 500, \"goal\": \"分析以下10个话题各写50字：AI伦理、量子计算、气候变化、区块链、生物技术、元宇宙、空间技术、自动驾驶、数字经济、网络安全\"}"
+  }
+]

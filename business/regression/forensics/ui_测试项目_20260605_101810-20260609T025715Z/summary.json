@@ -1,0 +1,16 @@
+{
+  "project_id": "ui_测试项目_20260605_101810",
+  "exported_at": "20260609T025715Z",
+  "db_row_counts": {
+    "project": 0,
+    "task": 0,
+    "interaction": 0,
+    "run_event": 0,
+    "kernel_job": 1,
+    "workspace_event": 13
+  },
+  "response_files_copied": 0,
+  "response_files": [],
+  "task_count": 0,
+  "task_statuses": []
+}

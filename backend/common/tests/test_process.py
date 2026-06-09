@@ -4,6 +4,7 @@
 验证标准：DAG 串行跑通；门禁失败按阶梯升级（重试→failed→triage）；needs_review 不阻塞；
 失败传播 blocked；项目级状态显式暴露。注入式 Transport，不依赖真实 opencode。
 """
+import json
 import sys
 from pathlib import Path
 
@@ -141,6 +142,87 @@ def test_gate_retry_then_pass(env):
                            "dependencies": []}])
     assert out.tasks["t1"].status == "completed"
     assert out.tasks["t1"].attempts == 2
+
+
+def test_gate_retry_reuses_session(env):
+    """L2：门禁重试时复用上一轮 execute 的 CLI session。"""
+    import types
+
+    from common.agent_transport import AdapterTransport, make_gate_session_resolver
+
+    store, wcfg = env
+    seen_sessions: list[str | None] = []
+
+    class FakeEvent:
+        def __init__(self, kind, data=None):
+            self.kind = types.SimpleNamespace(value=kind)
+            self.data = data or {}
+
+    def on_run(attempt: int):
+        iid = f"pro_x:t1:execute:{attempt}"
+        rel = "t1_deliverable.md"
+        content = bad_content("research") if attempt == 1 else valid_content("research")
+        (paths.deliverables_dir("pro_x") / rel).write_text(content, encoding="utf-8")
+        submit(exec_env(iid, rel, GOOD_Q),
+               paths.response_dir("researcher") / f"{iid}.response")
+
+    class GateRetryAdapter:
+        def __init__(self):
+            self.n = 0
+
+        def run(self, request):
+            self.n += 1
+            seen_sessions.append(request.session_id)
+            yield FakeEvent("session", {"session_id": "sess-gate-1"})
+            yield FakeEvent("step_start")
+            on_run(self.n)
+
+    transport = AdapterTransport(
+        adapter=GateRetryAdapter(),
+        agents_config={"researcher": {"model": "m1"}},
+        request_factory=lambda **kw: types.SimpleNamespace(**kw),
+        session_resolver=make_gate_session_resolver(store),
+    )
+    proc = Process(store, _port(store, wcfg, transport), ProcessConfig(max_gate_retries=3))
+    out = proc.run("pro_x", agents=["researcher"],
+                   tasks=[{"id": "t1", "agent": "researcher", "task_type": "research",
+                           "dependencies": []}])
+    assert out.tasks["t1"].status == "completed"
+    assert out.tasks["t1"].attempts == 2
+    assert seen_sessions == [None, "sess-gate-1"]
+    events_1 = store.list_run_events("pro_x:t1:execute:1")
+    assert "gate_failed" in [e["kind"] for e in events_1]
+    gf = next(e for e in events_1 if e["kind"] == "gate_failed")
+    assert gf["payload"].get("session_id") == "sess-gate-1"
+    events_2 = store.list_run_events("pro_x:t1:execute:2")
+    assert "gate_retry_session" in [e["kind"] for e in events_2]
+
+
+def test_pure_format_retry_includes_deliverable_path(env):
+    """纯格式门禁失败时，下一轮 retry_feedback 附带旧稿路径与短修标题指令。"""
+    store, wcfg = env
+    seen_feedback: list[list[str]] = []
+
+    def transport(ctx):
+        ctx.emit("step_start")
+        attempt = int(ctx.request.interaction_id.rsplit(":", 1)[-1])
+        if attempt == 1:
+            _write_exec(ctx, bad_content("research"), GOOD_Q)
+        else:
+            seen_feedback.append(list(ctx.request.retry_feedback or []))
+            _write_exec(ctx, valid_content("research"), GOOD_Q)
+
+    proc = Process(store, _port(store, wcfg, transport), ProcessConfig(max_gate_retries=3))
+    out = proc.run("pro_x", agents=["researcher"],
+                   tasks=[{"id": "t1", "agent": "researcher", "task_type": "research",
+                           "dependencies": []}])
+    assert out.tasks["t1"].status == "completed"
+    assert seen_feedback
+    fb = "\n".join(seen_feedback[0])
+    assert "上一轮交付物文件：" in fb
+    assert "t1_deliverable.md" in fb
+    assert "只调整 Markdown 标题结构" in fb
+    assert "禁止重读仓库或重写内容" in fb
 
 
 def test_gate_exhausted_failed_blocks_dependents(env):
@@ -512,6 +594,24 @@ def test_recurring_runs_cycles_with_inheritance(env):
     assert len(mem) == 2
 
 
+def test_recurring_completed_extracts_skill_draft(env, tmp_path, monkeypatch):
+    """R-L3-1：recurring 项目 completed 后也触发 skill 抽提。"""
+    store, wcfg = env
+    monkeypatch.setattr("common.skill_extract.MYTEAM_ROOT", tmp_path)
+    monkeypatch.setattr("common.skill_extract.SKILLS_DIR", tmp_path / "business/skills")
+
+    seen: list[str] = []
+    proc = Process(store, _port(store, wcfg, _recurring_transport(seen)),
+                   ProcessConfig(mode="recurring", max_cycles=1, skill_extract_enabled=True))
+    out = proc.run("pro_r_skill", goal="沉淀 recurring 成功模式", agents=["researcher"])
+
+    assert out.status == "completed"
+    draft = tmp_path / "business/skills/auto-pro_r_skill-c1_task_001/SKILL.md"
+    assert draft.is_file()
+    text = draft.read_text(encoding="utf-8")
+    assert "沉淀 recurring 成功模式" in text
+
+
 def test_recurring_stops_on_zero_progress(env):
     store, wcfg = env
     seen: list[str] = []
@@ -565,7 +665,15 @@ def test_check_plan_unregistered_task_type():
     assert "注册表" in r.feedback
 
 
-def test_check_plan_agent_task_type_mismatch():
+def test_check_plan_agent_task_type_mismatch(monkeypatch, tmp_path):
+    import common.agent_registry as agent_registry_mod
+
+    reg_path = tmp_path / "agents_registry.json"
+    reg_path.write_text(json.dumps({
+        "agents": {"researcher": {"task_types": ["research"]}},
+    }, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setattr(agent_registry_mod, "REGISTRY_FILE", reg_path)
+
     r = check_plan([_task("a", agent="researcher", task_type="code-writing")], {"researcher"})
     assert not r.passed
     assert "code-writing" in r.feedback
@@ -936,3 +1044,109 @@ def test_auto_create_agent_works_in_full_team_config(tmp_path, monkeypatch):
     assert out.status == "completed"
 
     store.close()
+
+
+def test_parallel_wave_emits_event(env):
+    """L2：parallel_enabled 时同波次多叶子应写入 parallel_wave 事件。"""
+    store, wcfg = env
+
+    def transport(ctx):
+        ctx.emit("step_start")
+        _write_exec(ctx, valid_content("research"), GOOD_Q)
+
+    tasks = [
+        {"id": f"t{i}", "agent": "researcher", "task_type": "research", "dependencies": []}
+        for i in range(1, 5)
+    ]
+    proc = Process(
+        store, _port(store, wcfg, transport),
+        ProcessConfig(parallel_enabled=True, max_parallel=4),
+    )
+    out = proc.run("pro_parallel", agents=["researcher"], tasks=tasks)
+    assert all(out.tasks[f"t{i}"].status == "completed" for i in range(1, 5))
+    events = store.list_run_events("pro_parallel:dispatch")
+    waves = [e for e in events if e.get("kind") == "parallel_wave"]
+    assert waves, "应有 parallel_wave 事件"
+    def _payload_count(e):
+        p = e.get("payload") or {}
+        if isinstance(p, str):
+            p = json.loads(p or "{}")
+        return (p or {}).get("count", 0)
+
+    counts = [_payload_count(e) for e in waves]
+    assert max(counts) >= 2
+
+
+def test_fail_reason_passed_to_triage(env):
+    """L2：端口失败时 fail_reason 写入 meta 并传入 triage input。"""
+    store, wcfg = env
+    triage_inputs: list[dict] = []
+
+    def transport(ctx):
+        ctx.emit("step_start")
+        req = ctx.request
+        if req.kind == "triage":
+            triage_inputs.append(dict(req.input or {}))
+            submit(
+                {"interaction_id": req.interaction_id, "kind": "triage", "status": "ok",
+                 "result": {"decision": "drop"}},
+                paths.response_dir(req.agent_id) / f"{req.interaction_id}.response",
+            )
+            return
+        # execute：不写响应 → no_response → fail_reason=no_response
+
+    proc = Process(store, _port(store, wcfg, transport), ProcessConfig(max_gate_retries=1))
+    out = proc.run(
+        "pro_fail_reason", agents=["researcher"],
+        tasks=[{"id": "t1", "agent": "researcher", "task_type": "research", "dependencies": []}],
+    )
+    assert out.tasks["t1"].status == "failed"
+    meta = (store.get_task("pro_fail_reason", "t1") or {}).get("meta") or {}
+    assert meta.get("fail_reason") == "no_response"
+    assert triage_inputs, "应触发 triage"
+    assert triage_inputs[0].get("fail_reason") == "no_response"
+
+
+def test_kernel_triage_k7_measurable(env, tmp_path):
+    """C：真实 Process 路径失败→triage 产出可计 K7（非种子 SQL）。"""
+    import sqlite3
+
+    _REG = Path(__file__).resolve().parents[3] / "scripts" / "regression"
+    sys.path.insert(0, str(_REG))
+    from check_kpis import check_k7  # noqa: E402
+
+    store, wcfg = env
+    pid = "pro_k7_kernel"
+
+    def transport(ctx):
+        req = ctx.request
+        if req.kind == "triage":
+            submit(
+                {
+                    "interaction_id": req.interaction_id,
+                    "kind": "triage",
+                    "status": "ok",
+                    "result": {"decision": "drop", "notes": "任务失败，放弃重试"},
+                },
+                paths.response_dir(req.agent_id) / f"{req.interaction_id}.response",
+            )
+            return
+        ctx.emit("step_start")
+
+    tasks = [
+        {"id": "t1", "agent": "researcher", "task_type": "research", "dependencies": []},
+        {"id": "t2", "agent": "researcher", "task_type": "research", "dependencies": ["t1"]},
+        {"id": "t3", "agent": "researcher", "task_type": "research", "dependencies": ["t2"]},
+    ]
+    proc = Process(store, _port(store, wcfg, transport), ProcessConfig(max_gate_retries=1))
+    out = proc.run(pid, agents=["researcher"], tasks=tasks)
+    assert out.tasks["t1"].status == "failed"
+    assert out.tasks["t2"].status == "blocked"
+    assert out.tasks["t3"].status == "blocked"
+
+    conn = sqlite3.connect(str(tmp_path / "state.db"))
+    try:
+        k7 = check_k7(conn, pid)
+    finally:
+        conn.close()
+    assert k7 >= 0.8

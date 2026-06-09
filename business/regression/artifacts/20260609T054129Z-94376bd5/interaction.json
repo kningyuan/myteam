@@ -1,0 +1,32 @@
+[
+  {
+    "interaction_id": "self-upgrade:upgrade-plan:execute:1",
+    "kind": "execute",
+    "project_id": "self-upgrade",
+    "task_id": "upgrade-plan",
+    "agent_id": "product",
+    "backend": "",
+    "status": "running",
+    "attempt": 2,
+    "started_at": "2026-06-09T13:41:12",
+    "last_event_at": "2026-06-09T13:41:26",
+    "response_ref": "",
+    "tokens": 163620,
+    "meta": "null"
+  },
+  {
+    "interaction_id": "self-upgrade:upgrade-plan:triage",
+    "kind": "triage",
+    "project_id": "self-upgrade",
+    "task_id": "upgrade-plan",
+    "agent_id": "main",
+    "backend": "",
+    "status": "done",
+    "attempt": 1,
+    "started_at": "2026-06-09T13:26:51",
+    "last_event_at": "2026-06-09T13:28:16",
+    "response_ref": "/Users/user/myteam/business/workspaces/workspace-main/.response/self-upgrade:upgrade-plan:triage.response",
+    "tokens": 0,
+    "meta": "null"
+  }
+]

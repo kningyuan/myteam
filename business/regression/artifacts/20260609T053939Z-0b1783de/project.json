@@ -1,0 +1,11 @@
+[
+  {
+    "project_id": "self-upgrade",
+    "title": "",
+    "mode": "one_shot",
+    "status": "failed",
+    "created_at": "2026-06-09T13:23:34",
+    "updated_at": "2026-06-09T13:31:19",
+    "meta": "{\"token_budget\": 5000000, \"goal\": \"myteam L3 自升级 scaffold 验证：plan→execute→review，skill-extract 任务产出可复用 pattern 草案\", \"workflow\": \"self-upgrade\"}"
+  }
+]

@@ -22,10 +22,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
 
-from common.audit_log import audit_enabled, clip_json
+from common.audit_log import audit_enabled, audit_snapshot
 from common.contracts import InteractionRequest, parse_request, validate_response_dict
 from common.paths import response_dir, trigger_dir
 from common.store import Store
+from common.deliverable_guarantee import try_adopt_deliverable_response
 from common.submit_result import _atomic_write_json
 
 
@@ -81,10 +82,12 @@ Transport = Callable[[DeliveryContext], None]
 
 class AgentPort:
     def __init__(self, transport: Transport, store: Optional[Store] = None,
-                 config: Optional[WatchdogConfig] = None):
+                 config: Optional[WatchdogConfig] = None,
+                 budget_checker: Optional[Callable[[str], bool]] = None):
         self.transport = transport
         self.store = store or Store()
         self.config = config or WatchdogConfig()
+        self.budget_checker = budget_checker
 
     # ── 路径（文件=缓存，按 interaction_id 命名，D12）─────────
 
@@ -102,9 +105,9 @@ class AgentPort:
         last = AgentPortResult("error", None, request.interaction_id, 0, "未执行")
         for attempt in range(1, self.config.max_attempts + 1):
             last = self._attempt(request, attempt)
-            if last.status in ("done", "no_response", "error"):
+            if last.status in ("done", "error", "budget_exceeded"):
                 return last
-            # timed_out → 继续重试（D12：hard_idle 取消 + 重试）
+            # timed_out / no_response → 继续重试（D12：hard_idle 或 CLI 早退未 submit）
         return last
 
     def _attempt(self, req: InteractionRequest, attempt: int) -> AgentPortResult:
@@ -128,10 +131,13 @@ class AgentPort:
         _atomic_write_json(req_dict, req_path)
         req_mtime = req_path.stat().st_mtime
         if audit_enabled():
-            self.store.append_run_event(iid, "request_snapshot", {
-                "request": clip_json(req_dict),
-                "request_path": str(req_path),
-            })
+            self.store.append_run_event(iid, "request_snapshot", audit_snapshot(
+                "request", req_dict,
+                interaction_id=iid,
+                agent_id=req.agent_id,
+                outcome="dispatched",
+                request_path=str(req_path),
+            ))
 
         # 事件队列 + 传输线程（事件在子线程产生，store 写入只在本线程，避免跨线程 sqlite）
         q: "queue.Queue[tuple[str, Optional[dict]]]" = queue.Queue()
@@ -155,18 +161,30 @@ class AgentPort:
                     running = True
                     self.store.update_interaction(iid, status="running")
 
+            # L3：交互进行中 token 硬停（由 run_kernel 注入 checker）
+            if self.budget_checker and req.project_id and self.budget_checker(req.project_id):
+                ctx._cancel.set()
+                th.join(timeout=5.0)
+                self.store.append_run_event(iid, "budget_exceeded", {})
+                self.store.update_interaction(iid, status="failed")
+                return AgentPortResult("budget_exceeded", None, iid, attempt,
+                                       "交互中 token 超预算硬停")
+
             resp = self._read_valid_response(resp_path, iid, req_mtime)
             if resp is not None:
-                # 响应先落盘时传输可能仍在跑；短暂收尾以接收 Claude result 行的 step_finish
-                grace_deadline = time.monotonic() + 2.5
-                while th.is_alive() and time.monotonic() < grace_deadline:
+                # 响应先落盘时 CLI 往往仍在收尾；须等传输线程自然结束以读出 result 行的
+                # step_finish（过早 cancel 会杀掉进程，导致 tokens 恒 0）。
+                finish_deadline = time.monotonic() + float(
+                    os.environ.get("MYTEAM_RESPONSE_FINISH_SEC", "30"))
+                while th.is_alive() and time.monotonic() < finish_deadline:
                     _, tok = self._drain(q, iid, token_acc)
                     event_tokens = max(event_tokens, tok)
-                    if tok > 0:
-                        break
                     time.sleep(0.05)
-                ctx._cancel.set()
-                th.join(timeout=3.0)
+                if th.is_alive():
+                    ctx._cancel.set()
+                    th.join(timeout=5.0)
+                else:
+                    th.join(timeout=1.0)
                 _, tok = self._drain(q, iid, token_acc)
                 event_tokens = max(event_tokens, tok)
                 self._finalize_done(iid, resp_path, resp, event_tokens)
@@ -180,12 +198,22 @@ class AgentPort:
                 if resp is not None:
                     self._finalize_done(iid, resp_path, resp, event_tokens)
                     return AgentPortResult("done", resp, iid, attempt)
+                adopted = self._try_adopt_deliverable(req, resp_path, req_mtime, iid)
+                if adopted is not None:
+                    self._finalize_done(iid, resp_path, adopted, event_tokens)
+                    return AgentPortResult("done", adopted, iid, attempt)
                 self.store.update_interaction(iid, status="failed")
                 return AgentPortResult("no_response", None, iid, attempt,
                                        "传输结束但未取回合法响应")
 
             idle = time.monotonic() - last_event
             if idle >= cfg.hard_idle_sec:
+                adopted = self._try_adopt_deliverable(req, resp_path, req_mtime, iid)
+                if adopted is not None:
+                    ctx._cancel.set()
+                    th.join(timeout=5.0)
+                    self._finalize_done(iid, resp_path, adopted, event_tokens)
+                    return AgentPortResult("done", adopted, iid, attempt)
                 ctx._cancel.set()
                 self.store.append_run_event(iid, "watchdog_hard_kill", {"idle_sec": round(idle, 1)})
                 self.store.update_interaction(iid, status="timed_out")
@@ -242,6 +270,19 @@ class AgentPort:
     def _read_valid_response(self, resp_path: Path, iid: str, req_mtime: float) -> Optional[dict]:
         return _parse_adoptable_response(resp_path, iid, req_mtime)
 
+    def _try_adopt_deliverable(self, req: InteractionRequest, resp_path: Path,
+                               req_mtime: float, iid: str) -> Optional[dict]:
+        """交付物保证：agent 写了文件但未 submit_result 时代采纳。"""
+        try:
+            adopted = try_adopt_deliverable_response(req, resp_path, req_mtime)
+        except Exception:
+            return None
+        if adopted is None:
+            return None
+        self.store.append_run_event(iid, "deliverable_adopted",
+                                    {"path": (req.input or {}).get("deliverable_path", "")})
+        return adopted
+
     def _finalize_done(self, iid: str, resp_path: Path, resp: dict,
                        event_tokens: int = 0) -> None:
         finalize_interaction(self.store, iid, resp_path, resp, event_tokens)
@@ -283,6 +324,7 @@ def _extract_tokens(payload: dict) -> int:
     """从 step_finish 事件提取累计 token 数（兼容若干常见形态）。
 
     - opencode：``{"tokens": {"input":..,"output":..,"total":N}}`` → 取 total。
+    - Claude result：仅 input/output 无 total → input + output。
     - 简化形态：``{"tokens": N}`` / ``{"total_tokens": N}`` / ``{"usage": {...}}``。
     """
     v = payload.get("tokens")
@@ -290,6 +332,9 @@ def _extract_tokens(payload: dict) -> int:
         t = v.get("total") or v.get("total_tokens") or v.get("totalTokens")
         if isinstance(t, (int, float)):
             return int(t)
+        inc = _token_dict_increment(v)
+        if inc > 0:
+            return inc
     if isinstance(v, (int, float)):
         return int(v)
     for key in ("total_tokens", "totalTokens"):
@@ -301,6 +346,9 @@ def _extract_tokens(payload: dict) -> int:
         x = usage.get("total_tokens") or usage.get("totalTokens") or usage.get("total")
         if isinstance(x, (int, float)):
             return int(x)
+        inc = _token_dict_increment(usage)
+        if inc > 0:
+            return inc
     return 0
 
 
@@ -346,10 +394,18 @@ def finalize_interaction(store: Store, interaction_id: str, resp_path: Path, res
         interaction_id, status="done", response_ref=str(resp_path),
     )
     if audit_enabled():
-        store.append_run_event(interaction_id, "response_snapshot", {
-            "response": clip_json(resp),
-            "response_path": str(resp_path),
-        })
+        inter = store.get_interaction(interaction_id) or {}
+        result = resp.get("result") if isinstance(resp, dict) else {}
+        outcome = result.get("outcome") if isinstance(result, dict) else {}
+        outcome_kind = outcome.get("kind") if isinstance(outcome, dict) else ""
+        store.append_run_event(interaction_id, "response_snapshot", audit_snapshot(
+            "response", resp,
+            interaction_id=interaction_id,
+            agent_id=inter.get("agent_id", ""),
+            outcome=resp.get("status") or "unknown",
+            outcome_kind=outcome_kind or "",
+            response_path=str(resp_path),
+        ))
 
 
 def _reconcile_rows(store: Store, rows, *, adopted_kind: str, timed_out_kind: str,
@@ -371,11 +427,15 @@ def _reconcile_rows(store: Store, rows, *, adopted_kind: str, timed_out_kind: st
 
 
 def reconcile_on_start(store: Optional[Store] = None) -> dict[str, int]:
-    """启动对账 GC（D8/D12）：优先回收磁盘孤儿响应；无响应才标 timed_out。"""
+    """启动对账 GC（D8/D12）：优先回收磁盘孤儿响应；无响应才标 timed_out。
+
+    覆盖 pending/running/timed_out：timed_out 但磁盘有合法响应时先采纳，避免
+    后续 gc_workspace 删掉 .response 导致断点续跑无法结算。
+    """
     store = store or Store()
     rows = store._conn.execute(
         """SELECT interaction_id, agent_id FROM interaction
-           WHERE status IN ('pending','running')"""
+           WHERE status IN ('pending','running','timed_out')"""
     ).fetchall()
     return _reconcile_rows(
         store, rows,

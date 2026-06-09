@@ -6,7 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from adapters.claude.parser import parse_line  # noqa: E402
-from common.agent_port import _apply_step_finish_tokens  # noqa: E402
+from common.agent_port import _apply_step_finish_tokens, _extract_tokens  # noqa: E402
 
 
 def _step_finishes(line: str):
@@ -77,6 +77,18 @@ def test_result_emits_text_when_final_answer_only_on_result_line():
     assert "text" in kinds
     assert texts[0].data["content"] == "这是最终答复"
     assert texts[0].data.get("source") == "result"
+
+
+def test_result_without_total_tokens_uses_input_plus_output():
+    """真实 Claude result 行可能无 total_tokens，parser 与 _extract_tokens 均应回退。"""
+    line = json.dumps({
+        "type": "result",
+        "subtype": "success",
+        "usage": {"input_tokens": 500, "output_tokens": 80},
+    })
+    evs = _step_finishes(line)
+    assert evs[0].data["tokens"]["total"] == 580
+    assert _extract_tokens(evs[0].data) == 580
 
 
 def test_cumulative_max_wins_over_incremental():

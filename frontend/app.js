@@ -18,6 +18,25 @@ function getBackendModels(backendId) {
   return b ? b.models : [];
 }
 
+/** 拉取单后端模型；refresh=true 时服务端重新查询 CLI（OpenCode 较慢，数秒） */
+async function loadBackendModels(backendId, { refresh = false } = {}) {
+  const url = `/api/backends/${encodeURIComponent(backendId)}/models?refresh=${refresh ? '1' : '0'}`;
+  const r = await fetch(url);
+  const d = await r.json();
+  if (!r.ok) throw new Error(apiErr(d, '加载模型失败'));
+  const models = d.models || [];
+  let backend = S.backendsCache[backendId] || S.backends.find(x => x.id === backendId);
+  if (backend) {
+    backend.models = models;
+  } else {
+    backend = { id: backendId, name: backendId, models };
+    S.backends.push(backend);
+  }
+  S.backendsCache[backendId] = backend;
+  models.forEach(m => { S.backendsCache[m.id] = backend; });
+  return models;
+}
+
 // ============ Agents ============
 async function loadAgents() {
   try {
@@ -260,6 +279,7 @@ function setupEventListeners() {
     if (wf) payload.workflow = wf;
     const budget = parseInt(DOM['np-budget'].value, 10); if (!isNaN(budget) && budget > 0) payload.budget = budget;
     if (DOM['np-review']?.checked) payload.review = true;
+    if (DOM['np-split']?.checked) payload.split = true;
     DOM['np-submit'].disabled = true;
     try { const r = await fetch('/api/projects/run', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) }); const d = await r.json(); if (!r.ok) throw new Error(apiErr(d, '发起失败')); closeNewProject(); DOM['np-goal'].value = ''; DOM['np-title'].value = ''; DOM['np-budget'].value = ''; await loadProjects(); renderProjectList(); switchTab('projects'); selectProject(d.project_id); } catch (e) { alert('发起项目失败：' + (e.message || e)); } finally { DOM['np-submit'].disabled = false; }
   });

@@ -14,7 +14,9 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import common.paths as paths  # noqa: E402
-from common.agent_port import AgentPort, WatchdogConfig, reconcile_on_start  # noqa: E402
+from common.agent_port import (  # noqa: E402
+    AgentPort, WatchdogConfig, _extract_tokens, reconcile_on_start,
+)
 from common.store import Store  # noqa: E402
 from common.submit_result import submit  # noqa: E402
 
@@ -165,3 +167,77 @@ def test_reconcile_adopts_orphan_response(env, monkeypatch):
     n = reconcile_on_start(store)
     assert n["adopted"] == 1
     assert store.get_interaction(iid)["status"] == "done"
+
+
+def test_extract_tokens_input_output_fallback():
+    """Claude result 行常见形态：tokens dict 无 total，回退 input+output。"""
+    assert _extract_tokens({"tokens": {"input": 500, "output": 80}}) == 580
+    assert _extract_tokens({"tokens": {"input_tokens": 100, "output_tokens": 20}}) == 120
+
+
+def test_grace_window_drains_late_step_finish(env):
+    """响应先落盘时 grace 窗口应排空迟到的 step_finish token。"""
+    store, cfg = env
+
+    def transport(ctx):
+        resp_path = paths.response_dir("researcher") / f"{ctx.request.interaction_id}.response"
+        submit(_valid_execute(ctx.request.interaction_id), resp_path)
+        time.sleep(0.15)
+        ctx.emit("step_finish", {"tokens": {"input": 100, "output": 50}})
+
+    port = AgentPort(transport, store=store, config=cfg)
+    res = port.run(_req())
+    assert res.status == "done"
+    assert store.get_interaction("i1")["tokens"] == 150
+
+
+def test_reconcile_adopts_timed_out_orphan(env):
+    """timed_out + 合法 .response → reconcile 采纳为 done。"""
+    store, _cfg = env
+    agent = "researcher"
+    iid = "i_timed"
+    store.create_interaction(iid, "execute", "pro_x", task_id="task_001", agent_id=agent)
+    store.update_interaction(iid, status="timed_out")
+    trig = paths.trigger_dir(agent)
+    resp = paths.response_dir(agent)
+    trig.mkdir(parents=True, exist_ok=True)
+    resp.mkdir(parents=True, exist_ok=True)
+    (trig / f"{iid}.request").write_text("{}", encoding="utf-8")
+    submit(_valid_execute(iid), resp / f"{iid}.response")
+
+    n = reconcile_on_start(store)
+    assert n["adopted"] == 1
+    assert n["timed_out"] == 0
+    assert store.get_interaction(iid)["status"] == "done"
+
+
+def test_agent_port_budget_hard_stop(env):
+    """L3：交互进行中 budget_checker 返回 True 时硬停，不重试。"""
+    store, cfg = env
+
+    def transport(ctx):
+        ctx.emit("step_start")
+        while not ctx.cancelled:
+            ctx.emit("heartbeat")
+            time.sleep(0.05)
+
+    checker = lambda pid: True  # noqa: E731 — 模拟已超预算
+    port = AgentPort(transport, store=store, config=cfg, budget_checker=checker)
+    res = port.run(_req())
+    assert res.status == "budget_exceeded"
+    assert store.get_interaction("i1")["status"] == "failed"
+    kinds = [e["kind"] for e in store.list_run_events("i1")]
+    assert "budget_exceeded" in kinds
+
+
+def test_reconcile_keeps_timed_out_without_valid_response(env):
+    """timed_out 且无合法响应 → 保持 timed_out，不误升。"""
+    store, _cfg = env
+    iid = "i_bad"
+    store.create_interaction(iid, "execute", "pro_x", agent_id="researcher")
+    store.update_interaction(iid, status="timed_out")
+
+    n = reconcile_on_start(store)
+    assert n["adopted"] == 0
+    assert n["timed_out"] == 1
+    assert store.get_interaction(iid)["status"] == "timed_out"

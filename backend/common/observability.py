@@ -143,11 +143,12 @@ def timeline(store: Store, interaction_id: str) -> list[dict]:
 _FEED_KINDS = {
     "plan_rejected", "gate_passed", "gate_failed",
     "review_done", "review_unreachable",
-    "blocked", "budget_alert", "budget_over", "cycle_done",
+    "blocked", "budget_alert", "budget_over", "budget_degrade", "budget_exceeded",
+    "budget_exceeded_pause", "cycle_done",
     "watchdog_soft_idle", "watchdog_hard_kill", "transport_error",
     "reconcile_timed_out", "reconcile_adopted",
     "tool_use", "tool_result", "prompt_sent", "request_snapshot", "response_snapshot",
-    "message",
+    "message", "parallel_wave",
 }
 
 

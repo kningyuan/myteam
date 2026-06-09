@@ -1,0 +1,91 @@
+{
+  "tier-l2": {
+    "exit": 0,
+    "kpi": {
+      "project_status": "completed",
+      "tasks": [
+        {
+          "task_id": "t-product",
+          "status": "needs_review",
+          "agent": "product",
+          "task_type": "research"
+        },
+        {
+          "task_id": "t-arch",
+          "status": "needs_review",
+          "agent": "research",
+          "task_type": "research"
+        },
+        {
+          "task_id": "t-eng",
+          "status": "completed",
+          "agent": "research",
+          "task_type": "research"
+        },
+        {
+          "task_id": "t-req",
+          "status": "needs_review",
+          "agent": "product",
+          "task_type": "requirements"
+        },
+        {
+          "task_id": "t-summary",
+          "status": "completed",
+          "agent": "main",
+          "task_type": "strategy"
+        }
+      ],
+      "task_completed_ratio": 0.4,
+      "interaction_done": 5,
+      "gate_failed": 0,
+      "gate_passed": 5,
+      "deliverable_adopted": 1,
+      "timed_out": 0
+    },
+    "workflow": "tier-l2-heavy"
+  },
+  "tier-l3-free": {
+    "exit": 0,
+    "kpi": {
+      "project_status": "completed",
+      "tasks": [
+        {
+          "task_id": "t1",
+          "status": "completed",
+          "agent": "research",
+          "task_type": "research"
+        },
+        {
+          "task_id": "t2",
+          "status": "completed",
+          "agent": "research",
+          "task_type": "research"
+        },
+        {
+          "task_id": "t3",
+          "status": "completed",
+          "agent": "research",
+          "task_type": "research"
+        },
+        {
+          "task_id": "t4",
+          "status": "needs_review",
+          "agent": "content",
+          "task_type": "content"
+        },
+        {
+          "task_id": "t5",
+          "status": "completed",
+          "agent": "product",
+          "task_type": "strategy"
+        }
+      ],
+      "task_completed_ratio": 0.8,
+      "interaction_done": 8,
+      "gate_failed": 0,
+      "gate_passed": 5,
+      "deliverable_adopted": 0,
+      "timed_out": 0
+    }
+  }
+}

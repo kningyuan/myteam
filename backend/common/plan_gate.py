@@ -81,11 +81,10 @@ def check_plan(tasks: list[dict], team: set[str], *,
             aid = t.get("agent", "")
             tt = t.get("task_type", "")
             allowed = cap_map.get(aid)
-            if allowed is None:
-                continue
+            # 未在注册表或 task_types 为空 → 不施加能力边界（向后兼容旧 agent）
             if not allowed:
-                cap_errors.append(f"{aid} 未配置 task_types，不能执行 {tt}")
-            elif tt not in allowed:
+                continue
+            if tt not in allowed:
                 cap_errors.append(
                     f"{aid} 不能执行 task_type「{tt}」（仅允许：{', '.join(allowed)}）")
         if cap_errors:

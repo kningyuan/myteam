@@ -1,0 +1,62 @@
+[
+  {
+    "interaction_id": "reg-l2-3role:t1:execute:1",
+    "kind": "execute",
+    "project_id": "reg-l2-3role",
+    "task_id": "t1",
+    "agent_id": "research",
+    "backend": "",
+    "status": "done",
+    "attempt": 1,
+    "started_at": "2026-06-09T16:59:23",
+    "last_event_at": "2026-06-09T17:00:51",
+    "response_ref": "/Users/user/myteam/business/workspaces/workspace-research/.response/reg-l2-3role:t1:execute:1.response",
+    "tokens": 27271,
+    "meta": "null"
+  },
+  {
+    "interaction_id": "reg-l2-3role:t2:execute:1",
+    "kind": "execute",
+    "project_id": "reg-l2-3role",
+    "task_id": "t2",
+    "agent_id": "research",
+    "backend": "",
+    "status": "done",
+    "attempt": 1,
+    "started_at": "2026-06-09T16:59:23",
+    "last_event_at": "2026-06-09T17:02:19",
+    "response_ref": "/Users/user/myteam/business/workspaces/workspace-research/.response/reg-l2-3role:t2:execute:1.response",
+    "tokens": 81838,
+    "meta": "null"
+  },
+  {
+    "interaction_id": "reg-l2-3role:t3:execute:1",
+    "kind": "execute",
+    "project_id": "reg-l2-3role",
+    "task_id": "t3",
+    "agent_id": "research",
+    "backend": "",
+    "status": "done",
+    "attempt": 1,
+    "started_at": "2026-06-09T16:59:23",
+    "last_event_at": "2026-06-09T17:02:36",
+    "response_ref": "/Users/user/myteam/business/workspaces/workspace-research/.response/reg-l2-3role:t3:execute:1.response",
+    "tokens": 109900,
+    "meta": "null"
+  },
+  {
+    "interaction_id": "reg-l2-3role:t4:execute:1",
+    "kind": "execute",
+    "project_id": "reg-l2-3role",
+    "task_id": "t4",
+    "agent_id": "main",
+    "backend": "",
+    "status": "done",
+    "attempt": 1,
+    "started_at": "2026-06-09T17:02:36",
+    "last_event_at": "2026-06-09T17:04:16",
+    "response_ref": "/Users/user/myteam/business/workspaces/workspace-main/.response/reg-l2-3role:t4:execute:1.response",
+    "tokens": 52864,
+    "meta": "null"
+  }
+]

@@ -1,0 +1,17 @@
+[
+  {
+    "interaction_id": "reg-budget-guard-r3:team_config",
+    "kind": "team_config",
+    "project_id": "reg-budget-guard-r3",
+    "task_id": null,
+    "agent_id": "main",
+    "backend": "",
+    "status": "done",
+    "attempt": 1,
+    "started_at": "2026-06-09T16:51:48",
+    "last_event_at": "2026-06-09T16:58:51",
+    "response_ref": "/Users/user/myteam/business/workspaces/workspace-main/.response/reg-budget-guard-r3:team_config.response",
+    "tokens": 157139,
+    "meta": "null"
+  }
+]

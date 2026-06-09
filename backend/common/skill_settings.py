@@ -46,3 +46,9 @@ def is_project_group_enabled() -> bool:
 
 def is_auto_group_enabled() -> bool:
     return bool(_load().get("auto_group", {}).get("enabled", True))
+
+
+def process_defaults() -> dict:
+    """skill_config.json → process_defaults（与 Hub 启动 kernel 同源）。"""
+    raw = _load().get("process_defaults")
+    return dict(raw) if isinstance(raw, dict) else {}

@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import common.paths as paths  # noqa: E402
 from common.agent_port import AgentPort, finalize_interaction  # noqa: E402
-from common.audit_log import clip_json, clip_text  # noqa: E402
+from common.audit_log import clip_json, clip_text, verify_audit_snapshot  # noqa: E402
 from common.store import Store  # noqa: E402
 
 
@@ -73,6 +73,13 @@ def test_audit_enabled_writes_request_and_response_snapshot(env, monkeypatch):
     snap = next(e for e in store.list_run_events("pro_audit:t1:execute:1")
                 if e["kind"] == "request_snapshot")
     assert snap["payload"]["request"]["interaction_id"] == "pro_audit:t1:execute:1"
+    assert snap["payload"]["agent_id"] == "dev"
+    assert snap["payload"]["outcome"] == "dispatched"
+    assert snap["payload"].get("request_hash")
+    assert verify_audit_snapshot(snap["payload"], "request") is True
+    tampered = dict(snap["payload"])
+    tampered["request"] = {**tampered["request"], "agent_id": "other"}
+    assert verify_audit_snapshot(tampered, "request") is False
 
     resp_path = paths.response_dir("dev") / "pro_audit:t1:execute:2.response"
     resp_path.parent.mkdir(parents=True, exist_ok=True)
@@ -80,6 +87,15 @@ def test_audit_enabled_writes_request_and_response_snapshot(env, monkeypatch):
         "interaction_id": "pro_audit:t1:execute:2", "kind": "execute", "status": "ok",
         "result": {"outcome": {"kind": "artifact", "artifact": {"path": "t1.md"}}},
     }
+    store.create_interaction("pro_audit:t1:execute:2", "execute", "pro_audit",
+                             task_id="t1", agent_id="dev")
     finalize_interaction(store, "pro_audit:t1:execute:2", resp_path, resp)
     kinds2 = [e["kind"] for e in store.list_run_events("pro_audit:t1:execute:2")]
     assert "response_snapshot" in kinds2
+    resp_snap = next(e for e in store.list_run_events("pro_audit:t1:execute:2")
+                     if e["kind"] == "response_snapshot")
+    assert resp_snap["payload"]["agent_id"] == "dev"
+    assert resp_snap["payload"]["outcome"] == "ok"
+    assert resp_snap["payload"]["outcome_kind"] == "artifact"
+    assert resp_snap["payload"].get("response_hash")
+    assert verify_audit_snapshot(resp_snap["payload"], "response") is True

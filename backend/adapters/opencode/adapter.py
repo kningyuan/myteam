@@ -45,7 +45,7 @@ class OpenCodeAdapter(CLIAdapter):
             str(Path.home() / ".opencode" / "bin" / "opencode"),
         )
 
-    def list_models(self) -> list[ModelInfo]:
+    def list_models(self, *, refresh: bool = False) -> list[ModelInfo]:
         """优先用 `opencode models` 的真实可用模型（带缓存，CLI 较慢）；失败回退静态配置。"""
         default_id = ""
         try:
@@ -54,7 +54,7 @@ class OpenCodeAdapter(CLIAdapter):
         except Exception:
             pass
 
-        dynamic = self._query_opencode_models()
+        dynamic = self._query_opencode_models(refresh=refresh)
         if dynamic:
             return [
                 ModelInfo(id=mid, name=mid.split("/", 1)[-1],
@@ -87,10 +87,19 @@ class OpenCodeAdapter(CLIAdapter):
     _models_cache_ts: float = 0.0
     _MODELS_TTL = 300.0
 
-    def _query_opencode_models(self) -> list[str]:
+    @classmethod
+    def invalidate_models_cache(cls) -> None:
+        cls._models_cache = []
+        cls._models_cache_ts = 0.0
+
+    def _query_opencode_models(self, *, refresh: bool = False) -> list[str]:
         now = time.time()
         cls = OpenCodeAdapter
-        if cls._models_cache and (now - cls._models_cache_ts) < cls._MODELS_TTL:
+        if (
+            not refresh
+            and cls._models_cache
+            and (now - cls._models_cache_ts) < cls._MODELS_TTL
+        ):
             return cls._models_cache
         cli = self._cli_path()
         if not os.path.isfile(cli):
@@ -135,9 +144,6 @@ class OpenCodeAdapter(CLIAdapter):
         if request.agent_id:
             env["OPENCLAW_WORKER_AGENT_ID"] = request.agent_id
 
-        timeout = int(os.environ.get("OPENCODE_TIMEOUT", "600"))
-        start = time.time()
-
         proc = None
         cancelled = False
         stop_watch = threading.Event()
@@ -149,6 +155,18 @@ class OpenCodeAdapter(CLIAdapter):
                 stderr=subprocess.PIPE, text=True, bufsize=1,
                 start_new_session=True,
             )
+
+            stderr_buf: list[str] = []
+
+            def _drain_stderr() -> None:
+                try:
+                    if proc.stderr:
+                        stderr_buf.append(proc.stderr.read())
+                except Exception:
+                    pass
+
+            stderr_thread = threading.Thread(target=_drain_stderr, daemon=True)
+            stderr_thread.start()
             # 看门狗在 opencode 空闲时会置 cancel_event，但此时 `for line in proc.stdout`
             # 正阻塞读、不会再检查取消标志。用旁路线程监听取消并杀「整个进程组」——既能
             # 解除 stdout 阻塞（管道关闭→循环结束），又能连 opencode 的子进程一起回收，
@@ -171,22 +189,22 @@ class OpenCodeAdapter(CLIAdapter):
                 pass
             proc.stdin.close()
 
+            # 注意：先 yield 当前行事件，再检查 cancel，保证 step_finish 行（含 token 计量）
+            # 在取消信号到来时依然能从 stdout 缓冲中被读出并上报。
             for line in proc.stdout:
-                if cancel_event and cancel_event.is_set():
-                    cancelled = True
-                    break
-                if time.time() - start > timeout:
-                    self._terminate_group(proc)
-                    yield AgentEvent(EventKind.ERROR, {"message": "执行超时"})
-                    return
                 for ev in parse_line(line):
                     yield ev
+                if cancel_event and cancel_event.is_set():
+                    cancelled = True
+                    # 不立即 break：继续排空剩余缓冲行（含 step_finish 行），
+                    # 进程会在 canceller 线程 300ms 内被杀死后自然 EOF。
 
             if cancelled:
                 return
 
             proc.wait()
-            stderr_out = proc.stderr.read() if proc.stderr else ""
+            stderr_thread.join(timeout=2.0)
+            stderr_out = "".join(stderr_buf)
             if stderr_out.strip():
                 yield AgentEvent(EventKind.ERROR, {"message": stderr_out.strip()})
 

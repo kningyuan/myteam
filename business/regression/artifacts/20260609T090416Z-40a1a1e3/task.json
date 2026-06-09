@@ -1,0 +1,62 @@
+[
+  {
+    "project_id": "reg-l2-3role",
+    "task_id": "t1",
+    "parent_id": null,
+    "name": "产品视角评审",
+    "agent": "research",
+    "reviewer": "",
+    "task_type": "research",
+    "status": "needs_review",
+    "dependencies": "[]",
+    "started_at": null,
+    "completed_at": null,
+    "updated_at": "2026-06-09T17:00:51",
+    "meta": "{\"description\": \"【项目目标】对 myteam L2 协作机制做三角色并行评审：A）产品视角 B）架构视角 C）测试视角，每视角约200字，最后汇总\\n\\n从产品视角评审 myteam L2 并行调度能力，约200字。\", \"summary\": \"产品视角评审完成：myteam L2 的 DAG 调度架构正确，但当前实现为逻辑并行/物理串行，cycle barrier 在小任务场景下引入额外等待；建议短期优化 subprocess 级并行发射，中期增加跨 task 进度面板\", \"ref\": \"t1_deliverable.md\"}"
+  },
+  {
+    "project_id": "reg-l2-3role",
+    "task_id": "t2",
+    "parent_id": null,
+    "name": "架构视角评审",
+    "agent": "research",
+    "reviewer": "",
+    "task_type": "research",
+    "status": "needs_review",
+    "dependencies": "[]",
+    "started_at": null,
+    "completed_at": null,
+    "updated_at": "2026-06-09T17:02:19",
+    "meta": "{\"description\": \"【项目目标】对 myteam L2 协作机制做三角色并行评审：A）产品视角 B）架构视角 C）测试视角，每视角约200字，最后汇总\\n\\n从架构视角写 myteam L2 并行调度短评（约200字）。 仅参考 docs/0608/01-架构演进分析.md 与 t1/t3 已有结论，禁止扫描 backend/ 源码树。\\n\", \"summary\": \"架构视角L2短评：识别出Store并发加固、_KERNEL_RUNS持久化、CLI后端并发能力验证三项并行化前置条件，建议fan-out调度模型（调度串行+执行并行），以最小改动复用现有Gate校验逻辑\", \"ref\": \"t2_deliverable.md\"}"
+  },
+  {
+    "project_id": "reg-l2-3role",
+    "task_id": "t3",
+    "parent_id": null,
+    "name": "测试视角评审",
+    "agent": "research",
+    "reviewer": "",
+    "task_type": "research",
+    "status": "needs_review",
+    "dependencies": "[]",
+    "started_at": null,
+    "completed_at": null,
+    "updated_at": "2026-06-09T17:02:36",
+    "meta": "{\"description\": \"【项目目标】对 myteam L2 协作机制做三角色并行评审：A）产品视角 B）架构视角 C）测试视角，每视角约200字，最后汇总\\n\\n从测试视角评审 myteam L2 回归与 KPI 度量，约200字。\", \"summary\": \"从测试视角评审了myteam L2回归与KPI度量：301测试全部通过、r2_infra标记未注册有警告、KPI存活/预算逻辑有单元覆盖但缺端到端集成测试、DAG部分成功恢复场景未独立覆盖。\", \"ref\": \"t3_deliverable.md\"}"
+  },
+  {
+    "project_id": "reg-l2-3role",
+    "task_id": "t4",
+    "parent_id": null,
+    "name": "三角色汇总",
+    "agent": "main",
+    "reviewer": "",
+    "task_type": "strategy",
+    "status": "needs_review",
+    "dependencies": "[\"t1\", \"t2\", \"t3\"]",
+    "started_at": null,
+    "completed_at": null,
+    "updated_at": "2026-06-09T17:04:16",
+    "meta": "{\"description\": \"【项目目标】对 myteam L2 协作机制做三角色并行评审：A）产品视角 B）架构视角 C）测试视角，每视角约200字，最后汇总\\n\\n汇总 t1–t3 三角色评审结论，形成一份简短 L2 就绪评估报告。\", \"summary\": \"汇总 t1-t3 三角色评审结论，推荐方案 B（条件上线）：先加固 Store 并发写并补充部分成功恢复集成测试，其余并行化优化移入 L3。核心链路已验证正确，非阻塞项不延期。\", \"ref\": \"t4_deliverable.md\"}"
+  }
+]

@@ -3,6 +3,7 @@
 
 验证标准：只读视图反映真相库；超预算触发暂停与告警。
 """
+import json
 import sys
 from pathlib import Path
 
@@ -78,6 +79,14 @@ def test_project_events_feed(store):
     assert "budget_alert" in kinds                  # 合成 id 事件被捞到
     assert "message" in kinds                       # 群通知进流
     assert any(e["category"] == "interaction" for e in feed)  # 交互骨架在
+
+
+def test_parallel_wave_in_feed(store):
+    """parallel_wave 项目级事件应出现在 project_events 流中。"""
+    store.upsert_project("pro_pw")
+    store.append_run_event("pro_pw:dispatch", "parallel_wave", {"tasks": ["t1", "t2"], "count": 2})
+    feed = project_events(store, "pro_pw")
+    assert any(e["kind"] == "parallel_wave" for e in feed)
 
 
 def test_liveness_states():
@@ -162,6 +171,32 @@ def _valid(task_type):
     return "\n".join(out)
 
 
+def test_execute_budget_exceeded_pauses_mid_interaction(penv):
+    """交互进行中达 token 硬上限 → 项目 paused（非 task failed）。"""
+    store, wcfg = penv
+    store.upsert_project("pro_mid", status="in_progress", meta={"token_budget": 1000})
+
+    def transport(ctx):
+        ctx.emit("step_start")
+        iid = ctx.request.interaction_id
+        while not ctx.cancelled:
+            store.update_interaction(iid, tokens=1100)
+            time.sleep(0.03)
+
+    checker = lambda pid: store.tokens_total(pid) >= 1000  # noqa: E731
+    port = AgentPort(transport, store=store, config=wcfg, budget_checker=checker)
+    proc = Process(store, port, ProcessConfig(token_budget=1000))
+    tasks = [
+        {"id": "t1", "agent": "researcher", "task_type": "research", "dependencies": []},
+    ]
+    out = proc.run("pro_mid", agents=["researcher"], tasks=tasks)
+    assert out.status == "paused"
+    kinds = [e["kind"] for e in store.list_run_events("pro_mid:t1:execute:1")]
+    assert "budget_exceeded" in kinds
+    pause = [e for e in store.list_project_events("pro_mid") if e["kind"] == "budget_exceeded_pause"]
+    assert pause
+
+
 def test_over_budget_pauses_project(penv):
     store, wcfg = penv
 
@@ -189,3 +224,53 @@ def test_over_budget_pauses_project(penv):
     assert out.tasks["t2"].status == "completed"
     assert out.tasks["t3"].status == "blocked"
     assert out.status == "paused"
+
+
+def test_budget_degrade_fires_before_pause(penv, tmp_path, monkeypatch):
+    """L3：达降级阈值时先降级，下一任务仍可跑；硬上限后才暂停。"""
+    store, wcfg = penv
+    monkeypatch.setattr(paths, "AGENTS_CONFIG_FILE", tmp_path / "agents_config.json")
+
+    def transport(ctx):
+        ctx.emit("step_start")
+        rel = f"{ctx.request.task_id}_deliverable.md"
+        (paths.deliverables_dir(ctx.request.project_id) / rel).write_text(
+            _valid("research"), "utf-8")
+        submit({
+            "interaction_id": ctx.request.interaction_id, "kind": "execute", "status": "ok",
+            "meta": {"tokens": 800},
+            "quality": {"score": 0.9, "known_gaps": [], "notes": ""},
+            "result": {"outcome": {"kind": "artifact", "artifact": {"path": rel, "title": "x"}}},
+        }, paths.response_dir(ctx.request.agent_id) / f"{ctx.request.interaction_id}.response")
+
+    proc = Process(
+        store, AgentPort(transport, store=store, config=wcfg),
+        ProcessConfig(
+            token_budget=1000,
+            budget_degrade_threshold=0.8,
+            budget_degrade_backend="opencode",
+            budget_degrade_model="cheap-model",
+        ),
+    )
+    tasks = [
+        {"id": "t1", "agent": "researcher", "task_type": "research", "dependencies": []},
+        {"id": "t2", "agent": "researcher", "task_type": "research", "dependencies": ["t1"]},
+        {"id": "t3", "agent": "researcher", "task_type": "research", "dependencies": ["t2"]},
+    ]
+    out = proc.run("pro_x", agents=["researcher"], tasks=tasks)
+
+    assert out.tasks["t1"].status == "completed"
+    assert out.tasks["t2"].status == "completed"
+    assert out.tasks["t3"].status == "blocked"
+    assert out.status == "paused"
+
+    proj = store.get_project("pro_x")
+    assert (proj.get("meta") or {}).get("degraded") is True
+    assert (proj.get("meta") or {}).get("degrade_model") == "cheap-model"
+
+    ev_kinds = [e["kind"] for e in store.list_run_events("pro_x:budget")]
+    assert "budget_degrade" in ev_kinds
+    assert ev_kinds.index("budget_degrade") < ev_kinds.index("budget_over")
+
+    cfg = json.loads((tmp_path / "agents_config.json").read_text(encoding="utf-8"))
+    assert cfg["researcher"]["model"] == "cheap-model"

@@ -1,0 +1,20 @@
+[
+  {
+    "job_id": "ui_测试项目_20260605_101810:7e4ca41516",
+    "project_id": "ui_测试项目_20260605_101810",
+    "status": "completed",
+    "worker_id": "hub-84102-7fab715c",
+    "pid": 84102,
+    "goal": "项目任务描述：本地硬件信息采集脚本\n\n项目信息\n\n字段\t值\n项目 ID\thw-info-collector\n目标\t开发一个跨平台（macOS）Shell 脚本，自动采集本地硬件配置信息并输出结构化报告\n模式\tone_shot（一次性交付）\n工作 Agent\t开发工程师 (developer) · 测试专家 (tester)\n\n交付物总览\n\n交付物\t责任 Agent\ttask_type\n硬件信息采集脚本 + 说明文档\t开发工程师\tcode-deliverable\n测试报告（用例 + 执行结果）\t测试专家\tcode-testing\n\n---\n\n\n任务一：硬件信息采集脚本（开发工程师）\n\ntask_type: code-deliverable\n\n\n需求描述： 编写一个 Bash 脚本 collect_hw_info.sh，在 macOS 环境下运行，采集以下硬件信息并以格式化的 Markdown 报告输出：\n\n\n类别\t采集项\t命令参考\nCPU\t型号、核心数（物理/逻辑）、频率\tsysctl -n machdep.cpu.brand_string, sysctl -n hw.physicalcpu hw.logicalcpu\n内存\t总容量（GB）、类型、频率\tsysctl -n hw.memsize, system_profiler SPHardwareDataType\n磁盘\t各挂载点容量（总/已用/可用）、文件系统类型\tdf -h\nGPU\t显卡型号、显存（如适用）\tsystem_profiler SPDisplaysDataType\n网络\t接口列表、MAC 地址、IP 地址\tifconfig, networksetup -listallhardwareports\n系统\tmacOS 版本、内核版本、启动时间、序列号（脱敏）\tsw_vers, uname -a, system_profiler SPHardwareDataType\n\n输出要求：\n\n\n\nMarkdown 格式报告，保存在 output/hw_report.md\n\n报告包含：摘要表格 + 每个类别的详细章节\n\n敏感信息（序列号）中间 8 位用 **** 脱敏\n\n脚本本身需有：-h/--help 帮助信息、错误处理（命令不存在时给出友好提示而非直接报错）、退出码规范\n\n\n交付物清单：\n\n\n\ncollect_hw_info.sh — 主脚本（可执行、带 shebang、带注释）\n\noutput/hw_report.md — 样例输出报告\n\nREADME.md — 使用说明（依赖、用法、输出示例）\n\n\n质量门禁：\n\n\n\n脚本必须通过 shellcheck（如果可用）或至少无语法错误\n\n每个采集项都需实际执行命令（非硬编码示例值）\n\n脱敏逻辑正确\n\n错误路径有处理\n\n\n---\n\n\n任务二：测试验证（测试专家）\n\ntask_type: code-testing\n\n\n需求描述： 对开发工程师交付的 collect_hw_info.sh 进行完整的测试验证，输出测试报告。\n\n\n测试范围：\n\n\n测试维度\t具体内容\n功能测试\t每个采集项是否成功输出正确格式的数据\n边界测试\t缺少命令依赖时的行为、空磁盘/特殊网络配置\n可执行性\tshebang 正确、bash collect_hw_info.sh 和 chmod +x 后直接执行均能运行\n输出格式\tMarkdown 格式合规、表格对齐、章节完整\n脱敏测试\t序列号字段正确脱敏\n帮助信息\t-h 和 --help 输出正确\n\n交付物清单：\n\n\n\ntest_report.md — 完整测试报告（测试环境、用例表、执行结果、缺陷记录、质量结论）\n\n如有缺陷，附重现步骤和建议修复\n\n\n质量门禁：\n\n\n\n测试报告必须覆盖所有功能点和边界条件\n\n每个用例需注明：测试项、预期结果、实际结果、PASS/FAIL\n\n测试在真实的 macOS 环境上执行（非 mock）\n\n\n---",
+    "mode": "one_shot",
+    "title": "测试项目",
+    "token_budget": null,
+    "review": 0,
+    "cancel_requested": 0,
+    "error": "",
+    "started_at": "2026-06-05T10:18:10",
+    "updated_at": "2026-06-05T10:33:27",
+    "finished_at": "2026-06-05T10:33:27",
+    "meta": "null"
+  }
+]

@@ -1,0 +1,51 @@
+# REG-02：四叶子并行 + 汇总（跳过 team_config/task_plan，固定 DAG）
+id: reg-parallel-4leaf
+version: "1.0"
+description: >
+  L1 dogfooding 回归用 workflow。4 个独立 research 叶子 + 1 个 strategy 汇总。
+  配合 run_kernel --workflow reg-parallel-4leaf 使用。
+
+roster:
+  required: [main, research]
+
+options:
+  review_enabled: false
+  split_enabled: false
+  parallel_enabled: true
+  max_parallel: 4
+
+tasks:
+  - id: t1
+    name: 维度A 依赖关系
+    agent: research
+    task_type: research
+    dependencies: []
+    description: "对 myteam 架构的依赖关系做评估，约200字。"
+
+  - id: t2
+    name: 维度B 接口抽象
+    agent: research
+    task_type: research
+    dependencies: []
+    description: "对 myteam 架构的接口抽象做评估，约200字。"
+
+  - id: t3
+    name: 维度C 测试覆盖
+    agent: research
+    task_type: research
+    dependencies: []
+    description: "对 myteam 架构的测试覆盖做评估，约200字。"
+
+  - id: t4
+    name: 维度D 错误处理
+    agent: research
+    task_type: research
+    dependencies: []
+    description: "对 myteam 架构的错误处理做评估，约200字。"
+
+  - id: t5
+    name: 四维汇总
+    agent: main
+    task_type: strategy
+    dependencies: [t1, t2, t3, t4]
+    description: "汇总 t1–t4 四维评估结论，形成一份简短架构评估报告。"

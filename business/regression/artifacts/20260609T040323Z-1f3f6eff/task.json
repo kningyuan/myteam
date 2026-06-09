@@ -1,0 +1,62 @@
+[
+  {
+    "project_id": "reg-l2-3role",
+    "task_id": "t1",
+    "parent_id": null,
+    "name": "产品视角评审",
+    "agent": "research",
+    "reviewer": "",
+    "task_type": "research",
+    "status": "needs_review",
+    "dependencies": "[]",
+    "started_at": null,
+    "completed_at": "2026-06-09T11:30:31",
+    "updated_at": "2026-06-09T11:33:06",
+    "meta": "{\"fail_reason\": \"no_response\", \"fail_detail\": \"端口 no_response: 传输结束但未取回合法响应\", \"summary\": \"从产品视角完成 L2 并行调度评审：波次+线程池模式价值明确，K1/K8 门禁合理但缺质量度量，全局并行开关缺乏细粒度控制，中断恢复完善但 UX 可视化不足。建议 UI 增强波次可视化、引入评审质量评分、按 task_type 差异化并行策略。\", \"ref\": \"t1_deliverable.md\"}"
+  },
+  {
+    "project_id": "reg-l2-3role",
+    "task_id": "t2",
+    "parent_id": null,
+    "name": "架构视角评审",
+    "agent": "research",
+    "reviewer": "",
+    "task_type": "research",
+    "status": "failed",
+    "dependencies": "[]",
+    "started_at": null,
+    "completed_at": "2026-06-09T11:29:33",
+    "updated_at": "2026-06-09T12:03:23",
+    "meta": "{\"fail_reason\": \"no_response\", \"fail_detail\": \"端口 no_response: 传输结束但未取回合法响应\"}"
+  },
+  {
+    "project_id": "reg-l2-3role",
+    "task_id": "t3",
+    "parent_id": null,
+    "name": "测试视角评审",
+    "agent": "research",
+    "reviewer": "",
+    "task_type": "research",
+    "status": "needs_review",
+    "dependencies": "[]",
+    "started_at": null,
+    "completed_at": null,
+    "updated_at": "2026-06-09T11:30:34",
+    "meta": "{\"summary\": \"测试视角评审myteam L2回归与KPI度量，基于QA报告+L2交叉验证纪要+回归脚本三源交叉验证，提出5项关键发现与3项发版前待清理风险。\", \"ref\": \"t3_deliverable.md\"}"
+  },
+  {
+    "project_id": "reg-l2-3role",
+    "task_id": "t4",
+    "parent_id": null,
+    "name": "三角色汇总",
+    "agent": "main",
+    "reviewer": "",
+    "task_type": "strategy",
+    "status": "blocked",
+    "dependencies": "[\"t1\", \"t2\", \"t3\"]",
+    "started_at": null,
+    "completed_at": null,
+    "updated_at": "2026-06-09T11:33:06",
+    "meta": "null"
+  }
+]

@@ -1,0 +1,62 @@
+# Tier L2+：三并行 research + requirements + strategy（加重 task_type 与步数）
+id: tier-l2-heavy
+version: "1.0"
+description: 5 步；含 requirements 中间层
+
+roster:
+  required: [main, product, research]
+
+options:
+  review_enabled: false
+  split_enabled: false
+  parallel_enabled: true
+  max_parallel: 3
+
+tasks:
+  - id: t-product
+    name: 产品调研
+    agent: product
+    task_type: research
+    dependencies: []
+    description: |
+      【对象】https://github.com/iOfficeAI/AionUi
+      【视角】产品：定位、用户、场景、竞品差异
+      【范围】仅 README、docs/、Releases
+
+  - id: t-arch
+    name: 架构调研
+    agent: research
+    task_type: research
+    dependencies: []
+    description: |
+      【对象】https://github.com/iOfficeAI/AionUi
+      【视角】架构：技术栈、模块、CLI/Agent 集成
+      【范围】README + 顶层目录说明；最多 2 层目录列表
+
+  - id: t-eng
+    name: 工程调研
+    agent: research
+    task_type: research
+    dependencies: []
+    description: |
+      【对象】https://github.com/iOfficeAI/AionUi
+      【视角】工程：构建、CI、依赖、本地开发
+      【范围】README、.github/workflows、package 清单；禁止安装命令
+
+  - id: t-req
+    name: 需求提炼
+    agent: product
+    task_type: requirements
+    dependencies: [t-product, t-arch, t-eng]
+    description: |
+      【输入】只读 t-product、t-arch、t-eng 三份交付物
+      【输出】若借鉴 AionUi 做 myteam 协作 Hub，提炼 5 条可验证需求（含优先级）
+
+  - id: t-summary
+    name: 综合战略
+    agent: main
+    task_type: strategy
+    dependencies: [t-req]
+    description: |
+      【输入】只读 t-req 及三份 research 交付物
+      【侧重】myteam 可借鉴点与实施优先级

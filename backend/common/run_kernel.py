@@ -26,6 +26,7 @@ if __package__ in (None, ""):  # 作为脚本直接运行时确保 common 包可
 
 from common.agent_bootstrap import auto_create_agent
 from common.agent_port import AgentPort, WatchdogConfig, reconcile_on_start
+from common.observability import BudgetConfig, check_budget
 from common.process import Process, ProcessConfig, ProjectOutcome
 from common.store import Store
 from common.workspace_gc import gc_workspace
@@ -44,6 +45,18 @@ def _read_demo_goal() -> str:
             if stripped and not stripped.startswith("#"):
                 return stripped
     return "调研 AI 编码工具 Cursor、Claude Code、GitHub Copilot 的市场定位和核心功能，输出一份简要对比报告。"
+
+
+def _budget_checker(store: Store, token_budget: Optional[int]):
+    """交互进行中硬停：达项目 token 硬上限返回 True。"""
+    if not token_budget:
+        return None
+
+    def check(project_id: str) -> bool:
+        bs = check_budget(store, project_id, BudgetConfig(project_limit=token_budget))
+        return bs.state == "over"
+
+    return check
 
 
 def _system_default_backend() -> str:
@@ -115,13 +128,18 @@ def run_project(project_id: str, *, goal: str = "", title: str = "",
     reconcile_on_start(store)  # 启动对账 GC（D8）：清理上次残留的 pending/running
     gc_workspace(store)      # 清 agent workspace 里已终态 interaction 的临时件
     if transport is None:
-        from common.agent_transport import AdapterTransport
-        transport = AdapterTransport(backend=backend)
+        from common.agent_transport import AdapterTransport, make_gate_session_resolver
+        transport = AdapterTransport(
+            backend=backend, session_resolver=make_gate_session_resolver(store),
+        )
 
     agents: Optional[list[str]] = None
     tasks: Optional[list[dict]] = None
     wf_review = review
     wf_split = split
+    wf_parallel = False
+    wf_max_parallel = 4
+    wf_skill_extract = False
     workflow_id: Optional[str] = None
     if workflow:
         from common.workflow_bootstrap import ensure_workflow_ready
@@ -134,13 +152,32 @@ def run_project(project_id: str, *, goal: str = "", title: str = "",
             wf_review = True
         if not split and opts.get("split_enabled"):
             wf_split = True
+        if opts.get("parallel_enabled"):
+            wf_parallel = True
+            wf_max_parallel = int(opts.get("max_parallel") or 4)
+        if opts.get("skill_extract_enabled"):
+            wf_skill_extract = True
 
-    port = AgentPort(transport, store=store, config=watchdog or WatchdogConfig())
-    proc = Process(store, port,
-                   config or ProcessConfig(mode=mode, token_budget=token_budget,
-                                           max_cycles=max_cycles, review_enabled=wf_review,
-                                           split_enabled=wf_split,
-                                           default_backend=backend))
+    if config is None:
+        from common.kernel_config import kernel_configs_for_run
+
+        base_cfg, resolved_wdog = kernel_configs_for_run(
+            mode=mode, token_budget=token_budget,
+            max_cycles=max_cycles, review=wf_review, split=wf_split, backend=backend,
+        )
+        base_cfg.parallel_enabled = wf_parallel
+        base_cfg.max_parallel = wf_max_parallel
+        if wf_skill_extract:
+            base_cfg.skill_extract_enabled = True
+        if watchdog is None:
+            watchdog = resolved_wdog
+    else:
+        base_cfg = config
+    port = AgentPort(
+        transport, store=store, config=watchdog or WatchdogConfig(),
+        budget_checker=_budget_checker(store, base_cfg.token_budget),
+    )
+    proc = Process(store, port, base_cfg)
     return proc.run(project_id, title=title, goal=goal, agents=agents, tasks=tasks,
                     workflow=workflow_id)
 
@@ -154,14 +191,32 @@ def resume_project(project_id: str, *,
     backend = backend or _system_default_backend()
     store = store or Store()
     reconcile_on_start(store)
-    gc_workspace(store)
     if transport is None:
         from common.agent_transport import AdapterTransport
         transport = AdapterTransport(backend=backend)
-    port = AgentPort(transport, store=store, config=watchdog or WatchdogConfig())
-    proc = Process(store, port,
-                   config or ProcessConfig(default_backend=backend))
-    return proc.resume(project_id)
+    proj = store.get_project(project_id)
+    meta = (proj or {}).get("meta") or {}
+    budget = meta.get("token_budget")
+    mode = meta.get("mode") or "one_shot"
+    if config is None:
+        from common.kernel_config import kernel_configs_for_run
+
+        proc_cfg, resolved_wdog = kernel_configs_for_run(
+            mode=mode, token_budget=budget, backend=backend,
+        )
+        if watchdog is None:
+            watchdog = resolved_wdog
+    else:
+        proc_cfg = config
+    port = AgentPort(
+        transport, store=store, config=watchdog or WatchdogConfig(),
+        budget_checker=_budget_checker(store, proc_cfg.token_budget),
+    )
+    proc = Process(store, port, proc_cfg)
+    outcome = proc.resume(project_id)
+    # gc 须在 settle 之后：reconcile 可能已将 timed_out 标 done，过早 gc 会删 .response
+    gc_workspace(store)
+    return outcome
 
 
 def resume_in_progress_projects(*, store: Optional[Store] = None,
@@ -175,7 +230,6 @@ def resume_in_progress_projects(*, store: Optional[Store] = None,
     """
     store = store or Store()
     reconcile_on_start(store)
-    gc_workspace(store)
     resumed: list[str] = []
     for proj in store.list_projects():
         pid = proj["project_id"]

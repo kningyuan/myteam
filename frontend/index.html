@@ -331,8 +331,8 @@
               <div class="form-group">
                 <label>默认模型</label>
                 <select id="set-default-model"></select>
-                <button type="button" id="btn-apply-model-all" class="btn-secondary mt-sm">应用到所有同后端 agent</button>
-                <small class="field-hint">默认模型仅用于「新建 agent」和未配置模型时的兜底；点上面按钮可把当前后端的全部 agent 一键改成此模型</small>
+                <button type="button" id="btn-apply-model-all" class="btn-secondary mt-sm">应用到全部 agent</button>
+                <small class="field-hint">默认模型用于新建 agent 的兜底；点上面按钮会把<strong>全部</strong> agent 的后端与模型改成当前选择（含跨后端切换）</small>
               </div>
               <div class="form-group">
                 <label id="set-cli-path-label">CLI 路径</label>
@@ -404,6 +404,40 @@
                   <div class="form-group">
                     <label>最大重试次数</label>
                     <input id="set-max-retries" type="number" placeholder="3" min="0">
+                  </div>
+                  <div class="form-group">
+                    <label>Gate 最大重试（内核）</label>
+                    <input id="set-max-gate-retries" type="number" placeholder="3" min="0">
+                  </div>
+                  <div class="form-group">
+                    <label>软空闲超时（秒）</label>
+                    <input id="set-soft-idle" type="number" placeholder="120" min="30">
+                  </div>
+                  <div class="form-group">
+                    <label>硬空闲超时（秒）</label>
+                    <input id="set-hard-idle" type="number" placeholder="300" min="60">
+                  </div>
+                  <div class="form-group">
+                    <label>最大周期数（recurring）</label>
+                    <input id="set-max-cycles" type="number" placeholder="3" min="1">
+                  </div>
+                  <div class="form-group form-row-check">
+                    <label><input type="checkbox" id="set-split-default"> 新建项目默认开启自动拆分</label>
+                  </div>
+                  <div class="form-group">
+                    <label>预算降级阈值（%）</label>
+                    <input id="set-budget-degrade-threshold" type="number" placeholder="80" min="1" max="99" step="1">
+                    <small class="field-hint">项目 token 用量达此比例时自动切换下方 backend/model（默认 80%）</small>
+                  </div>
+                  <div class="form-group">
+                    <label>降级目标 backend</label>
+                    <select id="set-budget-degrade-backend"></select>
+                    <small class="field-hint">留空表示不修改 backend，仅写 model 时无效</small>
+                  </div>
+                  <div class="form-group">
+                    <label>降级目标 model</label>
+                    <select id="set-budget-degrade-model"></select>
+                    <small class="field-hint">留空表示不修改 model</small>
                   </div>
                 </div>
               </details>
@@ -532,6 +566,7 @@
       </div>
       <div class="form-group">
         <label class="checkbox-label"><input id="np-review" type="checkbox"> 开启同行评审（reviewer 由 main 指派）</label>
+        <label class="checkbox-label"><input id="np-split" type="checkbox"> 自动拆分子任务（实验性，复杂项目可开）</label>
       </div>
     </div>
     <div class="modal-footer">

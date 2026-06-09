@@ -9,7 +9,7 @@
 - task_data.json 退为**只读导出视图**（export_project），不再是真相。
 - 对现有 task_data.json 提供一次性导入器（import_task_data）。
 
-并发：当前串行（D12），但开启 WAL 为未来留余地。
+并发：WAL + busy_timeout；每线程独立连接（L2 真并行调度）。
 状态机（D18）：
   interaction：pending → running → done | failed | cancelled | timed_out
   task：pending → in_progress → completed | needs_review | failed | blocked
@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Any, Optional
@@ -188,34 +189,56 @@ CREATE TABLE IF NOT EXISTS job (
 
 
 class Store:
-    """SQLite 真相库句柄。串行使用；同实例复用一条连接。"""
+    """SQLite 真相库句柄。每线程独立连接，共享 WAL 文件。"""
 
     def __init__(self, db_path: str | Path | None = None):
         self.db_path = Path(db_path) if db_path else default_db_path()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
-        self._conn.row_factory = sqlite3.Row
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.execute("PRAGMA synchronous=NORMAL")
-        self._conn.executescript(_SCHEMA)
-        self._fts = self._init_message_fts()
-        self._conn.commit()
+        self._tls = threading.local()
+        self._fts = False
+        self._bootstrap_schema()
 
-    def _init_message_fts(self) -> bool:
+    def _open_connection(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        conn.execute("PRAGMA busy_timeout=5000")
+        return conn
+
+    def _bootstrap_schema(self) -> None:
+        conn = self._open_connection()
+        conn.executescript(_SCHEMA)
+        self._fts = self._init_message_fts(conn)
+        conn.commit()
+        conn.close()
+
+    @property
+    def _conn(self) -> sqlite3.Connection:
+        conn = getattr(self._tls, "conn", None)
+        if conn is None:
+            conn = self._open_connection()
+            self._tls.conn = conn
+        return conn
+
+    def _init_message_fts(self, conn: sqlite3.Connection) -> bool:
         """message 全文索引（trigram，CJK 子串召回友好）。FTS5/trigram 不可用时回退 LIKE。"""
         for tokenize in ("tokenize='trigram'", ""):
             try:
-                self._conn.execute(
+                conn.execute(
                     "CREATE VIRTUAL TABLE IF NOT EXISTS message_fts USING fts5("
                     "text, conversation_id UNINDEXED" + (", " + tokenize if tokenize else "") + ")"
                 )
                 return True
             except sqlite3.OperationalError:
-                self._conn.execute("DROP TABLE IF EXISTS message_fts")
+                conn.execute("DROP TABLE IF EXISTS message_fts")
         return False
 
     def close(self):
-        self._conn.close()
+        conn = getattr(self._tls, "conn", None)
+        if conn is not None:
+            conn.close()
+            self._tls.conn = None
 
     def __enter__(self):
         return self
@@ -250,6 +273,19 @@ class Store:
             "SELECT * FROM project WHERE project_id=?", (project_id,)
         ).fetchone()
         return self._row(row) if row else None
+
+    def update_project_meta(self, project_id: str, **kv) -> None:
+        """合并写入 project.meta（保留既有键）。"""
+        proj = self.get_project(project_id)
+        if not proj:
+            return
+        meta = dict(proj.get("meta") or {})
+        meta.update(kv)
+        with self._conn:
+            self._conn.execute(
+                "UPDATE project SET meta=?, updated_at=? WHERE project_id=?",
+                (_dumps(meta), _now(), project_id),
+            )
 
     def list_projects(self) -> list[dict]:
         rows = self._conn.execute(

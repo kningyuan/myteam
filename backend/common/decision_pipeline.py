@@ -9,8 +9,9 @@ from common.agent_bootstrap import auto_create_agent
 from common.agent_port import AgentPort
 from common.plan_splice import normalize_subtasks, validate_subtasks
 from common.plan_gate import check_plan
-from common.process_types import ProcessConfig
+from common.process_types import BudgetExceededError, ProcessConfig
 from common.paths import workspace_dir
+from common.prompt_templates import render_kind_intent
 from common.store import Store
 
 
@@ -26,10 +27,13 @@ class DecisionPipeline:
         req = {
             "interaction_id": iid,
             "kind": "team_config", "project_id": project_id, "agent_id": "main",
-            "intent": "为目标配置团队", "input": {"goal": goal},
+            "intent": render_kind_intent("team_config", {"goal": goal}),
+            "input": {"goal": goal},
             "response_schema": "team_config.result@1.0",
         }
         res = self.port.run(req)
+        if res.status == "budget_exceeded":
+            raise BudgetExceededError(res.reason or "交互级 token 超预算")
         if res.status != "done":
             raise RuntimeError(f"team_config 失败：{res.status} {res.reason}")
         agents = res.response["result"]["agents"]
@@ -63,11 +67,18 @@ class DecisionPipeline:
             req = {
                 "interaction_id": iid,
                 "kind": "task_plan", "project_id": project_id, "agent_id": "main",
-                "intent": "规划任务与依赖", "input": plan_input,
+                "intent": render_kind_intent("task_plan", {
+                    "goal": goal,
+                    "team": ", ".join(agents),
+                }),
+                "input": plan_input,
                 "response_schema": "task_plan.result@1.0",
                 "retry_feedback": feedback,
             }
             res = self.port.run(req)
+            if res.status == "budget_exceeded":
+                self.release_files("main", iid)
+                raise BudgetExceededError(res.reason or "交互级 token 超预算")
             if res.status != "done":
                 self.release_files("main", iid)
                 raise RuntimeError(f"task_plan 失败：{res.status} {res.reason}")
@@ -93,7 +104,7 @@ class DecisionPipeline:
                 "interaction_id": iid, "kind": "evaluate",
                 "project_id": project_id, "task_id": task["id"],
                 "agent_id": task.get("agent", ""),
-                "intent": "评估任务是否需要拆分为子任务",
+                "intent": render_kind_intent("evaluate", {}),
                 "input": {"task": task, "depth": depth,
                           "max_depth": self.config.max_split_depth,
                           "max_subtasks": self.config.max_subtasks, "team": agents},
@@ -120,11 +131,18 @@ class DecisionPipeline:
 
     def triage(self, project_id: str, task: dict, reason: str) -> str:
         tid = task["id"]
+        row = self.store.get_task(project_id, tid) or {}
+        meta = row.get("meta") or {}
         req = {
             "interaction_id": f"{project_id}:{tid}:triage",
             "kind": "triage", "project_id": project_id, "task_id": tid,
             "agent_id": "main", "intent": f"任务 {tid} 失败，请决策",
-            "input": {"task": task, "reason": reason},
+            "input": {
+                "task": task,
+                "reason": reason,
+                "fail_reason": meta.get("fail_reason", ""),
+                "fail_detail": meta.get("fail_detail", ""),
+            },
             "response_schema": "triage.result@1.0",
         }
         res = self.port.run(req)

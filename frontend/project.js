@@ -6,13 +6,15 @@ const DELIV_KIND_LABELS = { script: '脚本', doc: '文档', output: '产出', t
 const EVENT_LABELS = {
   gate_passed:'门禁通过', gate_failed:'门禁未过', review_done:'评审完成',
   review_unreachable:'评审不可达', plan_rejected:'计划被拒', blocked:'任务阻塞',
-  budget_alert:'预算告警', budget_over:'预算超限', cycle_done:'周期完成',
+  budget_alert:'预算告警', budget_over:'预算超限', budget_degrade:'预算降级',
+  budget_exceeded:'交互超预算', budget_exceeded_pause:'超预算暂停', cycle_done:'周期完成',
   watchdog_soft_idle:'疑似卡住', watchdog_hard_kill:'看门狗中止',
   transport_error:'传输错误', reconcile_timed_out:'重启对账超时',
   reconcile_adopted:'对账回收',
   tool_use:'skill 调用', tool_result:'工具返回',
   prompt_sent:'发送 prompt', request_snapshot:'请求快照',
-  response_snapshot:'响应快照', message:'消息',
+  response_snapshot:'响应快照',   message:'消息',
+  parallel_wave:'并行波次',
 };
 const INTERACTION_STATUS_LABEL = {
   running:'运行中', completed:'已完成', failed:'失败', cancelled:'已取消',
@@ -333,6 +335,12 @@ function eventDetail(e) {
   if (e.kind === 'review_done') return (p.passed ? '通过' : '打回') + (p.feedback ? ' · ' + p.feedback : '');
   if (e.kind === 'message') return (p.sender ? p.sender + '：' : '') + (p.text || '');
   if (e.kind === 'tool_use') return toolUseSummary(p);
+  if (e.kind === 'parallel_wave') {
+    const tasks = Array.isArray(p.tasks) ? p.tasks : [];
+    const shown = tasks.slice(0, 3).join(', ');
+    const more = tasks.length > 3 ? ` +${tasks.length - 3}` : '';
+    return `共 ${p.count || tasks.length} 个任务${shown ? '：' + shown + more : ''}`;
+  }
   if (e.kind === 'blocked' || e.kind === 'plan_rejected') return p.reason || (p.invalid_agents || []).join(', ');
   if (e.kind === 'budget_alert' || e.kind === 'budget_over') return JSON.stringify(p);
   if (e.kind === 'text') return String(p.content || '').slice(0, 160);

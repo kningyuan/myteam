@@ -108,6 +108,7 @@ class ClaudeCodeAdapter(CLIAdapter):
         cli_args = self._cli_args()
         cmd = cli_args + [
             "-p",
+            "--no-session-persistence",
             "--output-format", "stream-json",
             "--verbose",
             "--dangerously-skip-permissions",
@@ -121,9 +122,6 @@ class ClaudeCodeAdapter(CLIAdapter):
         if request.agent_id:
             env["OPENCLAW_WORKER_AGENT_ID"] = request.agent_id
 
-        timeout = int(os.environ.get("CLAUDE_TIMEOUT", "600"))
-        start = time.time()
-
         proc: Optional[subprocess.Popen] = None
         cancelled = False
         stop_watch = threading.Event()
@@ -136,6 +134,18 @@ class ClaudeCodeAdapter(CLIAdapter):
                 stderr=subprocess.PIPE, text=True, bufsize=1,
                 start_new_session=True,
             )
+
+            stderr_buf: list[str] = []
+
+            def _drain_stderr() -> None:
+                try:
+                    if proc.stderr:
+                        stderr_buf.append(proc.stderr.read())
+                except Exception:
+                    pass
+
+            stderr_thread = threading.Thread(target=_drain_stderr, daemon=True)
+            stderr_thread.start()
 
             # 看门狗：cancel_event 触发时杀整个进程组（解除 stdout 阻塞 + 连子进程一起回收）
             cancel_event = request.cancel_event
@@ -158,22 +168,22 @@ class ClaudeCodeAdapter(CLIAdapter):
             proc.stdin.close()
 
             # 逐行读取 stream-json
+            # 注意：先 yield 当前行事件，再检查 cancel，保证 result 行（含 token 计量）
+            # 在取消信号到来时依然能从 stdout 缓冲中被读出并上报。
             for line in proc.stdout:
-                if cancel_event and cancel_event.is_set():
-                    cancelled = True
-                    break
-                if time.time() - start > timeout:
-                    self._terminate_group(proc)
-                    yield AgentEvent(EventKind.ERROR, {"message": "执行超时"})
-                    return
                 for ev in parse_line(line):
                     yield ev
+                if cancel_event and cancel_event.is_set():
+                    cancelled = True
+                    # 不立即 break：继续排空剩余缓冲行（含 result 行），
+                    # 进程会在 canceller 线程 300ms 内被杀死后自然 EOF。
 
             if cancelled:
                 return
 
             proc.wait()
-            stderr_out = proc.stderr.read() if proc.stderr else ""
+            stderr_thread.join(timeout=2.0)
+            stderr_out = "".join(stderr_buf)
             if stderr_out.strip():
                 yield AgentEvent(EventKind.ERROR, {"message": stderr_out.strip()})
 

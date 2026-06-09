@@ -17,6 +17,8 @@ if str(_ROOT) not in sys.path:
 
 from hub.paths import (
     AGENTS_CONFIG_FILE,
+    AGENTS_REGISTRY_FILE,
+    GROUPS_FILE,
     RULES_DIR,
     WORKSPACE_PREFIX,
     WORKSPACES_DIR,
@@ -67,25 +69,31 @@ def get_agent_backend_config(agent_id: str) -> BackendConfig:
 
 
 def apply_model_to_all(backend_id: str, model: str) -> dict:
-    """把指定 backend/CLI 的所有 agent 模型批量改为 model。
+    """把设置页选定的 backend + model 批量写入全部 agent。
 
-    只作用于 backend 匹配的 agent，其余跳过；保留各 agent 现有的 name/workspace/extra。
+    不区分 agent 当前后端——一并切换 backend 并改 model；保留 name/workspace/extra。
     """
     config = _load_agents_config()
-    applied, skipped = [], []
+    applied, migrated = [], []
     for agent in scan_agents():
         aid = agent["id"]
-        if agent.get("backend") != backend_id:
-            skipped.append(aid)
-            continue
+        prev_backend = agent.get("backend") or ""
         entry = dict(config.get(aid) or {})
+        if prev_backend and prev_backend != backend_id:
+            migrated.append(aid)
         entry["backend"] = backend_id
         entry["model"] = model
         entry.setdefault("extra", {})
         config[aid] = entry
         applied.append(aid)
     _save_agents_config(config)
-    return {"backend": backend_id, "model": model, "applied": applied, "skipped": skipped}
+    return {
+        "backend": backend_id,
+        "model": model,
+        "applied": applied,
+        "skipped": [],  # 兼容旧前端字段；不再按后端跳过
+        "migrated": migrated,
+    }
 
 
 def delete_agent_config(agent_id: str):
@@ -94,6 +102,45 @@ def delete_agent_config(agent_id: str):
     if agent_id in config:
         del config[agent_id]
         _save_agents_config(config)
+
+
+def _remove_agent_from_registry(agent_id: str) -> None:
+    """从 agents_registry.json 移除，避免 --init / bootstrap 再次创建 workspace。"""
+    if not AGENTS_REGISTRY_FILE.exists():
+        return
+    try:
+        with open(AGENTS_REGISTRY_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        return
+    agents = data.get("agents") or {}
+    if agent_id not in agents:
+        return
+    del agents[agent_id]
+    data["agents"] = agents
+    AGENTS_REGISTRY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(AGENTS_REGISTRY_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+
+def _remove_agent_from_groups(agent_id: str) -> None:
+    """从群组成员列表移除已删 agent。"""
+    if not GROUPS_FILE.exists():
+        return
+    try:
+        with open(GROUPS_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        return
+    changed = False
+    for grp in (data.get("groups") or {}).values():
+        members = grp.get("members")
+        if isinstance(members, list) and agent_id in members:
+            grp["members"] = [m for m in members if m != agent_id]
+            changed = True
+    if changed:
+        with open(GROUPS_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
 
 
 def set_agent_backend_config(
@@ -121,6 +168,32 @@ def _derive_backend_config(agent_id: str) -> BackendConfig:
     return BackendConfig(backend_id=default_backend, model=default_model)
 
 
+def _adapter_models_payload(adapter, *, refresh: bool = False) -> list[dict]:
+    """单后端模型列表；refresh 时绕过 OpenCode CLI 缓存。"""
+    list_models = adapter.list_models
+    if refresh and adapter.id == "opencode":
+        from adapters.opencode.adapter import OpenCodeAdapter
+        OpenCodeAdapter.invalidate_models_cache()
+        models = list_models(refresh=True)
+    else:
+        models = list_models()
+    return [
+        {"id": m.id, "name": m.name, "provider": m.provider, "default": m.default}
+        for m in models
+    ]
+
+
+def get_backend_models(backend_id: str, *, refresh: bool = False) -> list[dict]:
+    """按 backend_id 返回模型列表；不存在则抛 ValueError。"""
+    import adapters  # noqa: F401
+    from adapter.registry import registry as adapter_registry
+
+    adapter = adapter_registry.get(backend_id)
+    if adapter is None:
+        raise ValueError(f"unknown backend: {backend_id}")
+    return _adapter_models_payload(adapter, refresh=refresh)
+
+
 def list_all_backends_with_models() -> list[dict]:
     """列出所有 Adapter 及其模型。"""
     import adapters  # noqa: F401
@@ -139,10 +212,7 @@ def list_all_backends_with_models() -> list[dict]:
                 "json_output": True,
                 "custom_rules": caps.custom_rules,
             },
-            "models": [
-                {"id": m.id, "name": m.name, "provider": m.provider, "default": m.default}
-                for m in adapter.list_models()
-            ],
+            "models": _adapter_models_payload(adapter),
         })
     return result
 
@@ -235,7 +305,7 @@ def _clear_agent_sessions(agent_id: str, backend_id: str | None = None):
 # ============ Agent 删除 ============
 
 def delete_agent(agent_id: str) -> tuple[bool, str]:
-    """删除 Agent（工作目录 + 配置 + session）"""
+    """删除 Agent（工作目录 + agents_config + registry + 群组 + session）"""
     import shutil
 
     backend_cfg = get_agent_backend_config(agent_id)
@@ -243,6 +313,8 @@ def delete_agent(agent_id: str) -> tuple[bool, str]:
     if workspace.exists() and workspace.is_dir():
         shutil.rmtree(workspace)
     delete_agent_config(agent_id)
+    _remove_agent_from_registry(agent_id)
+    _remove_agent_from_groups(agent_id)
     _clear_agent_sessions(agent_id, backend_cfg.backend_id)
     return True, f"Agent '{agent_id}' 已删除"
 

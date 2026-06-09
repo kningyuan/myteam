@@ -16,17 +16,22 @@
 """
 from __future__ import annotations
 
+import json
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
 
+import common.paths as paths
+
 from common.agent_port import AgentPort
-from common.dag_dispatch import deps_block, derive_project_status
+from common.dag_dispatch import deps_block, derive_project_status, ready_tasks
 from common.decision_pipeline import DecisionPipeline
 from common.plan_expansion import PlanExpander
 from common.plan_gate import check_plan, prefix_cycle, topological_order
 from common.process_types import (
     TERMINAL_BAD,
     TERMINAL_OK,
+    BudgetExceededError,
     ProcessConfig,
     ProjectOutcome,
     TaskOutcome,
@@ -34,6 +39,7 @@ from common.process_types import (
 from common.task_pipeline import TaskPipeline
 from common.workspace_gc import gc_project_workspace, remove_interaction_files
 from common.observability import BudgetConfig, check_budget
+from common.project_artifacts import artifact_rel_path, task_deliverable_base
 from common.store import Store
 
 # 向后兼容 re-export
@@ -71,6 +77,21 @@ class Process:
         若给定 agents/tasks 则直接用（便于测试与已规划场景）；否则走 team_config / task_plan
         两个 Interaction 由 Main 决策（live 路径）。
         """
+        try:
+            return self._run_impl(
+                project_id, title=title, goal=goal, agents=agents, tasks=tasks, workflow=workflow,
+            )
+        except BudgetExceededError as e:
+            self.store.set_project_status(project_id, "paused")
+            self.store.append_run_event(f"{project_id}:budget", "budget_exceeded_pause",
+                                        {"reason": str(e)})
+            gc_project_workspace(self.store, project_id)
+            return ProjectOutcome(project_id, "paused", {})
+
+    def _run_impl(self, project_id: str, *, title: str = "", goal: str = "",
+                  agents: Optional[list[str]] = None,
+                  tasks: Optional[list[dict]] = None,
+                  workflow: Optional[str] = None) -> ProjectOutcome:
         proj_meta: dict = {"token_budget": self.config.token_budget, "goal": goal}
         if workflow:
             proj_meta["workflow"] = workflow
@@ -80,12 +101,16 @@ class Process:
         if agents is None:
             agents = self._decisions.team_config(project_id, goal)
             logging.info("  agent 名册：%s", ", ".join(agents))
+            if paused := self._pause_if_over_budget(project_id):
+                return paused
         if self.config.mode == "recurring" and tasks is None:
             return self._run_recurring(project_id, goal, agents)
         if tasks is None:
             tasks = self._decisions.task_plan(project_id, goal, agents)
             if self.config.split_enabled:
                 tasks = self._expander.expand(project_id, tasks, agents)
+            if paused := self._pause_if_over_budget(project_id):
+                return paused
         check = check_plan(tasks, set(agents))
         if not check.passed:
             raise RuntimeError(f"plan gate 校验失败（{project_id}）：{check.feedback}")
@@ -104,13 +129,29 @@ class Process:
         tasks = self._tasks_from_store(project_id)
         if not tasks:
             raise RuntimeError(f"项目无任务：{project_id}")
+        wf = (proj.get("meta") or {}).get("workflow")
+        if wf:
+            tasks = self._merge_workflow_descriptions(wf, tasks)
 
+        store_outcomes = {
+            t["id"]: TaskOutcome(t["id"], (self.store.get_task(project_id, t["id"]) or {}).get("status", "pending"))
+            for t in tasks
+        }
         outcomes: dict[str, TaskOutcome] = {}
         for task in tasks:
             tid = task["id"]
             row = self.store.get_task(project_id, tid) or {}
             st = row.get("status", "pending")
-            if st in TERMINAL_OK | TERMINAL_BAD | {"blocked"}:
+            if st == "blocked":
+                reason = deps_block(
+                    task, store_outcomes, needs_review_blocks=self.config.needs_review_blocks,
+                )
+                if not reason:
+                    self.store.set_task_status(project_id, tid, "pending")
+                    continue
+                outcomes[tid] = TaskOutcome(tid, "blocked", reason)
+                continue
+            if st in TERMINAL_OK | TERMINAL_BAD:
                 outcomes[tid] = TaskOutcome(tid, st)
                 continue
             if st == "in_progress":
@@ -118,7 +159,14 @@ class Process:
                 if settled:
                     outcomes[tid] = settled
 
-        return self._dispatch(project_id, tasks, initial_outcomes=outcomes)
+        try:
+            return self._dispatch(project_id, tasks, initial_outcomes=outcomes)
+        except BudgetExceededError as e:
+            self.store.set_project_status(project_id, "paused")
+            self.store.append_run_event(f"{project_id}:budget", "budget_exceeded_pause",
+                                        {"reason": str(e)})
+            gc_project_workspace(self.store, project_id)
+            return ProjectOutcome(project_id, "paused", outcomes)
 
     def _tasks_from_store(self, project_id: str) -> list[dict]:
         return [{
@@ -131,12 +179,30 @@ class Process:
             "description": (r.get("meta") or {}).get("description", ""),
         } for r in self.store.list_tasks(project_id)]
 
+    def _merge_workflow_descriptions(self, workflow_id: str, tasks: list[dict]) -> list[dict]:
+        """resume 时从 workflow 补全 store 中缺失的 task description（intent 来源）。"""
+        from common.workflow_loader import load_workflow
+        desc_by_id = {
+            t["id"]: t.get("description", "")
+            for t in load_workflow(workflow_id).instantiate_tasks()
+        }
+        merged = []
+        for t in tasks:
+            row = dict(t)
+            if not row.get("description"):
+                row["description"] = desc_by_id.get(row["id"], "")
+            merged.append(row)
+        return merged
+
     def _persist_tasks(self, project_id: str, tasks: list[dict]) -> None:
         for t in tasks:
+            desc = t.get("description", "")
+            meta = {"description": desc} if desc else None
             self.store.upsert_task(
                 project_id, t["id"], name=t.get("name", ""), agent=t.get("agent", ""),
                 reviewer=t.get("reviewer", ""), task_type=t.get("task_type", ""),
                 dependencies=t.get("dependencies", []), status="pending",
+                meta=meta,
             )
 
     # ── recurring：周期循环 + 轮次继承（D10）────────────────────
@@ -151,6 +217,9 @@ class Process:
                 break
             planned = self._decisions.task_plan(project_id, goal, agents,
                                                 cycle=cycle, prior_summary=prior_summary)
+            if self._over_budget(project_id):
+                stop_status = "paused"
+                break
             if self.config.split_enabled:
                 planned = self._expander.expand(project_id, planned, agents, cycle=cycle)
             tasks = prefix_cycle(planned, cycle)
@@ -170,6 +239,8 @@ class Process:
                 break
         final = stop_status or "completed"
         self.store.set_project_status(project_id, final)
+        if final == "completed":
+            self._maybe_extract_skills(project_id)
         return ProjectOutcome(project_id, final, overall)
 
     def _cycle_summary(self, project_id: str, tasks: list[dict]) -> str:
@@ -199,7 +270,22 @@ class Process:
             extra = f" — {o.reason}" if o.reason else ""
             print(f"  {icon} {label} → {o.status}{extra}")
 
-    # ── DAG 调度（串行，D12）──────────────────────────────────
+    # ── DAG 调度（波次；L2 可选真并行）────────────────────────
+
+    def _execute_task(self, project_id: str, task: dict) -> tuple[TaskOutcome, Optional[str]]:
+        """跑单任务；失败时 triage。返回 (outcome, triage_decision)。"""
+        outcome = self._pipeline.run_task(project_id, task)
+        if outcome.status != "failed":
+            return outcome, None
+        meta = (self.store.get_task(project_id, task["id"]) or {}).get("meta") or {}
+        decision = self._decisions.triage(project_id, task, outcome.reason)
+        if decision == "retry" and meta.get("fail_reason") == "gate_exhausted":
+            return outcome, decision
+        if decision == "retry":
+            return self._pipeline.run_task(project_id, task), None
+        if decision == "reassign":
+            return self._pipeline.run_task(project_id, task), None
+        return outcome, decision
 
     def _dispatch(self, project_id: str, tasks: list[dict],
                   *, persist: bool = True,
@@ -211,38 +297,71 @@ class Process:
         paused = False
         cancelled = False
 
-        for tid in order:
-            if tid in outcomes:
-                continue
+        while len(outcomes) < len(order):
             if not (cancelled or aborted or paused) and self._is_cancelled(project_id):
                 cancelled = True
+            if not paused and self._over_budget(project_id):
+                paused = True
+
             if cancelled or aborted or paused:
                 reason = ("项目已取消" if cancelled else
                           "项目已中止" if aborted else "项目已暂停（token 超预算）")
-                outcomes[tid] = self._block(project_id, tid, reason)
-                continue
-            if self._over_budget(project_id):
-                paused = True
-                outcomes[tid] = self._block(project_id, tid, "项目已暂停（token 超预算）")
-                continue
-            task = by_id[tid]
-            dep_block = deps_block(task, outcomes,
-                                   needs_review_blocks=self.config.needs_review_blocks)
-            if dep_block:
-                outcomes[tid] = self._block(project_id, tid, dep_block)
-                continue
+                for tid in order:
+                    if tid not in outcomes:
+                        outcomes[tid] = self._block(project_id, tid, reason)
+                break
 
-            outcome = self._pipeline.run_task(project_id, task)
-            if outcome.status == "failed":
-                decision = self._decisions.triage(project_id, task, outcome.reason)
-                if decision == "retry":
-                    outcome = self._pipeline.run_task(project_id, task)
-                elif decision == "reassign":
-                    outcome = self._pipeline.run_task(project_id, task)
-                elif decision == "abort":
-                    aborted = True
-            outcomes[tid] = outcome
-            self._print_progress(project_id, outcomes, len(order))
+            wave = ready_tasks(order, by_id, outcomes,
+                               needs_review_blocks=self.config.needs_review_blocks)
+            if not wave:
+                for tid in order:
+                    if tid in outcomes:
+                        continue
+                    dep_block = deps_block(by_id[tid], outcomes,
+                                           needs_review_blocks=self.config.needs_review_blocks)
+                    outcomes[tid] = self._block(project_id, tid, dep_block or "依赖未满足")
+                break
+
+            if len(wave) > 1:
+                self.store.append_run_event(
+                    f"{project_id}:dispatch", "parallel_wave",
+                    {"tasks": wave, "count": len(wave)},
+                )
+
+            parallel = self.config.parallel_enabled and len(wave) > 1
+            if parallel:
+                workers = min(len(wave), self.config.max_parallel)
+                with ThreadPoolExecutor(max_workers=workers) as pool:
+                    futs = {
+                        pool.submit(self._execute_task, project_id, by_id[tid]): tid
+                        for tid in wave
+                    }
+                    for fut in as_completed(futs):
+                        tid = futs[fut]
+                        outcome, decision = fut.result()
+                        outcomes[tid] = outcome
+                        if decision == "abort":
+                            aborted = True
+                        self._print_progress(project_id, outcomes, len(order))
+            else:
+                for tid in wave:
+                    outcome, decision = self._execute_task(project_id, by_id[tid])
+                    outcomes[tid] = outcome
+                    if decision == "abort":
+                        aborted = True
+                    self._print_progress(project_id, outcomes, len(order))
+                    if aborted:
+                        break
+
+        # L2 并行收尾：波次结束后结算已交卷但仍 in_progress 的任务
+        for task in tasks:
+            tid = task["id"]
+            row = self.store.get_task(project_id, tid) or {}
+            if row.get("status") != "in_progress":
+                continue
+            settled = self._pipeline.settle_in_progress_task(project_id, task)
+            if settled:
+                outcomes[tid] = settled
 
         proj_status = self._finalize(project_id, outcomes, aborted, paused, cancelled,
                                      persist=persist)
@@ -257,6 +376,9 @@ class Process:
             return False
         bs = check_budget(self.store, project_id,
                           BudgetConfig(self.config.token_budget, self.config.budget_alert_ratio))
+        # L3：达降级阈值时先尝试降级，再判断是否硬停
+        if bs.ratio is not None and bs.ratio >= self.config.budget_degrade_threshold:
+            self._maybe_degrade_budget(project_id, bs)
         if bs.state == "over":
             self.store.append_run_event(f"{project_id}:budget", "budget_over",
                                         {"used": bs.used, "limit": bs.limit})
@@ -265,6 +387,65 @@ class Process:
             self.store.append_run_event(f"{project_id}:budget", "budget_alert",
                                         {"used": bs.used, "limit": bs.limit, "ratio": bs.ratio})
         return False
+
+    def _maybe_degrade_budget(self, project_id: str, bs) -> None:
+        """L3：预算达降级阈值时切换轻量 backend/model（每项目仅一次）。"""
+        proj = self.store.get_project(project_id)
+        meta = (proj or {}).get("meta") or {}
+        if meta.get("degraded"):
+            return
+        backend = self.config.budget_degrade_backend
+        model = self.config.budget_degrade_model
+        if not backend and not model:
+            return
+        patch: dict = {"degraded": True}
+        if backend:
+            patch["degrade_backend"] = backend
+        if model:
+            patch["degrade_model"] = model
+        self.store.update_project_meta(project_id, **patch)
+        self._apply_degrade_agents_config(project_id, backend, model)
+        self.store.append_run_event(
+            f"{project_id}:budget", "budget_degrade",
+            {"used": bs.used, "limit": bs.limit, "ratio": bs.ratio,
+             "backend": backend, "model": model},
+        )
+
+    def _apply_degrade_agents_config(self, project_id: str,
+                                     backend: str, model: str) -> None:
+        """将降级 backend/model 写入项目 agent 的 agents_config（供 Transport 读取）。"""
+        agents = {r.get("agent") for r in self.store.list_tasks(project_id) if r.get("agent")}
+        if not agents:
+            return
+        cfg: dict = {}
+        cfg_path = paths.AGENTS_CONFIG_FILE
+        if cfg_path.exists():
+            try:
+                cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                pass
+        changed = False
+        for aid in agents:
+            entry = cfg.setdefault(aid, {})
+            if backend:
+                entry["backend"] = backend
+                changed = True
+            if model:
+                entry["model"] = model
+                changed = True
+        if changed:
+            cfg_path.parent.mkdir(parents=True, exist_ok=True)
+            cfg_path.write_text(
+                json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8",
+            )
+
+    def _pause_if_over_budget(self, project_id: str) -> Optional[ProjectOutcome]:
+        """规划期 interaction 完成后检查 budget；超限则 paused，不再派发后续任务。"""
+        if not self._over_budget(project_id):
+            return None
+        self.store.set_project_status(project_id, "paused")
+        gc_project_workspace(self.store, project_id)
+        return ProjectOutcome(project_id, "paused", {})
 
     # ── 收尾 ─────────────────────────────────────────────────
 
@@ -281,4 +462,46 @@ class Process:
         if persist:
             self.store.set_project_status(project_id, status)
             gc_project_workspace(self.store, project_id)
+            if status == "completed":
+                self._maybe_extract_skills(project_id)
         return status
+
+    def _maybe_extract_skills(self, project_id: str) -> None:
+        if not self.config.skill_extract_enabled:
+            return
+        from pathlib import Path
+
+        from common.skill_extract import extract_skill_draft
+
+        tasks = self.store.list_tasks(project_id)
+        skill_task = next(
+            (t for t in tasks if (t.get("task_id") or t.get("id")) == "skill-extract"),
+            None,
+        )
+        if skill_task and skill_task.get("status") in TERMINAL_OK:
+            candidates = [skill_task]
+        else:
+            candidates = [
+                t for t in tasks
+                if t.get("task_type") == "research" and t.get("status") in TERMINAL_OK
+            ]
+        for task in candidates:
+            tid = task.get("task_id") or task.get("id") or ""
+            if not tid:
+                continue
+            task_type = task.get("task_type", "")
+            meta = task.get("meta") or {}
+            ref = meta.get("ref") or artifact_rel_path(tid, task_type)
+            base = task_deliverable_base(project_id, tid, task_type)
+            deliverable = Path(ref) if Path(ref).is_absolute() else base / ref
+            try:
+                draft = extract_skill_draft(self.store, project_id, tid, deliverable)
+                self.store.append_run_event(
+                    f"{project_id}:skill_extract",
+                    "skill_draft_written",
+                    {"task_id": tid, "path": str(draft)},
+                )
+            except OSError as exc:
+                logging.getLogger(__name__).warning(
+                    "skill extract failed for %s:%s: %s", project_id, tid, exc
+                )

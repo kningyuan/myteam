@@ -149,3 +149,29 @@ def test_delete(client, tmp_path, monkeypatch):
     ok = client.request("DELETE", "/api/projects/p_del")
     assert ok.status_code == 200 and ok.json()["success"] is True
     assert calls["pid"] == "p_del"
+
+
+def test_kernel_run_persisted_and_reconciled(tmp_path, monkeypatch):
+    """F-03：hub_kernel_run 写入 project.meta；Hub 重启后 reconcile 清除残留 running。"""
+    db = tmp_path / "business" / "tasks" / "state.db"
+    db.parent.mkdir(parents=True)
+    monkeypatch.setenv("MYTEAM_ROOT", str(tmp_path))
+    orig = cstore.Store
+    monkeypatch.setattr(cstore, "Store", lambda *a, **k: orig(db))
+    store = cstore.Store()
+    store.upsert_project("p_hub", title="H", status="in_progress")
+    store.close()
+
+    srv._set_kernel_run("p_hub", running=True)
+    store2 = cstore.Store()
+    meta = (store2.get_project("p_hub") or {}).get("meta") or {}
+    store2.close()
+    assert meta.get("hub_kernel_run", {}).get("running") is True
+
+    cleared = srv._reconcile_stale_kernel_runs()
+    assert cleared >= 1
+    store3 = cstore.Store()
+    meta2 = (store3.get_project("p_hub") or {}).get("meta") or {}
+    store3.close()
+    assert meta2.get("hub_kernel_run", {}).get("running") is False
+    assert meta2.get("hub_kernel_run", {}).get("error") == "hub_restarted"

@@ -31,6 +31,7 @@ from base.agent_chat import (
     clear_agent_chat_context,
     delete_agent,
     get_agent_backend_config,
+    get_backend_models,
     list_all_backends_with_models,
     scan_agents,
     set_agent_backend_config,
@@ -67,21 +68,26 @@ async def lifespan(app: FastAPI):
 
 def _auto_resume_on_startup() -> None:
     try:
+        n_stale = _reconcile_stale_kernel_runs()
+        if n_stale:
+            print(f"[myteam] 清除 {n_stale} 个 Hub 重启残留的 kernel 运行标记")
+        from common.agent_port import reconcile_on_start
         from common.store import Store
         from common.workspace_gc import gc_workspace
         from common.run_kernel import resume_in_progress_projects
         store = Store()
         try:
+            reconcile_on_start(store)  # 先对账再 gc，避免误删可采纳孤儿 .response
             gc_workspace(store)
         finally:
             store.close()
         # 续跑期间同步运行态：让 run-status 在自动续跑时正确报 running=true，
         # 并使续跑端点的并发守卫生效（堵住启动线程 vs 用户点击的二次续跑）。
         def _mark_run(pid):
-            _KERNEL_RUNS[pid] = {"running": True, "error": None}
+            _set_kernel_run(pid, running=True)
 
         def _clear_run(pid, err):
-            _KERNEL_RUNS[pid] = {"running": False, "error": str(err) if err else None}
+            _set_kernel_run(pid, running=False, error=str(err) if err else None)
 
         resumed = resume_in_progress_projects(on_start=_mark_run, on_end=_clear_run)
         if resumed:
@@ -404,6 +410,15 @@ async def list_backends():
     return {"backends": list_all_backends_with_models()}
 
 
+@app.get("/api/backends/{backend_id}/models")
+async def list_backend_models(backend_id: str, refresh: bool = False):
+    try:
+        models = get_backend_models(backend_id, refresh=refresh)
+    except ValueError:
+        raise HTTPException(status_code=404, detail=f"unknown backend: {backend_id}")
+    return {"backend_id": backend_id, "models": models, "refreshed": bool(refresh)}
+
+
 @app.get("/api/config")
 async def get_system_config():
     return {"config": system_config.get_all()}
@@ -418,15 +433,20 @@ async def update_system_config(body: dict):
 
 
 @app.get("/api/skill-config")
+@app.get("/api/skill_config")
 async def get_skill_config_api():
     return {"config": skill_config.get_all()}
 
 
 @app.put("/api/skill-config")
+@app.put("/api/skill_config")
 async def update_skill_config_api(body: dict):
     config_data = body.get("config", {})
     if config_data:
         skill_config.update_all(config_data)
+        from common.skill_settings import reload_skill_settings
+
+        reload_skill_settings()
     return {"success": True, "config": skill_config.get_all()}
 
 
@@ -884,7 +904,76 @@ async def api_project_log(project_id: str, tail: int = Query(500, ge=1, le=5000)
 
 
 # ── 发起项目：UI → 编排内核（后台线程跑 run_kernel）──────────────
-_KERNEL_RUNS: dict[str, dict] = {}  # project_id -> {running, error}
+_KERNEL_RUNS: dict[str, dict] = {}  # project_id -> {running, error}（进程内缓存）
+
+
+def _set_kernel_run(project_id: str, *, running: bool, error: Optional[str] = None) -> None:
+    """内存态 + project.meta.hub_kernel_run 双写，Hub 重启后可 reconcile。"""
+    _KERNEL_RUNS[project_id] = {"running": running, "error": error}
+    try:
+        from common.store import Store
+
+        store = Store()
+        try:
+            if store.get_project(project_id):
+                store.update_project_meta(
+                    project_id,
+                    hub_kernel_run={"running": running, "error": error},
+                )
+        finally:
+            store.close()
+    except Exception:
+        pass
+
+
+def _get_kernel_run(project_id: str) -> dict:
+    return _KERNEL_RUNS.get(project_id) or {"running": False, "error": None}
+
+
+def _is_kernel_running(project_id: str) -> bool:
+    return bool(_get_kernel_run(project_id).get("running"))
+
+
+def _clear_kernel_run(project_id: str) -> None:
+    _KERNEL_RUNS.pop(project_id, None)
+    try:
+        from common.store import Store
+
+        store = Store()
+        try:
+            if store.get_project(project_id):
+                store.update_project_meta(
+                    project_id,
+                    hub_kernel_run={"running": False, "error": None},
+                )
+        finally:
+            store.close()
+    except Exception:
+        pass
+
+
+def _reconcile_stale_kernel_runs() -> int:
+    """Hub 重启：清除 meta 中残留的 running=true。"""
+    cleared = 0
+    try:
+        from common.store import Store
+
+        store = Store()
+        try:
+            for proj in store.list_projects():
+                meta = proj.get("meta") or {}
+                hub_run = meta.get("hub_kernel_run") or {}
+                if hub_run.get("running"):
+                    store.update_project_meta(
+                        proj["project_id"],
+                        hub_kernel_run={"running": False, "error": "hub_restarted"},
+                    )
+                    cleared += 1
+        finally:
+            store.close()
+    except Exception:
+        pass
+    return cleared
 
 
 @app.post("/api/init")
@@ -903,11 +992,11 @@ async def api_demo():
     """在后台线程运行 demo 项目。"""
     from common.run_kernel import _read_demo_goal, _system_default_backend
     project_id = f"demo-ui-{int(time.time())}"
-    if _KERNEL_RUNS.get(project_id, {}).get("running"):
+    if _is_kernel_running(project_id):
         raise APIError("PROJECT_RUNNING", "Demo 项目已在运行")
     demo_goal = _read_demo_goal()
     backend = _system_default_backend()
-    _KERNEL_RUNS[project_id] = {"running": True, "error": None}
+    _set_kernel_run(project_id, running=True)
     threading.Thread(
         target=_run_kernel_bg, args=(project_id, demo_goal, "one_shot", 100000, "Demo 项目", False),
         daemon=True
@@ -921,25 +1010,50 @@ def _slug(text: str, limit: int = 24) -> str:
 
 
 def _run_kernel_bg(project_id: str, goal: str, mode: str, budget, title: str,
-                   review: bool = False, workflow: Optional[str] = None) -> None:
+                   review: bool = False, workflow: Optional[str] = None,
+                   split: bool = False, process_defaults: Optional[dict] = None) -> None:
     try:
+        from common.kernel_config import kernel_configs_for_run
         from common.run_kernel import run_project
+        defaults = process_defaults or {}
+        backend = system_config.get("system", "default_backend", default="opencode")
+        proc_cfg, wdog_cfg = kernel_configs_for_run(
+            defaults, mode=mode, token_budget=budget, review=review,
+            split=split, backend=backend,
+        )
         run_project(project_id, goal=goal, title=title, mode=mode, token_budget=budget,
-                    review=review, workflow=workflow)
+                    review=review, workflow=workflow, split=split,
+                    config=proc_cfg, watchdog=wdog_cfg, backend=backend)
     except Exception as e:  # noqa: BLE001 — 后台线程，错误回灌给状态查询
-        _KERNEL_RUNS[project_id] = {"running": False, "error": str(e)}
+        _set_kernel_run(project_id, running=False, error=str(e))
     else:
-        _KERNEL_RUNS[project_id] = {"running": False, "error": None}
+        _set_kernel_run(project_id, running=False)
 
 
 def _resume_kernel_bg(project_id: str) -> None:
     try:
+        from common.kernel_config import kernel_configs_for_run
         from common.run_kernel import resume_project
-        resume_project(project_id)
+        from common.store import Store
+
+        defaults = skill_config.get_all().get("process_defaults") or {}
+        backend = system_config.get("system", "default_backend", default="opencode")
+        store = Store()
+        try:
+            meta = (store.get_project(project_id) or {}).get("meta") or {}
+            proc_cfg, wdog_cfg = kernel_configs_for_run(
+                defaults,
+                mode=meta.get("mode") or "one_shot",
+                token_budget=meta.get("token_budget"),
+                backend=backend,
+            )
+        finally:
+            store.close()
+        resume_project(project_id, config=proc_cfg, watchdog=wdog_cfg, backend=backend)
     except Exception as e:  # noqa: BLE001
-        _KERNEL_RUNS[project_id] = {"running": False, "error": str(e)}
+        _set_kernel_run(project_id, running=False, error=str(e))
     else:
-        _KERNEL_RUNS[project_id] = {"running": False, "error": None}
+        _set_kernel_run(project_id, running=False)
 
 
 @app.get("/api/workflows")
@@ -964,7 +1078,9 @@ async def api_project_run(body: dict):
         budget = None
     title = (body.get("title") or "").strip()
     review = bool(body.get("review"))
+    split = bool(body.get("split"))
     workflow = (body.get("workflow") or "").strip() or None
+    process_defaults = skill_config.get_all().get("process_defaults") or {}
     if workflow:
         from common.workflow_loader import load_workflow
         try:
@@ -975,12 +1091,12 @@ async def api_project_run(body: dict):
     if not project_id:
         slug = _slug(title or goal)
         project_id = f"ui_{slug}_{time.strftime('%Y%m%d_%H%M%S')}"
-    if _KERNEL_RUNS.get(project_id, {}).get("running"):
+    if _is_kernel_running(project_id):
         raise HTTPException(status_code=409, detail="该项目正在运行")
-    _KERNEL_RUNS[project_id] = {"running": True, "error": None}
+    _set_kernel_run(project_id, running=True)
     threading.Thread(
         target=_run_kernel_bg,
-        args=(project_id, goal, mode, budget, title, review, workflow),
+        args=(project_id, goal, mode, budget, title, review, workflow, split, process_defaults),
         daemon=True,
     ).start()
     return {
@@ -993,7 +1109,7 @@ async def api_project_run(body: dict):
 
 @app.get("/api/projects/run-status/{project_id}")
 async def api_project_run_status(project_id: str):
-    return _KERNEL_RUNS.get(project_id, {"running": False, "error": None})
+    return _get_kernel_run(project_id)
 
 
 @app.post("/api/projects/{project_id}/resume")
@@ -1002,11 +1118,11 @@ async def api_project_resume(project_id: str):
     p = get_project(project_id)
     if not p:
         raise HTTPException(status_code=404, detail="项目不存在")
-    if _KERNEL_RUNS.get(project_id, {}).get("running"):
+    if _is_kernel_running(project_id):
         raise HTTPException(status_code=409, detail="该项目正在运行")
     if p.get("status") not in ("in_progress", "paused"):
         return {"resumed": False, "project_id": project_id, "reason": "项目已终态"}
-    _KERNEL_RUNS[project_id] = {"running": True, "error": None}
+    _set_kernel_run(project_id, running=True)
     threading.Thread(target=_resume_kernel_bg, args=(project_id,), daemon=True).start()
     return {"resumed": True, "project_id": project_id}
 
@@ -1101,7 +1217,7 @@ async def api_project_delete(project_id: str):
     """彻底删除项目：清 state.db 5 表 + agent 工作目录临时件 + 项目目录。运行中需先取消。"""
     if "/" in project_id or "\\" in project_id or ".." in project_id:
         raise APIError("INVALID_PROJECT_ID", "project_id 非法")
-    if _KERNEL_RUNS.get(project_id, {}).get("running"):
+    if _is_kernel_running(project_id):
         raise APIError("PROJECT_RUNNING", "项目运行中，请先取消再删除", status_code=409)
     from common.store import Store
     store = Store()
@@ -1112,7 +1228,7 @@ async def api_project_delete(project_id: str):
         store.close()
     from common.project_admin import delete_project
     summary = delete_project(project_id)
-    _KERNEL_RUNS.pop(project_id, None)
+    _clear_kernel_run(project_id)
     return {"success": True, "project_id": project_id, **summary}
 
 
