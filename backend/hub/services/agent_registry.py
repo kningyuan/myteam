@@ -54,6 +54,8 @@ def get_agents_registry(*, merge_scan: bool = True) -> dict:
             "available": aid in available_ids,
             "backend": scan_info.get("backend", ""),
             "model": scan_info.get("model", ""),
+            "model_override": scan_info.get("model_override", ""),
+            "uses_settings_default": bool(scan_info.get("uses_settings_default")),
             "workspace": scan_info.get("workspace", ""),
         }
     return {

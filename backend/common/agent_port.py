@@ -172,11 +172,14 @@ class AgentPort:
         soft_warned = False
         event_tokens = 0
         token_acc = {"running": 0}
+        cli_error: Optional[str] = None
         cfg = self.config
         soft_idle, hard_idle = cfg.idle_limits(req.kind or "")
 
         while True:
-            drained, tok = self._drain(q, iid, token_acc)
+            drained, tok, err = self._drain(q, iid, token_acc)
+            if err:
+                cli_error = err
             event_tokens = max(event_tokens, tok)
             if drained:
                 last_event = time.monotonic()
@@ -200,7 +203,9 @@ class AgentPort:
                 finish_deadline = time.monotonic() + float(
                     os.environ.get("MYTEAM_RESPONSE_FINISH_SEC", "30"))
                 while th.is_alive() and time.monotonic() < finish_deadline:
-                    _, tok = self._drain(q, iid, token_acc)
+                    _, tok, err = self._drain(q, iid, token_acc)
+                    if err:
+                        cli_error = err
                     event_tokens = max(event_tokens, tok)
                     time.sleep(0.05)
                 if th.is_alive():
@@ -208,14 +213,18 @@ class AgentPort:
                     th.join(timeout=5.0)
                 else:
                     th.join(timeout=1.0)
-                _, tok = self._drain(q, iid, token_acc)
+                _, tok, err = self._drain(q, iid, token_acc)
+                if err:
+                    cli_error = err
                 event_tokens = max(event_tokens, tok)
                 self._finalize_done(iid, resp_path, resp, event_tokens)
                 return AgentPortResult("done", resp, iid, attempt)
 
             if not th.is_alive():
                 # 传输结束：再排空一次队列 + 看一眼响应文件
-                _, tok = self._drain(q, iid, token_acc)
+                _, tok, err = self._drain(q, iid, token_acc)
+                if err:
+                    cli_error = err
                 event_tokens = max(event_tokens, tok)
                 resp = self._read_valid_response(resp_path, iid, req_mtime)
                 if resp is not None:
@@ -226,6 +235,8 @@ class AgentPort:
                     self._finalize_done(iid, resp_path, adopted, event_tokens)
                     return AgentPortResult("done", adopted, iid, attempt)
                 self.store.update_interaction(iid, status="failed")
+                if cli_error:
+                    return AgentPortResult("error", None, iid, attempt, cli_error)
                 return AgentPortResult("no_response", None, iid, attempt,
                                        "传输结束但未取回合法响应")
 
@@ -265,7 +276,7 @@ class AgentPort:
         try:
             self.transport(ctx)
         except Exception as e:  # 传输异常归一为一个事件，主循环据此收尾
-            q.put(("transport_error", {"error": str(e)}))
+            q.put(("transport_error", {"message": str(e), "error": str(e)}))
 
     def _interaction_agent_label(self, iid: str) -> str:
         inter = self.store.get_interaction(iid)
@@ -274,8 +285,8 @@ class AgentPort:
         return "?"
 
     def _drain(self, q: "queue.Queue", iid: str,
-               token_acc: Optional[dict] = None) -> tuple[bool, int]:
-        """排空事件入库；返回 (是否有事件, 当前会话 token 累计)。
+               token_acc: Optional[dict] = None) -> tuple[bool, int, Optional[str]]:
+        """排空事件入库；返回 (是否有事件, 当前会话 token 累计, 最近 CLI error 消息)。
 
         - cumulative=True（默认，opencode / claude result）：step_finish 报会话累计 total → MAX。
         - cumulative=False（claude per-message assistant.usage）：Σ input + Σ output 累加。
@@ -284,6 +295,7 @@ class AgentPort:
             token_acc = {"running": 0}
         drained = False
         tokens = 0
+        cli_error: Optional[str] = None
         while True:
             try:
                 kind, payload = q.get_nowait()
@@ -291,12 +303,14 @@ class AgentPort:
                 break
             self.store.append_run_event(iid, kind, payload)
             drained = True
+            if kind in ("error", "transport_error") and isinstance(payload, dict):
+                cli_error = payload.get("message") or payload.get("error") or str(payload)
             if kind in ("step_finish", "step-finish") and isinstance(payload, dict):
                 running = _apply_step_finish_tokens(payload, token_acc)
                 tokens = max(tokens, running)
                 if running > 0:
                     self.store.bump_interaction_tokens(iid, running)
-        return drained, tokens
+        return drained, tokens, cli_error
 
     def _read_valid_response(self, resp_path: Path, iid: str, req_mtime: float) -> Optional[dict]:
         return _parse_adoptable_response(resp_path, iid, req_mtime)

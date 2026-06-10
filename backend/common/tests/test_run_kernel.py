@@ -109,6 +109,9 @@ def test_hub_path_merges_workflow_parallel_flags(env, monkeypatch):
 
     store, wcfg = env
 
+    # workflow roster 需要 workspace
+    paths.workspace_dir("research").mkdir(parents=True, exist_ok=True)
+
     # Hub 预建的 config（parallel_enabled 默认 False）
     pre_cfg = ProcessConfig()
     assert pre_cfg.parallel_enabled is False
@@ -144,9 +147,9 @@ def test_hub_path_merges_workflow_parallel_flags(env, monkeypatch):
 
     _orig_init = Process.__init__
 
-    def _cap_init(self, store, port, cfg):
+    def _cap_init(self, store, port, cfg, hooks=None):
         captured_cfg["cfg"] = cfg
-        _orig_init(self, store, port, cfg)
+        _orig_init(self, store, port, cfg, hooks=hooks)
 
     monkeypatch.setattr(Process, "__init__", _cap_init)
 

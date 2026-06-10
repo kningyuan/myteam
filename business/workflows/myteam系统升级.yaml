@@ -1,0 +1,83 @@
+id: myteam系统升级
+version: '1.1'
+description: myteam 配置贯通：前后端设置项/API 契约对齐→修复→pytest 验收；目标见【项目目标】
+options:
+  review_enabled: false
+  split_enabled: false
+  parallel_enabled: true
+  max_parallel: 2
+tasks:
+- id: t-inventory
+  name: 全栈配置盘点
+  agent: research
+  task_type: research
+  dependencies: []
+  description: |
+    【对象】myteam Web「设置」Tab 与后端配置存储的全景清单
+    【范围】frontend/settings.js、frontend/index.html、/api/config、/api/skill-config、kernel_config、notify
+    【禁止】改代码
+    【产出】配置项 | UI 控件 id | API 字段路径 | 后端读取点 | 是否生效
+- id: t-fe-contract
+  name: 前后端接口对照
+  agent: frontend
+  task_type: architecture-review
+  dependencies:
+  - t-inventory
+  description: |
+    【输入】t-inventory
+    【专责】前端 — 核对 settings.js 的 loadSettings/saveSettings 与 API 请求体字段一一对应
+    【须含】字段对照表（UI id → JSON path → PUT/GET 端点）、缺失/冗余字段、默认值不一致项
+    【范围】frontend/settings.js、frontend/app.js（np-budget/review 等默认值）、index.html 表单
+    【禁止】改 backend；只输出评审交付物
+- id: t-plan
+  name: 贯通方案与 API 契约
+  agent: arch
+  task_type: system-design
+  dependencies:
+  - t-fe-contract
+  description: |
+    【输入】t-inventory、t-fe-contract
+    【产出】统一 API 契约（/api/config + /api/skill-config 字段表）+ P0/P1 修复清单
+    【分工】每项标明 owner：frontend | backend | 双方
+    【原则】前后端接口一致；最小 diff；禁止改内核调度
+- id: t-fix-be
+  name: 后端贯通修复
+  agent: developer
+  task_type: code-writing
+  dependencies:
+  - t-plan
+  description: |
+    【输入】t-plan 中 owner=backend 或 双方 的后端部分
+    【范围】myteam/backend、backend/common/tests/；禁止改 frontend
+    【要求】每项附带 pytest；与 t-fe-contract 字段表一致
+- id: t-fix-fe
+  name: 前端贯通修复
+  agent: frontend
+  task_type: code-writing
+  dependencies:
+  - t-plan
+  description: |
+    【输入】t-plan 中 owner=frontend 或 双方 的前端部分
+    【范围】myteam/frontend/；禁止改 backend 业务逻辑
+    【要求】load/save 字段与 API 契约一致；必要时补注释说明需重启 Hub 的项（如 port）
+- id: t-test
+  name: 回归测试
+  agent: qa
+  task_type: code-testing
+  dependencies:
+  - t-fix-be
+  - t-fix-fe
+  description: |
+    【输入】t-fix-be、t-fix-fe
+    【须跑】PYTHONPATH=backend pytest backend/common/tests/test_ui_config_linkage.py
+    backend/common/tests/test_kernel_config.py backend/common/tests/test_skill_config_api.py -q
+    【手动】设置页逐项改值→保存→刷新→确认回显；新建项目确认 default_budget/review 默认值
+- id: t-accept
+  name: 升级验收
+  agent: product
+  task_type: acceptance-report
+  dependencies:
+  - t-test
+  description: |
+    【输入】t-fe-contract、t-plan、t-test
+    【验收】前后端字段 100% 对齐；Web 设置每一项有读取路径且可验证；无新增 failing pytest

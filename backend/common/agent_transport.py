@@ -21,6 +21,10 @@ from typing import Callable, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     from common.store import Store
 
+from common.agent_model import (
+    resolve_agent_backend,
+    resolve_agent_model,
+)
 from common.audit_log import audit_enabled, clip_text
 from common.paths import (
     BUSINESS_CONFIG_DIR,
@@ -422,7 +426,13 @@ class AdapterTransport:
         self.session_resolver = session_resolver
 
     def _backend_for(self, agent_id: str) -> str:
-        return (self._config().get(agent_id, {}) or {}).get("backend") or self._backend
+        cfg = self._config()
+        explicit = (cfg.get(agent_id, {}) or {}).get("backend", "").strip()
+        if explicit:
+            return explicit
+        if self._agents_config is not None:
+            return self._backend
+        return resolve_agent_backend(agent_id, config=cfg)
 
     def _adapter_obj(self, agent_id: str):
         if self._adapter is not None:
@@ -439,7 +449,11 @@ class AdapterTransport:
         return _load_agents_config()
 
     def _model(self, agent_id: str) -> str:
-        return (self._config().get(agent_id, {}) or {}).get("model", "")
+        cfg = self._config()
+        explicit = (cfg.get(agent_id, {}) or {}).get("model", "").strip()
+        if explicit:
+            return explicit
+        return resolve_agent_model(agent_id, config=cfg)
 
     def __call__(self, ctx) -> None:
         req = ctx.request

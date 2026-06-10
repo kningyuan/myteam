@@ -72,4 +72,24 @@ def parse_line(line: str) -> list[AgentEvent]:
             },
         ))
 
+    elif event_type == "error":
+        err = raw.get("error") or {}
+        msg = _opencode_error_message(err)
+        events.append(AgentEvent(EventKind.ERROR, {"message": msg, "error": err}))
+
     return events
+
+
+def _opencode_error_message(err) -> str:
+    if isinstance(err, dict):
+        data = err.get("data") or {}
+        if isinstance(data, dict):
+            for key in ("message", "detail", "error"):
+                val = data.get(key)
+                if val:
+                    return str(val)
+        for key in ("message", "name"):
+            val = err.get(key)
+            if val:
+                return str(val)
+    return str(err) if err else "opencode error"

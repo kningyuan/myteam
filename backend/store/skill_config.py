@@ -36,6 +36,7 @@ DEFAULT_SKILL_CONFIG = {
         "max_cycles": 3,
         "parallel_enabled": False,
         "max_parallel": 3,
+        "max_concurrent_projects": 2,
         "default_project_budget": 1000000,
         "budget_degrade_threshold": 0.8,
         "budget_degrade_backend": "",

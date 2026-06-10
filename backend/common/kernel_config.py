@@ -72,7 +72,9 @@ def kernel_configs_for_run(
         defaults = process_defaults()
         executor = (skill_config_all() or {}).get("executor") or {}
     else:
-        executor = {}
+        from common.skill_settings import skill_config_all
+
+        executor = (skill_config_all() or {}).get("executor") or {}
     proc = process_from_defaults(
         defaults,
         mode=mode,
@@ -98,6 +100,8 @@ def process_from_defaults(
     d = defaults or {}
     split_enabled = split or bool(d.get("split_enabled"))
     cycles = max_cycles if max_cycles is not None else _int(d.get("max_cycles"), 3)
+    _bg_backend = d.get("budget_degrade_backend")
+    _bg_model = d.get("budget_degrade_model")
     return ProcessConfig(
         mode=mode,
         max_gate_retries=_int(d.get("max_gate_retries"), 5),
@@ -106,8 +110,8 @@ def process_from_defaults(
         review_enabled=review,
         token_budget=token_budget,
         budget_degrade_threshold=_float(d.get("budget_degrade_threshold"), 0.8),
-        budget_degrade_backend=str(d.get("budget_degrade_backend") or ""),
-        budget_degrade_model=str(d.get("budget_degrade_model") or ""),
+        budget_degrade_backend=str(_bg_backend) if _bg_backend and str(_bg_backend).strip() else "",
+        budget_degrade_model=str(_bg_model) if _bg_model and str(_bg_model).strip() else "",
         skill_extract_enabled=bool(d.get("skill_extract_enabled")),
         default_backend=backend,
         parallel_enabled=bool(d.get("parallel_enabled")),

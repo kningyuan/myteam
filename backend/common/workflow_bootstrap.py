@@ -107,6 +107,8 @@ def _merge_agent_meta(existing: dict, incoming: dict) -> dict:
 
 
 def _ensure_agents_config(agent_id: str, meta: dict, *, backend: str, model: str) -> None:
+    from common.agent_model import system_default_backend
+
     cfg: dict = {}
     if paths.AGENTS_CONFIG_FILE.exists():
         try:
@@ -114,8 +116,11 @@ def _ensure_agents_config(agent_id: str, meta: dict, *, backend: str, model: str
         except (OSError, json.JSONDecodeError):
             pass
     entry = cfg.setdefault(agent_id, {})
-    entry.setdefault("backend", backend)
-    entry.setdefault("model", model)
+    entry.setdefault("backend", backend or system_default_backend())
+    if model:
+        entry.setdefault("model", model)
+    else:
+        entry.setdefault("model", "")
     entry.setdefault("extra", {})
     entry.setdefault("name", meta.get("name") or agent_id)
     entry.setdefault("workspace", f"business/workspaces/workspace-{agent_id}")

@@ -113,6 +113,15 @@ def post_project_progress(
     if not skill_config.get("notifications", "use_project_group", default=True):
         return False, "project group notifications disabled"
 
+    try:
+        from common.skill_settings import hub_base_url
+
+        base = hub_base_url()
+        if base and project_id and base not in text:
+            text = f"{text}\n🔗 {base.rstrip('/')}/ （项目 ID: {project_id}）"
+    except Exception:
+        pass
+
     group = find_group_by_project(project_id)
     if not group:
         return False, f"no group bound to project {project_id}"

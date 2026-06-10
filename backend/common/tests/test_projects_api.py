@@ -138,6 +138,31 @@ def test_cancel(client, tmp_path, monkeypatch):
     assert done.status_code == 200 and done.json()["success"] is False
 
 
+def test_resume_uses_sqlite_not_task_data_json(client, tmp_path, monkeypatch):
+    """续跑须读 state.db（无 task_data.json 的新内核项目也应可续跑）。"""
+    db = tmp_path / "state.db"
+    orig = cstore.Store
+    seed = orig(db)
+    seed.upsert_project("p_pause", title="P", status="paused")
+    seed.upsert_project("p_fail", title="F", status="failed")
+    seed.close()
+    monkeypatch.setattr(cstore, "Store", lambda *a, **k: orig(db))
+    from common.project_runtime import reset_project_runtime
+    reset_project_runtime()
+
+    monkeypatch.setattr(srv, "_resume_kernel_bg", lambda pid: None)
+
+    assert client.post("/api/projects/nope/resume").status_code == 404
+
+    bad = client.post("/api/projects/p_fail/resume")
+    assert bad.status_code == 200
+    assert bad.json()["resumed"] is False
+
+    ok = client.post("/api/projects/p_pause/resume")
+    assert ok.status_code == 200 and ok.json()["resumed"] is True
+    srv._KERNEL_RUNS.pop("p_pause", None)
+
+
 def test_delete(client, tmp_path, monkeypatch):
     db = tmp_path / "state.db"
     orig = cstore.Store

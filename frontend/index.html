@@ -437,6 +437,11 @@
                 <small class="field-hint">开启后把发给 Agent 的 prompt、请求/响应快照写入执行过程，便于排查（体积较大，默认关）</small>
               </div>
               <div class="form-group">
+                <label>审计日志最大大小（字节）</label>
+                <input id="set-audit-log-max-bytes" type="number" placeholder="500000" min="100000">
+                <small class="field-hint">超过此大小后日志文件会被轮转</small>
+              </div>
+              <div class="form-group">
                 <label>模型别名（JSON）</label>
                 <textarea id="set-model-aliases" rows="5" placeholder='{"short-name": "provider/model"}'></textarea>
               </div>
@@ -471,6 +476,11 @@
                 <input id="set-max-parallel" type="number" placeholder="3" min="1" max="8">
               </div>
               <div class="form-group">
+                <label>Hub 同时运行项目数</label>
+                <input id="set-max-concurrent-projects" type="number" placeholder="2" min="1" max="8">
+                <small class="field-hint">ProjectRuntime 并发槽；超出则排队</small>
+              </div>
+              <div class="form-group">
                 <label>最大周期数（recurring）</label>
                 <input id="set-max-cycles" type="number" placeholder="3" min="1">
               </div>
@@ -489,7 +499,18 @@
                 <label><input type="checkbox" id="set-use-project-group" checked> 进度通报到项目群</label>
               </div>
               <div class="form-group form-row-check">
+                <label><input type="checkbox" id="set-enable-telegram"> 启用 Telegram 通知</label>
+              </div>
+              <div class="form-group form-row-check">
                 <label><input type="checkbox" id="set-auto-group" checked> team_config 后自动创建项目群</label>
+              </div>
+              <div class="form-group form-row-check">
+                <label><input type="checkbox" id="set-auto-group-include-main" checked> 自动群中包含 main agent</label>
+              </div>
+              <div class="form-group">
+                <label>自动群名前缀</label>
+                <input id="set-auto-group-name-prefix" type="text" placeholder="">
+                <small class="field-hint">留空则使用默认命名</small>
               </div>
               <div class="form-group form-row-check">
                 <label><input type="checkbox" id="set-default-review"> 新建项目默认开启同行评审</label>

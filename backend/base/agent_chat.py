@@ -35,6 +35,8 @@ class BackendConfig:
     backend_id: str
     model: str
     extra: dict = field(default_factory=dict)
+    model_override: str = ""
+    uses_settings_default: bool = False
 
 
 # ============ Agent 后端配置管理 ============
@@ -56,14 +58,23 @@ def _save_agents_config(config: dict):
 
 
 def get_agent_backend_config(agent_id: str) -> BackendConfig:
-    """获取 Agent 的后端配置（backend + model），未配置时从系统配置推导"""
+    """获取 Agent 的后端配置：显式 agents_config 覆盖，否则跟随设置页默认。"""
+    from common.agent_model import (
+        agent_model_override,
+        resolve_agent_backend,
+        resolve_agent_model,
+        uses_settings_default,
+    )
+
     config = _load_agents_config()
     agent_cfg = config.get(agent_id)
     if agent_cfg:
         return BackendConfig(
-            backend_id=agent_cfg.get("backend", "opencode"),
-            model=agent_cfg.get("model", ""),
+            backend_id=resolve_agent_backend(agent_id, config=config),
+            model=resolve_agent_model(agent_id, config=config),
             extra=agent_cfg.get("extra", {}),
+            model_override=agent_model_override(agent_id, config=config),
+            uses_settings_default=uses_settings_default(agent_id, config=config),
         )
     return _derive_backend_config(agent_id)
 
@@ -165,7 +176,11 @@ def _derive_backend_config(agent_id: str) -> BackendConfig:
     """从系统配置推导后端配置"""
     default_backend = system_config.get("system", "default_backend", default="opencode")
     default_model = system_config.get_default_model(default_backend)
-    return BackendConfig(backend_id=default_backend, model=default_model)
+    return BackendConfig(
+        backend_id=default_backend,
+        model=default_model,
+        uses_settings_default=True,
+    )
 
 
 def _adapter_models_payload(adapter, *, refresh: bool = False) -> list[dict]:
@@ -244,6 +259,8 @@ def scan_agents() -> list[dict]:
             "workspace": to_relative_path(workspace_path),
             "backend": backend_cfg.backend_id,
             "model": backend_cfg.model,
+            "model_override": backend_cfg.model_override,
+            "uses_settings_default": backend_cfg.uses_settings_default,
         })
 
     return agents

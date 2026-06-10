@@ -56,3 +56,13 @@ def process_defaults() -> dict:
 
 def skill_config_all() -> dict:
     return dict(_load())
+
+
+def hub_base_url() -> str:
+    """skill_config.hub.url — 进度通报/外链默认 Hub 根地址。"""
+    url = str((_load().get("hub") or {}).get("url") or "").strip().rstrip("/")
+    return url or "http://127.0.0.1:8765"
+
+
+def agent_msg_timeout(default: int = 1800) -> int:
+    return section_int("executor", "agent_msg_timeout", default)

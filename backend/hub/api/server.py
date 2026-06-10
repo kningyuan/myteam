@@ -62,6 +62,19 @@ from store.skill_config import skill_config
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """FastAPI lifespan 上下文：启动恢复 + 关闭清理。"""
+    import logging
+
+    if system_config.get("system", "debug", default=False):
+        logging.getLogger().setLevel(logging.DEBUG)
+        logging.getLogger("uvicorn").setLevel(logging.DEBUG)
+    try:
+        from common.agent_model import ensure_agents_config_entries
+
+        touched = ensure_agents_config_entries(persist=True)
+        if touched:
+            print(f"[myteam] agents_config 已补全条目：{', '.join(touched)}")
+    except Exception as exc:
+        print(f"[myteam] agents_config 补全跳过：{exc}")
     threading.Thread(target=_auto_resume_on_startup, daemon=True).start()
     yield
 
@@ -415,6 +428,8 @@ async def list_agents():
             "task_types": info.get("task_types") or [],
             "backend": scan.get("backend") or info.get("backend") or "",
             "model": scan.get("model") or info.get("model") or "",
+            "model_override": scan.get("model_override") or "",
+            "uses_settings_default": bool(scan.get("uses_settings_default")),
             "workspace": scan.get("workspace") or info.get("workspace") or "",
         })
     return {"agents": agents}
@@ -423,7 +438,13 @@ async def list_agents():
 @app.get("/api/agents/{agent_id}/config")
 async def agent_config(agent_id: str):
     cfg = get_agent_backend_config(agent_id)
-    return {"agent_id": agent_id, "backend": cfg.backend_id, "model": cfg.model}
+    return {
+        "agent_id": agent_id,
+        "backend": cfg.backend_id,
+        "model": cfg.model,
+        "model_override": cfg.model_override,
+        "uses_settings_default": cfg.uses_settings_default,
+    }
 
 
 @app.post("/api/agents/{agent_id}/config")
@@ -1178,7 +1199,8 @@ def _run_kernel_bg(project_id: str, goal: str, mode: str, budget, title: str,
         defaults = process_defaults or {}
         backend = system_config.get("system", "default_backend", default="opencode")
         proc_cfg, wdog_cfg = kernel_configs_for_run(
-            defaults, mode=mode, token_budget=budget, review=review,
+            defaults if defaults else None,
+            mode=mode, token_budget=budget, review=review,
             split=split, backend=backend,
         )
         run_project(project_id, goal=goal, title=title, mode=mode, token_budget=budget,
@@ -1205,7 +1227,7 @@ def _resume_kernel_bg(project_id: str) -> None:
         try:
             meta = (store.get_project(project_id) or {}).get("meta") or {}
             proc_cfg, wdog_cfg = kernel_configs_for_run(
-                defaults,
+                defaults if defaults else None,
                 mode=meta.get("mode") or "one_shot",
                 token_budget=meta.get("token_budget"),
                 backend=backend,
@@ -1431,13 +1453,20 @@ async def api_project_run_status(project_id: str):
 @app.post("/api/projects/{project_id}/resume")
 async def api_project_resume(project_id: str):
     """断点续跑：回收孤儿响应后继续 DAG，无需重发项目。"""
-    p = get_project(project_id)
+    from common.store import Store
+
+    store = Store()
+    try:
+        p = store.get_project(project_id)
+    finally:
+        store.close()
     if not p:
         raise HTTPException(status_code=404, detail="项目不存在")
     if _is_kernel_running(project_id):
         raise HTTPException(status_code=409, detail="该项目正在运行")
-    if p.get("status") not in ("in_progress", "paused"):
-        return {"resumed": False, "project_id": project_id, "reason": "项目已终态"}
+    status = p.get("status") or ""
+    if status not in ("in_progress", "paused"):
+        return {"resumed": False, "project_id": project_id, "reason": f"项目已终态（{status}）"}
     _set_kernel_run(project_id, running=True)
     try:
         _start_kernel_job(project_id, _resume_kernel_bg, project_id)

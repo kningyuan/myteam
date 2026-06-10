@@ -102,6 +102,19 @@ def test_no_response_when_transport_ends(env):
     assert store.get_interaction("i1")["status"] == "failed"
 
 
+def test_cli_error_not_no_response(env):
+    store, cfg = env
+
+    def transport(ctx):
+        ctx.emit("error", {"message": "Open WebUI: Server Connection Error"})
+
+    port = AgentPort(transport, store=store, config=cfg)
+    res = port.run(_req())
+    assert res.status == "error"
+    assert "Server Connection Error" in (res.reason or "")
+    assert store.get_interaction("i1")["status"] == "failed"
+
+
 def test_retry_then_succeed_on_idle(env):
     store, cfg = env
     attempts = {"n": 0}

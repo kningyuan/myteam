@@ -371,6 +371,19 @@ def test_config_reloads_from_disk_when_not_injected(monkeypatch):
     assert transport._model("research") == "m2"
 
 
+def test_empty_model_falls_back_to_settings_default(monkeypatch):
+    monkeypatch.setattr(
+        "common.agent_transport._load_agents_config",
+        lambda: {"research": {"backend": "opencode", "model": ""}},
+    )
+    monkeypatch.setattr(
+        "common.agent_transport.resolve_agent_model",
+        lambda agent_id, config=None: "settings/default-model",
+    )
+    transport = AdapterTransport(adapter=FakeAdapter([]))
+    assert transport._model("research") == "settings/default-model"
+
+
 def test_lookup_interaction_session_reads_latest(env):
     store, _ = env
     iid = "pro_x:t1:execute:1"

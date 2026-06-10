@@ -56,7 +56,7 @@ class ChatService:
             yield encode_error(f"Adapter '{backend_cfg.backend_id}' 未注册")
             return
 
-        model = backend_cfg.model or adapter.get_default_model()
+        model = backend_cfg.model
         rules_file = self._merge_rules(agent_id, str(workspace))
         system_prompt = self._build_system_prompt(agent_id, str(workspace))
         full_message = (
@@ -135,7 +135,7 @@ class ChatService:
         if not adapter:
             yield encode_error(f"Adapter '{backend_cfg.backend_id}' 未注册")
             return
-        model = backend_cfg.model or adapter.get_default_model()
+        model = backend_cfg.model
         rules_file = self._merge_rules(agent_id, str(workspace))
         system_prompt = self._build_system_prompt(agent_id, str(workspace))
 

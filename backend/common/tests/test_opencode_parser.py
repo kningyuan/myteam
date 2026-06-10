@@ -36,3 +36,17 @@ def test_tool_use_without_output_still_parses():
     assert len(evs) == 1
     assert "output" not in evs[0].data
     assert evs[0].data["status"] == "running"
+
+
+def test_error_event_parsed():
+    line = json.dumps({
+        "type": "error",
+        "sessionID": "ses_x",
+        "error": {
+            "name": "APIError",
+            "data": {"message": "Open WebUI: Server Connection Error", "statusCode": 400},
+        },
+    })
+    evs = [e for e in parse_line(line) if e.kind.value == "error"]
+    assert len(evs) == 1
+    assert "Server Connection Error" in evs[0].data["message"]

@@ -124,7 +124,7 @@ async function renderManageAgents() {
       <td><div class="agent-cell"><span class="icon avatar-badge">${esc(getAvatar(a.id))}</span><span><strong>${esc(a.name || a.id)}</strong><br><span class="cell-sub">${esc(a.id)}</span></span></div></td>
       <td class="tasktype-chips-cell">${taskTypeChips(tts)}</td>
       <td><span class="cell-meta">${esc(a.backend)}</span></td>
-      <td><span class="cell-mono">${esc(a.model||'').slice(0,30)}</span></td>
+      <td><span class="cell-mono" title="${a.uses_settings_default ? '跟随设置默认' : '单独配置'}">${esc(a.uses_settings_default ? (a.model||'') + ' ⭐' : (a.model||'')).slice(0,36)}</span></td>
       <td class="cell-actions">
         <button class="btn-xs primary am-config">配置</button>
         <button class="btn-xs danger am-del">删除</button>
@@ -361,13 +361,17 @@ function openManageModal(agentId) {
   DOM['mm-id'].value = a.id; DOM['mm-name'].value = a.name; DOM['mm-workspace'].value = a.workspace;
   renderMmTaskTypeChecks(meta.task_types || []);
   const bSel = DOM['mm-backend']; bSel.innerHTML = S.backends.map(b => `<option value="${b.id}" ${b.id === a.backend ? 'selected' : ''}>${b.name}</option>`).join('');
-  updateManageModels(a.backend, a.model);
-  bSel.onchange = () => updateManageModels(bSel.value);
+  updateManageModels(a.backend, a.model_override || a.model, a.uses_settings_default);
+  bSel.onchange = () => updateManageModels(bSel.value, '', false);
   DOM['mm-status'].style.display = 'none'; DOM['manage-modal'].classList.remove('hidden');
 }
-function updateManageModels(backendId, selected) {
+function updateManageModels(backendId, selected, usesDefault) {
   const models = getBackendModels(backendId);
-  const mSel = DOM['mm-model']; mSel.innerHTML = models.map(m => `<option value="${m.id}" ${m.id === selected ? 'selected' : ''}>${m.name}</option>`).join('');
+  const mSel = DOM['mm-model'];
+  const opts = models.map(m => `<option value="${m.id}" ${m.id === selected ? 'selected' : ''}>${m.name}</option>`).join('');
+  const hint = usesDefault ? '<option value="" selected>（跟随设置默认）</option>' : '';
+  mSel.innerHTML = hint + opts;
+  if (usesDefault && !selected) mSel.value = '';
 }
 async function saveManageModal() {
   const id = DOM['mm-id'].value; const name = DOM['mm-name'].value.trim(); const backend = DOM['mm-backend'].value; const model = DOM['mm-model'].value; const workspace = DOM['mm-workspace'].value.trim(); const status = DOM['mm-status'];

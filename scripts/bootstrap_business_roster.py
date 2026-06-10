@@ -14,6 +14,7 @@ sys.path.insert(0, str(ROOT / "backend"))
 from common import paths  # noqa: E402
 from common.agent_bootstrap import auto_create_agent  # noqa: E402
 from common.agent_id_policy import invalidate_agent_id_policy_cache  # noqa: E402
+from common.agent_model import ensure_agents_config_entries, system_default_backend  # noqa: E402
 from common.registry import invalidate_registry_cache  # noqa: E402
 
 
@@ -159,16 +160,20 @@ def main() -> int:
     for aid, meta in roster.items():
         if paths.workspace_dir(aid).is_dir():
             entry = dict(cfg.get(aid) or {})
-            entry.setdefault("backend", "opencode")
-            entry.setdefault("model", "")
+            entry.setdefault("backend", system_default_backend())
             entry.setdefault("extra", {})
+            # model 留空 = 跟随设置页 default_model；仅 Agent 管理或「应用到全部」才写入
+            entry.setdefault("model", "")
             entry["name"] = meta.get("name") or entry.get("name") or aid
             cfg[aid] = entry
     cfg_path.write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
+    touched = ensure_agents_config_entries(persist=True)
     invalidate_registry_cache()
     invalidate_agent_id_policy_cache()
 
     print(f"✓ 已合并 {len(updated)} 个 Agent 到 {paths.AGENTS_REGISTRY_FILE}")
+    if touched:
+        print(f"✓ agents_config 已补全：{', '.join(touched)}")
     if created_ws:
         print(f"✓ 新建 workspace: {', '.join(created_ws)}")
     else:

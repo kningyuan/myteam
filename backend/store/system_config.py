@@ -28,14 +28,6 @@ DEFAULT_CONFIG = {
             "cli_path": "",
         },
     },
-    "models": {
-        "opencode": [
-            {"id": "SenseNova/sensenova-6.7-flash-lite", "name": "SenseNova-sensenova-6.7-flash-lite", "provider": "SenseNova", "default": True},
-        ],
-        "claude": [
-            {"id": "claude-sonnet-4-6", "name": "Sonnet 4.6", "provider": "claude", "default": True},
-        ],
-    },
 }
 
 
@@ -80,14 +72,20 @@ class SystemConfig:
         return val
 
     def get_all(self) -> dict:
-        return self._data
+        data = dict(self._data)
+        data.pop("models", None)
+        return data
 
     def update_all(self, data: dict):
-        self._data = data
+        preserved_models = self._data.get("models")
+        self._data = dict(data)
+        self._data.pop("models", None)  # 模型列表由 /api/backends 管理，不接受设置页 PUT
+        if preserved_models:
+            self._data["models"] = preserved_models
         self._save()
 
     def get_models(self, backend_id: str = "opencode") -> list:
-        return self.get("models", backend_id, default=[])
+        return self._data.get("models", {}).get(backend_id, [])
 
     def get_default_model(self, backend_id: str = "opencode") -> str:
         for m in self.get_models(backend_id):

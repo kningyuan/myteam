@@ -36,6 +36,8 @@ def _port_fail_reason(status: str, detail: str) -> str:
         return "timeout_idle"
     if status == "no_response":
         return "no_response"
+    if status == "error":
+        return "cli_error"
     if "门禁" in detail or "gate" in detail.lower():
         return "gate_exhausted"
     return status

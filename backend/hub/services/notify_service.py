@@ -131,12 +131,15 @@ def notify_agent_sync(
     agent_id: str,
     message: str,
     *,
-    timeout: int = 1800,
+    timeout: Optional[int] = None,
     project_id: Optional[str] = None,
     task_id: Optional[str] = None,
     wait_response: bool = True,
 ) -> tuple[bool, str]:
     """同步通知 Agent。wait_response=False 时仅投递消息。"""
+    if timeout is None:
+        from common.skill_settings import agent_msg_timeout
+        timeout = agent_msg_timeout()
     if not wait_response:
         cancel = Event()
 

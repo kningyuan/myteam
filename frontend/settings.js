@@ -1,17 +1,5 @@
 // ============ Settings ============
 let _settingsCfg = {};
-/** 金路径默认（与 business/templates/prompt_templates + E2E 对齐） */
-const GOLDEN_PROCESS_DEFAULTS = {
-  max_gate_retries: 5,
-  soft_idle_sec: 240,
-  hard_idle_sec: 900,
-  max_cycles: 3,
-  parallel_enabled: false,
-  max_parallel: 3,
-  default_project_budget: 1000000,
-  split_enabled: false,
-  budget_degrade_threshold: 0.8,
-};
 const CLI_PATH_LABELS = { opencode: 'OpenCode CLI 路径', claude: 'Claude CLI 路径' };
 
 function updateSettingsCliPath(backendId) {
@@ -38,11 +26,15 @@ async function loadSettings() {
     DOM['set-port'].value = cfg.system?.port || 8765;
     DOM['set-debug'].checked = !!cfg.system?.debug;
     DOM['set-audit-log'].checked = !!cfg.system?.audit_log;
-    DOM['set-price'].value = cfg.system?.price_per_mtok || '';
+    DOM['set-audit-log-max-bytes'].value = cfg.system?.audit_log_max_bytes ?? 500000;
+    DOM['set-price'].value = cfg.system?.price_per_mtok ?? '';
     DOM['set-default-review'].checked = !!cfg.system?.default_review;
     DOM['set-model-aliases'].value = JSON.stringify(cfg.backends?.opencode?.model_aliases || {}, null, 2);
     DOM['set-use-project-group'].checked = skillCfg.notifications?.use_project_group !== false;
+    DOM['set-enable-telegram'].checked = skillCfg.notifications?.enable_telegram !== false;
     DOM['set-auto-group'].checked = skillCfg.auto_group?.enabled !== false;
+    DOM['set-auto-group-include-main'].checked = skillCfg.auto_group?.include_main !== false;
+    DOM['set-auto-group-name-prefix'].value = skillCfg.auto_group?.name_prefix || '';
     DOM['set-hub-url'].value = skillCfg.hub?.url || 'http://127.0.0.1:8765';
     DOM['set-poll-interval'].value = skillCfg.executor?.poll_interval ?? 5;
     DOM['set-ack-timeout'].value = skillCfg.executor?.ack_timeout ?? 300;
@@ -51,7 +43,7 @@ async function loadSettings() {
     DOM['set-team-config-timeout'].value = skillCfg.executor?.team_config_timeout ?? 600;
     DOM['set-task-plan-timeout'].value = skillCfg.executor?.task_plan_timeout ?? 600;
     DOM['set-max-retries'].value = skillCfg.executor?.max_retries ?? 3;
-    const pd = { ...GOLDEN_PROCESS_DEFAULTS, ...(skillCfg.process_defaults || {}) };
+    const pd = skillCfg.process_defaults || {};
     if (DOM['set-default-budget']) DOM['set-default-budget'].value = pd.default_project_budget ?? 1000000;
     if (DOM['set-max-gate-retries']) DOM['set-max-gate-retries'].value = pd.max_gate_retries ?? 5;
     if (DOM['set-soft-idle']) DOM['set-soft-idle'].value = pd.soft_idle_sec ?? 240;
@@ -60,6 +52,7 @@ async function loadSettings() {
     if (DOM['set-split-default']) DOM['set-split-default'].checked = !!pd.split_enabled;
     if (DOM['set-parallel-default']) DOM['set-parallel-default'].checked = !!pd.parallel_enabled;
     if (DOM['set-max-parallel']) DOM['set-max-parallel'].value = pd.max_parallel ?? 3;
+    if (DOM['set-max-concurrent-projects']) DOM['set-max-concurrent-projects'].value = pd.max_concurrent_projects ?? 2;
     const degThr = pd.budget_degrade_threshold ?? 0.8;
     if (DOM['set-budget-degrade-threshold']) {
       DOM['set-budget-degrade-threshold'].value = Math.round(degThr * 100);
@@ -172,17 +165,16 @@ async function saveSettings() {
     const r0 = await fetch('/api/config'); const cfg = (await r0.json()).config || {};
     cfg.system = cfg.system || {}; cfg.system.default_backend = backend; cfg.system.default_model = model; cfg.system.port = port;
     cfg.system.debug = !!DOM['set-debug']?.checked; cfg.system.audit_log = !!DOM['set-audit-log']?.checked;
+    cfg.system.audit_log_max_bytes = parseInt(DOM['set-audit-log-max-bytes']?.value, 10) || 500000;
     cfg.system.price_per_mtok = Number(DOM['set-price']?.value) || 0; cfg.system.default_review = !!DOM['set-default-review']?.checked;
     cfg.backends = cfg.backends || {}; cfg.backends[backend] = cfg.backends[backend] || {}; cfg.backends[backend].cli_path = cliPath;
     if (backend === 'opencode') cfg.backends.opencode.model_aliases = aliases;
-    const allModels = getBackendModels(backend); cfg.models = cfg.models || {};
-    cfg.models[backend] = allModels.map(m => ({ id: m.id, name: m.name, provider: m.provider, default: m.id === model }));
     const rSkill0 = await fetch('/api/skill-config'); const existingSkill = (await rSkill0.json()).config || {};
     const skillCfg = {
-      ...existingSkill, notifications: { ...(existingSkill.notifications || {}), enable_telegram: false, use_project_group: DOM['set-use-project-group']?.checked !== false },
+      ...existingSkill, notifications: { ...(existingSkill.notifications || {}), enable_telegram: DOM['set-enable-telegram']?.checked !== false, use_project_group: DOM['set-use-project-group']?.checked !== false },
       hub: { ...(existingSkill.hub || {}), url: (DOM['set-hub-url']?.value || '').trim() || 'http://127.0.0.1:8765' },
       executor: { ...(existingSkill.executor || {}), poll_interval: parseInt(DOM['set-poll-interval']?.value) || 5, ack_timeout: parseInt(DOM['set-ack-timeout']?.value) || 300, task_timeout: parseInt(DOM['set-task-timeout']?.value) || 3600, agent_msg_timeout: parseInt(DOM['set-agent-msg-timeout']?.value) || 1800, team_config_timeout: parseInt(DOM['set-team-config-timeout']?.value) || 600, task_plan_timeout: parseInt(DOM['set-task-plan-timeout']?.value) || 600, max_retries: parseInt(DOM['set-max-retries']?.value) || 3 },
-      auto_group: { ...(existingSkill.auto_group || {}), enabled: DOM['set-auto-group']?.checked !== false, include_main: existingSkill.auto_group?.include_main !== false, name_prefix: existingSkill.auto_group?.name_prefix ?? '' },
+      auto_group: { ...(existingSkill.auto_group || {}), enabled: DOM['set-auto-group']?.checked !== false, include_main: DOM['set-auto-group-include-main']?.checked !== false, name_prefix: (DOM['set-auto-group-name-prefix']?.value || '').trim() },
       process_defaults: (() => {
         const thrPct = parseFloat(DOM['set-budget-degrade-threshold']?.value);
         const thr = (!Number.isNaN(thrPct) && thrPct > 0 && thrPct < 100) ? thrPct / 100 : 0.8;
@@ -194,6 +186,7 @@ async function saveSettings() {
           max_cycles: parseInt(DOM['set-max-cycles']?.value, 10) || 3,
           parallel_enabled: !!DOM['set-parallel-default']?.checked,
           max_parallel: parseInt(DOM['set-max-parallel']?.value, 10) || 3,
+          max_concurrent_projects: parseInt(DOM['set-max-concurrent-projects']?.value, 10) || 2,
           default_project_budget: parseInt(DOM['set-default-budget']?.value, 10) || 1000000,
           budget_degrade_threshold: thr,
           budget_degrade_backend: (DOM['set-budget-degrade-backend']?.value || '').trim(),
