@@ -5,9 +5,10 @@
     "extra": {},
     "name": "项目总负责人"
   },
-  "researcher": {
+  "research": {
     "backend": "claude",
     "model": "",
-    "extra": {}
+    "extra": {},
+    "name": "研究员"
   }
 }

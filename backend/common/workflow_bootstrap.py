@@ -22,6 +22,9 @@ _DEFAULT_BACKEND = {
     "qa": ("claude", "claude-sonnet-4-6"),
     "research": ("claude", "claude-sonnet-4-6"),
     "content": ("claude", "claude-sonnet-4-6"),
+    "analyst": ("claude", "claude-sonnet-4-6"),
+    "geo": ("claude", "claude-sonnet-4-6"),
+    "seo": ("claude", "claude-sonnet-4-6"),
 }
 
 _ROLE_BOUNDARIES: dict[str, str] = {
@@ -50,6 +53,17 @@ _ROLE_BOUNDARIES: dict[str, str] = {
 """,
     "content": """## 职责边界（PGD）
 - 内容：content、publish-post；可评内容策略 architecture-review。
+""",
+    "analyst": """## 职责边界
+- 数据分析：data-analysis；可产出 code-writing 分析脚本。
+- 不替代产品定需求、不主责业务功能开发。
+""",
+    "geo": """## 职责边界
+- GEO：geo-plan、geo-audit、geo-verification；可指导 content 改稿。
+- 传统 SEO 用 seo-plan 归 seo 角色；不混淆。
+""",
+    "seo": """## 职责边界
+- SEO：seo-plan、关键词与传统搜索策略；GEO 专项归 geo。
 """,
 }
 
@@ -146,21 +160,52 @@ def ensure_agent(agent_id: str, meta: dict, *, backend: str, model: str) -> None
     _patch_role_boundary(agent_id)
 
 
+def _resolve_agent_meta(agent_id: str, template: dict[str, dict[str, Any]]) -> Optional[dict[str, Any]]:
+    """与「管理」Tab 一致：已有 workspace 优先；否则 PGD/注册表元数据（可 bootstrap）。"""
+    reg = _load_registry().get("agents") or {}
+    has_ws = paths.workspace_dir(agent_id).is_dir()
+
+    if has_ws:
+        if agent_id in reg:
+            return reg[agent_id]
+        if agent_id in template:
+            return template[agent_id]
+        return {
+            "name": agent_id,
+            "role": "worker",
+            "description": f"Agent：{agent_id}",
+            "capabilities": [],
+            "task_types": [],
+        }
+    if agent_id in template:
+        return template[agent_id]
+    if agent_id in reg:
+        return reg[agent_id]
+    return None
+
+
 def ensure_workflow_ready(workflow_id: str, *, backend: str = "claude",
                           default_model: str = "") -> WorkflowProfile:
     """为 workflow 准备 roster：合并 PGD 注册表、创建缺失 workspace、校验 DAG+能力。"""
     profile = load_workflow(workflow_id)
     template = load_pgd_agent_template()
 
-    missing = [a for a in profile.roster if a not in template]
+    agent_metas: dict[str, dict[str, Any]] = {}
+    missing: list[str] = []
+    for aid in profile.roster:
+        meta = _resolve_agent_meta(aid, template)
+        if meta is None:
+            missing.append(aid)
+        else:
+            agent_metas[aid] = meta
     if missing:
         raise ValueError(
-            f"workflow「{workflow_id}」的 roster 含未定义角色：{missing}；"
-            f"请补充 business/templates/pgd-agents.json")
+            f"workflow「{workflow_id}」引用了未就绪的 Agent：{missing}；"
+            f"请先在「管理」Tab 创建对应角色（workspace），或检查 agent id 拼写。")
 
     for aid in profile.roster:
         be, mo = _DEFAULT_BACKEND.get(aid, (backend, default_model or "claude-sonnet-4-6"))
-        ensure_agent(aid, template[aid], backend=be, model=mo)
+        ensure_agent(aid, agent_metas[aid], backend=be, model=mo)
 
     tasks = profile.instantiate_tasks()
     result = check_plan(tasks, set(profile.roster), check_capabilities=True)

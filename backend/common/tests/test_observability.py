@@ -42,9 +42,9 @@ def test_overview_budget_and_summary(store):
     """预算持久在 meta；overview/summary 暴露 tokens/budget/state。"""
     store.upsert_project("pro_b", title="预算项目", status="in_progress",
                          meta={"token_budget": 1000})
-    store.upsert_task("pro_b", "t1", agent="researcher")
+    store.upsert_task("pro_b", "t1", agent="research")
     store.create_interaction("pro_b:t1:execute:1", "execute", "pro_b",
-                             task_id="t1", agent_id="researcher")
+                             task_id="t1", agent_id="research")
     store.update_interaction("pro_b:t1:execute:1", status="done", tokens=850)
 
     ov = project_overview(store, "pro_b")
@@ -63,7 +63,7 @@ def test_project_events_feed(store):
     """项目事件流：交互骨架 + 里程碑事件（含合成 id），过滤低层噪声，按时间排序。"""
     store.upsert_project("pro_e")
     store.create_interaction("pro_e_task_001_execute", "execute", "pro_e",
-                             task_id="task_001", agent_id="researcher")
+                             task_id="task_001", agent_id="research")
     store.append_run_event("pro_e_task_001_execute", "text", {"t": "正文片段"})  # 噪声，过滤
     store.append_run_event("pro_e_task_001_execute", "gate_passed", {})
     store.append_run_event("pro_e_task_001_execute", "tool_use", {"tool": "web-search"})
@@ -99,10 +99,10 @@ def test_liveness_states():
 
 def test_overview_and_cost(store):
     store.upsert_project("pro_x", title="GEO")
-    store.upsert_task("pro_x", "t1", agent="researcher")
+    store.upsert_task("pro_x", "t1", agent="research")
     store.upsert_task("pro_x", "t2", agent="seo", dependencies=["t1"])
     store.set_task_status("pro_x", "t1", "completed")
-    store.create_interaction("i1", "execute", "pro_x", task_id="t1", agent_id="researcher")
+    store.create_interaction("i1", "execute", "pro_x", task_id="t1", agent_id="research")
     store.update_interaction("i1", tokens=100)
     store.create_interaction("i2", "execute", "pro_x", task_id="t2", agent_id="seo")
     store.update_interaction("i2", tokens=50)
@@ -113,14 +113,14 @@ def test_overview_and_cost(store):
 
     c = cost(store, "pro_x")
     assert c["project"] == 150
-    assert c["by_agent"] == {"researcher": 100, "seo": 50}
+    assert c["by_agent"] == {"research": 100, "seo": 50}
     assert c["by_task"] == {"t1": 100, "t2": 50}
 
 
 def test_task_detail_and_timeline(store):
     store.upsert_project("pro_x")
-    store.upsert_task("pro_x", "t1", agent="researcher")
-    store.create_interaction("i1", "execute", "pro_x", task_id="t1", agent_id="researcher")
+    store.upsert_task("pro_x", "t1", agent="research")
+    store.create_interaction("i1", "execute", "pro_x", task_id="t1", agent_id="research")
     store.append_run_event("i1", "step_start")
     store.append_run_event("i1", "text", {"chunk": "x"})
     store.update_interaction("i1", status="done", tokens=42)
@@ -134,10 +134,10 @@ def test_task_detail_and_timeline(store):
 
 def test_fleet_status(store):
     store.upsert_project("pro_x")
-    store.create_interaction("i1", "execute", "pro_x", agent_id="researcher")
+    store.create_interaction("i1", "execute", "pro_x", agent_id="research")
     store.update_interaction("i1", status="done")
     fs = fleet_status(store, "pro_x")
-    assert fs["researcher"] == "done"
+    assert fs["research"] == "done"
 
 
 def test_check_budget(store):
@@ -187,9 +187,9 @@ def test_execute_budget_exceeded_pauses_mid_interaction(penv):
     port = AgentPort(transport, store=store, config=wcfg, budget_checker=checker)
     proc = Process(store, port, ProcessConfig(token_budget=1000))
     tasks = [
-        {"id": "t1", "agent": "researcher", "task_type": "research", "dependencies": []},
+        {"id": "t1", "agent": "research", "task_type": "research", "dependencies": []},
     ]
-    out = proc.run("pro_mid", agents=["researcher"], tasks=tasks)
+    out = proc.run("pro_mid", agents=["research"], tasks=tasks)
     assert out.status == "paused"
     kinds = [e["kind"] for e in store.list_run_events("pro_mid:t1:execute:1")]
     assert "budget_exceeded" in kinds
@@ -214,11 +214,11 @@ def test_over_budget_pauses_project(penv):
     proc = Process(store, AgentPort(transport, store=store, config=wcfg),
                    ProcessConfig(token_budget=1000))
     tasks = [
-        {"id": "t1", "agent": "researcher", "task_type": "research", "dependencies": []},
-        {"id": "t2", "agent": "researcher", "task_type": "research", "dependencies": ["t1"]},
-        {"id": "t3", "agent": "researcher", "task_type": "research", "dependencies": ["t2"]},
+        {"id": "t1", "agent": "research", "task_type": "research", "dependencies": []},
+        {"id": "t2", "agent": "research", "task_type": "research", "dependencies": ["t1"]},
+        {"id": "t3", "agent": "research", "task_type": "research", "dependencies": ["t2"]},
     ]
-    out = proc.run("pro_x", agents=["researcher"], tasks=tasks)
+    out = proc.run("pro_x", agents=["research"], tasks=tasks)
     # t1 跑完烧 800 → 下一轮检查超 1000 之前还没超；t2 跑完累计 1600 → t3 前超限暂停
     assert out.tasks["t1"].status == "completed"
     assert out.tasks["t2"].status == "completed"
@@ -253,11 +253,11 @@ def test_budget_degrade_fires_before_pause(penv, tmp_path, monkeypatch):
         ),
     )
     tasks = [
-        {"id": "t1", "agent": "researcher", "task_type": "research", "dependencies": []},
-        {"id": "t2", "agent": "researcher", "task_type": "research", "dependencies": ["t1"]},
-        {"id": "t3", "agent": "researcher", "task_type": "research", "dependencies": ["t2"]},
+        {"id": "t1", "agent": "research", "task_type": "research", "dependencies": []},
+        {"id": "t2", "agent": "research", "task_type": "research", "dependencies": ["t1"]},
+        {"id": "t3", "agent": "research", "task_type": "research", "dependencies": ["t2"]},
     ]
-    out = proc.run("pro_x", agents=["researcher"], tasks=tasks)
+    out = proc.run("pro_x", agents=["research"], tasks=tasks)
 
     assert out.tasks["t1"].status == "completed"
     assert out.tasks["t2"].status == "completed"
@@ -273,4 +273,4 @@ def test_budget_degrade_fires_before_pause(penv, tmp_path, monkeypatch):
     assert ev_kinds.index("budget_degrade") < ev_kinds.index("budget_over")
 
     cfg = json.loads((tmp_path / "agents_config.json").read_text(encoding="utf-8"))
-    assert cfg["researcher"]["model"] == "cheap-model"
+    assert cfg["research"]["model"] == "cheap-model"

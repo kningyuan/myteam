@@ -28,10 +28,35 @@ from common.paths import templates_file
 DEFAULT_STUB_FLOOR = 20
 _PLACEHOLDER_MARKERS = ("待补充", "待填写", "todo", "tbd", "tbd", "xxx", "lorem ipsum", "占位")
 
+# UI 展示名（中/英/混合）；templates.yaml 中 display_name 可覆盖
+TASK_TYPE_DISPLAY_NAMES: dict[str, str] = {
+    "research": "调研 research",
+    "seo-plan": "SEO 规划 seo-plan",
+    "content": "内容 content",
+    "test-plan": "测试计划 test-plan",
+    "code-deliverable": "代码交付 code-deliverable",
+    "strategy": "策略分析 strategy",
+    "publish-post": "内容发布 publish-post",
+    "system-design": "系统设计 system-design",
+    "architecture-review": "架构评审 architecture-review",
+    "code-review": "代码评审 code-review",
+    "code-writing": "代码编写 code-writing",
+    "code-testing": "代码测试 code-testing",
+    "requirements": "需求 requirements",
+    "decision-record": "决策记录 decision-record",
+    "acceptance-report": "验收报告 acceptance-report",
+    "code-deployment": "部署记录 code-deployment",
+    "data-analysis": "数据分析 data-analysis",
+    "geo-plan": "GEO策略 geo-plan",
+    "geo-audit": "GEO审计 geo-audit",
+    "geo-verification": "GEO验证 geo-verification",
+}
+
 
 @dataclass
 class FormatSpec:
     task_type: str
+    display_name: str = ""
     outcome_kind: str = "artifact"
     required_sections: list[str] = field(default_factory=list)
     required_heading_level: int = 2
@@ -74,12 +99,22 @@ def _derive_acceptance_criteria(task_cfg: dict, required_sections: list[str]) ->
     return [f"完整覆盖「{s}」章节且内容具体可执行" for s in required_sections]
 
 
+def resolve_display_name(task_type: str, task_cfg: Optional[dict] = None) -> str:
+    """task_type 的 UI 展示名：yaml display_name > 内置映射 > 注册键本身。"""
+    cfg = task_cfg if isinstance(task_cfg, dict) else {}
+    explicit = (cfg.get("display_name") or cfg.get("label") or "").strip()
+    if explicit:
+        return explicit
+    return TASK_TYPE_DISPLAY_NAMES.get(task_type, task_type)
+
+
 def _build_spec(task_type: str, task_cfg: dict) -> FormatSpec:
     dt = task_cfg.get("deliverable_template", {}) or {}
     check_rules = task_cfg.get("check_rules", {}) or {}
     required_sections = list(check_rules.get("required_sections", []) or [])
     return FormatSpec(
         task_type=task_type,
+        display_name=resolve_display_name(task_type, task_cfg),
         outcome_kind=_derive_outcome_kind(task_cfg, check_rules),
         required_sections=required_sections,
         required_heading_level=int(dt.get("required_heading_level", 2)),
@@ -101,8 +136,16 @@ def _load_all(path_str: str) -> dict[str, FormatSpec]:
     return {tt: _build_spec(tt, cfg) for tt, cfg in raw.items() if isinstance(cfg, dict)}
 
 
+def invalidate_registry_cache() -> None:
+    """templates.yaml 写入后调用，使 load_registry / get_spec 读到最新配置。"""
+    _load_all.cache_clear()
+
+
 def load_registry(path: Optional[Path] = None) -> dict[str, FormatSpec]:
-    return _load_all(str(path or templates_file()))
+    if path is not None:
+        raw = _load_yaml(path)
+        return {tt: _build_spec(tt, cfg) for tt, cfg in raw.items() if isinstance(cfg, dict)}
+    return _load_all(str(templates_file()))
 
 
 def get_spec(task_type: str, path: Optional[Path] = None) -> Optional[FormatSpec]:

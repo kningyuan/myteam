@@ -17,7 +17,7 @@ ROLE_AGENTS = {
 - 协调者：team_config/task_plan/triage 由框架触发；DAG 中仅 strategy 类文档。
 - 禁止承担 research/code/content/test/publish 等 execute 交付。
 """,
-    "researcher": """## 职责边界
+    "research": """## 职责边界
 - 仅 task_type=research：深度调研报告。
 - 禁止 code-*、content、seo-plan、publish-post。
 """,
@@ -38,7 +38,7 @@ ROLE_AGENTS = {
 """,
     "product": """## 职责边界
 - strategy：方案对比、产品决策文档。
-- research：需求向轻量调研；深度行业调研交给 researcher。
+- research（task_type）：需求向轻量调研；深度行业调研交给 research agent 或 analyst。
 - 禁止 code-*、test-*、publish-post、seo-plan。
 """,
     "content": """## 职责边界
@@ -66,7 +66,7 @@ ROLE_AGENTS = {
 DEFAULT_BACKEND = {
     "main": ("claude", "claude-haiku-4-5"),
     "deputy": ("claude", "claude-haiku-4-5"),
-    "researcher": ("claude", "claude-sonnet-4-6"),
+    "research": ("claude", "claude-sonnet-4-6"),
     "product": ("claude", "claude-sonnet-4-6"),
     "developer": ("claude", "claude-sonnet-4-6"),
     "test_dev": ("claude", "claude-haiku-4-5"),

@@ -28,17 +28,17 @@ def _quality():
 def test_team_config_ok():
     ok, model, errs = validate_response_dict({
         "interaction_id": "i1", "kind": "team_config", "status": "ok",
-        "result": {"agents": ["researcher", "seo"]},
+        "result": {"agents": ["research", "seo"]},
     })
     assert ok, errs
-    assert model.result.agents == ["researcher", "seo"]
+    assert model.result.agents == ["research", "seo"]
 
 
 def test_task_plan_ok():
     ok, _m, errs = validate_response_dict({
         "interaction_id": "i2", "kind": "task_plan", "status": "ok",
         "result": {"tasks": [{
-            "id": "task_001", "name": "调研", "agent": "researcher",
+            "id": "task_001", "name": "调研", "agent": "research",
             "task_type": "research", "description": "做调研", "dependencies": [],
         }]},
     })
@@ -137,7 +137,7 @@ def test_submit_writes_when_valid(tmp_path):
     out = tmp_path / "i.response"
     submit({
         "interaction_id": "i7", "kind": "team_config", "status": "ok",
-        "result": {"agents": ["researcher"]},
+        "result": {"agents": ["research"]},
     }, out)
     assert out.exists()
     assert json.loads(out.read_text())["kind"] == "team_config"

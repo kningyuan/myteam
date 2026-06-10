@@ -13,9 +13,12 @@
 ```text
 Process -> registry.get_spec(task_type)
         -> business/templates/templates.yaml
-        -> constraints injected into the agent prompt
+        -> render_execute_intent + build_worker_prompt (prompt_templates.yaml)
         -> Gate validates the result with the same spec
 ```
+
+Execute 标准壳：`business/templates/prompt_templates.yaml`（按 task_type，与 agent 身份解耦）。  
+Agent 名册模板：`business/templates/business-roster.json`（合并脚本 `scripts/bootstrap_business_roster.py`）。
 
 `templates.yaml` is the single source of truth for task-type constraints. The code loader may derive defaults, but business text and acceptance policy belong here.
 

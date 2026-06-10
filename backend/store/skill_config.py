@@ -28,6 +28,19 @@ DEFAULT_SKILL_CONFIG = {
         "include_main": True,
         "name_prefix": "",
     },
+    "process_defaults": {
+        "max_gate_retries": 5,
+        "split_enabled": False,
+        "soft_idle_sec": 240,
+        "hard_idle_sec": 900,
+        "max_cycles": 3,
+        "parallel_enabled": False,
+        "max_parallel": 3,
+        "default_project_budget": 1000000,
+        "budget_degrade_threshold": 0.8,
+        "budget_degrade_backend": "",
+        "budget_degrade_model": "",
+    },
 }
 
 

@@ -19,9 +19,16 @@
     "arch": {
       "name": "架构师",
       "role": "worker",
-      "description": "后端/内核方案与实现；架构评审",
-      "capabilities": ["系统设计", "内核", "API", "代码审查"],
-      "task_types": ["system-design", "architecture-review", "code-writing", "code-review"]
+      "description": "系统方案与架构评审；可承担架构视角调研；不主责完整工程实现",
+      "capabilities": ["系统设计", "内核", "API", "代码审查", "架构调研"],
+      "task_types": ["system-design", "architecture-review", "code-review", "research"]
+    },
+    "developer": {
+      "name": "研发专家",
+      "role": "worker",
+      "description": "核心实现、代码交付与工程化调研",
+      "capabilities": ["实现", "代码评审", "工程化"],
+      "task_types": ["system-design", "architecture-review", "code-writing", "code-deliverable", "code-review", "research"]
     },
     "frontend": {
       "name": "前端架构师",
@@ -49,7 +56,35 @@
       "role": "worker",
       "description": "长文内容生产与发布",
       "capabilities": ["内容写作", "发布", "读者体验"],
-      "task_types": ["content", "architecture-review", "publish-post"]
+      "task_types": ["content", "architecture-review"]
+    },
+    "analyst": {
+      "name": "数据分析师",
+      "role": "worker",
+      "description": "指标口径、数据分析报告与可复用分析脚本",
+      "capabilities": ["指标口径", "数据分析", "分析脚本"],
+      "task_types": ["data-analysis", "research", "strategy", "code-writing"]
+    },
+    "geo": {
+      "name": "GEO专家",
+      "role": "worker",
+      "description": "生成式引擎优化：策略、审计、效果验证",
+      "capabilities": ["GEO策略", "内容可引用性", "AI搜索可见性"],
+      "task_types": ["geo-plan", "geo-audit", "geo-verification", "research", "content"]
+    },
+    "seo": {
+      "name": "SEO专家",
+      "role": "worker",
+      "description": "关键词、技术 SEO 与传统搜索策略",
+      "capabilities": ["关键词研究", "技术SEO"],
+      "task_types": ["seo-plan", "research"]
+    },
+    "social": {
+      "name": "社媒运营",
+      "role": "worker",
+      "description": "内容发布与平台动作证据",
+      "capabilities": ["平台发布", "发布证据"],
+      "task_types": ["publish-post"]
     }
   }
 }

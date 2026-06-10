@@ -6,6 +6,12 @@ from dataclasses import dataclass
 from typing import Callable, Optional
 
 from common.agent_bootstrap import auto_create_agent
+from common.agent_id_policy import (
+    normalize_agent_ids,
+    normalize_plan_tasks,
+    normalize_agent_id,
+    partition_auto_create_candidates,
+)
 from common.agent_port import AgentPort
 from common.plan_splice import normalize_subtasks, validate_subtasks
 from common.plan_gate import check_plan
@@ -36,14 +42,19 @@ class DecisionPipeline:
             raise BudgetExceededError(res.reason or "交互级 token 超预算")
         if res.status != "done":
             raise RuntimeError(f"team_config 失败：{res.status} {res.reason}")
-        agents = res.response["result"]["agents"]
+        agents = normalize_agent_ids(res.response["result"]["agents"])
         self.release_files("main", iid)
 
         missing = [a for a in agents if not workspace_dir(a).exists()]
         if missing and self.config.auto_create_agents:
-            self.store.append_run_event(f"{project_id}:team_config", "auto_create_agents",
-                                        {"agent_ids": missing})
-            for aid in missing:
+            allowed, rejected = partition_auto_create_candidates(missing)
+            if rejected:
+                raise RuntimeError(
+                    f"team_config 返回未注册 agent，禁止 auto_create：{', '.join(rejected)}")
+            if allowed:
+                self.store.append_run_event(f"{project_id}:team_config", "auto_create_agents",
+                                            {"agent_ids": allowed})
+            for aid in allowed:
                 auto_create_agent(aid, description=f"自动创建的 agent：{aid}",
                                   backend=self.config.default_backend,
                                   model=self.config.default_model)
@@ -55,6 +66,7 @@ class DecisionPipeline:
 
     def task_plan(self, project_id: str, goal: str, agents: list[str], *,
                   cycle: int = 0, prior_summary: str = "") -> list[dict]:
+        agents = normalize_agent_ids(agents)
         team = set(agents)
         feedback: list[str] = []
         base_iid = f"{project_id}:task_plan" + (f":c{cycle}" if cycle else "")
@@ -82,7 +94,7 @@ class DecisionPipeline:
             if res.status != "done":
                 self.release_files("main", iid)
                 raise RuntimeError(f"task_plan 失败：{res.status} {res.reason}")
-            tasks = res.response["result"]["tasks"]
+            tasks = normalize_plan_tasks(res.response["result"]["tasks"])
             check = check_plan(tasks, team)
             if check.passed:
                 self.release_files("main", iid)
@@ -95,6 +107,7 @@ class DecisionPipeline:
 
     def evaluate(self, project_id: str, task: dict, agents: list[str],
                  depth: int, *, cycle: int = 0) -> Optional[list[dict]]:
+        agents = normalize_agent_ids(agents)
         team = set(agents)
         feedback: list[str] = []
         base_iid = f"{project_id}:{task['id']}:evaluate" + (f":c{cycle}" if cycle else "")
@@ -153,9 +166,10 @@ class DecisionPipeline:
         decision = result.get("decision", "drop")
         self.release_files("main", req["interaction_id"])
         if decision == "reassign" and result.get("target_agent"):
-            self.store.upsert_task(project_id, tid, agent=result["target_agent"],
+            target = normalize_agent_id(result["target_agent"])
+            self.store.upsert_task(project_id, tid, agent=target,
                                    name=task.get("name", ""),
                                    task_type=task.get("task_type", ""),
                                    dependencies=task.get("dependencies", []))
-            task["agent"] = result["target_agent"]
+            task["agent"] = target
         return decision

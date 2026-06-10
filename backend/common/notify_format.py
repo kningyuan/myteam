@@ -9,7 +9,8 @@ AGENT_NAME_MAP = {
     "product": "产品经理",
     "developer": "开发工程师",
     "designer": "UI设计师",
-    "researcher": "调研专家",
+    "research": "研究员",
+    "researcher": "研究员",  # 废弃 id，展示兼容
     "content": "内容创作者",
     "social": "社交媒体运营",
     "seo": "SEO优化师",

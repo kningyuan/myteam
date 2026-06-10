@@ -6,6 +6,7 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Optional
 
+from common.agent_id_policy import normalize_plan_tasks, normalize_team
 from common.registry import get_spec
 
 
@@ -52,6 +53,8 @@ def check_plan(tasks: list[dict], team: set[str], *,
                max_fanout: Optional[int] = None,
                check_capabilities: bool = True) -> PlanCheckResult:
     """确定性门禁：校验 task DAG 的 agent/类型/依赖/无环/扇出。"""
+    tasks = normalize_plan_tasks(tasks)
+    team = normalize_team(team)
     ids = [t.get("id", "") for t in tasks]
     if len(set(ids)) != len(ids):
         dupes = sorted({i for i in ids if ids.count(i) > 1})
@@ -81,8 +84,12 @@ def check_plan(tasks: list[dict], team: set[str], *,
             aid = t.get("agent", "")
             tt = t.get("task_type", "")
             allowed = cap_map.get(aid)
-            # 未在注册表或 task_types 为空 → 不施加能力边界（向后兼容旧 agent）
+            if aid not in cap_map:
+                continue
             if not allowed:
+                cap_errors.append(
+                    f"{aid} 未配置可执行任务类型（请在管理 Tab → Agent 配置中勾选）",
+                )
                 continue
             if tt not in allowed:
                 cap_errors.append(

@@ -74,11 +74,22 @@ def generate_agent(
 
     set_agent_backend_config(agent_id, backend_id, model, workspace=to_relative_path(werk))
 
+    resolved_tts = list(task_types or [])
+    if not resolved_tts:
+        from common.agent_task_type_suggest import suggest_task_types_for_agent
+
+        try:
+            resolved_tts = suggest_task_types_for_agent(
+                description, name=chinese_name or agent_id, agent_id=agent_id,
+            ).get("task_types") or []
+        except ValueError:
+            resolved_tts = []
+
     # 注册到 agents_registry.json
     register_agent(agent_id, name=chinese_name or agent_id, role=role,
                    description=description,
                    capabilities=capabilities or [],
-                   task_types=task_types or [])
+                   task_types=resolved_tts)
 
     return {
         "success": True,
@@ -162,8 +173,8 @@ description: {description}
 4. 输出结果
 
 ## 协作方式
-- 通过 .trigger/.response 文件系统通信
-- 返回 JSON 格式的 structured response
+- 编排任务：内核下发 worker prompt；交卷用 submit_result 写 .response/{{interaction_id}}.response
+- 团队任务由 Process 调度 DAG；与其他 Agent 不直接互读 .trigger
 - 不直接调用外部脚本
 """,
         "SOUL.md": f"""# {name} - 灵魂与行为准则

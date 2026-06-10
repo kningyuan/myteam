@@ -78,7 +78,7 @@ function cacheDom() {
    'chat-agent-name','chat-agent-id','chat-agent-avatar',
    'group-name','group-members','group-avatar',
    'cf-description','cf-agent-id','cf-name','cf-backend','cf-model','cf-submit','cf-cancel','cf-status','cf-result',
-   'tab-chat','tab-groups','tab-projects','tab-agents','tab-settings',
+   'tab-chat','tab-groups','tab-projects','tab-agents','tab-workflows','tab-settings',
    'project-list','project-count','project-welcome','project-detail-view',
    'project-title','project-meta','project-progress-text','project-progress-fill',
    'project-tasks','project-fleet','project-cost','project-cost-overview','project-events',
@@ -89,7 +89,11 @@ function cacheDom() {
    'btn-sidebar-toggle','sidebar-backdrop','sidebar','btn-open-group','btn-open-project',
    'btn-new-project','btn-new-project-welcome','new-project-modal','btn-resume-project','btn-cancel-project',
    'np-goal','np-title','np-mode','np-budget','np-review','np-split','np-workflow','np-workflow-hint','np-submit','np-cancel',
-   'set-max-gate-retries','set-soft-idle','set-hard-idle','set-max-cycles','set-split-default',
+   'set-default-budget','set-max-gate-retries','set-soft-idle','set-hard-idle','set-max-cycles',
+   'set-split-default','set-parallel-default','set-max-parallel',
+   'wf-list','wf-new','wf-welcome','wf-editor','wf-id','wf-version','wf-description','wf-suggest',
+   'wf-review','wf-split','wf-parallel','wf-max-parallel','wf-tasks-body','wf-add-task',
+   'wf-save','wf-delete','wf-status',
    'set-budget-degrade-threshold','set-budget-degrade-backend','set-budget-degrade-model',
    'btn-theme','theme-dropdown',
    'modal-overlay','agent-config-modal','modal-backend','modal-model','modal-agent-info',
@@ -97,7 +101,7 @@ function cacheDom() {
    'group-config-modal','group-modal-name','group-modal-members','group-add-agent','btn-add-member','group-modal-close',
    'new-group-modal','ng-name','ng-desc','ng-submit','ng-cancel','btn-new-group',
    'status-badge','agent-count','btn-group-config','btn-send','btn-group-send',
-   'manage-agent-table','manage-agent-count','btn-create-agent',
+   'manage-agent-table','manage-agent-count','btn-create-agent','btn-sync-task-types',
    'manage-tasktype-table','manage-tasktype-count','manage-memory-table','manage-memory-count',
    'create-agent-modal',
    'set-default-backend','set-default-model','set-port','set-cli-path','set-debug','set-audit-log','set-price',
@@ -106,7 +110,8 @@ function cacheDom() {
    'set-poll-interval','set-ack-timeout','set-task-timeout',
    'set-agent-msg-timeout','set-team-config-timeout','set-task-plan-timeout','set-max-retries',
    'mention-dropdown',
-   'manage-modal','mm-id','mm-name','mm-backend','mm-model','mm-workspace','mm-save','mm-cancel','mm-status',
+   'manage-modal','mm-id','mm-name','mm-backend','mm-model','mm-workspace','mm-task-types','mm-suggest-task-types','mm-save','mm-cancel','mm-status',
+   'tasktype-modal','tt-modal-title','tt-description','tt-suggest','tt-id','tt-display-name','tt-outcome','tt-outcome-hint','tt-sections','tt-save','tt-cancel','tt-status','btn-new-tasktype',
   ].forEach(id => DOM[id] = $(id));
 }
 
@@ -148,6 +153,29 @@ function esc(s) {
   const d = document.createElement('div');
   d.textContent = s;
   return d.innerHTML;
+}
+
+/** Agent UI 标签：优先中文显示名，括号内为 id */
+function agentDisplayLabel(agentOrId, agents) {
+  const list = agents || (typeof S !== 'undefined' ? S.agents : []) || [];
+  const id = typeof agentOrId === 'string' ? agentOrId : agentOrId?.id;
+  if (!id) return '';
+  const a = typeof agentOrId === 'object' && agentOrId != null && 'name' in agentOrId
+    ? agentOrId
+    : list.find(x => x.id === id);
+  const name = (a?.name || '').trim();
+  if (name && name !== id) return `${name} (${id})`;
+  return name || id;
+}
+
+/** task_type UI 标签：display_name（可中/英/混合），注册键仍为 value */
+function taskTypeDisplayLabel(taskTypeOrRow, metaList) {
+  const id = typeof taskTypeOrRow === 'string' ? taskTypeOrRow : taskTypeOrRow?.task_type;
+  if (!id) return '';
+  const row = typeof taskTypeOrRow === 'object' && taskTypeOrRow?.display_name
+    ? taskTypeOrRow
+    : (metaList || []).find(x => x.task_type === id);
+  return (row?.display_name || id).trim() || id;
 }
 function shortPath(p) {
   if (!p) return '…';

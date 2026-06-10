@@ -126,24 +126,56 @@ function setDagScale(container, scale) {
   applyDagTransform(container);
 }
 
+function dagPanelVisible(container) {
+  const panel = container?.closest('.ptab-panel');
+  return !panel || panel.classList.contains('active');
+}
+
 function dagZoomFit(container, contentW, contentH) {
   const wrap = container.querySelector('.dag-stage-wrap');
-  if (!wrap || !contentW || !contentH) return;
+  if (!wrap || !contentW || !contentH) return false;
+  if (!dagPanelVisible(container)) return false;
+  const vw = wrap.clientWidth;
+  const vh = wrap.clientHeight;
+  if (vw < 16 || vh < 16) return false;
   const pad = 20;
-  const sx = (wrap.clientWidth - pad) / contentW;
-  const sy = (wrap.clientHeight - pad) / contentH;
+  const sx = (vw - pad) / contentW;
+  const sy = (vh - pad) / contentH;
   const scale = Math.min(1.25, Math.max(DAG_SCALE_MIN, Math.min(sx, sy)));
   container.dataset.dagScale = String(scale);
-  container.dataset.dagPanX = String(Math.max(8, (wrap.clientWidth - contentW * scale) / 2));
-  container.dataset.dagPanY = String(Math.max(8, (wrap.clientHeight - contentH * scale) / 2));
+  container.dataset.dagPanX = String(Math.max(8, (vw - contentW * scale) / 2));
+  container.dataset.dagPanY = String(Math.max(8, (vh - contentH * scale) / 2));
   applyDagTransform(container);
+  return true;
+}
+
+/** Tab 隐藏时 defer；可见后自动适应窗口 */
+function scheduleDagFit(container, contentW, contentH, tries = 0) {
+  if (!container || !contentW || !contentH) return;
+  container.dataset.dagContentW = String(contentW);
+  container.dataset.dagContentH = String(contentH);
+  if (dagZoomFit(container, contentW, contentH)) return;
+  if (tries < 12) requestAnimationFrame(() => scheduleDagFit(container, contentW, contentH, tries + 1));
 }
 
 function resetDagView(container, contentW, contentH) {
   delete container.dataset.dagScale;
   delete container.dataset.dagPanX;
   delete container.dataset.dagPanY;
-  requestAnimationFrame(() => dagZoomFit(container, contentW, contentH));
+  delete container.dataset.dagUserZoom;
+  scheduleDagFit(container, contentW, contentH);
+}
+
+function fitProjectDag() {
+  const container = document.getElementById('dag-container');
+  if (!container) return;
+  const w = Number(container.dataset.dagContentW);
+  const h = Number(container.dataset.dagContentH);
+  if (!w || !h) return;
+  delete container.dataset.dagScale;
+  delete container.dataset.dagPanX;
+  delete container.dataset.dagPanY;
+  scheduleDagFit(container, w, h);
 }
 
 function bindDagPanZoom(container, contentW, contentH) {
@@ -151,25 +183,29 @@ function bindDagPanZoom(container, contentW, contentH) {
   if (!wrap) return;
 
   container.querySelector('.dag-zoom-in')?.addEventListener('click', () => {
+    container.dataset.dagUserZoom = '1';
     setDagScale(container, (Number(container.dataset.dagScale) || 1) + 0.15);
   });
   container.querySelector('.dag-zoom-out')?.addEventListener('click', () => {
+    container.dataset.dagUserZoom = '1';
     setDagScale(container, (Number(container.dataset.dagScale) || 1) - 0.15);
   });
   container.querySelector('.dag-zoom-reset')?.addEventListener('click', () => {
+    container.dataset.dagUserZoom = '1';
     container.dataset.dagScale = '1';
     container.dataset.dagPanX = '12';
     container.dataset.dagPanY = '12';
     applyDagTransform(container);
   });
   container.querySelector('.dag-zoom-fit')?.addEventListener('click', () => {
-    dagZoomFit(container, contentW, contentH);
+    delete container.dataset.dagUserZoom;
+    scheduleDagFit(container, contentW, contentH);
   });
 
-  if (!container.dataset.dagScale) {
-    requestAnimationFrame(() => dagZoomFit(container, contentW, contentH));
-  } else {
+  if (container.dataset.dagUserZoom) {
     applyDagTransform(container);
+  } else {
+    scheduleDagFit(container, contentW, contentH);
   }
 
   if (container._dagPanSetup) return;
@@ -205,9 +241,21 @@ function bindDagPanZoom(container, contentW, contentH) {
     const w = container.querySelector('.dag-stage-wrap');
     if (!w || !w.contains(e.target)) return;
     e.preventDefault();
+    container.dataset.dagUserZoom = '1';
     const delta = e.deltaY > 0 ? -0.1 : 0.1;
     setDagScale(container, (Number(container.dataset.dagScale) || 1) + delta);
   }, { passive: false });
+
+  container._dagResizeObs?.disconnect();
+  if (typeof ResizeObserver !== 'undefined') {
+    container._dagResizeObs = new ResizeObserver(() => {
+      if (container.dataset.dagUserZoom) return;
+      const cw = Number(container.dataset.dagContentW);
+      const ch = Number(container.dataset.dagContentH);
+      if (cw && ch && dagPanelVisible(container)) dagZoomFit(container, cw, ch);
+    });
+    container._dagResizeObs.observe(wrap);
+  }
 }
 
 function renderDAG(container, tasks, selectedId) {
@@ -216,6 +264,8 @@ function renderDAG(container, tasks, selectedId) {
   if (!nodes.length) {
     container.innerHTML = '<div class="dag-empty">暂无任务</div>';
     delete container._dagPanSetup;
+    container._dagResizeObs?.disconnect();
+    delete container._dagResizeObs;
     return;
   }
 

@@ -2,6 +2,7 @@
 """Plan 子任务 DAG 折回纯函数 — 无 I/O、无编排依赖。"""
 from __future__ import annotations
 
+from common.agent_id_policy import normalize_agent_id
 from common.plan_gate import check_plan
 
 
@@ -12,7 +13,7 @@ def normalize_subtasks(subs: list[dict], parent: dict) -> list[dict]:
         out.append({
             "id": f"{pid}.{s['id']}",
             "name": s.get("name", ""),
-            "agent": s.get("agent") or parent.get("agent", ""),
+            "agent": normalize_agent_id(s.get("agent") or parent.get("agent", "")),
             "task_type": s.get("task_type") or parent.get("task_type", ""),
             "description": s.get("description", ""),
             "reviewer": s.get("reviewer", ""),

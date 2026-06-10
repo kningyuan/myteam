@@ -24,16 +24,16 @@ def scaffold_markdown_deliverable(
     spec: Optional[FormatSpec],
     *,
     title: str,
-    intent: str = "",
 ) -> Path:
-    """写入 Markdown 交付物骨架（仅当文件不存在或为空时）。"""
+    """写入 Markdown 交付物骨架（仅当文件不存在或为空时）。
+
+    任务意图仅通过 execute 提示词（req.intent）下发，不写入交付物文件。
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.is_file() and path.read_text(encoding="utf-8", errors="replace").strip():
         return path
 
     lines = [f"# {title.strip() or '交付物'}", ""]
-    if intent.strip():
-        lines += ["<!-- 任务意图 -->", intent.strip(), ""]
     sections = list(spec.required_sections) if spec else []
     if not sections and spec and spec.sections:
         sections = [
@@ -180,5 +180,4 @@ def scaffold_for_execute_request(
     spec = get_spec(task_type) if task_type else None
     return scaffold_markdown_deliverable(
         abs_path, spec, title=task_name or req.task_id or "交付物",
-        intent=req.intent or "",
     )

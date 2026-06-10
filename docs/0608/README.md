@@ -29,6 +29,12 @@
 - 交接：`/tmp/myteam-handoff-20260610-session10.md`（L2 闭环 + L3 scaffold）
 - 分支：`upgrade/continued`
 
+## 当前架构速查（2026-06-10 后）
+
+- 总览：[docs/ARCHITECTURE.md](../ARCHITECTURE.md)
+- 文档索引：[docs/README.md](../README.md)
+- Agent 名册：`business/templates/business-roster.json`（`research` 非 `researcher`）
+
 ## 治理约定
 
 1. **一层一 Sprint**：L1 未完成不开 L2 新功能

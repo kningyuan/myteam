@@ -61,7 +61,7 @@ def env(tmp_path, monkeypatch):
 def _req(iid="i1"):
     return {
         "interaction_id": iid, "kind": "execute", "project_id": "pro_x",
-        "task_id": "task_001", "agent_id": "researcher", "intent": "做调研",
+        "task_id": "task_001", "agent_id": "research", "intent": "做调研",
         "input": {"deliverable_path": "task_001_deliverable.md"},
         "constraints": {"task_type": "research"},
         "response_schema": "execute.result@1.0",
@@ -101,14 +101,14 @@ def test_task_plan_prompt_has_concrete_schema():
     req = parse_request({
         "interaction_id": "p:task_plan", "kind": "task_plan", "project_id": "p",
         "agent_id": "main", "intent": "规划",
-        "input": {"goal": "g", "team": ["researcher", "seo"]},
+        "input": {"goal": "g", "team": ["research", "seo"]},
     })
     prompt = build_worker_prompt(req, Path("/tmp/x.response"), Path("/tmp/deliv"))
     # 决策类必须给出具体 result 骨架，而非仅 schema 名（弱模型靠名字猜不出结构）
     assert '"tasks"' in prompt
     assert "task_type" in prompt
     assert "dependencies" in prompt
-    assert "researcher" in prompt and "seo" in prompt  # 可用 agent 约束
+    assert "research" in prompt and "seo" in prompt  # 可用 agent 约束
     assert "research" in prompt  # 来自注册表的可用 task_type
 
 
@@ -118,8 +118,8 @@ def test_retry_feedback_shown_for_decision_kinds():
     req = parse_request({
         "interaction_id": "p:task_plan:2", "kind": "task_plan", "project_id": "p",
         "agent_id": "main", "intent": "规划",
-        "input": {"goal": "g", "team": ["researcher"]},
-        "retry_feedback": ["以下 agent 不在团队名册中：ghost；只能从 [researcher] 中选。"],
+        "input": {"goal": "g", "team": ["research"]},
+        "retry_feedback": ["以下 agent 不在团队名册中：ghost；只能从 [research] 中选。"],
     })
     prompt = build_worker_prompt(req, Path("/tmp/x.response"), Path("/tmp/deliv"))
     assert "逐条修正" in prompt
@@ -131,7 +131,7 @@ def test_transport_injects_rules_file(env, tmp_path, monkeypatch):
     rules_dir = tmp_path / "rules"
     rules_dir.mkdir()
     (rules_dir / "universal-rules.md").write_text("UNIVERSAL_RULE_XYZ", encoding="utf-8")
-    ws = tmp_path / "workspaces" / "workspace-researcher"
+    ws = tmp_path / "workspaces" / "workspace-research"
     ws.mkdir(parents=True)
     (ws / "AGENTS.md").write_text("AGENTS_MD_XYZ", encoding="utf-8")
     import common.agent_transport as _at_mod
@@ -144,10 +144,10 @@ def test_transport_injects_rules_file(env, tmp_path, monkeypatch):
             "interaction_id": "i1", "kind": "execute", "status": "ok",
             "quality": {"score": 0.9, "known_gaps": [], "notes": ""},
             "result": {"outcome": {"kind": "artifact", "artifact": {"path": rel, "title": "x"}}},
-        }, paths.response_dir("researcher") / "i1.response")
+        }, paths.response_dir("research") / "i1.response")
 
     adapter = FakeAdapter(["_submit"], on_run=write_resp)
-    transport = AdapterTransport(adapter=adapter, agents_config={"researcher": {"model": "m1"}},
+    transport = AdapterTransport(adapter=adapter, agents_config={"research": {"model": "m1"}},
                                  request_factory=lambda **kw: types.SimpleNamespace(**kw))
     port = AgentPort(transport, store=store, config=wcfg)
     res = port.run(_req())
@@ -168,12 +168,12 @@ def test_transport_forwards_events_and_meters_tokens(env):
             "interaction_id": "i1", "kind": "execute", "status": "ok",
             "quality": {"score": 0.9, "known_gaps": [], "notes": ""},
             "result": {"outcome": {"kind": "artifact", "artifact": {"path": rel, "title": "x"}}},
-        }, paths.response_dir("researcher") / "i1.response")
+        }, paths.response_dir("research") / "i1.response")
 
     events = [FakeEvent("step_start"), FakeEvent("text", {"chunk": "hi"}),
               "_submit", FakeEvent("step_finish", {"tokens": 256})]
     adapter = FakeAdapter(events, on_run=write_resp)
-    transport = AdapterTransport(adapter=adapter, agents_config={"researcher": {"model": "m1"}},
+    transport = AdapterTransport(adapter=adapter, agents_config={"research": {"model": "m1"}},
                                  request_factory=lambda **kw: types.SimpleNamespace(**kw))
 
     port = AgentPort(transport, store=store, config=wcfg)
@@ -181,7 +181,7 @@ def test_transport_forwards_events_and_meters_tokens(env):
     assert res.status == "done"
     # 适配器拿到正确的 workspace/model/agent
     assert adapter.last_request.model == "m1"
-    assert adapter.last_request.agent_id == "researcher"
+    assert adapter.last_request.agent_id == "research"
     # 事件被转发入库
     kinds = [e["kind"] for e in store.list_run_events("i1")]
     assert "step_start" in kinds and "text" in kinds
@@ -200,7 +200,7 @@ def test_meters_cumulative_opencode_tokens(env):
             "interaction_id": "i1", "kind": "execute", "status": "ok",
             "quality": {"score": 0.9, "known_gaps": [], "notes": ""},
             "result": {"outcome": {"kind": "artifact", "artifact": {"path": rel, "title": "x"}}},
-        }, paths.response_dir("researcher") / "i1.response")
+        }, paths.response_dir("research") / "i1.response")
 
     events = [
         FakeEvent("step_finish", {"tokens": {"input": 10631, "output": 395, "total": 11026}}),
@@ -209,7 +209,7 @@ def test_meters_cumulative_opencode_tokens(env):
         FakeEvent("step_finish", {"tokens": {"input": 3187, "output": 174, "total": 11553}}),
     ]
     adapter = FakeAdapter(events, on_run=write_resp)
-    transport = AdapterTransport(adapter=adapter, agents_config={"researcher": {"model": "m1"}},
+    transport = AdapterTransport(adapter=adapter, agents_config={"research": {"model": "m1"}},
                                  request_factory=lambda **kw: types.SimpleNamespace(**kw))
     port = AgentPort(transport, store=store, config=wcfg)
     res = port.run(_req())
@@ -229,7 +229,7 @@ def test_meters_claude_result_tokens_without_total(env):
             "interaction_id": "i1", "kind": "execute", "status": "ok",
             "quality": {"score": 0.9, "known_gaps": [], "notes": ""},
             "result": {"outcome": {"kind": "artifact", "artifact": {"path": rel, "title": "x"}}},
-        }, paths.response_dir("researcher") / "i1.response")
+        }, paths.response_dir("research") / "i1.response")
 
     events = [
         "_submit",
@@ -239,7 +239,7 @@ def test_meters_claude_result_tokens_without_total(env):
         }),
     ]
     adapter = FakeAdapter(events, on_run=write_resp)
-    transport = AdapterTransport(adapter=adapter, agents_config={"researcher": {"model": "m1"}},
+    transport = AdapterTransport(adapter=adapter, agents_config={"research": {"model": "m1"}},
                                  request_factory=lambda **kw: types.SimpleNamespace(**kw))
     port = AgentPort(transport, store=store, config=wcfg)
     res = port.run(_req())
@@ -259,7 +259,7 @@ def test_transport_uses_per_agent_backend(env, monkeypatch):
             "interaction_id": "i1", "kind": "execute", "status": "ok",
             "quality": {"score": 0.9, "known_gaps": [], "notes": ""},
             "result": {"outcome": {"kind": "artifact", "artifact": {"path": rel, "title": "x"}}},
-        }, paths.response_dir("researcher") / "i1.response")
+        }, paths.response_dir("research") / "i1.response")
 
     class TaggedAdapter(FakeAdapter):
         def __init__(self, tag):
@@ -276,7 +276,7 @@ def test_transport_uses_per_agent_backend(env, monkeypatch):
     monkeypatch.setattr("common.agent_transport._default_adapter", fake_default)
 
     transport = AdapterTransport(
-        agents_config={"researcher": {"backend": "claude", "model": "claude-sonnet-4-6"}},
+        agents_config={"research": {"backend": "claude", "model": "claude-sonnet-4-6"}},
         backend="opencode",
         request_factory=lambda **kw: types.SimpleNamespace(**kw),
     )
@@ -290,7 +290,7 @@ def test_transport_two_agents_different_backends(env, monkeypatch):
     """R-K14：同一 Transport 内两 agent 可并存不同 CLI backend。"""
     store, wcfg = env
     used: dict[str, list[str]] = {}
-    current = {"iid": "i-r", "agent": "researcher"}
+    current = {"iid": "i-r", "agent": "research"}
 
     def write_resp(run_request):
         aid = getattr(run_request, "agent_id", current["agent"])
@@ -309,7 +309,7 @@ def test_transport_two_agents_different_backends(env, monkeypatch):
             self.tag = tag
 
         def run(self, request):
-            aid = getattr(request, "agent_id", "researcher")
+            aid = getattr(request, "agent_id", "research")
             used.setdefault(aid, []).append(self.tag)
             return super().run(request)
 
@@ -317,7 +317,7 @@ def test_transport_two_agents_different_backends(env, monkeypatch):
 
     transport = AdapterTransport(
         agents_config={
-            "researcher": {"backend": "claude", "model": "claude-sonnet-4-6"},
+            "research": {"backend": "claude", "model": "claude-sonnet-4-6"},
             "writer": {"backend": "opencode", "model": "gpt-4"},
         },
         backend="opencode",
@@ -325,13 +325,13 @@ def test_transport_two_agents_different_backends(env, monkeypatch):
     )
     port = AgentPort(transport, store=store, config=wcfg)
 
-    req_r = {**_req("i-r"), "agent_id": "researcher", "task_id": "task_r"}
+    req_r = {**_req("i-r"), "agent_id": "research", "task_id": "task_r"}
     req_w = {**_req("i-w"), "agent_id": "writer", "task_id": "task_w"}
-    current.update(iid="i-r", agent="researcher")
+    current.update(iid="i-r", agent="research")
     assert port.run(req_r).status == "done"
     current.update(iid="i-w", agent="writer")
     assert port.run(req_w).status == "done"
-    assert used["researcher"] == ["claude"]
+    assert used["research"] == ["claude"]
     assert used["writer"] == ["opencode"]
 
 
@@ -347,10 +347,10 @@ def test_transport_cancel_event_wired(env):
             "interaction_id": "i1", "kind": "execute", "status": "ok",
             "quality": {"score": 0.9, "known_gaps": [], "notes": ""},
             "result": {"outcome": {"kind": "artifact", "artifact": {"path": rel, "title": "x"}}},
-        }, paths.response_dir("researcher") / "i1.response")
+        }, paths.response_dir("research") / "i1.response")
 
     adapter = FakeAdapter([FakeEvent("step_start"), "_submit"], on_run=write_resp)
-    transport = AdapterTransport(adapter=adapter, agents_config={"researcher": {"model": "m1"}},
+    transport = AdapterTransport(adapter=adapter, agents_config={"research": {"model": "m1"}},
                                  request_factory=lambda **kw: types.SimpleNamespace(**kw))
     port = AgentPort(transport, store=store, config=wcfg)
     port.run(_req())
@@ -363,18 +363,18 @@ def test_config_reloads_from_disk_when_not_injected(monkeypatch):
 
     def load():
         calls["n"] += 1
-        return {"researcher": {"model": f"m{calls['n']}"}}
+        return {"research": {"model": f"m{calls['n']}"}}
 
     monkeypatch.setattr("common.agent_transport._load_agents_config", load)
     transport = AdapterTransport(adapter=FakeAdapter([]))
-    assert transport._model("researcher") == "m1"
-    assert transport._model("researcher") == "m2"
+    assert transport._model("research") == "m1"
+    assert transport._model("research") == "m2"
 
 
 def test_lookup_interaction_session_reads_latest(env):
     store, _ = env
     iid = "pro_x:t1:execute:1"
-    store.create_interaction(iid, "execute", "pro_x", task_id="t1", agent_id="researcher")
+    store.create_interaction(iid, "execute", "pro_x", task_id="t1", agent_id="research")
     store.append_run_event(iid, "session", {"session_id": "sess-old"})
     store.append_run_event(iid, "session", {"session_id": "sess-new"})
     assert lookup_interaction_session(store, iid) == "sess-new"
@@ -383,12 +383,12 @@ def test_lookup_interaction_session_reads_latest(env):
 def test_resolve_gate_retry_session_from_store(env):
     store, _ = env
     store.create_interaction("pro_x:t1:execute:1", "execute", "pro_x",
-                             task_id="t1", agent_id="researcher")
+                             task_id="t1", agent_id="research")
     store.append_run_event("pro_x:t1:execute:1", "session", {"session_id": "sess-abc"})
     from common.contracts import parse_request
     req = parse_request({
         "interaction_id": "pro_x:t1:execute:2", "kind": "execute",
-        "project_id": "pro_x", "task_id": "t1", "agent_id": "researcher",
+        "project_id": "pro_x", "task_id": "t1", "agent_id": "research",
         "input": {}, "response_schema": "execute.result@1.0",
     })
     assert resolve_gate_retry_session(store, req) == "sess-abc"
@@ -398,7 +398,7 @@ def test_gate_retry_emits_gate_retry_session_event(env):
     """R-K17：attempt>1 且 resolver 返回 session 时写入 gate_retry_session。"""
     store, _ = env
     store.create_interaction("pro_x:t1:execute:1", "execute", "pro_x",
-                             task_id="t1", agent_id="researcher")
+                             task_id="t1", agent_id="research")
     store.append_run_event("pro_x:t1:execute:1", "session", {"session_id": "sess-abc"})
 
     import threading
@@ -418,7 +418,7 @@ def test_gate_retry_emits_gate_retry_session_event(env):
 
     req = parse_request({
         "interaction_id": "pro_x:t1:execute:2", "kind": "execute",
-        "project_id": "pro_x", "task_id": "t1", "agent_id": "researcher",
+        "project_id": "pro_x", "task_id": "t1", "agent_id": "research",
         "input": {"deliverable_path": "t1.md", "deliverable_base": "/tmp"},
         "response_schema": "execute.result@1.0",
     })
@@ -428,7 +428,7 @@ def test_gate_retry_emits_gate_retry_session_event(env):
     adapter = FakeAdapter([FakeEvent("step_start")])
     transport = AdapterTransport(
         adapter=adapter,
-        agents_config={"researcher": {"model": "m1"}},
+        agents_config={"research": {"model": "m1"}},
         request_factory=lambda **kw: types.SimpleNamespace(**kw),
         session_resolver=make_gate_session_resolver(store),
         prompt_builder=lambda *a, **k: "prompt",
@@ -457,7 +457,7 @@ def test_gate_session_resolver_passes_session_on_retry(env):
             "quality": {"score": 0.9, "known_gaps": [], "notes": ""},
             "result": {"outcome": {"kind": "artifact",
                                    "artifact": {"path": rel, "title": "x"}}},
-        }, paths.response_dir("researcher") / f"{iid}.response")
+        }, paths.response_dir("research") / f"{iid}.response")
 
     adapter = FakeAdapter(
         [FakeEvent("session", {"session_id": "sess-retry"}), FakeEvent("step_start"), "_submit"],
@@ -465,7 +465,7 @@ def test_gate_session_resolver_passes_session_on_retry(env):
     )
     transport = AdapterTransport(
         adapter=adapter,
-        agents_config={"researcher": {"model": "m1"}},
+        agents_config={"research": {"model": "m1"}},
         request_factory=lambda **kw: types.SimpleNamespace(**kw),
         session_resolver=make_gate_session_resolver(store),
     )
@@ -478,14 +478,14 @@ def test_gate_session_resolver_passes_session_on_retry(env):
 def test_config_uses_injected_dict(monkeypatch):
     monkeypatch.setattr(
         "common.agent_transport._load_agents_config",
-        lambda: {"researcher": {"model": "from_disk"}},
+        lambda: {"research": {"model": "from_disk"}},
     )
     transport = AdapterTransport(
         adapter=FakeAdapter([]),
-        agents_config={"researcher": {"model": "fixed"}},
+        agents_config={"research": {"model": "fixed"}},
     )
-    assert transport._model("researcher") == "fixed"
-    assert transport._model("researcher") == "fixed"
+    assert transport._model("research") == "fixed"
+    assert transport._model("research") == "fixed"
 
 
 def test_parallel_execute_workspace_isolated(tmp_path, monkeypatch):

@@ -78,10 +78,10 @@ def main() -> int:
     results = {}
 
     l2_pid = os.environ.get("TIER_L2_PROJECT", "tier-l2-upg")
-    l2_wf = os.environ.get("TIER_L2_WORKFLOW", "tier-l2-heavy")
+    l2_wf = os.environ.get("TIER_L2_WORKFLOW", "GitHub项目调研")
     rc = _run(l2_pid, [
-        "--goal", "Tier L2+：AionUi 三视角 + requirements + strategy",
-        "--title", "Tier L2+ 加重",
+        "--goal", "Tier L2：GitHub 开源项目三视角并行调研（产品/架构/工程化）",
+        "--title", "Tier L2 并行调研",
         "--workflow", l2_wf,
     ])
     results["tier-l2"] = {"exit": rc, "kpi": _kpi(l2_pid), "workflow": l2_wf}

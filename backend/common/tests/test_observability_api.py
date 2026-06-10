@@ -30,9 +30,9 @@ def client(tmp_path, monkeypatch):
     db = tmp_path / "state.db"
     seed = Store(db)
     seed.upsert_project("p1", title="GEO", status="in_progress")
-    seed.upsert_task("p1", "task_001", agent="researcher", task_type="research",
+    seed.upsert_task("p1", "task_001", agent="research", task_type="research",
                      status="needs_review")
-    seed.create_interaction(IID, "execute", "p1", task_id="task_001", agent_id="researcher")
+    seed.create_interaction(IID, "execute", "p1", task_id="task_001", agent_id="research")
     seed.append_run_event(IID, "step_start", {"i": 0})
     seed.append_run_event(IID, "step_finish", {"tokens": {"total": 123}})
     seed.update_interaction(IID, status="done", tokens=123, response_ref="x.response")
@@ -69,6 +69,8 @@ def test_task_types_route(client):
     assert r.status_code == 200
     tts = r.json()["task_types"]
     assert tts and all("task_type" in t and "outcome_kind" in t for t in tts)
+    research = next(t for t in tts if t["task_type"] == "research")
+    assert research.get("display_name") == "调研"
 
 
 def test_memory_route(client):
@@ -85,13 +87,13 @@ def test_cost(client):
     assert r.status_code == 200
     data = r.json()
     assert data["project"] == 123
-    assert data["by_agent"] == {"researcher": 123}
+    assert data["by_agent"] == {"research": 123}
     assert data["by_task"] == {"task_001": 123}
 
 
 def test_fleet(client):
     r = client.get("/api/obs/projects/p1/fleet")
-    assert r.json()["fleet"] == {"researcher": "done"}
+    assert r.json()["fleet"] == {"research": "done"}
 
 
 def test_summary_route(client):

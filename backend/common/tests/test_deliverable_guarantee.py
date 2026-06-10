@@ -34,6 +34,15 @@ def test_scaffold_writes_required_sections(tmp_path):
     assert "测试报告" in text
 
 
+def test_scaffold_omits_task_intent_block(tmp_path):
+    spec = FormatSpec(task_type="research", required_sections=["调研背景"], required_heading_level=2)
+    p = tmp_path / "t1_deliverable.md"
+    scaffold_markdown_deliverable(p, spec, title="报告")
+    text = p.read_text(encoding="utf-8")
+    assert "任务意图" not in text
+    assert "【项目目标】" not in text
+
+
 def test_deliverable_has_substance_rejects_empty_skeleton(tmp_path):
     spec = FormatSpec(task_type="research", stub_floor=20)
     skeleton = "## 调研背景\n\n## 结论\n"

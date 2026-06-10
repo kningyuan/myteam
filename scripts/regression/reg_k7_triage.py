@@ -40,7 +40,7 @@ def _seed_case(tmp: Path) -> Path:
         ("drop", "", "", True),
         ("reassign", "seo", "", True),
         ("retry", "", "因 gate_exhausted 中止重试", True),
-        ("retry", "researcher", "", True),
+        ("retry", "research", "", True),
         ("retry", "", "", False),
     ]
     resp_root = tmp / "responses"

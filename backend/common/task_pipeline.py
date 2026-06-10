@@ -79,13 +79,14 @@ class TaskPipeline:
                     deliverable_abs_path(base_dir, rel_path, task_type),
                     spec,
                     title=task.get("name", tid),
-                    intent=task.get("description", task.get("name", "")),
                 )
             inp = {
                 "task": task,
                 "deliverable_path": rel_path,
                 "deliverable_base": str(base_dir),
             }
+            if spec and spec.acceptance_criteria:
+                inp["acceptance_criteria"] = list(spec.acceptance_criteria)
             if attempt > 1:
                 prev_sid = lookup_interaction_session(
                     self.store, f"{project_id}:{tid}:execute:{attempt - 1}",

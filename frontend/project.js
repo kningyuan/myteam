@@ -70,9 +70,14 @@ async function loadProjects() {
   try {
     const r = await fetch('/api/obs/projects');
     const d = await r.json();
+    if (!r.ok) throw new Error(apiErr(d, `HTTP ${r.status}`));
     S.projects = d.projects || [];
     if (DOM['project-count']) DOM['project-count'].textContent = S.projects.length;
-  } catch (e) { console.error('projects:', e); S.projects = []; }
+  } catch (e) {
+    console.error('projects:', e);
+    S.projects = [];
+    showToast('项目列表加载失败：' + (e.message || e), 'error');
+  }
 }
 function renderProjectList() {
   if (!DOM['project-list']) return;
@@ -118,7 +123,10 @@ async function selectProject(id, opts = {}) {
     delete dagEl.dataset.dagScale;
     delete dagEl.dataset.dagPanX;
     delete dagEl.dataset.dagPanY;
+    delete dagEl.dataset.dagUserZoom;
     delete dagEl._dagPanSetup;
+    dagEl._dagResizeObs?.disconnect();
+    delete dagEl._dagResizeObs;
   }
   stopProjectPoll();
   for (const k in _renderSig) delete _renderSig[k];
@@ -156,7 +164,8 @@ async function refreshProjectDetail(id) {
     DOM['btn-resume-project']?.classList.toggle('hidden', !resumable);
     DOM['btn-cancel-project']?.classList.toggle('hidden', !active);
     setTextIfChanged(DOM['project-title'], ov.title || id);
-    const launchErr = rs && rs.error ? ` · 异常: ${rs.error}` : '';
+    const errMsg = (ov.launch_error || (rs && rs.error) || '').trim();
+    const launchErr = errMsg ? ` · 异常: ${errMsg}` : '';
     const totalTok = (cost && cost.project) || ov.tokens || 0;
     const rateEarly = await getPriceRate();
     const tokHint = totalTok ? ` · ${totalTok.toLocaleString()} tok${fmtYuan(totalTok, rateEarly)}` : '';
@@ -182,7 +191,9 @@ async function refreshProjectDetail(id) {
             <span class="task-status" data-label="状态"><span class="status-chip s-${esc(st)}">${esc(stLabel)}</span></span>
           </div>`;
         }).join('')
-      : (rs.running ? '<div class="empty">内核启动中（team_config / task_plan 决策中）…</div>' : '<div class="empty">暂无任务</div>');
+      : (rs.running ? '<div class="empty">内核启动中（team_config / task_plan 决策中）…</div>'
+        : errMsg ? `<div class="project-launch-error"><strong>启动失败</strong><p>${esc(errMsg)}</p></div>`
+        : '<div class="empty">暂无任务</div>');
     if (setHtmlIfChanged(DOM['project-tasks'], 'tasks', tasksHtml)) {
       DOM['project-tasks'].querySelectorAll('.task-row.clickable').forEach(el => {
         el.addEventListener('click', () => { highlightProjectTask(el.dataset.task); openDeliverable(id, el.dataset.task); });
@@ -266,6 +277,9 @@ function switchProjectTab(ptab, opts = {}) {
   document.querySelectorAll('.project-subnav .ptab').forEach(b => b.classList.toggle('active', b.dataset.ptab === ptab));
   document.querySelectorAll('.ptab-panel').forEach(p => p.classList.toggle('active', p.dataset.ptab === ptab));
   if (ptab === 'deliverable' && !opts.skipDeliverableLoad) { void ensureDeliverablePanel(); }
+  if (ptab === 'dag' && typeof fitProjectDag === 'function') {
+    requestAnimationFrame(() => fitProjectDag());
+  }
   if (!opts.skipSave && S.currentProjectId) saveUiState();
 }
 

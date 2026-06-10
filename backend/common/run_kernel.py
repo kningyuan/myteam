@@ -173,6 +173,18 @@ def run_project(project_id: str, *, goal: str = "", title: str = "",
             watchdog = resolved_wdog
     else:
         base_cfg = config
+        if workflow:
+            # Hub 传入预建 config，但 workflow 的标志仍需合并（不覆盖请求体的显式参数）
+            if wf_parallel:
+                base_cfg.parallel_enabled = True
+                base_cfg.max_parallel = wf_max_parallel
+            if wf_skill_extract:
+                base_cfg.skill_extract_enabled = True
+            # review / split：只在请求体未显式传 True 时才从 workflow 升级
+            if not review and wf_review:
+                base_cfg.review_enabled = True
+            if not split and wf_split:
+                base_cfg.split_enabled = True
     port = AgentPort(
         transport, store=store, config=watchdog or WatchdogConfig(),
         budget_checker=_budget_checker(store, base_cfg.token_budget),

@@ -1,0 +1,125 @@
+{
+  "version": "1.0",
+  "description": "四条业务线 Agent 名册与 task_types 权威配置；由 scripts/bootstrap_business_roster.py 合并进 agents_registry.json",
+  "agents": {
+    "main": {
+      "name": "项目经理",
+      "role": "coordinator",
+      "description": "项目协调、阶段决策、验收汇总与部署记录",
+      "capabilities": ["协调", "决策", "阶段闸门", "部署记录", "验收汇总"],
+      "task_types": ["strategy", "decision-record", "code-deployment"]
+    },
+    "deputy": {
+      "name": "副协调",
+      "role": "coordinator",
+      "description": "周期复盘与策略辅助评审",
+      "capabilities": ["周期复盘", "策略评审"],
+      "task_types": ["strategy"]
+    },
+    "product": {
+      "name": "产品专家",
+      "role": "worker",
+      "description": "需求、策略、验收；明确范围与验收标准",
+      "capabilities": ["需求", "策略", "验收", "优先级", "调研补充"],
+      "task_types": ["research", "requirements", "strategy", "acceptance-report", "architecture-review"]
+    },
+    "arch": {
+      "name": "架构师",
+      "role": "worker",
+      "description": "系统方案、架构评审、架构视角调研；不主责完整工程 owner",
+      "capabilities": ["系统设计", "架构评审", "API", "架构调研"],
+      "task_types": ["system-design", "architecture-review", "code-review", "research"]
+    },
+    "developer": {
+      "name": "系统架构师 & 研发专家",
+      "role": "architect_developer",
+      "description": "领域建模、ADR、API 设计、核心实现与代码评审",
+      "capabilities": ["系统设计", "核心实现", "代码评审", "工程化调研"],
+      "task_types": ["system-design", "architecture-review", "code-writing", "code-deliverable", "code-review", "research"]
+    },
+    "frontend": {
+      "name": "前端架构师",
+      "role": "worker",
+      "description": "前端/UI 方案与实现",
+      "capabilities": ["前端架构", "UI", "交互", "代码实现"],
+      "task_types": ["system-design", "architecture-review", "code-writing", "code-review"]
+    },
+    "tester": {
+      "name": "测试专家",
+      "role": "tester",
+      "description": "测试计划、用例与测试工程",
+      "capabilities": ["测试计划", "自动化测试", "质量评估"],
+      "task_types": ["test-plan", "code-testing", "code-review", "architecture-review"]
+    },
+    "qa": {
+      "name": "测试专家",
+      "role": "worker",
+      "description": "测试计划、回归与质量评审",
+      "capabilities": ["测试计划", "回归", "质量评审"],
+      "task_types": ["test-plan", "code-testing", "code-review", "architecture-review"]
+    },
+    "test_dev": {
+      "name": "开发支援",
+      "role": "developer",
+      "description": "脚本补丁与小模块原型",
+      "capabilities": ["脚本", "原型", "打补丁"],
+      "task_types": ["code-writing"]
+    },
+    "research": {
+      "name": "研究员",
+      "role": "worker",
+      "description": "行业/竞品/受众通用调研",
+      "capabilities": ["调研", "竞品分析", "证据整理"],
+      "task_types": ["research", "architecture-review"]
+    },
+    "analyst": {
+      "name": "数据分析师",
+      "role": "worker",
+      "description": "指标口径、数据分析报告与可复用分析脚本",
+      "capabilities": ["指标口径", "数据分析", "可视化结论", "分析脚本"],
+      "task_types": ["data-analysis", "research", "strategy", "code-writing"]
+    },
+    "content": {
+      "name": "内容专家",
+      "role": "worker",
+      "description": "长文内容生产与结构化写作",
+      "capabilities": ["内容写作", "读者体验", "引用规范"],
+      "task_types": ["content", "architecture-review"]
+    },
+    "docs": {
+      "name": "文档专家",
+      "role": "worker",
+      "description": "技术/流程文档整理与可读性优化",
+      "capabilities": ["文档结构化", "交付物汇总"],
+      "task_types": ["content"]
+    },
+    "social": {
+      "name": "社媒运营",
+      "role": "worker",
+      "description": "内容发布与平台动作证据",
+      "capabilities": ["平台发布", "发布证据"],
+      "task_types": ["publish-post"]
+    },
+    "seo": {
+      "name": "SEO专家",
+      "role": "worker",
+      "description": "关键词、技术 SEO 与传统搜索内容策略",
+      "capabilities": ["关键词研究", "技术SEO", "内容集群"],
+      "task_types": ["seo-plan", "research"]
+    },
+    "geo": {
+      "name": "GEO专家",
+      "role": "worker",
+      "description": "生成式引擎优化：策略、审计、效果验证与改稿指导",
+      "capabilities": ["GEO策略", "内容可引用性", "AI搜索可见性", "效果验证"],
+      "task_types": ["geo-plan", "geo-audit", "geo-verification", "research", "content"]
+    },
+    "ops": {
+      "name": "运维专家",
+      "role": "worker",
+      "description": "部署、验证与回滚记录",
+      "capabilities": ["部署", "健康检查", "回滚"],
+      "task_types": ["code-deployment"]
+    }
+  }
+}

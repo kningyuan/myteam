@@ -38,22 +38,33 @@ def test_run_requires_goal(client):
     assert r.status_code == 400
 
 
-def test_run_starts_background(client, monkeypatch):
+def test_run_starts_background(client, tmp_path, monkeypatch):
+    db = tmp_path / "state.db"
+    orig = cstore.Store
+    monkeypatch.setattr(cstore, "Store", lambda *a, **k: orig(db))
+
     calls = {}
     monkeypatch.setattr(srv, "_run_kernel_bg",
                         lambda *a, **k: calls.setdefault("hit", True))
     pid = "ui_test_proj_unit"
-    srv._KERNEL_RUNS.pop(pid, None)
-    r = client.post("/api/projects/run",
-                    json={"goal": "做点事", "project_id": pid, "mode": "one_shot"})
-    assert r.status_code == 200
-    body = r.json()
-    assert body["started"] is True and body["project_id"] == pid
-    # 重复发起（标记 running）→ 409
-    srv._KERNEL_RUNS[pid] = {"running": True, "error": None}
-    r2 = client.post("/api/projects/run", json={"goal": "x", "project_id": pid})
-    assert r2.status_code == 409
-    srv._KERNEL_RUNS.pop(pid, None)
+    try:
+        srv._clear_kernel_run(pid)
+        srv._KERNEL_RUNS.pop(pid, None)
+        r = client.post("/api/projects/run",
+                        json={"goal": "做点事", "project_id": pid, "mode": "one_shot"})
+        assert r.status_code == 200
+        body = r.json()
+        assert body["started"] is True and body["project_id"] == pid
+        # 发起瞬间落库，刷新后列表仍可见
+        obs = client.get("/api/obs/projects")
+        assert obs.status_code == 200
+        assert any(p["id"] == pid for p in obs.json()["projects"])
+        # 重复发起（标记 running）→ 409
+        srv._KERNEL_RUNS[pid] = {"running": True, "error": None}
+        r2 = client.post("/api/projects/run", json={"goal": "x", "project_id": pid})
+        assert r2.status_code == 409
+    finally:
+        srv._KERNEL_RUNS.pop(pid, None)
 
 
 def test_deliverable_path_safety(client):

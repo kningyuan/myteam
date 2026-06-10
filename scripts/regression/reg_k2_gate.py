@@ -41,10 +41,10 @@ def _seed_case(tmp: Path) -> Path:
         ("t5", [("gate_failed", 1)]),
     ]
     for tid, events in cases:
-        store.upsert_task(PROJECT_ID, tid, agent="researcher")
+        store.upsert_task(PROJECT_ID, tid, agent="research")
         for kind, attempt in events:
             iid = f"{PROJECT_ID}:{tid}:execute:{attempt}"
-            store.create_interaction(iid, "execute", PROJECT_ID, task_id=tid, agent_id="researcher")
+            store.create_interaction(iid, "execute", PROJECT_ID, task_id=tid, agent_id="research")
             store.append_run_event(iid, kind, {})
 
     store.close()

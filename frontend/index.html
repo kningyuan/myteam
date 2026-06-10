@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="/static/tokens.css?v=5">
 <link rel="stylesheet" href="/static/layout.css?v=5">
 <link rel="stylesheet" href="/static/components.css?v=5">
-<link rel="stylesheet" href="/static/pages.css?v=5">
+<link rel="stylesheet" href="/static/pages.css?v=8">
 <link rel="stylesheet" href="/static/style.css?v=50">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
@@ -25,6 +25,7 @@
       <button class="nav-tab" data-tab="groups"><span data-icon="users"></span> 群组</button>
       <button class="nav-tab" data-tab="projects"><span data-icon="clipboard"></span> 项目</button>
       <button class="nav-tab" data-tab="agents"><span data-icon="sliders"></span> 管理</button>
+      <button class="nav-tab" data-tab="workflows"><span data-icon="clipboard"></span> Workflow</button>
       <button class="nav-tab" data-tab="settings"><span data-icon="settings"></span> 设置</button>
     </div>
     <div class="nav-actions">
@@ -229,7 +230,7 @@
 
             <!-- DAG 图：拓扑任务依赖 -->
             <div class="ptab-panel" data-ptab="dag">
-              <p class="hint dag-hint">滚轮缩放 · 拖拽空白处平移 · 点击节点查看交付物</p>
+              <p class="hint dag-hint">默认适应窗口 · 滚轮缩放 · 拖拽平移 · 点击节点查看交付物</p>
               <div id="dag-container" class="dag-container"></div>
             </div>
 
@@ -285,9 +286,12 @@
               <h2>Agent 管理</h2>
               <span class="badge" id="manage-agent-count">0</span>
             </div>
-            <button id="btn-create-agent" class="btn-primary"><span data-icon="plus"></span> 创建 Agent</button>
+            <div class="manage-header-actions">
+              <button type="button" id="btn-sync-task-types" class="btn-secondary btn-sm">补全任务类型</button>
+              <button id="btn-create-agent" class="btn-primary"><span data-icon="plus"></span> 创建 Agent</button>
+            </div>
           </div>
-          <p class="subtitle">管理所有 Agent 的配置、后端和模型</p>
+          <p class="subtitle">管理所有 Agent 的配置、后端和模型；未配置「可执行任务类型」的 Agent 无法被 workflow 正确指派</p>
           <div id="manage-agent-table"></div>
 
           <div class="manage-header mt-section">
@@ -295,8 +299,9 @@
               <h2>任务类型</h2>
               <span class="badge" id="manage-tasktype-count">0</span>
             </div>
+            <button type="button" id="btn-new-tasktype" class="btn-secondary btn-sm">新建类型</button>
           </div>
-          <p class="subtitle">业务任务类型注册表（task_type 约束的单一出处，只读）</p>
+          <p class="subtitle">定义交付物模板与门禁；Agent 须在此注册类型中勾选方可执行</p>
           <div id="manage-tasktype-table"></div>
 
           <div class="manage-header mt-section">
@@ -307,6 +312,80 @@
           </div>
           <p class="subtitle">项目沉淀的长期记忆 / KB 条目（只读）</p>
           <div id="manage-memory-table"></div>
+        </div>
+      </div>
+
+      <!-- Tab: Workflows -->
+      <div id="tab-workflows" class="tab-content">
+        <div class="wf-panel">
+          <aside class="wf-sidebar">
+            <div class="wf-sidebar-head">
+              <h2>Workflow</h2>
+              <button type="button" id="wf-new" class="btn-secondary btn-sm">新建</button>
+            </div>
+            <p class="hint">配置一类任务的 DAG 配方；具体实例（如 GitHub 仓库）在发起项目时填写 goal</p>
+            <ul id="wf-list" class="wf-list"></ul>
+          </aside>
+          <div class="wf-main">
+            <div id="wf-welcome" class="wf-welcome">
+              <p>选择左侧 workflow 编辑，或点击「新建」</p>
+              <p class="hint">description 写类任务变量（对象/视角/范围）；具体仓库链接待【项目目标】；格式由 task_type 模板承担</p>
+            </div>
+            <div id="wf-editor" class="wf-editor hidden">
+              <div class="wf-form-grid">
+                <div class="form-group">
+                  <label>ID</label>
+                  <input id="wf-id" type="text" placeholder="GitHub项目调研（支持中文/英文/混合）">
+                </div>
+                <div class="form-group">
+                  <label>版本</label>
+                  <input id="wf-version" type="text" placeholder="1.0">
+                </div>
+                <div class="form-group wf-span-2">
+                  <label>描述</label>
+                  <div class="wf-desc-row">
+                    <input id="wf-description" type="text" placeholder="例：对 GitHub 开源项目做三视角调研并汇总">
+                    <button type="button" id="wf-suggest" class="btn-secondary btn-sm">自动推导</button>
+                  </div>
+                  <p class="hint">根据描述生成任务列表草稿（可再编辑）；具体实例在发起项目时填 goal</p>
+                </div>
+                <div class="form-group form-row-check">
+                  <label><input type="checkbox" id="wf-review"> 同行评审</label>
+                </div>
+                <div class="form-group form-row-check">
+                  <label><input type="checkbox" id="wf-split"> 自动拆分</label>
+                </div>
+                <div class="form-group form-row-check">
+                  <label><input type="checkbox" id="wf-parallel"> 允许并行</label>
+                </div>
+                <div class="form-group">
+                  <label>最大并行数</label>
+                  <input id="wf-max-parallel" type="number" min="1" max="8" value="3">
+                </div>
+              </div>
+              <div class="wf-tasks-wrap">
+                <div class="wf-tasks-head">
+                  <h3>任务列表</h3>
+                  <button type="button" id="wf-add-task" class="btn-secondary btn-sm">添加任务</button>
+                </div>
+                <div class="wf-tasks-scroll">
+                  <table class="wf-tasks-table">
+                    <thead>
+                      <tr>
+                        <th class="wf-col-order">顺序</th><th>ID</th><th>名称</th><th>Agent</th><th>类型</th><th>依赖</th><th>description</th><th></th>
+                      </tr>
+                    </thead>
+                    <tbody id="wf-tasks-body"></tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="wf-actions">
+                <div id="wf-status" class="form-status"></div>
+                <button type="button" id="wf-delete" class="btn-secondary danger">删除</button>
+                <button type="button" id="wf-save" class="btn-primary">保存</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -358,8 +437,44 @@
             </section>
 
             <section class="settings-card">
-              <h3 class="settings-section-title">协作引擎</h3>
-              <p class="hint">任务执行、项目群通报（进度走 myteam 项目群，不用 Telegram）</p>
+              <h3 class="settings-section-title">协作引擎 · 金路径</h3>
+              <p class="hint">已验证可跑通的默认参数；新建项目将自动套用默认预算</p>
+              <div class="form-group">
+                <label>默认项目预算（tokens）</label>
+                <input id="set-default-budget" type="number" min="10000" step="10000" placeholder="1000000">
+              </div>
+              <div class="form-group">
+                <label>Gate 最大重试</label>
+                <input id="set-max-gate-retries" type="number" placeholder="5" min="0">
+              </div>
+              <div class="form-group">
+                <label>软空闲超时（秒）</label>
+                <input id="set-soft-idle" type="number" placeholder="240" min="30">
+                <small class="field-hint">无 CLI 输出后开始计时的提醒阈值</small>
+              </div>
+              <div class="form-group">
+                <label>硬空闲超时（秒）</label>
+                <input id="set-hard-idle" type="number" placeholder="900" min="60">
+                <small class="field-hint">超时后尝试 adopt 交付物或终止 interaction</small>
+              </div>
+              <div class="form-group form-row-check">
+                <label><input type="checkbox" id="set-parallel-default"> workflow 默认允许并行</label>
+              </div>
+              <div class="form-group">
+                <label>最大并行数</label>
+                <input id="set-max-parallel" type="number" placeholder="3" min="1" max="8">
+              </div>
+              <div class="form-group">
+                <label>最大周期数（recurring）</label>
+                <input id="set-max-cycles" type="number" placeholder="3" min="1">
+              </div>
+              <div class="form-group form-row-check">
+                <label><input type="checkbox" id="set-split-default"> 新建项目默认开启自动拆分</label>
+              </div>
+            </section>
+
+            <section class="settings-card">
+              <h3 class="settings-section-title">协作引擎 · 通报与 Hub</h3>
               <div class="form-group">
                 <label>Hub URL</label>
                 <input id="set-hub-url" type="text" placeholder="http://127.0.0.1:8765">
@@ -372,10 +487,9 @@
               </div>
               <div class="form-group form-row-check">
                 <label><input type="checkbox" id="set-default-review"> 新建项目默认开启同行评审</label>
-                <small class="field-hint">勾选后「发起项目」对话框默认勾上评审；单个项目仍可临时改</small>
               </div>
               <details class="adv-section">
-                <summary>高级：超时与重试</summary>
+                <summary>高级：执行器超时与预算降级</summary>
                 <div class="adv-grid">
                   <div class="form-group">
                     <label>轮询间隔（秒）</label>
@@ -406,44 +520,22 @@
                     <input id="set-max-retries" type="number" placeholder="3" min="0">
                   </div>
                   <div class="form-group">
-                    <label>Gate 最大重试（内核）</label>
-                    <input id="set-max-gate-retries" type="number" placeholder="3" min="0">
-                  </div>
-                  <div class="form-group">
-                    <label>软空闲超时（秒）</label>
-                    <input id="set-soft-idle" type="number" placeholder="120" min="30">
-                  </div>
-                  <div class="form-group">
-                    <label>硬空闲超时（秒）</label>
-                    <input id="set-hard-idle" type="number" placeholder="300" min="60">
-                  </div>
-                  <div class="form-group">
-                    <label>最大周期数（recurring）</label>
-                    <input id="set-max-cycles" type="number" placeholder="3" min="1">
-                  </div>
-                  <div class="form-group form-row-check">
-                    <label><input type="checkbox" id="set-split-default"> 新建项目默认开启自动拆分</label>
-                  </div>
-                  <div class="form-group">
                     <label>预算降级阈值（%）</label>
                     <input id="set-budget-degrade-threshold" type="number" placeholder="80" min="1" max="99" step="1">
-                    <small class="field-hint">项目 token 用量达此比例时自动切换下方 backend/model（默认 80%）</small>
                   </div>
                   <div class="form-group">
                     <label>降级目标 backend</label>
                     <select id="set-budget-degrade-backend"></select>
-                    <small class="field-hint">留空表示不修改 backend，仅写 model 时无效</small>
                   </div>
                   <div class="form-group">
                     <label>降级目标 model</label>
                     <select id="set-budget-degrade-model"></select>
-                    <small class="field-hint">留空表示不修改 model</small>
                   </div>
                 </div>
               </details>
             </section>
           </div>
-          <p class="settings-advanced-hint">更多底层参数见 <code>config/skill_config.json</code> 与 <code>skill/team/.env</code></p>
+          <p class="settings-advanced-hint">配置写入 <code>config/skill_config.json</code>；Workflow 在「Workflow」Tab 管理</p>
           <div class="settings-actions">
             <div id="set-status" class="form-status"></div>
             <button id="btn-save-settings" class="btn-primary" type="button">保存设置</button>
@@ -596,8 +688,8 @@
             <input id="cf-agent-id" placeholder="自动生成">
           </div>
           <div class="form-group flex-1">
-            <label>中文名</label>
-            <input id="cf-name" placeholder="例：SEO 优化师">
+            <label>显示名称 <span class="required">*</span></label>
+            <input id="cf-name" placeholder="例：SEO 优化师（默认中文）">
           </div>
         </div>
         <div class="form-row">
@@ -624,6 +716,48 @@
   </div>
 </div>
 
+<!-- Task Type Modal -->
+<div id="tasktype-modal" class="modal hidden">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 id="tt-modal-title">任务类型</h3>
+      <button class="modal-close tt-modal-close" data-icon="x"></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group tt-desc-block">
+        <label>任务描述</label>
+        <textarea id="tt-description" rows="3" placeholder="例：对 GitHub 开源仓库做竞品调研，产出结构化 Markdown 报告"></textarea>
+        <div class="wf-desc-row">
+          <button type="button" id="tt-suggest" class="btn-secondary btn-sm">自动推导</button>
+          <span class="hint">本地关键词规则，不调用 opencode/claude CLI</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>类型 ID</label>
+        <input id="tt-id" placeholder="推导后生成，可改（小写/连字符）">
+      </div>
+      <div class="form-group">
+        <label>显示名称</label>
+        <input id="tt-display-name" placeholder="推导后可改，如：仓库调研">
+      </div>
+      <div class="form-group">
+        <label>产出形态</label>
+        <select id="tt-outcome"></select>
+        <p id="tt-outcome-hint" class="hint"></p>
+      </div>
+      <div class="form-group">
+        <label>必需章节（逗号分隔，可增删改）</label>
+        <input id="tt-sections" placeholder="调研背景, 关键发现, 结论">
+      </div>
+      <div id="tt-status" class="form-status"></div>
+    </div>
+    <div class="modal-footer">
+      <button id="tt-save" class="btn-primary">保存</button>
+      <button id="tt-cancel" class="btn-secondary">取消</button>
+    </div>
+  </div>
+</div>
+
 <!-- Agent Manage Modal -->
 <div id="manage-modal" class="modal hidden">
   <div class="modal-content">
@@ -637,8 +771,8 @@
         <input id="mm-id" readonly style="color:var(--text-tertiary);cursor:not-allowed">
       </div>
       <div class="form-group">
-        <label>名称</label>
-        <input id="mm-name" placeholder="Agent 名称">
+        <label>显示名称</label>
+        <input id="mm-name" placeholder="例：研究员（默认中文）">
       </div>
       <div class="form-group">
         <label>CLI 后端</label>
@@ -651,6 +785,12 @@
       <div class="form-group">
         <label>工作目录</label>
         <input id="mm-workspace" placeholder="/path/to/workspace">
+      </div>
+      <div class="form-group">
+        <label>可执行任务类型</label>
+        <p class="hint">勾选后该 Agent 才能被 workflow / 内核指派对应 task_type；类型须在下方「任务类型」中已注册。</p>
+        <button type="button" id="mm-suggest-task-types" class="btn-secondary btn-sm">按职责自动勾选</button>
+        <div id="mm-task-types" class="tasktype-checkboxes"></div>
       </div>
       <div id="mm-status" class="form-status"></div>
     </div>
@@ -684,16 +824,17 @@
 </div>
 
 <script src="/static/markdown.js?v=1"></script>
-<script src="/static/dag-renderer.js?v=3"></script>
+<script src="/static/dag-renderer.js?v=4"></script>
 <script src="/static/timeline.js?v=2"></script>
-<script src="/static/ui-core.js?v=3"></script>
+<script src="/static/ui-core.js?v=5"></script>
 <script src="/static/chat.js?v=3"></script>
 <script src="/static/group.js?v=3"></script>
-<script src="/static/project.js?v=4"></script>
-<script src="/static/manage.js?v=3"></script>
-<script src="/static/settings.js?v=1"></script>
+<script src="/static/project.js?v=7"></script>
+<script src="/static/manage.js?v=6"></script>
+<script src="/static/settings.js?v=2"></script>
+<script src="/static/workflows.js?v=6"></script>
 <script src="/static/dashboard.js?v=1"></script>
-<script src="/static/app.js?v=42"></script>
+<script src="/static/app.js?v=44"></script>
 <div id="theme-dropdown" class="theme-dropdown hidden">
   <button type="button" data-theme="dark"><span data-icon="moon"></span> 深色</button>
   <button type="button" data-theme="light"><span data-icon="sun"></span> 浅色</button>

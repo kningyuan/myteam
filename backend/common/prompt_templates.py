@@ -79,14 +79,25 @@ def render_kind_intent(kind: str, variables: dict[str, Any],
 
 def render_execute_intent(task: dict, path: Optional[Path] = None) -> str:
     """把 task.description 嵌入 task_type 标准 execute 模板。"""
+    from common.registry import TASK_TYPE_DISPLAY_NAMES, get_spec
+
     task_type = (task.get("task_type") or "").strip()
     desc = (task.get("description") or task.get("name") or "").strip()
+    spec = get_spec(task_type) if task_type else None
     tpl = get_task_type_prompt(task_type, "execute", path)
     if not tpl:
         return desc
+    sections = ""
+    if spec and spec.required_sections:
+        sections = "、".join(spec.required_sections)
     return render_template(tpl, {
         "task_description": desc,
         "task_name": task.get("name") or task.get("id") or "",
         "task_id": task.get("id") or "",
         "task_type": task_type,
+        "task_type_label": (spec.display_name if spec else "") or TASK_TYPE_DISPLAY_NAMES.get(
+            task_type, task_type,
+        ),
+        "outcome_kind": spec.outcome_kind if spec else "artifact",
+        "required_sections": sections,
     })

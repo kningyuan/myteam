@@ -74,7 +74,7 @@ def env(tmp_path, monkeypatch):
     reg_path.write_text(json.dumps({
         "version": "2.0",
         "agents": {
-            "researcher": {"task_types": ["research"]},
+            "research": {"task_types": ["research"]},
             "seo": {"task_types": ["research", "seo-plan"]},
         },
     }, ensure_ascii=False), encoding="utf-8")
@@ -89,17 +89,17 @@ def test_full_stack_dag(env):
     store, wcfg = env
     transport = AdapterTransport(
         adapter=FakeOpencode(),
-        agents_config={"researcher": {"model": "m1"}, "seo": {"model": "m2"}},
+        agents_config={"research": {"model": "m1"}, "seo": {"model": "m2"}},
         request_factory=lambda **kw: types.SimpleNamespace(**kw),
     )
     port = AgentPort(transport, store=store, config=wcfg)
     proc = Process(store, port, ProcessConfig(token_budget=10000))
 
     tasks = [
-        {"id": "task_001", "agent": "researcher", "task_type": "research", "dependencies": []},
+        {"id": "task_001", "agent": "research", "task_type": "research", "dependencies": []},
         {"id": "task_002", "agent": "seo", "task_type": "research", "dependencies": ["task_001"]},
     ]
-    out = proc.run("pro_geo", title="GEO 全栈", agents=["researcher", "seo"], tasks=tasks)
+    out = proc.run("pro_geo", title="GEO 全栈", agents=["research", "seo"], tasks=tasks)
 
     # 1) 项目与任务状态
     assert out.status == "completed"
@@ -113,7 +113,7 @@ def test_full_stack_dag(env):
     # 3) Store 真相 + token 计量（每任务 500）
     c = cost(store, "pro_geo")
     assert c["project"] == 1000
-    assert c["by_agent"] == {"researcher": 500, "seo": 500}
+    assert c["by_agent"] == {"research": 500, "seo": 500}
 
     # 4) 上游摘要被注入下游 task.meta（Context-Memory）
     t1_meta = store.get_task("pro_geo", "task_001")["meta"]

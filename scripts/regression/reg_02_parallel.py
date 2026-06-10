@@ -24,32 +24,9 @@ BUDGET = int(os.environ.get("REG02_BUDGET", str(REG_DEFAULT_BUDGET)))
 K8_THRESHOLD = 0.80
 
 sys.path.insert(0, str(REPO / "scripts" / "regression"))
+from agents_config_guard import AgentsConfigSession  # noqa: E402
 from check_kpis import check_k8  # noqa: E402
 from regression_archive import append_run_record, last_pass_run  # noqa: E402
-
-
-def _patch_agent_claude(agent_id: str) -> dict | None:
-    cfg_path = REPO / "business/config/agents_config.json"
-    if not cfg_path.is_file():
-        return None
-    data = json.loads(cfg_path.read_text(encoding="utf-8"))
-    old = data.get(agent_id)
-    entry = dict(data.get(agent_id) or {})
-    entry["backend"] = "claude"
-    entry["model"] = entry.get("model") or "claude-haiku-4-5"
-    entry.setdefault("workspace", f"business/workspaces/workspace-{agent_id}")
-    data[agent_id] = entry
-    cfg_path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    return old
-
-
-def _restore_agent(agent_id: str, old: dict | None) -> None:
-    if old is None:
-        return
-    cfg_path = REPO / "business/config/agents_config.json"
-    data = json.loads(cfg_path.read_text(encoding="utf-8"))
-    data[agent_id] = old
-    cfg_path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
 def _k1_k3_k8(store_path: Path, project_id: str) -> tuple[float, float, float, dict]:
@@ -157,7 +134,6 @@ def main() -> int:
         print(f"REG-02: {'PASS' if reg_pass else 'FAIL'}")
         return 0 if reg_pass else 1
 
-    old_research = _patch_agent_claude("research")
     if resume and db.is_file():
         # I-06：reset 前归档当前状态
         k1_pre, k3_pre, k8_pre, tasks_pre = _k1_k3_k8(db, PROJECT_ID)
@@ -197,10 +173,9 @@ def main() -> int:
     print("  project:", PROJECT_ID)
     print("  budget:", BUDGET)
     print("  命令:", " ".join(cmd))
-    try:
+    with AgentsConfigSession() as guard:
+        guard.patch_claude("research", model="claude-haiku-4-5")
         proc = subprocess.run(cmd, cwd=str(REPO), timeout=int(os.environ.get("REG02_TIMEOUT", "2400")))
-    finally:
-        _restore_agent("research", old_research)
 
     proj = {}
     if db.is_file():

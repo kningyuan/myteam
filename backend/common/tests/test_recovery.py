@@ -228,7 +228,7 @@ def test_resume_unblocks_when_upstream_recovers(env, monkeypatch):
     store, wcfg = env
     pid = "pro_unblock"
     store.upsert_project(pid, status="in_progress", meta={"goal": "g"})
-    store.upsert_task(pid, "t1", name="调研", agent="researcher", task_type="research",
+    store.upsert_task(pid, "t1", name="调研", agent="research", task_type="research",
                       status="needs_review", dependencies=[])
     store.upsert_task(pid, "t2", name="汇总", agent="main", task_type="strategy",
                       status="blocked", dependencies=["t1"])
@@ -249,13 +249,13 @@ def test_resume_unblocks_when_upstream_recovers(env, monkeypatch):
 def test_resume_merges_workflow_description(env):
     """resume 应从 workflow 补全 store 中缺失的 task description（intent 来源）。"""
     store, wcfg = env
-    pid = "reg-l2-3role"
-    store.upsert_project(pid, status="in_progress", meta={"workflow": "reg-l2-3role"})
-    store.upsert_task(pid, "t2", name="架构视角评审", agent="research",
-                      task_type="research", status="failed")
+    pid = "GitHub项目调研"
+    store.upsert_project(pid, status="in_progress", meta={"workflow": "GitHub项目调研"})
+    store.upsert_task(pid, "t-arch", name="架构调研", agent="arch",
+                      task_type="architecture-review", status="failed")
     port = AgentPort(lambda ctx: None, store=store, config=wcfg)
     proc = Process(store, port, ProcessConfig())
-    tasks = proc._merge_workflow_descriptions("reg-l2-3role", proc._tasks_from_store(pid))
-    t2 = next(t for t in tasks if t["id"] == "t2")
-    assert "约200字" in t2["description"]
-    assert "禁止扫描" in t2["description"]
+    tasks = proc._merge_workflow_descriptions("GitHub项目调研", proc._tasks_from_store(pid))
+    t = next(t for t in tasks if t["id"] == "t-arch")
+    assert "架构" in t["description"]
+    assert "禁止全仓扫源码" in t["description"]

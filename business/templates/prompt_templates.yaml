@@ -74,7 +74,9 @@ task_types:
 
   _default:
     execute: |
-      【任务类型】{task_type}
+      【任务类型】{task_type_label}（{task_type}，产出形态 {outcome_kind}）
       【本任务】
       {task_description}
-      【交卷】先写 deliverable 再 submit_result
+      【格式约束】须遵守 templates.yaml 注册表；框架已预写 deliverable 章节骨架，请按行首标题逐字填写
+      【必需章节】{required_sections}
+      【交卷】先编辑 deliverable 文件补全各节，再运行 submit_result（仅聊天不算交卷）

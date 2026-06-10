@@ -70,11 +70,14 @@ def project_overview(store: Store, project_id: str) -> dict:
     used = store.tokens_total(project_id)
     budget = (proj.get("meta") or {}).get("token_budget")
     ratio, bstate = _budget_state(used, budget)
+    meta = proj.get("meta") or {}
     return {
         "project_id": project_id,
         "title": proj.get("title") or project_id,  # 与 api-reference.md §11.1 + 前端 project.js 对齐；proj 兜底时退化为 pid
         "status": proj.get("status"),
         "mode": proj.get("mode"),
+        "workflow": meta.get("workflow"),
+        "launch_error": meta.get("launch_error"),
         "task_counts": counts,
         "progress": round(done / total, 3),
         "tokens": used,

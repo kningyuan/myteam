@@ -23,7 +23,7 @@ venv/bin/python3 backend/common/run_kernel.py --demo
 business/demo/
 ├── README.md              ← 本文件
 ├── goal.txt               ← Demo 目标（首行为 goal，# 开头为注释）
-└── agents_config.json     ← Demo 使用的 Agent 配置（主 + 研究员）
+└── agents_config.json     ← Demo 使用的 Agent 配置（main + research）
 ```
 
 ## 定制 Demo

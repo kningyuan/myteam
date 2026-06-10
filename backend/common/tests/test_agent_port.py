@@ -37,7 +37,7 @@ def env(tmp_path, monkeypatch):
 def _req(iid="i1", kind="execute"):
     return {
         "interaction_id": iid, "kind": kind, "project_id": "pro_x",
-        "task_id": "task_001", "agent_id": "researcher", "intent": "do",
+        "task_id": "task_001", "agent_id": "research", "intent": "do",
     }
 
 
@@ -58,7 +58,7 @@ def test_happy_path(env):
         ctx.emit("step_start")
         ctx.emit("text", {"chunk": "working"})
         # Agent 用 submit_result 校验后原子写 .response
-        resp_path = paths.response_dir("researcher") / f"{ctx.request.interaction_id}.response"
+        resp_path = paths.response_dir("research") / f"{ctx.request.interaction_id}.response"
         submit(_valid_execute(ctx.request.interaction_id), resp_path)
 
     port = AgentPort(transport, store=store, config=cfg)
@@ -114,7 +114,7 @@ def test_retry_then_succeed_on_idle(env):
                 time.sleep(0.02)
         else:
             ctx.emit("step_start")
-            resp_path = paths.response_dir("researcher") / f"{ctx.request.interaction_id}.response"
+            resp_path = paths.response_dir("research") / f"{ctx.request.interaction_id}.response"
             submit(_valid_execute(ctx.request.interaction_id), resp_path)
 
     port = AgentPort(transport, store=store, config=cfg)
@@ -127,7 +127,7 @@ def test_retry_then_succeed_on_idle(env):
 def test_residue_response_rejected(env):
     """旧残留响应（interaction_id 不匹配）不得被误采纳。"""
     store, cfg = env
-    resp_path = paths.response_dir("researcher") / "i1.response"
+    resp_path = paths.response_dir("research") / "i1.response"
     resp_path.parent.mkdir(parents=True, exist_ok=True)
     # 预置一份「别的 interaction」的旧响应
     resp_path.write_text(json.dumps(_valid_execute("OTHER")), encoding="utf-8")
@@ -153,7 +153,7 @@ def test_reconcile_on_start(env):
 def test_reconcile_adopts_orphan_response(env, monkeypatch):
     store, cfg = env
     monkeypatch.setattr(paths, "WORKSPACES_DIR", paths.WORKSPACES_DIR)
-    agent = "researcher"
+    agent = "research"
     iid = "i_orphan"
     store.create_interaction(iid, "execute", "pro_x", task_id="task_001", agent_id=agent)
     store.update_interaction(iid, status="running", touch_event=True)
@@ -180,7 +180,7 @@ def test_grace_window_drains_late_step_finish(env):
     store, cfg = env
 
     def transport(ctx):
-        resp_path = paths.response_dir("researcher") / f"{ctx.request.interaction_id}.response"
+        resp_path = paths.response_dir("research") / f"{ctx.request.interaction_id}.response"
         submit(_valid_execute(ctx.request.interaction_id), resp_path)
         time.sleep(0.15)
         ctx.emit("step_finish", {"tokens": {"input": 100, "output": 50}})
@@ -194,7 +194,7 @@ def test_grace_window_drains_late_step_finish(env):
 def test_reconcile_adopts_timed_out_orphan(env):
     """timed_out + 合法 .response → reconcile 采纳为 done。"""
     store, _cfg = env
-    agent = "researcher"
+    agent = "research"
     iid = "i_timed"
     store.create_interaction(iid, "execute", "pro_x", task_id="task_001", agent_id=agent)
     store.update_interaction(iid, status="timed_out")
@@ -234,7 +234,7 @@ def test_reconcile_keeps_timed_out_without_valid_response(env):
     """timed_out 且无合法响应 → 保持 timed_out，不误升。"""
     store, _cfg = env
     iid = "i_bad"
-    store.create_interaction(iid, "execute", "pro_x", agent_id="researcher")
+    store.create_interaction(iid, "execute", "pro_x", agent_id="research")
     store.update_interaction(iid, status="timed_out")
 
     n = reconcile_on_start(store)

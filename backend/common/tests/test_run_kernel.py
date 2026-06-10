@@ -43,11 +43,11 @@ def _fake_transport(ctx):
     ctx.emit("step_start")
     if req.kind == "team_config":
         resp = {"interaction_id": iid, "kind": "team_config", "status": "ok",
-                "result": {"agents": ["researcher"]}}
+                "result": {"agents": ["research"]}}
     elif req.kind == "task_plan":
         resp = {"interaction_id": iid, "kind": "task_plan", "status": "ok",
                 "result": {"tasks": [
-                    {"id": "t1", "name": "调研", "agent": "researcher",
+                    {"id": "t1", "name": "调研", "agent": "research",
                      "task_type": "research", "description": "做 GEO 调研", "dependencies": []},
                 ]}}
     elif req.kind == "execute":
@@ -102,11 +102,73 @@ def test_main_cli_parses_and_dispatches(monkeypatch, capsys):
     assert '"status": "completed"' in capsys.readouterr().out
 
 
+def test_hub_path_merges_workflow_parallel_flags(env, monkeypatch):
+    """Hub 传入预建 config 时，workflow 的 parallel / skill_extract / review / split 标志须合并。"""
+    import common.run_kernel as rk
+    from common.process_types import ProcessConfig
+
+    store, wcfg = env
+
+    # Hub 预建的 config（parallel_enabled 默认 False）
+    pre_cfg = ProcessConfig()
+    assert pre_cfg.parallel_enabled is False
+
+    captured_cfg: dict = {}
+
+    def fake_ensure_workflow_ready(wf_id, **_kw):
+        from types import SimpleNamespace
+
+        profile = SimpleNamespace(
+            id=wf_id,
+            roster=["research"],
+            options={
+                "parallel_enabled": True,
+                "max_parallel": 3,
+                "skill_extract_enabled": True,
+                "review_enabled": False,
+                "split_enabled": False,
+            },
+        )
+        profile.instantiate_tasks = lambda goal="": [
+            {"id": "t1", "name": "调研", "agent": "research",
+             "task_type": "research", "description": goal, "dependencies": []}
+        ]
+        return profile
+
+    monkeypatch.setattr(rk, "_system_default_backend", lambda: "opencode")
+
+    import common.workflow_bootstrap as wb
+    monkeypatch.setattr(wb, "ensure_workflow_ready", fake_ensure_workflow_ready)
+
+    from common.process import Process
+
+    _orig_init = Process.__init__
+
+    def _cap_init(self, store, port, cfg):
+        captured_cfg["cfg"] = cfg
+        _orig_init(self, store, port, cfg)
+
+    monkeypatch.setattr(Process, "__init__", _cap_init)
+
+    try:
+        run_project("p_wf", goal="g", workflow="test-wf",
+                    store=store, transport=_fake_transport, watchdog=wcfg,
+                    config=pre_cfg)
+    except Exception:
+        pass
+
+    cfg = captured_cfg.get("cfg")
+    assert cfg is not None, "Process.__init__ was never called"
+    assert cfg.parallel_enabled is True
+    assert cfg.max_parallel == 3
+    assert cfg.skill_extract_enabled is True
+
+
 def test_reconcile_runs_on_start(env):
     """启动对账：上次残留的 running interaction 被标 timed_out（D8）。"""
     store, wcfg = env
     store.create_interaction("stale", "execute", "p_demo", task_id="t9",
-                             agent_id="researcher")
+                             agent_id="research")
     store.update_interaction("stale", status="running")
 
     run_project("p_demo", goal="g", store=store, transport=_fake_transport, watchdog=wcfg)

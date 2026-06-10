@@ -1,0 +1,42 @@
+id: 数据分析
+version: '1.0'
+description: 数据分析全流程：问题澄清 → 分析报告 →（可选）分析脚本；具体数据集/指标在 goal 填写
+options:
+  review_enabled: false
+  split_enabled: true
+  parallel_enabled: false
+  max_parallel: 2
+tasks:
+- id: t-clarify
+  name: 分析问题澄清
+  agent: product
+  task_type: requirements
+  dependencies: []
+  description: '【对象】见【项目目标】
+
+    【产出】分析问题、指标口径、验收标准'
+- id: t-report
+  name: 数据分析报告
+  agent: analyst
+  task_type: data-analysis
+  dependencies:
+  - t-clarify
+  description: '【输入】t-clarify
+
+    【对象】见【项目目标】'
+- id: t-script
+  name: 分析脚本（可选复用）
+  agent: analyst
+  task_type: code-writing
+  dependencies:
+  - t-report
+  description: '【输入】t-report 结论
+
+    【产出】可复用的查询/脚本与 README'
+- id: t-accept
+  name: 分析验收
+  agent: product
+  task_type: acceptance-report
+  dependencies:
+  - t-report
+  description: 【输入】t-report、t-script（若有）

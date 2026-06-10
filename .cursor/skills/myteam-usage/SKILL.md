@@ -73,11 +73,18 @@ Open `http://localhost:8765` to view chat, groups, projects, and observability.
 3. Do not add scheduling, retry, Gate, Store, watchdog, or contract logic.
 4. Ensure the task type exists in the Strategy Registry first.
 
+## Agent Roster
+
+- Template: `business/templates/business-roster.json`
+- Merge into runtime: `python3 scripts/bootstrap_business_roster.py`
+- Research role id: **`research`** (deprecated: `researcher`)
+
 ## Files to Read First
 
 - `README.md` for installation, entry points, and usage.
-- `docs/ARCHITECTURE.md` for layer boundaries and current module map.
-- `docs/framework-decisions.md` for D1-D19 decisions.
+- `docs/ARCHITECTURE.md` for layer boundaries, `.trigger`/`.response`, and collaboration model.
+- `docs/framework-decisions.md` for D1-D19 decision index.
+- `docs/0608/15-标准协作模式总结.md` for gold-path workflows and E2E.
 - `business/templates/README.md` before changing task types.
 - `business/skills/README.md` before authoring Skills.
 

@@ -1,6 +1,6 @@
 # myteam
 
-轻量级 **多 Agent 协作平台**：一个 Web Hub（聊天 / Agent 管理 / 群组 / 可观测）+ 一个声明式编排内核（把一个目标 `goal` 自动拆成任务 DAG，交给多个 Agent 串行执行、确定性门禁校验、失败重试与 triage）。
+轻量级 **多 Agent 协作平台**：一个 Web Hub（聊天 / Agent 管理 / 群组 / 可观测）+ 一个声明式编排内核（把一个目标 `goal` 自动拆成任务 DAG，按依赖 wave 调度多个 Agent 执行，支持可配置并行、确定性门禁校验、失败重试与 triage）。
 
 Agent 执行统一通过 **opencode CLI** 适配器驱动（可扩展 claude 等其它 CLI）。
 
@@ -12,15 +12,16 @@ Agent 执行统一通过 **opencode CLI** 适配器驱动（可扩展 claude 等
 
 ```
 A) 聊天 / 群聊（人 ↔ Agent）
-   Web UI → hub/api/server.py → hub/services/notify_service → base.agent_chat
-          → adapters/opencode → 统一 AgentEvent → SSE 推前端
+   Web UI → hub/api/server.py → hub/services/chat_service → base/agent_chat
+          → adapters/opencode|claude → 统一 AgentEvent → SSE 推前端
 
 B) 编排内核（目标 → 任务 DAG 自动执行）
    run_kernel.py → Process(状态机) + AgentPort + Store(SQLite)
-     → team_config / task_plan（Main 决策）
-     → DAG 串行执行：execute 交互 → opencode 子进程
-        → Agent 用 submit_result 写回契约 .response
+     → team_config / task_plan（Main 决策）或 --workflow 固定 DAG
+     → 按 wave 调度 execute：AgentPort → CLI 子进程
+        → Agent 用 submit_result 写 workspace/.response/{interaction_id}.response
         → Gate 校验（契约 + 格式 + 完整性）→ 通过/重试/triage
+     → Agent 协作靠 DAG + 交付物 + 上游摘要注入 prompt（非 Agent 互读 .trigger）
      → 可观测：Hub 只读同一 SQLite（/api/obs/...）
 ```
 
@@ -95,7 +96,8 @@ venv/bin/python3 backend/common/run_kernel.py <project_id> \
   --budget 150000          # 可选：per-project token 硬上限
 ```
 
-- 结果写入 SQLite（`business/tasks/state.db`），交付物写 `business/tasks/project/<project_id>/deliverables/`，契约响应写各 agent 的 `.response`。
+- 结果写入 SQLite（`business/tasks/state.db`），交付物写 `business/tasks/project/<project_id>/deliverables/`。
+- 单次交互的契约响应写 `workspace-<agent>/.response/{interaction_id}.response`（请求快照在 `.trigger/{interaction_id}.request`）；详见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §4。
 - 内核**不依赖 Hub 运行**（直连 opencode）；想在 UI 看进度就同时开着 Hub（读同一个库）。
 - 退出码：`completed` → 0，否则非 0。
 
@@ -115,7 +117,18 @@ venv/bin/python3 backend/common/run_kernel.py <project_id> \
 | `business/config/.env` | 可选超时/重试覆盖（默认全注释 = 用默认值） | 已有模板 |
 | `business/workspaces/workspace-<agent_id>/` | agent 工作目录（放 `AGENTS.md/IDENTITY.md/SOUL.md/MEMORY.md` 等人设与规则） | 建 agent 时生成 |
 
-仓库自带一套 15 个模板 agent（`main / deputy / researcher / product / designer / developer / tester / ops / docs / content / seo / social / email / consultation / coordinator`），默认模型 `SenseNova/sensenova-6.7-flash-lite`。
+**Agent 名册模板**见 `business/templates/business-roster.json`（四条业务线、17 个角色：`main`、`deputy`、`product`、`arch`、`developer`、`frontend`、`tester`、`qa`、`test_dev`、`research`、`analyst`、`content`、`docs`、`seo`、`geo`、`social`、`ops`）。
+
+首次或升级后合并到本机运行态：
+
+```bash
+python3 scripts/bootstrap_business_roster.py
+```
+
+写入 `business/config/agents_registry.json` 并创建缺失 workspace。  
+调研专职 agent id 为 **`research`**（不是已废弃的 `researcher`）。`task_type=research` 也可派给具备该能力的 `product` / `arch` / `developer` 等。
+
+默认模型由 `config/system_config.json` 与各 agent 的 `agents_config.json` 决定，非仓库硬编码。
 
 ### 团队协作框架的三层形态
 
@@ -137,7 +150,7 @@ myteam 的团队协作框架不是一个 Skill，而是系统级内核 + 可配�
 
 - 每个 `business/workspaces/workspace-<agent_id>/` 对应一个 agent 的工作目录。**只有你实际会用到的 agent 才需要 workspace**。
 - `main` 必备：负责 `team_config` / `task_plan` / `triage` 决策。其余 agent 只在被分配任务时才用到。
-- 目录本身**按需自动创建**（框架会建 `.response` / `.trigger` 子目录），缺目录不会让流程崩溃。
+- 目录本身**按需自动创建**（框架会建 `.trigger` / `.response` 子目录，用于内核与 CLI 的交卷通道），缺目录不会让流程崩溃。
 - 但一个完整 workspace 里的 `AGENTS.md`（opencode 跑 `--dir` 时自动读取）、`IDENTITY.md`、`SOUL.md`、`MEMORY.md` 等是该 agent 的**人设 / 规则 / 记忆**。**没有这些文件，agent 仍能执行，但没有人设与记忆，产出质量会下降**。
 - 用不到的模板 workspace 可以删除。各 workspace 内残留的 `.openclaw` / `.sisyphus`（OpenClaw 时代产物）可手工清理。
 
@@ -169,7 +182,7 @@ venv/bin/python3 backend/common/run_kernel.py smoke_test \
 PYTHONPATH="$PWD/backend" venv/bin/python3 -m pytest backend -q
 ```
 
-当前全仓 94 例。
+用例数随分支演进；发版前跑全量 `backend`。
 
 ---
 
@@ -196,7 +209,7 @@ myteam/
 │   ├── config/                  # 业务配置 + 运行态（agents_config / groups / session_map / .env ...）
 │   ├── workspaces/              # 各 agent 工作目录
 │   └── tasks/                   # 运行态：state.db、project/<id>/deliverables
-└── docs/                        # ARCHITECTURE.md / framework-decisions.md
+└── docs/                        # 见 docs/README.md（ARCHITECTURE / 0608 升级 / new 需求）
 ```
 
 ---

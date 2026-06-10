@@ -457,6 +457,31 @@ async def get_agents_registry_api():
     return get_agents_registry()
 
 
+@app.post("/api/agents/sync-task-types")
+async def api_sync_agent_task_types():
+    """为未配置 task_types 的 Agent 从名册/PGD/描述规则补全。"""
+    from hub.services.agent_registry import sync_missing_agent_task_types
+
+    return sync_missing_agent_task_types(only_empty=True)
+
+
+@app.post("/api/agents/suggest-task-types")
+async def api_suggest_agent_task_types(body: dict):
+    from common.agent_task_type_suggest import suggest_task_types_for_agent
+
+    desc = (body.get("description") or "").strip()
+    if not desc:
+        raise HTTPException(status_code=400, detail="description 不能为空")
+    try:
+        return suggest_task_types_for_agent(
+            desc,
+            name=(body.get("name") or "").strip(),
+            agent_id=(body.get("agent_id") or "").strip(),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @app.post("/api/projects/{project_id}/setup-group")
 async def api_setup_project_group(project_id: str, body: dict):
     from hub.services.project_group_service import setup_project_group
@@ -525,11 +550,20 @@ async def api_delete_agent(agent_id: str):
 
 @app.put("/api/agents/{agent_id}/manage")
 async def manage_agent_config(agent_id: str, body: dict):
+    from hub.services.agent_registry import update_agent_task_types
+
     backend = body.get("backend", "opencode")
     model = body.get("model", "")
     name = body.get("name")
     workspace = body.get("workspace")
     set_agent_backend_config(agent_id, backend, model, name=name, workspace=workspace)
+    if "task_types" in body:
+        tts = body.get("task_types") or []
+        if not isinstance(tts, list):
+            raise HTTPException(status_code=400, detail="task_types 须为数组")
+        result = update_agent_task_types(agent_id, [str(t).strip() for t in tts if str(t).strip()])
+        if not result.get("success"):
+            raise HTTPException(status_code=400, detail=result.get("error", "更新 task_types 失败"))
     return {"success": True, "agent_id": agent_id, "backend": backend, "model": model}
 
 
@@ -927,7 +961,25 @@ def _set_kernel_run(project_id: str, *, running: bool, error: Optional[str] = No
 
 
 def _get_kernel_run(project_id: str) -> dict:
-    return _KERNEL_RUNS.get(project_id) or {"running": False, "error": None}
+    cached = _KERNEL_RUNS.get(project_id)
+    if cached is not None:
+        return cached
+    try:
+        from common.store import Store
+
+        store = Store()
+        try:
+            proj = store.get_project(project_id) or {}
+            meta = proj.get("meta") or {}
+            hub = meta.get("hub_kernel_run") or {}
+            err = hub.get("error") or meta.get("launch_error")
+            if hub.get("running") or err:
+                return {"running": bool(hub.get("running")), "error": err}
+        finally:
+            store.close()
+    except Exception:
+        pass
+    return {"running": False, "error": None}
 
 
 def _is_kernel_running(project_id: str) -> bool:
@@ -1009,6 +1061,50 @@ def _slug(text: str, limit: int = 24) -> str:
     return s[:limit] or "project"
 
 
+def _persist_project_launch(
+    project_id: str,
+    *,
+    title: str,
+    goal: str,
+    mode: str,
+    budget,
+    workflow: Optional[str] = None,
+) -> None:
+    """发起瞬间写入 SQLite，避免仅后台线程落库导致刷新后项目列表为空。"""
+    from common.store import Store
+
+    meta: dict = {
+        "goal": goal,
+        "token_budget": budget,
+        "hub_kernel_run": {"running": True, "error": None},
+    }
+    if workflow:
+        meta["workflow"] = workflow
+    store = Store()
+    try:
+        store.upsert_project(
+            project_id,
+            title=title or project_id,
+            mode=mode,
+            status="in_progress",
+            meta=meta,
+        )
+    finally:
+        store.close()
+
+
+def _mark_project_kernel_failed(project_id: str, error: str) -> None:
+    from common.store import Store
+
+    store = Store()
+    try:
+        if store.get_project(project_id):
+            store.set_project_status(project_id, "failed")
+            store.update_project_meta(project_id, launch_error=error)
+    finally:
+        store.close()
+
+
 def _run_kernel_bg(project_id: str, goal: str, mode: str, budget, title: str,
                    review: bool = False, workflow: Optional[str] = None,
                    split: bool = False, process_defaults: Optional[dict] = None) -> None:
@@ -1026,6 +1122,7 @@ def _run_kernel_bg(project_id: str, goal: str, mode: str, budget, title: str,
                     config=proc_cfg, watchdog=wdog_cfg, backend=backend)
     except Exception as e:  # noqa: BLE001 — 后台线程，错误回灌给状态查询
         _set_kernel_run(project_id, running=False, error=str(e))
+        _mark_project_kernel_failed(project_id, str(e))
     else:
         _set_kernel_run(project_id, running=False)
 
@@ -1056,11 +1153,156 @@ def _resume_kernel_bg(project_id: str) -> None:
         _set_kernel_run(project_id, running=False)
 
 
+@app.get("/api/task-types")
+async def api_list_task_types():
+    """任务类型注册表（templates.yaml），供管理 Tab 与 Workflow 编辑器使用。"""
+    from common.task_type_store import list_task_types_for_api
+
+    return {"task_types": list_task_types_for_api()}
+
+
+@app.get("/api/task-types/outcome-kinds")
+async def api_task_type_outcome_kinds():
+    """产出形态目录（Gate 支持的三种 outcome_kind + 现实任务覆盖说明）。"""
+    from common.task_type_suggest import list_outcome_kind_catalog
+
+    return {"outcome_kinds": list_outcome_kind_catalog()}
+
+
+@app.post("/api/task-types/suggest")
+async def api_suggest_task_type(body: dict):
+    """根据描述规则推导任务类型草稿（无 LLM/CLI）。"""
+    from common.task_type_suggest import suggest_task_type_from_description
+
+    desc = (body.get("description") or "").strip()
+    if not desc:
+        raise HTTPException(status_code=400, detail="description 不能为空")
+    try:
+        return suggest_task_type_from_description(desc)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/task-types")
+async def api_create_task_type(body: dict):
+    from common.task_type_store import get_task_type_raw, upsert_task_type, validate_task_type_id
+
+    task_type = validate_task_type_id(body.get("task_type") or "")
+    if get_task_type_raw(task_type):
+        raise HTTPException(status_code=409, detail=f"task_type「{task_type}」已存在")
+    try:
+        result = upsert_task_type(task_type, body)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"success": True, **result}
+
+
+@app.put("/api/task-types/{task_type}")
+async def api_update_task_type(task_type: str, body: dict):
+    from common.task_type_store import get_task_type_raw, upsert_task_type
+
+    if not get_task_type_raw(task_type):
+        raise HTTPException(status_code=404, detail=f"task_type「{task_type}」不存在")
+    try:
+        result = upsert_task_type(task_type, body)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"success": True, **result}
+
+
+@app.delete("/api/task-types/{task_type}")
+async def api_delete_task_type(task_type: str):
+    from common.task_type_store import delete_task_type
+
+    try:
+        delete_task_type(task_type)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"success": True}
+
+
 @app.get("/api/workflows")
 async def api_list_workflows():
     """列出 PGD workflow profile（阶段闸门项目模板）。"""
     from common.workflow_bootstrap import list_workflow_summaries
     return {"workflows": list_workflow_summaries()}
+
+
+@app.post("/api/workflows/suggest")
+async def api_suggest_workflow(body: dict):
+    """根据描述确定性推导任务 DAG（供 Workflow 编辑页「自动推导」）。"""
+    from common.workflow_suggest import suggest_workflow_from_description
+    from hub.services.agent_registry import sync_missing_agent_task_types
+
+    desc = (body.get("description") or "").strip()
+    if not desc:
+        raise APIError("INVALID_BODY", "description 不能为空")
+    try:
+        sync_missing_agent_task_types(only_empty=True)
+        return suggest_workflow_from_description(desc)
+    except ValueError as e:
+        raise APIError("INVALID_WORKFLOW", str(e))
+
+
+@app.get("/api/workflows/{workflow_id}")
+async def api_get_workflow(workflow_id: str):
+    from common.workflow_loader import read_workflow_raw
+    try:
+        return {"workflow": read_workflow_raw(workflow_id)}
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise APIError("INVALID_WORKFLOW", str(e))
+
+
+@app.post("/api/workflows")
+async def api_create_workflow(body: dict):
+    from common.workflow_loader import list_workflows, write_workflow_raw
+    data = body.get("workflow") if isinstance(body.get("workflow"), dict) else body
+    if not isinstance(data, dict):
+        raise APIError("INVALID_BODY", "需要 workflow 对象")
+    wid = (data.get("id") or "").strip()
+    if not wid:
+        raise APIError("INVALID_WORKFLOW", "workflow.id 不能为空")
+    if wid in list_workflows():
+        raise APIError("WORKFLOW_EXISTS", f"workflow「{wid}」已存在", hint="换 id 或使用 PUT 更新")
+    try:
+        write_workflow_raw(data)
+    except ValueError as e:
+        raise APIError("INVALID_WORKFLOW", str(e))
+    return {"success": True, "id": wid}
+
+
+@app.put("/api/workflows/{workflow_id}")
+async def api_update_workflow(workflow_id: str, body: dict):
+    from common.workflow_loader import delete_workflow, write_workflow_raw
+    data = body.get("workflow") if isinstance(body.get("workflow"), dict) else body
+    if not isinstance(data, dict):
+        raise APIError("INVALID_BODY", "需要 workflow 对象")
+    new_id = (data.get("id") or workflow_id).strip()
+    try:
+        write_workflow_raw(data, workflow_id=workflow_id)
+        if new_id != workflow_id:
+            old_fp_deleted = workflow_id
+            try:
+                delete_workflow(old_fp_deleted)
+            except FileNotFoundError:
+                pass
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"未找到 workflow「{workflow_id}」")
+    except ValueError as e:
+        raise APIError("INVALID_WORKFLOW", str(e))
+    return {"success": True, "id": new_id}
+
+
+@app.delete("/api/workflows/{workflow_id}")
+async def api_delete_workflow(workflow_id: str):
+    from common.workflow_loader import delete_workflow
+    try:
+        delete_workflow(workflow_id)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return {"success": True}
 
 
 @app.post("/api/projects/run")
@@ -1093,6 +1335,10 @@ async def api_project_run(body: dict):
         project_id = f"ui_{slug}_{time.strftime('%Y%m%d_%H%M%S')}"
     if _is_kernel_running(project_id):
         raise HTTPException(status_code=409, detail="该项目正在运行")
+    _persist_project_launch(
+        project_id, title=title or project_id, goal=goal, mode=mode,
+        budget=budget, workflow=workflow,
+    )
     _set_kernel_run(project_id, running=True)
     threading.Thread(
         target=_run_kernel_bg,

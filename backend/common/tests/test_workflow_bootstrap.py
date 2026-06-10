@@ -8,7 +8,7 @@ import pytest
 
 from common import paths
 from common.plan_gate import check_plan
-from common.workflow_bootstrap import ensure_workflow_ready, load_pgd_agent_template
+from common.workflow_bootstrap import _resolve_agent_meta, ensure_workflow_ready, load_pgd_agent_template
 from common.workflow_loader import load_workflow
 
 
@@ -30,7 +30,7 @@ def pgd_env(tmp_path, monkeypatch):
 
 def test_pgd_agent_template_covers_workflow_rosters():
     template = load_pgd_agent_template()
-    for wid in ("software-delivery", "content-campaign", "hotfix"):
+    for wid in ("GEO优化", "内容运营", "数据分析"):
         profile = load_workflow(wid)
         for aid in profile.roster:
             assert aid in template, f"{wid} roster {aid} missing in pgd-agents.json"
@@ -40,11 +40,74 @@ def test_pgd_agent_template_covers_workflow_rosters():
 
 
 def test_ensure_workflow_ready_creates_registry(pgd_env):
-    profile = ensure_workflow_ready("hotfix", backend="claude")
-    assert profile.id == "hotfix"
+    for aid in ("main", "research", "content", "social"):
+        paths.workspace_dir(aid).mkdir(parents=True, exist_ok=True)
+    profile = ensure_workflow_ready("内容运营", backend="claude")
+    assert profile.id == "内容运营"
     reg = json.loads(paths.AGENTS_REGISTRY_FILE.read_text(encoding="utf-8"))
     for aid in profile.roster:
         assert aid in reg["agents"]
         assert reg["agents"][aid].get("task_types")
-    tasks = profile.instantiate_tasks(goal="修复 DAG 空白")
+    tasks = profile.instantiate_tasks(goal="测试内容运营目标")
     assert check_plan(tasks, set(profile.roster), check_capabilities=True).passed
+
+
+def test_resolve_agent_meta_prefers_management_workspace(pgd_env):
+    """与「管理」Tab 一致：有 workspace 即可；无 workspace 时可从注册表 bootstrap。"""
+    template = load_pgd_agent_template()
+    assert _resolve_agent_meta("product", template) is not None
+
+    reg = json.loads(paths.AGENTS_REGISTRY_FILE.read_text(encoding="utf-8"))
+    reg["agents"]["custom_dev"] = {
+        "name": "自定义研发",
+        "role": "worker",
+        "description": "测试用",
+        "task_types": ["research"],
+    }
+    paths.AGENTS_REGISTRY_FILE.write_text(json.dumps(reg, ensure_ascii=False), encoding="utf-8")
+    assert _resolve_agent_meta("custom_dev", template)["name"] == "自定义研发"
+
+    ws = paths.workspace_dir("ws_only_agent")
+    ws.mkdir(parents=True)
+    meta = _resolve_agent_meta("ws_only_agent", template)
+    assert meta is not None and meta["name"] == "ws_only_agent"
+    assert _resolve_agent_meta("no_such_agent", template) is None
+
+
+def test_ensure_workflow_ready_enforces_agent_task_types(pgd_env, monkeypatch, tmp_path):
+    """Agent 配置了 task_types 时，workflow 须匹配才能启动。"""
+    reg = json.loads(paths.AGENTS_REGISTRY_FILE.read_text(encoding="utf-8"))
+    reg["agents"]["arch"] = {
+        "name": "架构师",
+        "role": "worker",
+        "task_types": ["system-design"],
+    }
+    paths.AGENTS_REGISTRY_FILE.write_text(json.dumps(reg, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setattr("common.agent_registry.REGISTRY_FILE", paths.AGENTS_REGISTRY_FILE)
+    for aid in ("main", "arch"):
+        paths.workspace_dir(aid).mkdir(parents=True, exist_ok=True)
+
+    wf_dir = tmp_path / "workflows"
+    wf_dir.mkdir()
+    (wf_dir / "arch-research.yaml").write_text(
+        """id: arch-research
+version: "1.0"
+description: test
+tasks:
+  - id: t1
+    name: 架构调研
+    agent: arch
+    task_type: research
+    dependencies: []
+    description: test
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("common.workflow_loader.workflows_dir", lambda: wf_dir)
+    with pytest.raises((RuntimeError, ValueError), match="research"):
+        ensure_workflow_ready("arch-research", backend="claude")
+
+    reg["agents"]["arch"]["task_types"] = ["research", "system-design"]
+    paths.AGENTS_REGISTRY_FILE.write_text(json.dumps(reg, ensure_ascii=False), encoding="utf-8")
+    profile = ensure_workflow_ready("arch-research", backend="claude")
+    assert profile.id == "arch-research"

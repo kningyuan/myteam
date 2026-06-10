@@ -39,8 +39,8 @@ def store():
 @pytest.fixture()
 def seeded_store(store):
     store.upsert_project("p001", title="Test", status="in_progress")
-    store.upsert_task("p001", "t1", agent="researcher", task_type="research", status="needs_review")
-    store.create_interaction("p001:t1:execute", "execute", "p001", task_id="t1", agent_id="researcher")
+    store.upsert_task("p001", "t1", agent="research", task_type="research", status="needs_review")
+    store.create_interaction("p001:t1:execute", "execute", "p001", task_id="t1", agent_id="research")
     store.append_run_event("p001:t1:execute", "step_start", {"i": 0})
     store.append_run_event("p001:t1:execute", "gate_passed", {"result": "ok"})
     return store

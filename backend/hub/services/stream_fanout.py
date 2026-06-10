@@ -12,27 +12,6 @@ from hub.services.group_broadcast import publish as publish_group
 def sse_to_thinking(evt: dict) -> Optional[dict]:
     if evt.get("event") == "thinking":
         return evt.get("data")
-    if evt.get("event") != "raw":
-        return None
-    oc = evt.get("data", {}).get("opencode", {})
-    t = oc.get("type", "")
-    part = oc.get("part", {}) or {}
-    if t in ("step_start", "step-start"):
-        return {"type": "step_start"}
-    if t == "text":
-        return {"type": "text", "content": part.get("text", "")}
-    if t == "tool_use":
-        name = part.get("tool") or part.get("name") or ""
-        inp = part.get("input")
-        if inp is None:
-            inp = part.get("state", {}).get("input", {})
-        return {"type": "tool_use", "name": name, "input": json.dumps(inp, ensure_ascii=False)}
-    if t == "tool_result":
-        content = part.get("content") or part.get("state", {}).get("output", "")
-        return {"type": "tool_result", "content": str(content)}
-    if t in ("step_finish", "step-finish"):
-        tokens = part.get("tokens") or {}
-        return {"type": "step_finish", "tokens": tokens}
     return None
 
 

@@ -10,7 +10,7 @@ from common.plan_splice import normalize_subtasks, splice_subtasks, validate_sub
 
 def _parent(pid="root"):
     return {
-        "id": pid, "name": "root", "agent": "researcher", "task_type": "research",
+        "id": pid, "name": "root", "agent": "research", "task_type": "research",
         "dependencies": ["up"], "description": "d",
     }
 
@@ -21,7 +21,7 @@ def test_normalize_subtasks_prefixes_ids_and_deps():
     out = normalize_subtasks(subs, parent)
     assert out[0]["id"] == "p1.a"
     assert out[0]["dependencies"] == ["p1.b"]
-    assert out[0]["agent"] == "researcher"
+    assert out[0]["agent"] == "research"
     assert out[0]["task_type"] == "research"
 
 
@@ -44,9 +44,9 @@ def test_splice_replaces_parent_and_rewrites_dependents():
 
 
 def test_validate_subtasks_rejects_fanout():
-    team = {"researcher"}
+    team = {"research"}
     subs = [
-        {"id": f"s{i}", "agent": "researcher", "task_type": "research", "dependencies": []}
+        {"id": f"s{i}", "agent": "research", "task_type": "research", "dependencies": []}
         for i in range(6)
     ]
     msg = validate_subtasks(subs, team, max_fanout=5)

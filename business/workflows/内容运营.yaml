@@ -1,0 +1,29 @@
+id: 内容运营
+version: '1.0'
+description: 内容运营：选题调研 → 成稿 → 发布留痕；具体选题/平台在 goal 填写
+options:
+  review_enabled: false
+  split_enabled: false
+  parallel_enabled: false
+  max_parallel: 2
+tasks:
+- id: t-research
+  name: 选题调研
+  agent: research
+  task_type: research
+  dependencies: []
+  description: '【对象】见【项目目标】'
+- id: t-draft
+  name: 内容成稿
+  agent: content
+  task_type: content
+  dependencies:
+  - t-research
+  description: 【输入】t-research
+- id: t-publish
+  name: 平台发布
+  agent: social
+  task_type: publish-post
+  dependencies:
+  - t-draft
+  description: 【输入】t-draft；【须提交】已发布 URL 与截图

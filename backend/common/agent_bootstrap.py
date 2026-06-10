@@ -26,8 +26,8 @@ description: {description}
 4. 输出结果
 
 ## 协作方式
-- 通过 .trigger/.response 文件系统通信
-- 返回 JSON 格式的 structured response
+- 编排任务：内核经 AgentPort 下发 prompt；交卷用 submit_result 写 .response/{{interaction_id}}.response
+- 团队编排由 Process 调度 DAG，不与其他 Agent 直接互读 .trigger
 """,
     "SOUL.md": """# {name} - 灵魂与行为准则
 

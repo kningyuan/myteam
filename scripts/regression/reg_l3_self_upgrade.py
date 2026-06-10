@@ -51,6 +51,7 @@ REQUIRED_TASK_TYPES = (
 
 sys.path.insert(0, str(REPO / "scripts" / "regression"))
 sys.path.insert(0, str(REPO / "backend"))
+from agents_config_guard import AgentsConfigSession  # noqa: E402
 from common.skill_extract import skill_draft_path  # noqa: E402
 from regression_archive import append_run_record  # noqa: E402
 
@@ -138,21 +139,6 @@ def _claude_available() -> bool:
     return shutil.which("claude") is not None
 
 
-def _patch_agent_claude(agent_id: str) -> dict | None:
-    cfg_path = REPO / "business/config/agents_config.json"
-    if not cfg_path.is_file():
-        return None
-    data = json.loads(cfg_path.read_text(encoding="utf-8"))
-    old = data.get(agent_id)
-    entry = dict(data.get(agent_id) or {})
-    entry["backend"] = "claude"
-    entry["model"] = os.environ.get("REG_L3_MODEL", "claude-sonnet-4-6")
-    entry.setdefault("workspace", f"business/workspaces/workspace-{agent_id}")
-    data[agent_id] = entry
-    cfg_path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    return old
-
-
 def _task_statuses(db: Path, project_id: str) -> dict[str, str]:
     if not db.is_file():
         return {}
@@ -193,15 +179,6 @@ def _reset_failed_leaf(db: Path, project_id: str, leaf_id: str, budget: int) -> 
     )
     conn.commit()
     conn.close()
-
-
-def _restore_agent(agent_id: str, old: dict | None) -> None:
-    if old is None:
-        return
-    cfg_path = REPO / "business/config/agents_config.json"
-    data = json.loads(cfg_path.read_text(encoding="utf-8"))
-    data[agent_id] = old
-    cfg_path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
 def _print_gate_criteria() -> None:
@@ -275,10 +252,6 @@ def main() -> int:
         )
         return 2
 
-    patched: dict[str, dict | None] = {}
-    for agent_id in AGENTS:
-        patched[agent_id] = _patch_agent_claude(agent_id)
-
     if resume and db.is_file():
         tasks_pre = _task_statuses(db, PROJECT_ID)
         append_run_record(
@@ -315,15 +288,14 @@ def main() -> int:
     print("=== REG-L3 E2E ===")
     print("  mode:", mode)
     print("  命令:", " ".join(cmd))
-    try:
+    with AgentsConfigSession() as guard:
+        for agent_id in AGENTS:
+            guard.patch_claude(agent_id, model=reg_model)
         proc = subprocess.run(
             cmd,
             cwd=str(REPO),
             timeout=int(os.environ.get("REG_L3_TIMEOUT", "7200")),
         )
-    finally:
-        for agent_id, old in patched.items():
-            _restore_agent(agent_id, old)
 
     proj_status = "N/A"
     if db.is_file():

@@ -1,7 +1,8 @@
 # myteam 整体指导文档集
 
-> 版本：2026-06-09 · 分支：`upgrade/continued`  
-> 用途：理解 **myteam 最终应成为什么**、**现在是什么**、**如何逐项演进**。
+> 版本：2026-06-10 · 分支：`upgrade/continued`  
+> 用途：理解 **myteam 最终应成为什么**、**现在是什么**、**如何逐项演进**。  
+> **运行态架构速查**（名册、交卷机制、协作模型）：[`docs/ARCHITECTURE.md`](../ARCHITECTURE.md)。
 
 ---
 

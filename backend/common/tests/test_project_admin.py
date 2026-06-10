@@ -19,11 +19,11 @@ def test_delete_project_cleans_db_and_workspace_files(tmp_path, monkeypatch):
     store = Store(tmp_path / "state.db")
     iid = "pro_del:task_001:execute:1"
     store.upsert_project("pro_del", title="待删")
-    store.create_interaction(iid, "execute", "pro_del", task_id="task_001", agent_id="researcher")
+    store.create_interaction(iid, "execute", "pro_del", task_id="task_001", agent_id="research")
 
     # 造出 agent 工作目录的临时件 + 项目交付物目录
-    trig = paths.trigger_dir("researcher"); trig.mkdir(parents=True)
-    resp = paths.response_dir("researcher"); resp.mkdir(parents=True)
+    trig = paths.trigger_dir("research"); trig.mkdir(parents=True)
+    resp = paths.response_dir("research"); resp.mkdir(parents=True)
     (trig / f"{iid}.request").write_text("{}", encoding="utf-8")
     (resp / f"{iid}.response").write_text("{}", encoding="utf-8")
     deliv = paths.deliverables_dir("pro_del")  # 自动建目录

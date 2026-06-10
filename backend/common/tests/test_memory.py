@@ -86,10 +86,10 @@ def test_downstream_gets_direct_upstream_summary(env):
 
     proc = Process(store, AgentPort(transport, store=store, config=wcfg), ProcessConfig())
     tasks = [
-        {"id": "t1", "agent": "researcher", "task_type": "research", "dependencies": []},
-        {"id": "t2", "agent": "researcher", "task_type": "research", "dependencies": ["t1"]},
+        {"id": "t1", "agent": "research", "task_type": "research", "dependencies": []},
+        {"id": "t2", "agent": "research", "task_type": "research", "dependencies": ["t1"]},
     ]
-    out = proc.run("pro_x", agents=["researcher"], tasks=tasks)
+    out = proc.run("pro_x", agents=["research"], tasks=tasks)
     assert out.status == "completed"
     # t1 无上游 → 无 upstream；t2 拿到 t1 的摘要 + 引用，而非全文
     assert seen_contexts["t1"] == {}

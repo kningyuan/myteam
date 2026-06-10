@@ -26,6 +26,28 @@ from common.submit_result import submit  # noqa: E402
 def env(tmp_path, monkeypatch):
     monkeypatch.setattr(paths, "WORKSPACES_DIR", tmp_path / "workspaces")
     monkeypatch.setattr(paths, "PROJECTS_DIR", tmp_path / "project")
+    bc = tmp_path / "business" / "config"
+    bc.mkdir(parents=True)
+    reg = {
+        "agents": {
+            "main": {"task_types": ["strategy", "decision-record"]},
+            "research": {"task_types": ["research"]},
+            "product": {"task_types": ["research", "strategy"]},
+            "seo": {"task_types": ["seo-plan", "research"]},
+            "auto_created_dev": {"task_types": ["research"]},
+            "test_dev": {"task_types": ["code-writing"]},
+        }
+    }
+    reg_file = bc / "agents_registry.json"
+    reg_file.write_text(json.dumps(reg, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setattr(paths, "BUSINESS_CONFIG_DIR", bc)
+    monkeypatch.setattr(paths, "AGENTS_REGISTRY_FILE", reg_file)
+    monkeypatch.setattr("common.agent_id_policy.BUSINESS_CONFIG_DIR", bc)
+    for aid in ("main", "research", "product", "seo"):
+        ws = tmp_path / "workspaces" / f"workspace-{aid}"
+        ws.mkdir(parents=True)
+        (ws / ".trigger").mkdir(exist_ok=True)
+        (ws / ".response").mkdir(exist_ok=True)
     store = Store(tmp_path / "state.db")
     cfg = WatchdogConfig(soft_idle_sec=5, hard_idle_sec=10, poll_interval=0.02, max_attempts=1)
     yield store, cfg
@@ -96,11 +118,11 @@ def test_happy_dag(env):
 
     proc = Process(store, _port(store, wcfg, transport), ProcessConfig())
     tasks = [
-        {"id": "task_001", "agent": "researcher", "task_type": "research", "dependencies": []},
-        {"id": "task_002", "agent": "researcher", "task_type": "research",
+        {"id": "task_001", "agent": "research", "task_type": "research", "dependencies": []},
+        {"id": "task_002", "agent": "research", "task_type": "research",
          "dependencies": ["task_001"]},
     ]
-    out = proc.run("pro_x", agents=["researcher"], tasks=tasks)
+    out = proc.run("pro_x", agents=["research"], tasks=tasks)
     assert out.status == "completed"
     assert out.tasks["task_001"].status == "completed"
     assert out.tasks["task_002"].status == "completed"
@@ -118,10 +140,10 @@ def test_cancel_stops_dispatch(env):
 
     proc = Process(store, _port(store, wcfg, transport), ProcessConfig())
     tasks = [
-        {"id": "t1", "agent": "researcher", "task_type": "research", "dependencies": []},
-        {"id": "t2", "agent": "researcher", "task_type": "research", "dependencies": ["t1"]},
+        {"id": "t1", "agent": "research", "task_type": "research", "dependencies": []},
+        {"id": "t2", "agent": "research", "task_type": "research", "dependencies": ["t1"]},
     ]
-    out = proc.run("pro_x", agents=["researcher"], tasks=tasks)
+    out = proc.run("pro_x", agents=["research"], tasks=tasks)
     assert out.status == "cancelled"
     assert out.tasks["t2"].status == "blocked"
     assert store.get_project("pro_x")["status"] == "cancelled"
@@ -137,8 +159,8 @@ def test_gate_retry_then_pass(env):
         _write_exec(ctx, content, GOOD_Q)
 
     proc = Process(store, _port(store, wcfg, transport), ProcessConfig(max_gate_retries=3))
-    out = proc.run("pro_x", agents=["researcher"],
-                   tasks=[{"id": "t1", "agent": "researcher", "task_type": "research",
+    out = proc.run("pro_x", agents=["research"],
+                   tasks=[{"id": "t1", "agent": "research", "task_type": "research",
                            "dependencies": []}])
     assert out.tasks["t1"].status == "completed"
     assert out.tasks["t1"].attempts == 2
@@ -164,7 +186,7 @@ def test_gate_retry_reuses_session(env):
         content = bad_content("research") if attempt == 1 else valid_content("research")
         (paths.deliverables_dir("pro_x") / rel).write_text(content, encoding="utf-8")
         submit(exec_env(iid, rel, GOOD_Q),
-               paths.response_dir("researcher") / f"{iid}.response")
+               paths.response_dir("research") / f"{iid}.response")
 
     class GateRetryAdapter:
         def __init__(self):
@@ -179,13 +201,13 @@ def test_gate_retry_reuses_session(env):
 
     transport = AdapterTransport(
         adapter=GateRetryAdapter(),
-        agents_config={"researcher": {"model": "m1"}},
+        agents_config={"research": {"model": "m1"}},
         request_factory=lambda **kw: types.SimpleNamespace(**kw),
         session_resolver=make_gate_session_resolver(store),
     )
     proc = Process(store, _port(store, wcfg, transport), ProcessConfig(max_gate_retries=3))
-    out = proc.run("pro_x", agents=["researcher"],
-                   tasks=[{"id": "t1", "agent": "researcher", "task_type": "research",
+    out = proc.run("pro_x", agents=["research"],
+                   tasks=[{"id": "t1", "agent": "research", "task_type": "research",
                            "dependencies": []}])
     assert out.tasks["t1"].status == "completed"
     assert out.tasks["t1"].attempts == 2
@@ -213,8 +235,8 @@ def test_pure_format_retry_includes_deliverable_path(env):
             _write_exec(ctx, valid_content("research"), GOOD_Q)
 
     proc = Process(store, _port(store, wcfg, transport), ProcessConfig(max_gate_retries=3))
-    out = proc.run("pro_x", agents=["researcher"],
-                   tasks=[{"id": "t1", "agent": "researcher", "task_type": "research",
+    out = proc.run("pro_x", agents=["research"],
+                   tasks=[{"id": "t1", "agent": "research", "task_type": "research",
                            "dependencies": []}])
     assert out.tasks["t1"].status == "completed"
     assert seen_feedback
@@ -239,10 +261,10 @@ def test_gate_exhausted_failed_blocks_dependents(env):
 
     proc = Process(store, _port(store, wcfg, transport), ProcessConfig(max_gate_retries=2))
     tasks = [
-        {"id": "t1", "agent": "researcher", "task_type": "research", "dependencies": []},
-        {"id": "t2", "agent": "researcher", "task_type": "research", "dependencies": ["t1"]},
+        {"id": "t1", "agent": "research", "task_type": "research", "dependencies": []},
+        {"id": "t2", "agent": "research", "task_type": "research", "dependencies": ["t1"]},
     ]
-    out = proc.run("pro_x", agents=["researcher"], tasks=tasks)
+    out = proc.run("pro_x", agents=["research"], tasks=tasks)
     assert out.tasks["t1"].status == "failed"
     assert out.tasks["t2"].status == "blocked"
     assert out.status == "failed"
@@ -261,10 +283,10 @@ def test_needs_review_not_blocking(env):
     proc = Process(store, _port(store, wcfg, transport),
                    ProcessConfig(needs_review_blocks=False))
     tasks = [
-        {"id": "t1", "agent": "researcher", "task_type": "research", "dependencies": []},
-        {"id": "t2", "agent": "researcher", "task_type": "research", "dependencies": ["t1"]},
+        {"id": "t1", "agent": "research", "task_type": "research", "dependencies": []},
+        {"id": "t2", "agent": "research", "task_type": "research", "dependencies": ["t1"]},
     ]
-    out = proc.run("pro_x", agents=["researcher"], tasks=tasks)
+    out = proc.run("pro_x", agents=["research"], tasks=tasks)
     assert out.tasks["t1"].status == "needs_review"
     assert out.tasks["t2"].status == "completed"  # 未被阻塞
     assert out.status == "completed"
@@ -282,10 +304,10 @@ def test_needs_review_blocking_when_configured(env):
     proc = Process(store, _port(store, wcfg, transport),
                    ProcessConfig(needs_review_blocks=True, quality_floor=0.6))
     tasks = [
-        {"id": "t1", "agent": "researcher", "task_type": "research", "dependencies": []},
-        {"id": "t2", "agent": "researcher", "task_type": "research", "dependencies": ["t1"]},
+        {"id": "t1", "agent": "research", "task_type": "research", "dependencies": []},
+        {"id": "t2", "agent": "research", "task_type": "research", "dependencies": ["t1"]},
     ]
-    out = proc.run("pro_x", agents=["researcher"], tasks=tasks)
+    out = proc.run("pro_x", agents=["research"], tasks=tasks)
     assert out.tasks["t1"].status == "needs_review"
     assert out.tasks["t2"].status == "blocked"
 
@@ -309,8 +331,8 @@ def test_triage_reassign_then_succeed(env):
         _write_exec(ctx, content, GOOD_Q)
 
     proc = Process(store, _port(store, wcfg, transport), ProcessConfig(max_gate_retries=1))
-    out = proc.run("pro_x", agents=["researcher", "seo"],
-                   tasks=[{"id": "t1", "agent": "researcher", "task_type": "research",
+    out = proc.run("pro_x", agents=["research", "seo"],
+                   tasks=[{"id": "t1", "agent": "research", "task_type": "research",
                            "dependencies": []}])
     assert out.tasks["t1"].status == "completed"
     assert store.get_task("pro_x", "t1")["agent"] == "seo"
@@ -325,11 +347,11 @@ def test_full_flow_team_config_and_task_plan(env):
         rp = paths.response_dir(ctx.request.agent_id) / f"{ctx.request.interaction_id}.response"
         if k == "team_config":
             submit({"interaction_id": ctx.request.interaction_id, "kind": "team_config",
-                    "status": "ok", "result": {"agents": ["researcher"]}}, rp)
+                    "status": "ok", "result": {"agents": ["research"]}}, rp)
         elif k == "task_plan":
             submit({"interaction_id": ctx.request.interaction_id, "kind": "task_plan",
                     "status": "ok", "result": {"tasks": [{
-                        "id": "task_001", "name": "调研", "agent": "researcher",
+                        "id": "task_001", "name": "调研", "agent": "research",
                         "task_type": "research", "description": "做调研", "dependencies": []}]}}, rp)
         elif k == "execute":
             _write_exec(ctx, valid_content("research"), GOOD_Q)
@@ -366,19 +388,19 @@ def _plan_transport(team, agent_by_attempt):
 
 def test_task_plan_rejects_out_of_team_then_retry(env):
     store, wcfg = env
-    # attempt 1 指派团队外 "ghost"，attempt 2 修正为 "researcher"
+    # attempt 1 指派团队外 "ghost"，attempt 2 修正为 "research"
     transport, calls = _plan_transport(
-        ["researcher"], lambda n: "ghost" if n == 1 else "researcher")
+        ["research"], lambda n: "ghost" if n == 1 else "research")
     proc = Process(store, _port(store, wcfg, transport), ProcessConfig(max_plan_retries=2))
     out = proc.run("pro_x", goal="GEO")
     assert calls["plan"] == 2  # 越界后重试了一次
     assert out.status == "completed"
-    assert store.get_task("pro_x", "t1")["agent"] == "researcher"
+    assert store.get_task("pro_x", "t1")["agent"] == "research"
 
 
 def test_task_plan_out_of_team_exhausted_raises(env):
     store, wcfg = env
-    transport, calls = _plan_transport(["researcher"], lambda n: "ghost")  # 永远越界
+    transport, calls = _plan_transport(["research"], lambda n: "ghost")  # 永远越界
     proc = Process(store, _port(store, wcfg, transport), ProcessConfig(max_plan_retries=2))
     with pytest.raises(RuntimeError, match="校验失败"):
         proc.run("pro_x", goal="GEO")
@@ -413,10 +435,10 @@ def test_task_plan_rejects_unregistered_type_then_retry(env):
 
     def make_bad(n):
         tt = "fake_type" if n == 1 else "research"
-        return [{"id": "t1", "name": "x", "agent": "researcher",
+        return [{"id": "t1", "name": "x", "agent": "research",
                  "task_type": tt, "description": "x", "dependencies": []}]
 
-    transport, calls = _transport_plan_bad({"researcher"}, make_bad)
+    transport, calls = _transport_plan_bad({"research"}, make_bad)
     proc = Process(store, _port(store, wcfg, transport), ProcessConfig(max_plan_retries=2))
     out = proc.run("pro_x", goal="GEO")
     assert calls["plan"] == 2  # 第一次被 check_plan 打回
@@ -429,10 +451,10 @@ def test_task_plan_rejects_dangling_dep_then_retry(env):
 
     def make_bad(n):
         deps = ["nonexistent"] if n == 1 else []
-        return [{"id": "t1", "name": "x", "agent": "researcher",
+        return [{"id": "t1", "name": "x", "agent": "research",
                  "task_type": "research", "description": "x", "dependencies": deps}]
 
-    transport, calls = _transport_plan_bad({"researcher"}, make_bad)
+    transport, calls = _transport_plan_bad({"research"}, make_bad)
     proc = Process(store, _port(store, wcfg, transport), ProcessConfig(max_plan_retries=2))
     out = proc.run("pro_x", goal="GEO")
     assert calls["plan"] == 2
@@ -446,14 +468,14 @@ def test_task_plan_rejects_cycle_then_retry(env):
     def make_bad(n):
         if n == 1:
             # t1 → t2 → t1 成环
-            return [{"id": "t1", "name": "x", "agent": "researcher", "task_type": "research",
+            return [{"id": "t1", "name": "x", "agent": "research", "task_type": "research",
                      "description": "x", "dependencies": ["t2"]},
-                    {"id": "t2", "name": "y", "agent": "researcher", "task_type": "research",
+                    {"id": "t2", "name": "y", "agent": "research", "task_type": "research",
                      "description": "y", "dependencies": ["t1"]}]
-        return [{"id": "t1", "name": "x", "agent": "researcher", "task_type": "research",
+        return [{"id": "t1", "name": "x", "agent": "research", "task_type": "research",
                  "description": "x", "dependencies": []}]
 
-    transport, calls = _transport_plan_bad({"researcher"}, make_bad)
+    transport, calls = _transport_plan_bad({"research"}, make_bad)
     proc = Process(store, _port(store, wcfg, transport), ProcessConfig(max_plan_retries=2))
     out = proc.run("pro_x", goal="GEO")
     assert calls["plan"] == 2
@@ -480,7 +502,7 @@ def _review_transport(reviews, *, approved=True):
 
 
 def _reviewed_task():
-    return [{"id": "t1", "agent": "researcher", "task_type": "research",
+    return [{"id": "t1", "agent": "research", "task_type": "research",
              "reviewer": "product", "dependencies": []}]
 
 
@@ -489,7 +511,7 @@ def test_review_switch_off_no_review(env):
     reviews = []
     proc = Process(store, _port(store, wcfg, _review_transport(reviews)),
                    ProcessConfig(review_enabled=False))
-    out = proc.run("pro_x", agents=["researcher", "product"], tasks=_reviewed_task())
+    out = proc.run("pro_x", agents=["research", "product"], tasks=_reviewed_task())
     assert out.tasks["t1"].status == "completed"
     assert reviews == []  # 开关关：即便指派了 reviewer 也不评审
 
@@ -499,7 +521,7 @@ def test_review_approve_keeps_status(env):
     reviews = []
     proc = Process(store, _port(store, wcfg, _review_transport(reviews, approved=True)),
                    ProcessConfig(review_enabled=True))
-    out = proc.run("pro_x", agents=["researcher", "product"], tasks=_reviewed_task())
+    out = proc.run("pro_x", agents=["research", "product"], tasks=_reviewed_task())
     assert out.tasks["t1"].status == "completed"
     assert reviews == [("t1", "product")]  # 评审发给了 main 指派的 reviewer
 
@@ -509,7 +531,7 @@ def test_review_reject_to_needs_review(env):
     reviews = []
     proc = Process(store, _port(store, wcfg, _review_transport(reviews, approved=False)),
                    ProcessConfig(review_enabled=True))
-    out = proc.run("pro_x", agents=["researcher", "product"], tasks=_reviewed_task())
+    out = proc.run("pro_x", agents=["research", "product"], tasks=_reviewed_task())
     assert out.tasks["t1"].status == "needs_review"  # 评审打回 → 不静默通过
 
 
@@ -532,7 +554,7 @@ def test_review_approve_promotes_low_selfassess_to_completed(env):
 
     proc = Process(store, _port(store, wcfg, transport),
                    ProcessConfig(review_enabled=True))
-    out = proc.run("pro_x", agents=["researcher", "product"], tasks=_reviewed_task())
+    out = proc.run("pro_x", agents=["research", "product"], tasks=_reviewed_task())
     assert out.tasks["t1"].status == "completed"
     assert reviews == [("t1", "product")]
 
@@ -542,8 +564,8 @@ def test_review_enabled_but_no_reviewer_skips(env):
     reviews = []
     proc = Process(store, _port(store, wcfg, _review_transport(reviews)),
                    ProcessConfig(review_enabled=True))
-    out = proc.run("pro_x", agents=["researcher"],
-                   tasks=[{"id": "t1", "agent": "researcher", "task_type": "research",
+    out = proc.run("pro_x", agents=["research"],
+                   tasks=[{"id": "t1", "agent": "research", "task_type": "research",
                            "dependencies": []}])
     assert out.tasks["t1"].status == "completed"
     assert reviews == []  # 开关开但 main 未指派 reviewer → 跳过
@@ -560,11 +582,11 @@ def _recurring_transport(seen, *, fail_all=False):
         rp = paths.response_dir(req.agent_id) / f"{req.interaction_id}.response"
         if req.kind == "team_config":
             submit({"interaction_id": req.interaction_id, "kind": "team_config",
-                    "status": "ok", "result": {"agents": ["researcher"]}}, rp)
+                    "status": "ok", "result": {"agents": ["research"]}}, rp)
         elif req.kind == "task_plan":
             seen.append((req.input or {}).get("prior_summary", ""))
             submit({"interaction_id": req.interaction_id, "kind": "task_plan", "status": "ok",
-                    "result": {"tasks": [{"id": "task_001", "name": "调研", "agent": "researcher",
+                    "result": {"tasks": [{"id": "task_001", "name": "调研", "agent": "research",
                                           "task_type": "research", "description": "做调研",
                                           "dependencies": []}]}}, rp)
         elif req.kind == "execute":
@@ -581,7 +603,7 @@ def test_recurring_runs_cycles_with_inheritance(env):
     seen: list[str] = []
     proc = Process(store, _port(store, wcfg, _recurring_transport(seen)),
                    ProcessConfig(mode="recurring", max_cycles=2))
-    out = proc.run("pro_r", goal="持续优化", agents=["researcher"])
+    out = proc.run("pro_r", goal="持续优化", agents=["research"])
 
     assert out.status == "completed"
     # 两个周期，task id 带周期前缀，互不覆盖
@@ -603,7 +625,7 @@ def test_recurring_completed_extracts_skill_draft(env, tmp_path, monkeypatch):
     seen: list[str] = []
     proc = Process(store, _port(store, wcfg, _recurring_transport(seen)),
                    ProcessConfig(mode="recurring", max_cycles=1, skill_extract_enabled=True))
-    out = proc.run("pro_r_skill", goal="沉淀 recurring 成功模式", agents=["researcher"])
+    out = proc.run("pro_r_skill", goal="沉淀 recurring 成功模式", agents=["research"])
 
     assert out.status == "completed"
     draft = tmp_path / "business/skills/auto-pro_r_skill-c1_task_001/SKILL.md"
@@ -617,7 +639,7 @@ def test_recurring_stops_on_zero_progress(env):
     seen: list[str] = []
     proc = Process(store, _port(store, wcfg, _recurring_transport(seen, fail_all=True)),
                    ProcessConfig(mode="recurring", max_cycles=3, max_gate_retries=1))
-    out = proc.run("pro_r", goal="持续优化", agents=["researcher"])
+    out = proc.run("pro_r", goal="持续优化", agents=["research"])
 
     assert out.status == "failed"
     # 第一周期零完成即停，不会跑满 max_cycles
@@ -628,38 +650,38 @@ def test_recurring_stops_on_zero_progress(env):
 # ── check_plan 确定性门禁（plan gate）单元测试 ──────────────────
 
 
-def _task(tid, agent="researcher", task_type="research", deps=None):
+def _task(tid, agent="research", task_type="research", deps=None):
     return {"id": tid, "agent": agent, "task_type": task_type,
             "dependencies": deps or []}
 
 
 def test_check_plan_valid():
-    team = {"researcher"}
+    team = {"research"}
     tasks = [_task("a"), _task("b", deps=["a"])]
     r = check_plan(tasks, team)
     assert r.passed
 
 
 def test_check_plan_empty_plan():
-    r = check_plan([], {"researcher"})
+    r = check_plan([], {"research"})
     assert r.passed
 
 
 def test_check_plan_duplicate_ids():
-    r = check_plan([_task("a"), _task("a")], {"researcher"})
+    r = check_plan([_task("a"), _task("a")], {"research"})
     assert not r.passed
     assert "重复" in r.feedback
 
 
 def test_check_plan_agent_not_in_team():
-    r = check_plan([_task("a", agent="ghost")], {"researcher"})
+    r = check_plan([_task("a", agent="ghost")], {"research"})
     assert not r.passed
     assert "ghost" in r.feedback
-    assert "researcher" in r.feedback
+    assert "research" in r.feedback
 
 
 def test_check_plan_unregistered_task_type():
-    r = check_plan([_task("a", task_type="fake_type")], {"researcher"})
+    r = check_plan([_task("a", task_type="fake_type")], {"research"})
     assert not r.passed
     assert "fake_type" in r.feedback
     assert "注册表" in r.feedback
@@ -670,31 +692,31 @@ def test_check_plan_agent_task_type_mismatch(monkeypatch, tmp_path):
 
     reg_path = tmp_path / "agents_registry.json"
     reg_path.write_text(json.dumps({
-        "agents": {"researcher": {"task_types": ["research"]}},
+        "agents": {"research": {"task_types": ["research"]}},
     }, ensure_ascii=False), encoding="utf-8")
     monkeypatch.setattr(agent_registry_mod, "REGISTRY_FILE", reg_path)
 
-    r = check_plan([_task("a", agent="researcher", task_type="code-writing")], {"researcher"})
+    r = check_plan([_task("a", agent="research", task_type="code-writing")], {"research"})
     assert not r.passed
     assert "code-writing" in r.feedback
-    assert "researcher" in r.feedback
+    assert "research" in r.feedback
 
 
 def test_check_plan_dangling_dependency():
-    r = check_plan([_task("a", deps=["nonexistent"])], {"researcher"})
+    r = check_plan([_task("a", deps=["nonexistent"])], {"research"})
     assert not r.passed
     assert "nonexistent" in r.feedback
 
 
 def test_check_plan_cycle():
-    r = check_plan([_task("a", deps=["b"]), _task("b", deps=["a"])], {"researcher"})
+    r = check_plan([_task("a", deps=["b"]), _task("b", deps=["a"])], {"research"})
     assert not r.passed
     assert "环" in r.feedback
 
 
 def test_check_plan_fanout_exceeded():
     tasks = [_task(f"t{i}") for i in range(10)]
-    r = check_plan(tasks, {"researcher"}, max_fanout=5)
+    r = check_plan(tasks, {"research"}, max_fanout=5)
     assert not r.passed
     assert "上限" in r.feedback
 
@@ -702,8 +724,8 @@ def test_check_plan_fanout_exceeded():
 def test_check_plan_mixed_errors_first_wins():
     """check_plan 短路：先报 id 重复，不管 agent/task_type。"""
     tasks = [{"id": "x", "agent": "ghost", "task_type": "invalid"},
-             {"id": "x", "agent": "researcher", "task_type": "research"}]
-    r = check_plan(tasks, {"researcher"})
+             {"id": "x", "agent": "research", "task_type": "research"}]
+    r = check_plan(tasks, {"research"})
     assert not r.passed
     assert "重复" in r.feedback  # id 重复最先捕获
 
@@ -711,14 +733,14 @@ def test_check_plan_mixed_errors_first_wins():
 # ── 派发前静态递归展开（evaluate；开关 split_enabled）──────────
 
 
-def _sub(sid, agent="researcher", task_type="research", deps=None):
+def _sub(sid, agent="research", task_type="research", deps=None):
     return {"id": sid, "name": sid, "agent": agent, "task_type": task_type,
             "description": sid, "dependencies": deps or []}
 
 
 def _single_plan(req, rp, tid="t1"):
     submit({"interaction_id": req.interaction_id, "kind": "task_plan", "status": "ok",
-            "result": {"tasks": [{"id": tid, "name": "大任务", "agent": "researcher",
+            "result": {"tasks": [{"id": tid, "name": "大任务", "agent": "research",
                                   "task_type": "research", "description": "x",
                                   "dependencies": []}]}}, rp)
 
@@ -726,12 +748,12 @@ def _single_plan(req, rp, tid="t1"):
 def test_normalize_and_splice_units():
     """归一（前缀/回填/兄弟依赖）与依赖重接的纯逻辑单测（不依赖 store/port）。"""
     from common.plan_splice import normalize_subtasks, splice_subtasks
-    parent = {"id": "t1", "agent": "researcher", "task_type": "research", "dependencies": ["up"]}
+    parent = {"id": "t1", "agent": "research", "task_type": "research", "dependencies": ["up"]}
     raw = [{"id": "a", "name": "A", "description": "x", "dependencies": []},
            {"id": "b", "name": "B", "description": "y", "dependencies": ["a"]}]
     subs = normalize_subtasks(raw, parent)
     assert [s["id"] for s in subs] == ["t1.a", "t1.b"]                 # 加父前缀
-    assert all(s["agent"] == "researcher" and s["task_type"] == "research" for s in subs)  # 回填父值
+    assert all(s["agent"] == "research" and s["task_type"] == "research" for s in subs)  # 回填父值
     assert subs[1]["dependencies"] == ["t1.a"]                          # 兄弟依赖也加前缀
 
     result = {"t1": parent,
@@ -759,7 +781,7 @@ def test_split_disabled_no_evaluate(env):
             _write_exec(ctx, valid_content("research"), GOOD_Q)
 
     proc = Process(store, _port(store, wcfg, transport), ProcessConfig(split_enabled=False))
-    out = proc.run("pro_x", agents=["researcher"], goal="x")
+    out = proc.run("pro_x", agents=["research"], goal="x")
     assert "evaluate" not in kinds              # 开关关：从不问 evaluate
     assert out.tasks["t1"].status == "completed"
 
@@ -782,7 +804,7 @@ def test_split_expands_one_task_into_two(env):
             _write_exec(ctx, valid_content("research"), GOOD_Q)
 
     proc = Process(store, _port(store, wcfg, transport), ProcessConfig(split_enabled=True))
-    out = proc.run("pro_x", agents=["researcher"], goal="big")
+    out = proc.run("pro_x", agents=["research"], goal="big")
     assert "t1" not in out.tasks                  # 父任务被子任务替换
     assert out.tasks["t1.a"].status == "completed"
     assert out.tasks["t1.b"].status == "completed"
@@ -805,7 +827,7 @@ def test_split_rejects_out_of_team_subtask_then_retry(env):
                         "result": {"should_split": False, "reason": "", "sub_tasks": []}}, rp)
                 return
             ev["n"] += 1
-            agent = "ghost" if ev["n"] == 1 else "researcher"   # 先越界 → 打回；再修正
+            agent = "ghost" if ev["n"] == 1 else "research"   # 先越界 → 打回；再修正
             submit({"interaction_id": req.interaction_id, "kind": "evaluate", "status": "ok",
                     "result": {"should_split": True, "reason": "复杂",
                                "sub_tasks": [_sub("a", agent=agent)]}}, rp)
@@ -814,7 +836,7 @@ def test_split_rejects_out_of_team_subtask_then_retry(env):
 
     proc = Process(store, _port(store, wcfg, transport),
                    ProcessConfig(split_enabled=True, max_plan_retries=2))
-    out = proc.run("pro_x", agents=["researcher"], goal="x")
+    out = proc.run("pro_x", agents=["research"], goal="x")
     assert ev["n"] == 2                           # 越界子任务被打回、重试一次后修正
     assert out.tasks["t1.a"].status == "completed"
     assert "t1" not in out.tasks
@@ -838,7 +860,7 @@ def test_split_depth_cap_terminates(env):
 
     proc = Process(store, _port(store, wcfg, transport),
                    ProcessConfig(split_enabled=True, max_split_depth=2))
-    out = proc.run("pro_x", agents=["researcher"], goal="x")
+    out = proc.run("pro_x", agents=["research"], goal="x")
     # t1(d0)→t1.x(d1)→t1.x.x(d2 到顶不再拆)；只有最深叶子被执行
     assert out.status == "completed"
     assert set(out.tasks) == {"t1.x.x"}
@@ -871,7 +893,7 @@ def test_split_rejects_dangling_dependency(env):
 
     proc = Process(store, _port(store, wcfg, transport),
                    ProcessConfig(split_enabled=True, max_plan_retries=2))
-    out = proc.run("pro_x", agents=["researcher"], goal="x")
+    out = proc.run("pro_x", agents=["research"], goal="x")
     assert ev["n"] == 2                            # 悬空依赖被打回、重试一次后修正
     assert out.tasks["t1.a"].status == "completed"
     assert out.tasks["t1.b"].status == "completed"
@@ -902,7 +924,7 @@ def test_split_subtask_failure_blocks_dependent(env):
 
     proc = Process(store, _port(store, wcfg, transport),
                    ProcessConfig(split_enabled=True, max_gate_retries=1))
-    out = proc.run("pro_x", agents=["researcher"], goal="x")
+    out = proc.run("pro_x", agents=["research"], goal="x")
     assert out.tasks["t1.a"].status == "failed"        # 子任务门禁耗尽 → failed
     assert out.tasks["t1.b"].status == "blocked"       # 依赖失败子任务 → 阻塞（重接边生效）
     assert out.status == "failed"
@@ -919,10 +941,10 @@ def test_recurring_split_uses_distinct_ids_across_cycles(env):
         rp = paths.response_dir(req.agent_id) / f"{req.interaction_id}.response"
         if req.kind == "team_config":
             submit({"interaction_id": req.interaction_id, "kind": "team_config", "status": "ok",
-                    "result": {"agents": ["researcher"]}}, rp)
+                    "result": {"agents": ["research"]}}, rp)
         elif req.kind == "task_plan":
             submit({"interaction_id": req.interaction_id, "kind": "task_plan", "status": "ok",
-                    "result": {"tasks": [{"id": "t1", "name": "n", "agent": "researcher",
+                    "result": {"tasks": [{"id": "t1", "name": "n", "agent": "research",
                                           "task_type": "research", "description": "x",
                                           "dependencies": []}]}}, rp)
         elif req.kind == "evaluate":
@@ -936,7 +958,7 @@ def test_recurring_split_uses_distinct_ids_across_cycles(env):
 
     proc = Process(store, _port(store, wcfg, transport),
                    ProcessConfig(mode="recurring", max_cycles=2, split_enabled=True))
-    out = proc.run("pro_r", goal="持续", agents=["researcher"])
+    out = proc.run("pro_r", goal="持续", agents=["research"])
     # 两周期各自展开，子任务带周期前缀互不覆盖
     assert set(out.tasks) == {"c1_t1.a", "c2_t1.a"}
     assert all(o.status == "completed" for o in out.tasks.values())
@@ -996,16 +1018,28 @@ def test_auto_create_agent_already_exists(tmp_path, monkeypatch):
 
 
 def test_auto_create_agent_works_in_full_team_config(tmp_path, monkeypatch):
-    """完整流程：team_config → Main 返回新 agent → auto-create → DAG 执行。"""
+    """完整流程：team_config → 名册内 agent 缺 workspace → auto-create → DAG 执行。"""
     monkeypatch.setattr(paths, "WORKSPACES_DIR", tmp_path / "workspaces")
     monkeypatch.setattr(paths, "PROJECTS_DIR", tmp_path / "project")
     monkeypatch.setattr(paths, "AGENTS_CONFIG_FILE", tmp_path / "agents_config.json")
-    monkeypatch.setattr(paths, "AGENTS_REGISTRY_FILE", tmp_path / "agents_registry.json")
     monkeypatch.setattr(paths, "WORKSPACE_PREFIX", "workspace-")
+    bc = tmp_path / "business" / "config"
+    bc.mkdir(parents=True)
+    reg_file = bc / "agents_registry.json"
+    reg_file.write_text(json.dumps({
+        "agents": {
+            "main": {"task_types": ["strategy"]},
+            "auto_created_dev": {"task_types": ["research"]},
+        }
+    }), encoding="utf-8")
+    monkeypatch.setattr(paths, "BUSINESS_CONFIG_DIR", bc)
+    monkeypatch.setattr(paths, "AGENTS_REGISTRY_FILE", reg_file)
+    monkeypatch.setattr("common.agent_id_policy.BUSINESS_CONFIG_DIR", bc)
 
-    # 预创建 main agent workspace（auto-create 不会为 main 做，但 team_config 交互需要）
     main_ws = tmp_path / "workspaces" / "workspace-main"
     main_ws.mkdir(parents=True)
+    (main_ws / ".trigger").mkdir(exist_ok=True)
+    (main_ws / ".response").mkdir(exist_ok=True)
 
     store = Store(tmp_path / "state.db")
     wcfg = WatchdogConfig(soft_idle_sec=5, hard_idle_sec=10, poll_interval=0.02, max_attempts=1)
@@ -1055,14 +1089,14 @@ def test_parallel_wave_emits_event(env):
         _write_exec(ctx, valid_content("research"), GOOD_Q)
 
     tasks = [
-        {"id": f"t{i}", "agent": "researcher", "task_type": "research", "dependencies": []}
+        {"id": f"t{i}", "agent": "research", "task_type": "research", "dependencies": []}
         for i in range(1, 5)
     ]
     proc = Process(
         store, _port(store, wcfg, transport),
         ProcessConfig(parallel_enabled=True, max_parallel=4),
     )
-    out = proc.run("pro_parallel", agents=["researcher"], tasks=tasks)
+    out = proc.run("pro_parallel", agents=["research"], tasks=tasks)
     assert all(out.tasks[f"t{i}"].status == "completed" for i in range(1, 5))
     events = store.list_run_events("pro_parallel:dispatch")
     waves = [e for e in events if e.get("kind") == "parallel_wave"]
@@ -1097,8 +1131,8 @@ def test_fail_reason_passed_to_triage(env):
 
     proc = Process(store, _port(store, wcfg, transport), ProcessConfig(max_gate_retries=1))
     out = proc.run(
-        "pro_fail_reason", agents=["researcher"],
-        tasks=[{"id": "t1", "agent": "researcher", "task_type": "research", "dependencies": []}],
+        "pro_fail_reason", agents=["research"],
+        tasks=[{"id": "t1", "agent": "research", "task_type": "research", "dependencies": []}],
     )
     assert out.tasks["t1"].status == "failed"
     meta = (store.get_task("pro_fail_reason", "t1") or {}).get("meta") or {}
@@ -1134,12 +1168,12 @@ def test_kernel_triage_k7_measurable(env, tmp_path):
         ctx.emit("step_start")
 
     tasks = [
-        {"id": "t1", "agent": "researcher", "task_type": "research", "dependencies": []},
-        {"id": "t2", "agent": "researcher", "task_type": "research", "dependencies": ["t1"]},
-        {"id": "t3", "agent": "researcher", "task_type": "research", "dependencies": ["t2"]},
+        {"id": "t1", "agent": "research", "task_type": "research", "dependencies": []},
+        {"id": "t2", "agent": "research", "task_type": "research", "dependencies": ["t1"]},
+        {"id": "t3", "agent": "research", "task_type": "research", "dependencies": ["t2"]},
     ]
     proc = Process(store, _port(store, wcfg, transport), ProcessConfig(max_gate_retries=1))
-    out = proc.run(pid, agents=["researcher"], tasks=tasks)
+    out = proc.run(pid, agents=["research"], tasks=tasks)
     assert out.tasks["t1"].status == "failed"
     assert out.tasks["t2"].status == "blocked"
     assert out.tasks["t3"].status == "blocked"

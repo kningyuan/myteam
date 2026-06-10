@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 myteam is a lightweight **multi-agent collaboration platform**: a Web Hub (chat / agent management / groups / observability) plus a declarative **orchestration kernel** that decomposes a `goal` into a task DAG, runs it across agents with deterministic gating, retries, and triage. Agents are driven through the **opencode CLI** via an adapter layer (extensible to other CLIs like claude).
 
-Codebase comments, docstrings, and commit messages are in Chinese. Design rationale lives in `docs/ARCHITECTURE.md` and `docs/framework-decisions.md` (decisions are referenced throughout the code as `D1`–`D19`, `F1`).
+Codebase comments, docstrings, and commit messages are in Chinese. Design rationale lives in `docs/ARCHITECTURE.md` and `docs/framework-decisions.md` (decisions are referenced throughout the code as `D1`–`D19`, `F1`). **Framework freeze** (L1/L2 kernel + Hub): `docs/FRAMEWORK-FREEZE.md` — new capability goes to `business/workflows/` and `business/skills/`, not kernel refactors.
 
 ## Commands
 
@@ -86,7 +86,9 @@ Decision rule: if failure corrupts system state → System Kernel. If it changes
 - **System config — `config/`**: `system_config.json` (port, default backend/model, `backends.opencode.cli_path`, model list — auto-generated on first load), `skill_config.json`. Override the opencode binary via `system_config.backends.opencode.cli_path` or `OPENCODE_CLI_PATH` (default `~/.opencode/bin/opencode`).
 - **Business config + runtime — `business/`**: `config/` (agents_config, agents_registry, groups, session_map, `.env`), `workspaces/workspace-<agent_id>/`, `tasks/state.db`, `tasks/project/<id>/deliverables/`.
 
-**Almost everything operational is gitignored** (`config/*.json`, all of `business/workspaces|tasks|config`, `*.log`, `state.db`). A fresh checkout has no agents, no DB, no business data — these are per-environment state generated at runtime. The repo ships 15 template agents and a `templates.yaml`; only `main` (which makes `team_config`/`task_plan`/`triage` decisions) plus the agents you actually use need a populated workspace. An agent runs without `AGENTS.md`/`IDENTITY.md`/`SOUL.md`/`MEMORY.md`, but with degraded output quality.
+**Almost everything operational is gitignored** (`config/*.json`, all of `business/workspaces|tasks|config`, `*.log`, `state.db`). A fresh checkout has no agents, no DB, no business data — these are per-environment state generated at runtime. Agent roster template: `business/templates/business-roster.json` (merge via `scripts/bootstrap_business_roster.py`). Research role id is **`research`** (legacy `researcher` is deprecated). Only `main` (which makes `team_config`/`task_plan`/`triage` decisions) plus agents you actually use need a populated workspace. An agent runs without `AGENTS.md`/`IDENTITY.md`/`SOUL.md`/`MEMORY.md`, but with degraded output quality.
+
+**Deliverable scaffold** (`deliverable_guarantee.scaffold_markdown_deliverable`): prewrites `# title` + empty `## required_sections` only; task intent goes via `req.intent` in the worker prompt, not into the markdown file.
 
 ## Conventions
 

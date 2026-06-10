@@ -72,6 +72,7 @@ function switchTab(tab, opts = {}) {
   if (tab === 'projects') { renderProjectList(); loadProjects().then(renderProjectList); }
   if (tab === 'agents') { renderManageAgents(); renderTaskTypes(); renderMemory(); }
   if (tab === 'settings') loadSettings();
+  if (tab === 'workflows') loadWorkflowTab();
   if (tab !== 'groups') disconnectGroupEvents();
   if (tab !== 'chat') disconnectAgentEvents();
   if (tab === 'chat' && S.currentAgentId) connectAgentEvents(S.currentAgentId);
@@ -99,7 +100,23 @@ async function restoreUiState() {
       selectAgent(st.agentId, { restore: true });
     } else if (st.tab === 'groups' && st.groupId && S.groups.some(g => g.id === st.groupId && g.status !== 'dissolved')) {
       selectGroup(st.groupId, { restore: true });
-    } else if (st.tab === 'projects' && st.projectId && S.projects.some(p => p.id === st.projectId)) {
+    } else if (st.tab === 'projects' && st.projectId) {
+      if (!S.projects.some(p => p.id === st.projectId)) {
+        try {
+          const r = await fetch(`/api/obs/projects/${encodeURIComponent(st.projectId)}/overview`);
+          if (r.ok) {
+            const ov = await r.json();
+            S.projects.push({
+              id: st.projectId,
+              title: ov.title || st.projectId,
+              status: ov.status,
+              progress: ov.progress || 0,
+              task_count: (ov.tasks || []).length,
+            });
+            renderProjectList();
+          }
+        } catch (_) { /* ignore */ }
+      }
       selectProject(st.projectId, { restore: true, ptab: st.projectPtab || 'overview' });
     }
   } catch (e) { console.warn('restoreUiState:', e); }
@@ -114,6 +131,7 @@ async function init() {
   await loadHiddenChats();
   setupTabs();
   setupThemeMenu();
+  setupWorkflowTab();
   setupEventListeners();
   await Promise.all([loadAgents(), loadBackends(), loadGroups(), loadProjects()]);
   renderAgentList(); renderGroupList(); renderProjectList();
@@ -233,6 +251,7 @@ function setupEventListeners() {
     if (cur) sel.value = cur;
     updateWorkflowHint();
   };
+  window.refreshWorkflowSelect = loadWorkflows;
   const updateWorkflowHint = () => {
     const hint = DOM['np-workflow-hint'];
     const sel = DOM['np-workflow'];
@@ -244,6 +263,12 @@ function setupEventListeners() {
   const openNewProject = async () => {
     DOM['new-project-modal'].classList.remove('hidden');
     await loadWorkflows();
+    try {
+      const rSkill = await fetch('/api/skill-config');
+      const pd = ((await rSkill.json()).config || {}).process_defaults || {};
+      if (DOM['np-budget']) DOM['np-budget'].value = pd.default_project_budget || 1000000;
+      if (DOM['np-split']) DOM['np-split'].checked = !!pd.split_enabled;
+    } catch (_) { /* ignore */ }
     DOM['np-goal']?.focus();
     if (DOM['np-review']) DOM['np-review'].checked = !!(await getSysConfig()).default_review;
   };
@@ -287,16 +312,28 @@ function setupEventListeners() {
   DOM['btn-apply-model-all']?.addEventListener('click', applyModelToAll);
   DOM['mm-save']?.addEventListener('click', saveManageModal);
   DOM['mm-cancel']?.addEventListener('click', () => DOM['manage-modal'].classList.add('hidden'));
+  DOM['btn-sync-task-types']?.addEventListener('click', () => syncMissingTaskTypes());
+  DOM['mm-suggest-task-types']?.addEventListener('click', () => suggestManageTaskTypes());
   DOM['manage-modal']?.querySelector('.modal-close')?.addEventListener('click', () => DOM['manage-modal'].classList.add('hidden'));
+  DOM['btn-new-tasktype']?.addEventListener('click', () => openTaskTypeModal(null));
+  DOM['tt-suggest']?.addEventListener('click', () => suggestTaskTypeFromDesc());
+  DOM['tt-outcome']?.addEventListener('change', updateOutcomeHint);
+  DOM['tt-save']?.addEventListener('click', saveTaskTypeModal);
+  DOM['tt-cancel']?.addEventListener('click', closeTaskTypeModal);
+  DOM['tasktype-modal']?.querySelectorAll('.tt-modal-close, .modal-close').forEach(el => {
+    el.addEventListener('click', closeTaskTypeModal);
+  });
   DOM['btn-create-agent']?.addEventListener('click', openCreateModal);
   DOM['cf-cancel']?.addEventListener('click', closeCreateModal);
   DOM['create-agent-modal']?.querySelector('.modal-close')?.addEventListener('click', closeCreateModal);
   DOM['cf-submit'].addEventListener('click', async (e) => {
     e.preventDefault(); const desc = DOM['cf-description'].value.trim(); if (!desc) { showFormStatus('请输入 Agent 描述', 'error'); return; }
     const aid = DOM['cf-agent-id'].value.trim(); if (!aid) { showFormStatus('请输入 Agent ID', 'error'); return; }
+    let displayName = DOM['cf-name'].value.trim();
+    if (!displayName) { showFormStatus('请输入显示名称（建议中文）', 'error'); return; }
     DOM['cf-submit'].disabled = true; DOM['cf-submit'].textContent = '创建中...'; showFormStatus('', '');
     try {
-      const r = await fetch('/api/agents/create', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ description: desc, agent_id: aid, chinese_name: DOM['cf-name'].value.trim(), backend: DOM['cf-backend'].value, model: DOM['cf-model'].value }) });
+      const r = await fetch('/api/agents/create', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ description: desc, agent_id: aid, chinese_name: displayName, backend: DOM['cf-backend'].value, model: DOM['cf-model'].value }) });
       if (!r.ok) { const e = await r.json(); throw new Error(apiErr(e, '创建失败')); }
       const d = await r.json(); const a = d.agent;
       DOM['cf-result'].classList.remove('hidden'); DOM['cf-result'].querySelector('.result-details').innerHTML = `<div><span class="result-k">工作目录</span><span>${esc(a.workspace)}</span></div><div><span class="result-k">文件</span><span>${esc((a.files||[]).join(', '))}</span></div><div><span class="result-k">后端</span><span>${esc(a.backend)} / ${esc(a.model)}</span></div>`;

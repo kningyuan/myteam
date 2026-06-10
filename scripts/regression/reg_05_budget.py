@@ -22,8 +22,10 @@ from pathlib import Path
 import yaml
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_REPO_ROOT / "scripts" / "regression"))
 sys.path.insert(0, str(_REPO_ROOT / "backend"))
 
+from agents_config_guard import AgentsConfigSession  # noqa: E402
 from common.observability import cost  # noqa: E402
 from common.store import Store  # noqa: E402
 
@@ -51,33 +53,6 @@ def _reg05_agent_id() -> str:
         if aid in data:
             return aid
     return next(iter(data), "research")
-
-
-def _patch_agent_backend(agent_id: str, backend: str) -> str | None:
-    """临时改 agent backend；返回原值（None=未改或 agent 不存在）。"""
-    if not _AGENTS_CONFIG.is_file():
-        return None
-    data = json.loads(_AGENTS_CONFIG.read_text(encoding="utf-8"))
-    entry = data.get(agent_id)
-    if not isinstance(entry, dict):
-        return None
-    old = entry.get("backend")
-    if old == backend:
-        return None
-    entry["backend"] = backend
-    _AGENTS_CONFIG.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    return old
-
-
-def _restore_agent_backend(agent_id: str, old: str | None) -> None:
-    if old is None or not _AGENTS_CONFIG.is_file():
-        return
-    data = json.loads(_AGENTS_CONFIG.read_text(encoding="utf-8"))
-    entry = data.get(agent_id)
-    if not isinstance(entry, dict):
-        return
-    entry["backend"] = old
-    _AGENTS_CONFIG.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
 def _reset_project(project_id: str) -> None:
@@ -153,19 +128,15 @@ def main() -> int:
         return 2
 
     reg_agent = _reg05_agent_id()
-    old_backend = _patch_agent_backend(reg_agent, cfg.get("backend", "claude"))
-    if old_backend is not None:
-        print(f"  临时将 {reg_agent} backend: {old_backend} → claude")
+    target_backend = cfg.get("backend", "claude")
+    print(f"  临时将 {reg_agent} backend → {target_backend}")
 
     _reset_project(_PROJECT_ID)
 
-    try:
+    with AgentsConfigSession() as guard:
+        guard.patch_backend(reg_agent, target_backend)
         rc = run_kernel(cfg)
         print(f"  run_kernel exit: {rc}")
-    finally:
-        _restore_agent_backend(reg_agent, old_backend)
-        if old_backend is not None:
-            print(f"  已恢复 {reg_agent} backend: {old_backend}")
 
     if not _STATE_DB.is_file():
         print(f"REG-05: FAIL（state.db 不存在: {_STATE_DB}）")

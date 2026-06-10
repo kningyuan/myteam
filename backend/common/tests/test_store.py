@@ -28,7 +28,7 @@ def test_schema_idempotent(tmp_path):
 
 def test_project_and_task_crud(store):
     store.upsert_project("pro_x", title="GEO", mode="recurring")
-    store.upsert_task("pro_x", "task_001", name="调研", agent="researcher",
+    store.upsert_task("pro_x", "task_001", name="调研", agent="research",
                       task_type="research", dependencies=[])
     store.set_task_status("pro_x", "task_001", "in_progress")
     t = store.get_task("pro_x", "task_001")
@@ -50,7 +50,7 @@ def test_interaction_and_events(store):
     store.upsert_project("pro_x")
     store.upsert_task("pro_x", "task_001")
     store.create_interaction("i1", "execute", "pro_x", task_id="task_001",
-                             agent_id="researcher", task_status="in_progress")
+                             agent_id="research", task_status="in_progress")
     assert store.get_task("pro_x", "task_001")["status"] == "in_progress"
     s1 = store.append_run_event("i1", "step_start")
     s2 = store.append_run_event("i1", "text", {"chunk": "hi"})
@@ -74,7 +74,7 @@ def test_idempotent_recreate_interaction(store):
 
 def test_export_view_matches_db(store):
     store.upsert_project("pro_x", title="GEO")
-    store.upsert_task("pro_x", "task_001", name="调研", agent="researcher",
+    store.upsert_task("pro_x", "task_001", name="调研", agent="research",
                       task_type="research", dependencies=[])
     store.upsert_task("pro_x", "sub_001", name="子调研", parent_id="task_001",
                       dependencies=[])
@@ -105,7 +105,7 @@ def test_import_task_data_roundtrip(store):
     data = {
         "project": {"title": "GEO", "mode": "one_shot", "status": "in_progress"},
         "tasks": [{
-            "id": "task_001", "name": "调研", "agent": "researcher",
+            "id": "task_001", "name": "调研", "agent": "research",
             "task_type": "research", "status": "completed", "dependencies": [],
             "subtasks": [{"id": "sub_001", "name": "子", "status": "completed",
                           "dependencies": []}],
@@ -129,9 +129,9 @@ def test_memory_write_search(store):
 def test_delete_project_purges_all_tables_and_isolates(store):
     # 目标项目：含 task / interaction / run_event / memory + 合成 budget 事件
     store.upsert_project("pro_del", title="待删")
-    store.upsert_task("pro_del", "task_001", name="t", agent="researcher")
+    store.upsert_task("pro_del", "task_001", name="t", agent="research")
     store.create_interaction("pro_del:task_001:execute:1", "execute", "pro_del",
-                             task_id="task_001", agent_id="researcher")
+                             task_id="task_001", agent_id="research")
     store.append_run_event("pro_del:task_001:execute:1", "step_start", {})
     store.append_run_event("pro_del:budget", "budget_over", {"used": 9})  # 合成 id（无交互行）
     store.memory_write("pro_del", "KB", "x", tags=["a"])
@@ -142,7 +142,7 @@ def test_delete_project_purges_all_tables_and_isolates(store):
 
     inter = store.delete_project("pro_del")
     assert {"interaction_id": "pro_del:task_001:execute:1",
-            "agent_id": "researcher"} in inter
+            "agent_id": "research"} in inter
 
     assert store.get_project("pro_del") is None
     assert store.list_tasks("pro_del") == []

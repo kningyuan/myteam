@@ -34,7 +34,7 @@ def test_store_concurrent_writes_no_database_locked(store):
         try:
             for n in range(10):
                 store.upsert_task(
-                    project_id, f"task_{tid}_{n}", name=f"t{tid}-{n}", agent="researcher"
+                    project_id, f"task_{tid}_{n}", name=f"t{tid}-{n}", agent="research"
                 )
                 store.append_run_event(f"i{tid}", "tick", {"n": n})
         except sqlite3.OperationalError as exc:

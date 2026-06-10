@@ -75,9 +75,13 @@ def format_registry_for_prompt(*, role_filter: Optional[str] = None) -> str:
                 continue
         if not info.get("available"):
             continue
+        from common.registry import TASK_TYPE_DISPLAY_NAMES
+
         caps = "、".join(info.get("capabilities") or [])[:80]
-        tts = "、".join(info.get("task_types") or [])
-        extra = f"；task_types：{tts}" if tts else ""
+        tts_raw = info.get("task_types") or []
+        tts = "、".join(TASK_TYPE_DISPLAY_NAMES.get(t, t) for t in tts_raw)
+        extra = f"；可执行任务：{tts}" if tts else "；可执行任务：（未配置）"
+        desc = (info.get("description") or "")[:120]
         lines.append(f"- {aid}（{info.get('name', aid)}）：{desc}；能力：{caps}{extra}")
     return "\n".join(lines)
 
@@ -107,15 +111,108 @@ def register_agent(agent_id: str, *, name: str = "", role: str = "worker",
                 "error": f"Agent '{agent_id}' 的工作目录不存在，请先创建"}
     raw = _load_registry_file()
     raw.setdefault("agents", {})
+    existing = raw["agents"].get(agent_id) or {}
+    merged_caps = capabilities if capabilities is not None else (existing.get("capabilities") or [])
+    merged_tts = task_types if task_types is not None else (existing.get("task_types") or [])
     raw["agents"][agent_id] = {
-        "name": name or agent_id,
-        "role": role,
-        "description": description or "",
-        "capabilities": capabilities or [],
-        "task_types": task_types or [],
+        "name": name or existing.get("name") or agent_id,
+        "role": role or existing.get("role") or "worker",
+        "description": description if description != "" else (existing.get("description") or ""),
+        "capabilities": list(merged_caps),
+        "task_types": sorted(set(merged_tts)),
     }
     _save_registry_file(raw)
     return {"success": True, "agent_id": agent_id}
+
+
+def update_agent_task_types(agent_id: str, task_types: list[str]) -> dict:
+    """更新 Agent 可执行的 task_type 列表（须在 templates.yaml 已注册）。"""
+    from common.registry import get_spec
+
+    unknown = [t for t in task_types if get_spec(t) is None]
+    if unknown:
+        return {"success": False,
+                "error": f"以下 task_type 未注册：{', '.join(unknown)}；请先在「任务类型」中创建"}
+    reg = get_agents_registry()["agents"].get(agent_id) or {}
+    return register_agent(
+        agent_id,
+        name=reg.get("name", agent_id),
+        role=reg.get("role", "worker"),
+        description=reg.get("description", ""),
+        capabilities=reg.get("capabilities"),
+        task_types=sorted(set(task_types)),
+    )
+
+
+def _load_business_roster() -> dict:
+    from common.paths import BUSINESS_DIR
+    import json
+
+    fp = BUSINESS_DIR / "templates" / "business-roster.json"
+    if not fp.is_file():
+        return {}
+    try:
+        raw = json.loads(fp.read_text(encoding="utf-8"))
+        return raw.get("agents") or {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _load_pgd_template() -> dict:
+    from common.workflow_bootstrap import load_pgd_agent_template
+
+    return load_pgd_agent_template()
+
+
+def sync_missing_agent_task_types(*, only_empty: bool = True) -> dict:
+    """为 workspace 存在但 task_types 为空的 Agent 补全能力（名册 → PGD → 描述推导）。"""
+    from common.agent_task_type_suggest import suggest_task_types_for_agent
+
+    roster = _load_business_roster()
+    pgd = _load_pgd_template()
+    raw = _load_registry_file()
+    raw.setdefault("agents", {})
+    updated: list[dict] = []
+
+    for aid in list_available_agent_ids():
+        existing = raw["agents"].get(aid) or {}
+        current = list(existing.get("task_types") or [])
+        if only_empty and current:
+            continue
+
+        meta = roster.get(aid) or pgd.get(aid) or existing
+        tts = list(meta.get("task_types") or [])
+        source = "roster" if aid in roster else ("pgd" if aid in pgd else "")
+
+        if not tts:
+            desc = meta.get("description") or existing.get("description") or ""
+            name = meta.get("name") or existing.get("name") or aid
+            try:
+                sug = suggest_task_types_for_agent(desc, name=name, agent_id=aid)
+                tts = sug.get("task_types") or []
+                source = "suggest"
+            except ValueError:
+                continue
+
+        if not tts:
+            continue
+        if only_empty and current:
+            continue
+        merged = sorted(set(current) | set(tts))
+        if merged == current:
+            continue
+
+        register_agent(
+            aid,
+            name=meta.get("name") or existing.get("name") or aid,
+            role=meta.get("role") or existing.get("role") or "worker",
+            description=meta.get("description") or existing.get("description") or "",
+            capabilities=meta.get("capabilities") or existing.get("capabilities"),
+            task_types=merged,
+        )
+        updated.append({"agent_id": aid, "task_types": merged, "source": source or "merge"})
+
+    return {"success": True, "updated": updated, "count": len(updated)}
 
 
 def unregister_agent(agent_id: str) -> dict:

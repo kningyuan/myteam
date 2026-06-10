@@ -105,21 +105,13 @@ def _collect_text_from_stream(agent_id: str, message: str, timeout: int, cancel_
             event = evt.get("event")
             if event == "error":
                 error = evt.get("data", {}).get("message", "unknown error")
-            elif event in ("thinking", "raw"):
+            elif event == "thinking":
                 fanout_stream_event(agent_id, sse_json)
-                if event == "thinking":
-                    data = evt.get("data") or {}
-                    if data.get("type") == "text":
-                        text = data.get("content", "")
-                        if text:
-                            parts.append(text)
-                elif event == "raw":
-                    oc = evt.get("data", {}).get("opencode", {})
-                    if oc.get("type") == "text":
-                        part = oc.get("part", {}) or {}
-                        text = part.get("text", "")
-                        if text:
-                            parts.append(text)
+                data = evt.get("data") or {}
+                if data.get("type") == "text":
+                    text = data.get("content", "")
+                    if text:
+                        parts.append(text)
             elif event == "text":
                 content = evt.get("data", {}).get("content", "")
                 if content:

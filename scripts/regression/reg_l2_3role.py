@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """REG-L2：三角色并行评审（L2 发版门禁）。
 
-固定 workflow `reg-l2-3role`：3 个无依赖 research 叶子 + 1 个 strategy 汇总。
+默认 workflow `GitHub项目调研`：3 个无依赖并行叶子 + 1 个 strategy 汇总（可用 REG_L2_WORKFLOW 覆盖）。
 CHECK_ONLY 读 state.db 验 K1（三评审叶子完成率 ≥80%）与 K8（并行度 ≥0.8）；
 全量模式调用 run_kernel（与 reg_02_parallel.py 同模式）。
 
@@ -29,8 +29,9 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 PROJECT_ID = os.environ.get("REG_L2_PROJECT_ID", "reg-l2-3role")
-WORKFLOW = "reg-l2-3role"
-LEAVES = ("t1", "t2", "t3")
+WORKFLOW = os.environ.get("REG_L2_WORKFLOW", "GitHub项目调研")
+LEAVES = ("t-product", "t-arch", "t-eng")
+SUMMARY_TASK = "t-summary"
 GOAL = (
     "对 myteam L2 协作机制做三角色并行评审："
     "A）产品视角 B）架构视角 C）测试视角，每视角约200字，最后汇总"
@@ -43,6 +44,7 @@ K8_THRESHOLD = 0.80
 AGENTS = ("research", "main")
 
 sys.path.insert(0, str(REPO / "scripts" / "regression"))
+from agents_config_guard import AgentsConfigSession  # noqa: E402
 from check_kpis import check_k8  # noqa: E402
 from regression_archive import append_run_record, last_pass_run  # noqa: E402
 
@@ -65,36 +67,12 @@ def _task_statuses(db: Path, project_id: str) -> dict[str, str]:
     return {r["task_id"]: r["status"] for r in rows}
 
 
-def _patch_agent_claude(agent_id: str) -> dict | None:
-    cfg_path = REPO / "business/config/agents_config.json"
-    if not cfg_path.is_file():
-        return None
-    data = json.loads(cfg_path.read_text(encoding="utf-8"))
-    old = data.get(agent_id)
-    entry = dict(data.get(agent_id) or {})
-    entry["backend"] = "claude"
-    entry["model"] = entry.get("model") or "claude-sonnet-4-6"
-    entry.setdefault("workspace", f"business/workspaces/workspace-{agent_id}")
-    data[agent_id] = entry
-    cfg_path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    return old
-
-
-def _restore_agent(agent_id: str, old: dict | None) -> None:
-    if old is None:
-        return
-    cfg_path = REPO / "business/config/agents_config.json"
-    data = json.loads(cfg_path.read_text(encoding="utf-8"))
-    data[agent_id] = old
-    cfg_path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-
-
 def _reset_reg_project(db: Path, project_id: str, budget: int) -> None:
     import json
     import sqlite3
 
     conn = sqlite3.connect(str(db))
-    for tid in (*LEAVES, "t4"):
+    for tid in (*LEAVES, SUMMARY_TASK):
         conn.execute(
             "UPDATE task SET status='pending' WHERE project_id=? AND task_id=? "
             "AND status IN ('failed','blocked')",
@@ -155,9 +133,9 @@ def _print_kpi_report(k1: float, k8: float, tasks: dict[str, str], *, prefix: st
     print(f"{prefix}tasks: {tasks}")
     print(f"{prefix}K1: {k1:.1%} (阈值 ≥{K1_THRESHOLD:.0%}) → {'PASS' if k1_pass else 'FAIL'}")
     print(f"{prefix}K8: {k8:.1%} (阈值 ≥{K8_THRESHOLD:.0%}) → {'PASS' if k8_pass else 'FAIL'}")
-    t4_st = tasks.get("t4", "missing")
-    t4_ok = t4_st in ("completed", "needs_review")
-    print(f"{prefix}t4(strategy): {t4_st} → {'OK' if t4_ok else 'PENDING'}")
+    sum_st = tasks.get(SUMMARY_TASK, "missing")
+    sum_ok = sum_st in ("completed", "needs_review")
+    print(f"{prefix}{SUMMARY_TASK}(strategy): {sum_st} → {'OK' if sum_ok else 'PENDING'}")
     reg_pass = k1_pass and k8_pass
     print(f"REG-L2: {'PASS' if reg_pass else 'FAIL'}")
     return reg_pass
@@ -193,10 +171,6 @@ def main() -> int:
     if not _claude_available():
         print("REG-L2: SKIP（claude CLI 不可用）")
         return 2
-
-    patched: dict[str, dict | None] = {}
-    for agent_id in AGENTS:
-        patched[agent_id] = _patch_agent_claude(agent_id)
 
     if resume and db.is_file():
         k1_pre, k8_pre, tasks_pre = _k1_k8(db, PROJECT_ID)
@@ -236,11 +210,10 @@ def main() -> int:
     print("  project:", PROJECT_ID)
     print("  budget:", BUDGET)
     print("  命令:", " ".join(cmd))
-    try:
+    with AgentsConfigSession() as guard:
+        for agent_id in AGENTS:
+            guard.patch_claude(agent_id, model="claude-sonnet-4-6")
         proc = subprocess.run(cmd, cwd=str(REPO), timeout=int(os.environ.get("REG_L2_TIMEOUT", "2400")))
-    finally:
-        for agent_id, old in patched.items():
-            _restore_agent(agent_id, old)
 
     proj_status = "N/A"
     if db.is_file():

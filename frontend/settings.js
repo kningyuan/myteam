@@ -1,5 +1,17 @@
 // ============ Settings ============
 let _settingsCfg = {};
+/** 金路径默认（与 business/templates/prompt_templates + E2E 对齐） */
+const GOLDEN_PROCESS_DEFAULTS = {
+  max_gate_retries: 5,
+  soft_idle_sec: 240,
+  hard_idle_sec: 900,
+  max_cycles: 3,
+  parallel_enabled: false,
+  max_parallel: 3,
+  default_project_budget: 1000000,
+  split_enabled: false,
+  budget_degrade_threshold: 0.8,
+};
 const CLI_PATH_LABELS = { opencode: 'OpenCode CLI 路径', claude: 'Claude CLI 路径' };
 
 function updateSettingsCliPath(backendId) {
@@ -39,12 +51,15 @@ async function loadSettings() {
     DOM['set-team-config-timeout'].value = skillCfg.executor?.team_config_timeout ?? 600;
     DOM['set-task-plan-timeout'].value = skillCfg.executor?.task_plan_timeout ?? 600;
     DOM['set-max-retries'].value = skillCfg.executor?.max_retries ?? 3;
-    const pd = skillCfg.process_defaults || {};
-    if (DOM['set-max-gate-retries']) DOM['set-max-gate-retries'].value = pd.max_gate_retries ?? 3;
-    if (DOM['set-soft-idle']) DOM['set-soft-idle'].value = pd.soft_idle_sec ?? 120;
-    if (DOM['set-hard-idle']) DOM['set-hard-idle'].value = pd.hard_idle_sec ?? 300;
+    const pd = { ...GOLDEN_PROCESS_DEFAULTS, ...(skillCfg.process_defaults || {}) };
+    if (DOM['set-default-budget']) DOM['set-default-budget'].value = pd.default_project_budget ?? 1000000;
+    if (DOM['set-max-gate-retries']) DOM['set-max-gate-retries'].value = pd.max_gate_retries ?? 5;
+    if (DOM['set-soft-idle']) DOM['set-soft-idle'].value = pd.soft_idle_sec ?? 240;
+    if (DOM['set-hard-idle']) DOM['set-hard-idle'].value = pd.hard_idle_sec ?? 900;
     if (DOM['set-max-cycles']) DOM['set-max-cycles'].value = pd.max_cycles ?? 3;
     if (DOM['set-split-default']) DOM['set-split-default'].checked = !!pd.split_enabled;
+    if (DOM['set-parallel-default']) DOM['set-parallel-default'].checked = !!pd.parallel_enabled;
+    if (DOM['set-max-parallel']) DOM['set-max-parallel'].value = pd.max_parallel ?? 3;
     const degThr = pd.budget_degrade_threshold ?? 0.8;
     if (DOM['set-budget-degrade-threshold']) {
       DOM['set-budget-degrade-threshold'].value = Math.round(degThr * 100);
@@ -172,11 +187,14 @@ async function saveSettings() {
         const thrPct = parseFloat(DOM['set-budget-degrade-threshold']?.value);
         const thr = (!Number.isNaN(thrPct) && thrPct > 0 && thrPct < 100) ? thrPct / 100 : 0.8;
         return {
-          max_gate_retries: parseInt(DOM['set-max-gate-retries']?.value, 10) || 3,
+          max_gate_retries: parseInt(DOM['set-max-gate-retries']?.value, 10) || 5,
           split_enabled: !!DOM['set-split-default']?.checked,
-          soft_idle_sec: parseInt(DOM['set-soft-idle']?.value, 10) || 120,
-          hard_idle_sec: parseInt(DOM['set-hard-idle']?.value, 10) || 300,
+          soft_idle_sec: parseInt(DOM['set-soft-idle']?.value, 10) || 240,
+          hard_idle_sec: parseInt(DOM['set-hard-idle']?.value, 10) || 900,
           max_cycles: parseInt(DOM['set-max-cycles']?.value, 10) || 3,
+          parallel_enabled: !!DOM['set-parallel-default']?.checked,
+          max_parallel: parseInt(DOM['set-max-parallel']?.value, 10) || 3,
+          default_project_budget: parseInt(DOM['set-default-budget']?.value, 10) || 1000000,
           budget_degrade_threshold: thr,
           budget_degrade_backend: (DOM['set-budget-degrade-backend']?.value || '').trim(),
           budget_degrade_model: (DOM['set-budget-degrade-model']?.value || '').trim(),

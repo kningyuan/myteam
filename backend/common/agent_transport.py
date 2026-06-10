@@ -62,7 +62,7 @@ _AGENT_DISPLAY_NAMES = {
     "main": "项目协调专家",
     "product": "产品经理",
     "developer": "开发工程师",
-    "researcher": "调研专家",
+    "research": "研究员",
     "content": "内容创作者",
 }
 
@@ -141,6 +141,24 @@ def _load_agents_config() -> dict:
         return {}
 
 
+def _task_type_skill_path(task_type: str) -> Optional[Path]:
+    """business/skills/<task_type>/SKILL.md，若存在则注入 execute 提示词。"""
+    if not task_type:
+        return None
+    p = MYTEAM_ROOT / "business" / "skills" / task_type / "SKILL.md"
+    return p if p.is_file() else None
+
+
+def _append_acceptance_criteria(lines: list[str], req, spec) -> None:
+    criteria = (req.input or {}).get("acceptance_criteria") or (
+        spec.acceptance_criteria if spec else []
+    )
+    if criteria:
+        lines.append("【验收标准（交付物须满足，否则门禁不通过）】")
+        for c in criteria:
+            lines.append(f"  - {c}")
+
+
 # ── 提示词渲染 ───────────────────────────────────────────────
 
 
@@ -172,6 +190,10 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
         abs_dv = (Path(base) / rel) if base else (deliv_dir / rel)
         task_type = (req.constraints or {}).get("task_type", "")
         spec = get_spec(task_type) if task_type else None
+        skill_path = _task_type_skill_path(task_type) if task_type else None
+        if skill_path:
+            lines.append(f"【任务类型执行指引】请先阅读并按其中流程执行：{skill_path}")
+            lines.append("")
         if spec and spec.outcome_kind == "code_project":
             proj = task_project_dir(req.project_id, req.task_id)
             lines.append("【交付物形态】代码工程目录（不是单篇说明文档）")
@@ -197,9 +219,11 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
                 for f in spec.file_exists:
                     lines.append(f"  - {f}")
             lines.append(f"- submit_result 中 artifact.path 填 \"{req.task_id}/\"，artifact.format 填 \"code_project\"")
+            _append_acceptance_criteria(lines, req, spec)
         elif spec and spec.outcome_kind == "action":
             lines.append(f"请完成任务并把交付物写入文件：{abs_dv}")
             lines.append("这是动作型任务：必须真实执行动作并在交付物中记录【已发布URL】与【证据截图】路径。")
+            _append_acceptance_criteria(lines, req, spec)
         else:
             lines.append(f"请完成任务并把交付物写入文件：{abs_dv}")
             if abs_dv.is_file():
@@ -243,6 +267,7 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
                             lines.append(f"    说明：{desc}")
                         if ex:
                             lines.append(f"    示例：{ex}")
+                _append_acceptance_criteria(lines, req, spec)
         if spec and spec.outcome_kind == "code_project":
             outcome_hint = (
                 '{"kind":"artifact","artifact":{"path":"%s/","format":"code_project","title":"..."}}'
@@ -275,12 +300,24 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
         lines.append("输入数据：")
         lines.append(json.dumps(req.input or {}, ensure_ascii=False))
         if kind in ("task_plan", "evaluate"):
+            from common.agent_registry import agent_task_type_map
+            from common.registry import TASK_TYPE_DISPLAY_NAMES
+
             team = (req.input or {}).get("team") or []
-            task_types = list(load_registry().keys())
+            cap_map = agent_task_type_map()
+            allowed: set[str] = set()
+            if team:
+                for aid in team:
+                    for tt in cap_map.get(aid) or []:
+                        allowed.add(tt)
+            task_types = sorted(allowed) if allowed else list(load_registry().keys())
             if team:
                 lines.append(f"agent 字段只能从以下取：{', '.join(team)}")
             if task_types:
-                lines.append(f"task_type 字段只能从以下取：{', '.join(task_types)}")
+                labels = [
+                    f"{TASK_TYPE_DISPLAY_NAMES.get(t, t)}（{t}）" for t in task_types
+                ]
+                lines.append(f"task_type 须与 agent 能力匹配，只能从以下取：{', '.join(labels)}")
         if kind == "evaluate":
             lines.append("如需拆分：每个子任务必须给出 agent 与 task_type（留空则继承父任务），"
                          "子任务依赖只能引用同组其它子任务 id；无需拆分则 should_split=false、sub_tasks 留空。")

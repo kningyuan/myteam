@@ -39,7 +39,7 @@ def test_gc_terminal_interactions(tmp_path, monkeypatch):
     monkeypatch.setattr(paths, "WORKSPACES_DIR", tmp_path / "workspaces")
     db = tmp_path / "state.db"
     store = Store(db)
-    agent = "researcher"
+    agent = "research"
     paths.trigger_dir(agent).mkdir(parents=True)
     paths.response_dir(agent).mkdir(parents=True)
     iid = "pro_gc:t1:execute:1"
