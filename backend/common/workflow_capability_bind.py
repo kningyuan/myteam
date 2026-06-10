@@ -19,7 +19,7 @@ TASK_TYPE_AGENT_PRIORITY: dict[str, list[str]] = {
     "code-testing": ["qa", "tester"],
     "test-plan": ["qa", "tester"],
     "content": ["content", "geo", "docs"],
-    "publish-post": ["social"],
+    "publish-post": ["social_zhihu", "social_xhs", "social"],
     "acceptance-report": ["product"],
     "decision-record": ["main"],
     "code-deployment": ["main", "ops"],

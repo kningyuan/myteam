@@ -22,11 +22,36 @@ def _float(val: Any, default: float) -> float:
         return default
 
 
-def watchdog_from_defaults(defaults: Optional[dict] = None) -> WatchdogConfig:
+def watchdog_from_defaults(
+    defaults: Optional[dict] = None,
+    executor: Optional[dict] = None,
+) -> WatchdogConfig:
     d = defaults or {}
+    e = executor or {}
+    soft = _float(d.get("soft_idle_sec"), 120.0)
+    hard = _float(d.get("hard_idle_sec"), 300.0)
+    poll = _float(e.get("poll_interval"), 0.5)
+    max_attempts = _int(e.get("max_retries"), 3)
+
+    def _kind_hard(key: str, fallback: float) -> float:
+        return _float(e.get(key), fallback)
+
+    kind_hard = {
+        "team_config": _kind_hard("team_config_timeout", 600.0),
+        "task_plan": _kind_hard("task_plan_timeout", 600.0),
+        "execute": _kind_hard("task_timeout", 3600.0),
+        "review": _kind_hard("task_timeout", 3600.0),
+        "triage": _kind_hard("ack_timeout", 300.0),
+    }
+    kind_soft = {k: min(v * 0.4, max(v - 60.0, soft)) for k, v in kind_hard.items()}
+
     return WatchdogConfig(
-        soft_idle_sec=_float(d.get("soft_idle_sec"), 120.0),
-        hard_idle_sec=_float(d.get("hard_idle_sec"), 300.0),
+        soft_idle_sec=soft,
+        hard_idle_sec=hard,
+        poll_interval=poll,
+        max_attempts=max_attempts,
+        kind_soft_idle=kind_soft,
+        kind_hard_idle=kind_hard,
     )
 
 
@@ -42,9 +67,12 @@ def kernel_configs_for_run(
 ) -> tuple[ProcessConfig, WatchdogConfig]:
     """Hub / CLI / resume 同源：从 process_defaults 构建 Process + Watchdog 配置。"""
     if defaults is None:
-        from common.skill_settings import process_defaults
+        from common.skill_settings import process_defaults, skill_config_all
 
         defaults = process_defaults()
+        executor = (skill_config_all() or {}).get("executor") or {}
+    else:
+        executor = {}
     proc = process_from_defaults(
         defaults,
         mode=mode,
@@ -54,7 +82,7 @@ def kernel_configs_for_run(
         split=split,
         backend=backend,
     )
-    return proc, watchdog_from_defaults(defaults)
+    return proc, watchdog_from_defaults(defaults, executor)
 
 
 def process_from_defaults(

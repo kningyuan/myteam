@@ -28,6 +28,7 @@ from common.agent_bootstrap import auto_create_agent
 from common.agent_port import AgentPort, WatchdogConfig, reconcile_on_start
 from common.observability import BudgetConfig, check_budget
 from common.process import Process, ProcessConfig, ProjectOutcome
+from common.project_hooks import ProjectHooks
 from common.store import Store
 from common.workspace_gc import gc_workspace
 
@@ -118,7 +119,8 @@ def run_project(project_id: str, *, goal: str = "", title: str = "",
                 backend: Optional[str] = None,
                 store: Optional[Store] = None, transport=None,
                 watchdog: Optional[WatchdogConfig] = None,
-                config: Optional[ProcessConfig] = None) -> ProjectOutcome:
+                config: Optional[ProcessConfig] = None,
+                hooks: Optional[ProjectHooks] = None) -> ProjectOutcome:
     """组装并运行新内核。transport 按各 agent 的 agents_config.backend 选择 CLI（缺省读系统默认）。
 
     指定 workflow 时加载 business/workflows/<id>.yaml，跳过 team_config/task_plan。
@@ -189,7 +191,7 @@ def run_project(project_id: str, *, goal: str = "", title: str = "",
         transport, store=store, config=watchdog or WatchdogConfig(),
         budget_checker=_budget_checker(store, base_cfg.token_budget),
     )
-    proc = Process(store, port, base_cfg)
+    proc = Process(store, port, base_cfg, hooks=hooks)
     return proc.run(project_id, title=title, goal=goal, agents=agents, tasks=tasks,
                     workflow=workflow_id)
 
@@ -198,14 +200,17 @@ def resume_project(project_id: str, *,
                    store: Optional[Store] = None, transport=None,
                    watchdog: Optional[WatchdogConfig] = None,
                    config: Optional[ProcessConfig] = None,
-                   backend: Optional[str] = None) -> ProjectOutcome:
+                   backend: Optional[str] = None,
+                   hooks: Optional[ProjectHooks] = None) -> ProjectOutcome:
     """断点续跑 in_progress 项目：回收孤儿响应后继续 DAG（D8）。"""
     backend = backend or _system_default_backend()
     store = store or Store()
     reconcile_on_start(store)
     if transport is None:
-        from common.agent_transport import AdapterTransport
-        transport = AdapterTransport(backend=backend)
+        from common.agent_transport import AdapterTransport, make_gate_session_resolver
+        transport = AdapterTransport(
+            backend=backend, session_resolver=make_gate_session_resolver(store),
+        )
     proj = store.get_project(project_id)
     meta = (proj or {}).get("meta") or {}
     budget = meta.get("token_budget")
@@ -224,7 +229,7 @@ def resume_project(project_id: str, *,
         transport, store=store, config=watchdog or WatchdogConfig(),
         budget_checker=_budget_checker(store, proc_cfg.token_budget),
     )
-    proc = Process(store, port, proc_cfg)
+    proc = Process(store, port, proc_cfg, hooks=hooks)
     outcome = proc.resume(project_id)
     # gc 须在 settle 之后：reconcile 可能已将 timed_out 标 done，过早 gc 会删 .response
     gc_workspace(store)
@@ -233,7 +238,8 @@ def resume_project(project_id: str, *,
 
 def resume_in_progress_projects(*, store: Optional[Store] = None,
                                 backend: Optional[str] = None,
-                                on_start=None, on_end=None) -> list[str]:
+                                on_start=None, on_end=None,
+                                hooks: Optional[ProjectHooks] = None) -> list[str]:
     """Hub 启动时自动续跑所有 in_progress / paused 项目。返回已续跑的 project_id 列表。
 
     on_start(pid) / on_end(pid, err) 为可选中性回调：由 Hub 注入以同步运行态
@@ -250,7 +256,7 @@ def resume_in_progress_projects(*, store: Optional[Store] = None,
         if on_start:
             on_start(pid)
         try:
-            resume_project(pid, store=store, backend=backend)
+            resume_project(pid, store=store, backend=backend, hooks=hooks)
             resumed.append(pid)
             if on_end:
                 on_end(pid, None)

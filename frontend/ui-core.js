@@ -99,6 +99,7 @@ function cacheDom() {
    'modal-overlay','agent-config-modal','modal-backend','modal-model','modal-agent-info',
    'modal-save','modal-cancel','btn-agent-config',
    'group-config-modal','group-modal-name','group-modal-members','group-add-agent','btn-add-member','group-modal-close',
+   'group-members-panel','group-members-list','group-members-count','btn-toggle-members',
    'new-group-modal','ng-name','ng-desc','ng-submit','ng-cancel','btn-new-group',
    'status-badge','agent-count','btn-group-config','btn-send','btn-group-send',
    'manage-agent-table','manage-agent-count','btn-create-agent','btn-sync-task-types',
@@ -135,6 +136,8 @@ const ICONS = {
   copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/>',
   download: '<path d="M12 3v12"/><path d="M7 11l5 5 5-5"/><path d="M5 21h14"/>',
   play: '<polygon points="8,5 19,12 8,19" class="fill"/>',
+  flow: '<circle cx="6" cy="5" r="2.5"/><circle cx="18" cy="5" r="2.5"/><circle cx="12" cy="19" r="2.5"/><path d="M6 7.5v3a3 3 0 0 0 3 3h3M18 7.5v3a3 3 0 0 1-3 3h-3"/><line x1="12" y1="13.5" x2="12" y2="16.5"/>',
+  panel: '<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="15" y1="4" x2="15" y2="20"/>',
 };
 function ic(name, cls) {
   return '<svg class="icon-svg' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" aria-hidden="true">' + (ICONS[name] || '') + '</svg>';
@@ -155,7 +158,7 @@ function esc(s) {
   return d.innerHTML;
 }
 
-/** Agent UI 标签：优先中文显示名，括号内为 id */
+/** Agent UI 标签：中文显示名优先，无中文名时回退 id */
 function agentDisplayLabel(agentOrId, agents) {
   const list = agents || (typeof S !== 'undefined' ? S.agents : []) || [];
   const id = typeof agentOrId === 'string' ? agentOrId : agentOrId?.id;
@@ -164,8 +167,12 @@ function agentDisplayLabel(agentOrId, agents) {
     ? agentOrId
     : list.find(x => x.id === id);
   const name = (a?.name || '').trim();
-  if (name && name !== id) return `${name} (${id})`;
-  return name || id;
+  if (name && name !== id) return name;
+  return id;
+}
+
+function agentDisplayName(id) {
+  return agentDisplayLabel(id);
 }
 
 /** task_type UI 标签：display_name（可中/英/混合），注册键仍为 value */
@@ -226,6 +233,10 @@ function _grouped(c, gkey, mts) {
 }
 function getAvatarInitials(id) {
   if (!id) return '?';
+  const label = agentDisplayName(id);
+  const han = label.replace(/[^\u4e00-\u9fff]/g, '');
+  if (han.length >= 2) return han.slice(-2);
+  if (han.length === 1) return han;
   const parts = String(id).split(/[-_]/).filter(Boolean);
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
   const s = String(id);
@@ -237,7 +248,8 @@ function applyAvatar(el, id, kind) {
   el.classList.add('avatar-badge');
   if (kind) el.classList.add(`avatar-${kind}`);
   el.textContent = getAvatarInitials(id);
-  if (id) el.setAttribute('aria-label', id);
+  const label = agentDisplayName(id);
+  el.setAttribute('aria-label', label !== id ? `${label}（${id}）` : id);
 }
 function updateContextIndicator(used, budget = CONTEXT_TOKEN_BUDGET) {
   const el = DOM['context-indicator'];
@@ -285,6 +297,33 @@ function agentLastActivityTs(agentId) {
   if (!msgs.length) return 0;
   return Math.max(...msgs.map(m => m.ts || 0));
 }
+/** 列表项预览文案：取最后一条非 system 消息，压平为单行纯文本 */
+function msgPreviewText(content) {
+  return String(content || '')
+    .replace(/```[\s\S]*?```/g, '[代码]')
+    .replace(/[#>*`_|-]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+function agentLastPreview(agentId) {
+  const msgs = (S.agentMessages[agentId] || []).filter(m => m.role !== 'system');
+  const last = msgs[msgs.length - 1];
+  if (!last) return '';
+  const text = msgPreviewText(last.content) || (last.role === 'agent' ? '[Agent 活动]' : '');
+  if (!text) return '';
+  return (last.role === 'user' ? '你: ' : '') + text;
+}
+/** 列表时间戳：今天显示 HH:MM，昨天显示「昨天」，更早显示 M/D */
+function fmtListTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  if (isNaN(d)) return '';
+  const now = new Date();
+  if (dayKeyOf(ts) === dayKeyOf(now.getTime())) return fmtMsgTime(ts);
+  const y = new Date(now); y.setDate(now.getDate() - 1);
+  if (dayKeyOf(ts) === dayKeyOf(y.getTime())) return '昨天';
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
 
 // ============ Theme ============
 function loadTheme() {
@@ -301,9 +340,12 @@ function setupThemeMenu() {
     const dd = DOM['theme-dropdown'];
     if (!dd) return;
     if (dd.classList.contains('hidden')) {
+      // 按钮在左侧 Rail 底部：菜单向右上方展开
       const rect = e.currentTarget.getBoundingClientRect();
-      dd.style.right = (window.innerWidth - rect.right) + 'px';
-      dd.style.top = (rect.bottom + 6) + 'px';
+      dd.style.right = 'auto';
+      dd.style.top = 'auto';
+      dd.style.left = (rect.right + 10) + 'px';
+      dd.style.bottom = (window.innerHeight - rect.bottom) + 'px';
       dd.classList.remove('hidden');
     } else {
       dd.classList.add('hidden');
@@ -859,7 +901,7 @@ function renderAgentMsg(msg, container, agentId) {
   } else if (msg.role === 'agent') {
     div.className = 'message agent' + (grouped ? ' grouped' : '');
     const a = S.agents.find(x => x.id === aid);
-    const nm = a ? a.name : 'Agent';
+    const nm = a ? (a.name || aid) : 'Agent';
     const hasThinking = msg.thinking && msg.thinking.length;
     div.innerHTML =
       '<div class="msg-avatar avatar-badge" aria-label="' + esc(aid) + '">' + esc(getAvatar(aid)) + '</div>' +

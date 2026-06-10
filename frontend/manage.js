@@ -16,14 +16,17 @@ function renderAgentList() {
   });
   DOM['agent-list'].innerHTML = sorted.map(a => {
     const lastTs = agentLastActivityTs(a.id);
-    const rel = formatRelativeTime(lastTs);
     const unread = (S.agentMessages[a.id] || []).filter(m => m._new).length;
+    const preview = agentLastPreview(a.id);
     return `<div class="sidebar-item ${S.currentAgentId === a.id ? 'active' : ''}${unread ? ' has-new' : ''}" data-id="${a.id}">
       <span class="s-icon avatar-badge">${esc(getAvatar(a.id))}</span>
-      <span class="s-name">${esc(a.name)}</span>
-      <span class="s-sub">${rel ? esc(rel) : ''}</span>
-      ${unread ? `<span class="s-badge">${unread > 99 ? '99+' : unread}</span>` : ''}
-      <span class="s-del" data-del-agent="${a.id}" title="删除对话">${ic('x')}</span>
+      <span class="s-main">
+        <span class="s-row1"><span class="s-name">${esc(a.name)}</span><span class="s-time">${esc(fmtListTime(lastTs))}</span></span>
+        <span class="s-row2"><span class="s-preview">${preview ? esc(truncateText(preview, 48)) : '<span class="s-id">' + esc(a.name || a.id) + '</span>'}</span>
+          ${unread ? `<span class="s-badge">${unread > 99 ? '99+' : unread}</span>` : ''}
+          <span class="s-del" data-del-agent="${a.id}" title="删除对话">${ic('x')}</span>
+        </span>
+      </span>
     </div>`;
   }).join('');
   DOM['agent-list'].querySelectorAll('.sidebar-item').forEach(el => { el.addEventListener('click', e => { if (e.target.closest('[data-del-agent]')) return; selectAgent(el.dataset.id); }); });

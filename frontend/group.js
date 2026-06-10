@@ -27,17 +27,60 @@ function renderGroupList() {
   }
   const sorted = [...active].sort((a, b) => groupLastActivityTs(b) - groupLastActivityTs(a));
   DOM['group-list'].innerHTML = sorted.map(g => {
-    const rel = formatRelativeTime(groupLastActivityTs(g));
+    const ts = groupLastActivityTs(g);
     const projTag = g.project_id ? '<span class="s-tag s-tag-project" title="属于一个项目（自动建群）">项目</span>' : '';
+    const preview = msgPreviewText(g.last_message || g.last_message_text || g.description || '') || `${g.member_count || 0} 名成员`;
     return `<div class="sidebar-item ${S.currentGroupId === g.id ? 'active' : ''}" data-id="${g.id}">
-      <span class="s-icon">👥</span>
-      <span class="s-name">${esc(g.name)}${projTag}</span>
-      <span class="s-sub">${rel || `${g.member_count}人`}</span>
+      <span class="s-icon avatar-badge avatar-group">${esc(getAvatar(g.name || g.id))}</span>
+      <span class="s-main">
+        <span class="s-row1"><span class="s-name">${esc(g.name)}${projTag}</span><span class="s-time">${esc(fmtListTime(ts))}</span></span>
+        <span class="s-row2"><span class="s-preview">${esc(truncateText(preview, 48))}</span></span>
+      </span>
     </div>`;
   }).join('');
   DOM['group-list'].querySelectorAll('.sidebar-item').forEach(el => {
     el.addEventListener('click', () => selectGroup(el.dataset.id));
   });
+}
+
+// --- Members detail panel (Discord-style) ---
+let _membersCollapsed = localStorage.getItem('agentHub_membersPanel') === '1';
+
+function renderGroupMembersPanel(members) {
+  const panel = DOM['group-members-panel'];
+  const list = DOM['group-members-list'];
+  if (!panel || !list) return;
+  const ms = members || S.groupMembers || [];
+  if (DOM['group-members-count']) DOM['group-members-count'].textContent = ms.length;
+  list.innerHTML = ms.length ? ms.map(id => {
+    const a = S.agents.find(x => x.id === id);
+    return `<div class="member-row" title="@${esc(id)}">
+      <span class="m-avatar avatar-badge">${esc(getAvatar(id))}</span>
+      <span class="m-meta"><span class="m-name">${esc(a ? a.name : id)}</span><span class="m-sub">@${esc(id)}</span></span>
+    </div>`;
+  }).join('') : '<div class="empty no-icon">暂无成员</div>';
+  updateMembersPanelVisibility();
+}
+function updateMembersPanelVisibility() {
+  const panel = DOM['group-members-panel'];
+  if (!panel) return;
+  const show = !!S.currentGroupId && !_membersCollapsed;
+  panel.classList.toggle('hidden', !show);
+  panel.classList.toggle('force-open', show);
+}
+function toggleMembersPanel() {
+  _membersCollapsed = !_membersCollapsed;
+  try { localStorage.setItem('agentHub_membersPanel', _membersCollapsed ? '1' : '0'); } catch (_) {}
+  updateMembersPanelVisibility();
+}
+async function refreshMembersPanel() {
+  if (!S.currentGroupId) return;
+  try {
+    const r = await fetch(`/api/groups/${S.currentGroupId}`);
+    const d = await r.json();
+    S.groupMembers = d.group?.members || [];
+    renderGroupMembersPanel(S.groupMembers);
+  } catch (_) { /* ignore */ }
 }
 
 // --- Select Group ---
@@ -58,6 +101,7 @@ async function selectGroup(id, opts = {}) {
     DOM['group-members'].textContent = `成员: ${(g.members||[]).join(', ') || '无'}`;
     _boundProjectId = g.project_id || '';
     DOM['btn-open-project']?.classList.toggle('hidden', !_boundProjectId);
+    renderGroupMembersPanel(g.members || []);
     (g.messages||[]).forEach(m => { renderGroupMsg(m); });
     scrollBottom(DOM['group-messages'], true);
   } catch(e) { console.error(e); }
@@ -244,6 +288,7 @@ async function dissolveGroupWindow() {
   S.currentGroupId = null;
   DOM['group-welcome'].classList.remove('hidden');
   DOM['group-chat-view'].classList.add('hidden');
+  updateMembersPanelVisibility();
   await loadGroups(); renderGroupList();
 }
 async function restoreGroupWindow(groupId) {
@@ -330,7 +375,7 @@ async function openGroupConfig() {
   DOM['group-modal-members'].querySelectorAll('.member-remove').forEach(btn => {
     btn.addEventListener('click', async () => {
       await fetch(`/api/groups/${S.currentGroupId}/members/${btn.dataset.agent}`, { method: 'DELETE' });
-      openGroupConfig(); loadGroups(); renderGroupList();
+      openGroupConfig(); loadGroups(); renderGroupList(); refreshMembersPanel();
     });
   });
   populateGroupMemberSelect();
@@ -342,6 +387,6 @@ async function populateGroupMemberSelect() {
   const groupId = S.currentGroupId; let members = [];
   try { const r = await fetch(`/api/groups/${groupId}`); const d = await r.json(); members = d.group?.members || []; } catch(e) {}
   const available = S.agents.filter(a => !members.includes(a.id));
-  sel.innerHTML = available.map(a => `<option value="${a.id}">${a.name} (${a.id})</option>`).join('');
+  sel.innerHTML = available.map(a => `<option value="${a.id}">${esc(a.name || a.id)}</option>`).join('');
   sel.size = Math.min(available.length || 1, 8);
 }

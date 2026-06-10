@@ -22,7 +22,9 @@ _AGENT_RULES: list[tuple[list[str], list[str]]] = [
     (["SEO", "关键词", "搜索引擎"], ["seo-plan", "research"]),
     (["内容", "写作", "文章", "文案", "编辑"], ["content", "architecture-review"]),
     (["文档", "说明书", "README"], ["content"]),
-    (["发布", "知乎", "公众号", "社媒", "运营"], ["publish-post"]),
+    (["发布", "知乎", "专栏", "zhihu"], ["publish-post"]),
+    (["发布", "小红书", "笔记", "xhs"], ["publish-post"]),
+    (["发布", "公众号", "社媒", "运营"], ["publish-post"]),
     (["运维", "部署", "回滚"], ["code-deployment"]),
 ]
 

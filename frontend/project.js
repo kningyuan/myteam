@@ -82,14 +82,20 @@ async function loadProjects() {
 function renderProjectList() {
   if (!DOM['project-list']) return;
   if (!S.projects.length) { DOM['project-list'].innerHTML = '<div class="empty">暂无项目<br><small>点击 + 发起一个项目</small></div>'; return; }
-  DOM['project-list'].innerHTML = S.projects.map(p =>
-    `<div class="sidebar-item ${S.currentProjectId === p.id ? 'active' : ''}" data-id="${p.id}">
-      <span class="s-icon avatar-badge">${esc(getAvatar(p.id))}</span>
-      <span class="s-name">${esc(p.title || p.id)}</span>
-      <span class="s-sub">${Math.round((p.progress || 0) * 100)}% · ${p.task_count || 0}任务 · ${esc(p.status || '')}</span>
-      <button class="s-del" data-del="${p.id}" title="删除项目" aria-label="删除项目">${ic('trash')}</button>
-    </div>`
-  ).join('');
+  DOM['project-list'].innerHTML = S.projects.map(p => {
+    const pct = Math.round((p.progress || 0) * 100);
+    const statusLabel = PROJ_STATUS_LABEL[p.status] || p.status || '';
+    return `<div class="sidebar-item ${S.currentProjectId === p.id ? 'active' : ''}" data-id="${p.id}">
+      <span class="s-icon avatar-badge avatar-project">${esc(getAvatar(p.id))}</span>
+      <span class="s-main">
+        <span class="s-row1"><span class="s-name">${esc(p.title || p.id)}</span><span class="s-time">${pct}%</span></span>
+        <span class="s-row2"><span class="s-preview">${esc(statusLabel)} · ${p.task_count || 0} 任务</span>
+          <button class="s-del" data-del="${p.id}" title="删除项目" aria-label="删除项目">${ic('trash')}</button>
+        </span>
+        <span class="s-progress"><i style="width:${pct}%"></i></span>
+      </span>
+    </div>`;
+  }).join('');
   DOM['project-list'].querySelectorAll('.sidebar-item').forEach(el => { el.addEventListener('click', () => selectProject(el.dataset.id)); });
   DOM['project-list'].querySelectorAll('.s-del').forEach(btn => { btn.addEventListener('click', (e) => { e.stopPropagation(); deleteProject(btn.dataset.del); }); });
 }

@@ -40,7 +40,7 @@ from common.task_pipeline import TaskPipeline
 from common.workspace_gc import gc_project_workspace, remove_interaction_files
 from common.observability import BudgetConfig, check_budget
 from common.project_artifacts import artifact_rel_path, task_deliverable_base
-from common.store import Store
+from common.project_hooks import ProjectHooks
 
 # 向后兼容 re-export
 from common.agent_bootstrap import _auto_create_agent  # noqa: F401
@@ -48,10 +48,12 @@ from common.plan_gate import PlanCheckResult  # noqa: F401
 
 
 class Process:
-    def __init__(self, store: Store, port: AgentPort, config: Optional[ProcessConfig] = None):
+    def __init__(self, store: Store, port: AgentPort, config: Optional[ProcessConfig] = None,
+                 hooks: Optional[ProjectHooks] = None):
         self.store = store
         self.port = port
         self.config = config or ProcessConfig()
+        self._hooks = hooks
         release = self._release_interaction_files
         self._pipeline = TaskPipeline(
             store=self.store, port=self.port, config=self.config, release_files=release,
@@ -103,6 +105,7 @@ class Process:
             logging.info("  agent 名册：%s", ", ".join(agents))
             if paused := self._pause_if_over_budget(project_id):
                 return paused
+        self._fire_team_ready(project_id, agents, title)
         if self.config.mode == "recurring" and tasks is None:
             return self._run_recurring(project_id, goal, agents)
         if tasks is None:
@@ -276,16 +279,41 @@ class Process:
         """跑单任务；失败时 triage。返回 (outcome, triage_decision)。"""
         outcome = self._pipeline.run_task(project_id, task)
         if outcome.status != "failed":
+            self._notify_task_done(project_id, task, outcome)
             return outcome, None
         meta = (self.store.get_task(project_id, task["id"]) or {}).get("meta") or {}
         decision = self._decisions.triage(project_id, task, outcome.reason)
         if decision == "retry" and meta.get("fail_reason") == "gate_exhausted":
+            self._notify_task_done(project_id, task, outcome)
             return outcome, decision
         if decision == "retry":
-            return self._pipeline.run_task(project_id, task), None
+            outcome = self._pipeline.run_task(project_id, task)
+            self._notify_task_done(project_id, task, outcome)
+            return outcome, None
         if decision == "reassign":
-            return self._pipeline.run_task(project_id, task), None
+            outcome = self._pipeline.run_task(project_id, task)
+            self._notify_task_done(project_id, task, outcome)
+            return outcome, None
+        self._notify_task_done(project_id, task, outcome)
         return outcome, decision
+
+    def _fire_team_ready(self, project_id: str, agents: Optional[list[str]], title: str) -> None:
+        if not self._hooks or not self._hooks.on_team_ready or not agents:
+            return
+        try:
+            self._hooks.on_team_ready(project_id, agents, title)
+        except Exception:
+            pass
+
+    def _notify_task_done(self, project_id: str, task: dict, outcome: TaskOutcome) -> None:
+        if not self._hooks or not self._hooks.on_task_done:
+            return
+        try:
+            self._hooks.on_task_done(
+                project_id, task.get("id", ""), outcome.status, task.get("agent", ""),
+            )
+        except Exception:
+            pass
 
     def _dispatch(self, project_id: str, tasks: list[dict],
                   *, persist: bool = True,
@@ -327,6 +355,11 @@ class Process:
                     f"{project_id}:dispatch", "parallel_wave",
                     {"tasks": wave, "count": len(wave)},
                 )
+                if self._hooks and self._hooks.on_wave:
+                    try:
+                        self._hooks.on_wave(project_id, wave)
+                    except Exception:
+                        pass
 
             parallel = self.config.parallel_enabled and len(wave) > 1
             if parallel:
@@ -368,6 +401,12 @@ class Process:
         return ProjectOutcome(project_id, proj_status, outcomes)
 
     def _is_cancelled(self, project_id: str) -> bool:
+        try:
+            from common.project_cancel import cancel_registry
+            if cancel_registry.is_cancelled(project_id):
+                return True
+        except Exception:
+            pass
         p = self.store.get_project(project_id)
         return bool(p and p.get("status") == "cancelled")
 

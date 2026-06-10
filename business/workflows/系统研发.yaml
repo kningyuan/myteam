@@ -1,0 +1,83 @@
+id: 系统研发
+version: '1.0'
+description: 系统研发全流程：需求 → 架构 → 前后端并行实现 → 评审 → 测试 → 部署 → 验收；具体功能在 goal 填写
+options:
+  review_enabled: false
+  split_enabled: true
+  parallel_enabled: true
+  max_parallel: 2
+tasks:
+- id: t-req
+  name: 需求与范围
+  agent: product
+  task_type: requirements
+  dependencies: []
+  description: |
+    【对象】见【项目目标】
+    【产出】功能范围、用户故事、验收标准、非目标清单
+- id: t-design
+  name: 系统架构设计
+  agent: arch
+  task_type: system-design
+  dependencies:
+  - t-req
+  description: |
+    【输入】t-req
+    【产出】模块划分、接口契约、数据模型、技术风险
+- id: t-backend
+  name: 后端实现
+  agent: developer
+  task_type: code-writing
+  dependencies:
+  - t-design
+  description: |
+    【输入】t-design
+    【对象】见【项目目标】
+    【产出】可运行后端代码与必要测试
+- id: t-frontend
+  name: 前端实现
+  agent: frontend
+  task_type: code-writing
+  dependencies:
+  - t-design
+  description: |
+    【输入】t-design
+    【对象】见【项目目标】
+    【产出】可运行前端页面/组件
+- id: t-review
+  name: 代码评审
+  agent: arch
+  task_type: code-review
+  dependencies:
+  - t-backend
+  - t-frontend
+  description: |
+    【输入】t-backend、t-frontend
+    【产出】评审意见与必改项清单
+- id: t-test
+  name: 测试与回归
+  agent: qa
+  task_type: code-testing
+  dependencies:
+  - t-review
+  description: |
+    【输入】t-review 后的代码基线
+    【产出】测试结果、缺陷列表、回归结论
+- id: t-deploy
+  name: 部署上线
+  agent: ops
+  task_type: code-deployment
+  dependencies:
+  - t-test
+  description: |
+    【输入】t-test 通过结论
+    【产出】部署步骤、健康检查、回滚预案
+- id: t-accept
+  name: 验收报告
+  agent: product
+  task_type: acceptance-report
+  dependencies:
+  - t-deploy
+  description: |
+    【输入】t-req 验收标准、t-test、t-deploy
+    【产出】是否通过验收及遗留项

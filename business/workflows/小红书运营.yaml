@@ -1,0 +1,37 @@
+id: 小红书运营
+version: '1.0'
+description: 小红书笔记运营：选题调研 → 图文成稿 → 小红书发布留痕；选题与账号在 goal 填写
+options:
+  review_enabled: false
+  split_enabled: false
+  parallel_enabled: false
+  max_parallel: 2
+tasks:
+- id: t-research
+  name: 选题调研
+  agent: research
+  task_type: research
+  dependencies: []
+  description: |
+    【对象】见【项目目标】
+    【视角】小红书受众、爆款结构、话题标签
+- id: t-draft
+  name: 小红书成稿
+  agent: content
+  task_type: content
+  dependencies:
+  - t-research
+  description: |
+    【输入】t-research
+    【平台】小红书图文笔记
+    【产出】标题、正文、话题标签建议、封面文案
+- id: t-publish
+  name: 小红书发布
+  agent: social_xhs
+  task_type: publish-post
+  dependencies:
+  - t-draft
+  description: |
+    【输入】t-draft
+    【须提交】真实笔记链接与截图证据
+    【禁止】编造链接

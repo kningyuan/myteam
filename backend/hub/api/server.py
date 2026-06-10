@@ -72,31 +72,43 @@ def _auto_resume_on_startup() -> None:
         if n_stale:
             print(f"[myteam] 清除 {n_stale} 个 Hub 重启残留的 kernel 运行标记")
         from common.agent_port import reconcile_on_start
+        from common.project_runtime import get_project_runtime
         from common.store import Store
         from common.workspace_gc import gc_workspace
-        from common.run_kernel import resume_in_progress_projects
         store = Store()
         try:
             reconcile_on_start(store)  # 先对账再 gc，避免误删可采纳孤儿 .response
             gc_workspace(store)
+            pending = [
+                p for p in store.list_projects()
+                if p.get("status") in ("in_progress", "paused")
+            ]
         finally:
             store.close()
-        # 续跑期间同步运行态：让 run-status 在自动续跑时正确报 running=true，
-        # 并使续跑端点的并发守卫生效（堵住启动线程 vs 用户点击的二次续跑）。
-        def _mark_run(pid):
-            _set_kernel_run(pid, running=True)
-
-        def _clear_run(pid, err):
-            _set_kernel_run(pid, running=False, error=str(err) if err else None)
-
-        resumed = resume_in_progress_projects(on_start=_mark_run, on_end=_clear_run)
+        runtime = get_project_runtime()
+        resumed: list[str] = []
+        for proj in pending:
+            pid = proj["project_id"]
+            if runtime.is_running(pid) or _is_kernel_running(pid):
+                continue
+            try:
+                _set_kernel_run(pid, running=True)
+                _start_kernel_job(pid, _resume_kernel_bg, pid)
+                resumed.append(pid)
+            except RuntimeError:
+                _clear_kernel_run(pid)
         if resumed:
             print(f"[myteam] 自动续跑 {len(resumed)} 个中断项目: {', '.join(resumed)}")
         # 扫描 orphan job
         try:
             from common.job_supervisor import JobSupervisor
-            jsv = JobSupervisor(store)
-            orphans = jsv.resume_orphans()
+
+            orphan_store = Store()
+            try:
+                jsv = JobSupervisor(orphan_store)
+                orphans = jsv.resume_orphans()
+            finally:
+                orphan_store.close()
             if orphans:
                 print(f"[myteam] 标记 {len(orphans)} 个 orphan job: {[o['project_id'] for o in orphans]}")
         except Exception:
@@ -140,9 +152,15 @@ ERROR_CODES = {
 
 app = FastAPI(title="Local Agent Chat v2", lifespan=lifespan)
 
+_CORS_ORIGINS = [
+    o.strip()
+    for o in os.environ.get("MYTEAM_CORS_ORIGINS", "*").split(",")
+    if o.strip()
+] or ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -378,7 +396,28 @@ async def index():
 
 @app.get("/api/agents")
 async def list_agents():
-    return {"agents": scan_agents()}
+    """扫描 workspace 并与注册表合并，UI 显示名优先用注册表中文 name。"""
+    from hub.services.agent_registry import get_agents_registry
+
+    reg = get_agents_registry()
+    scanned = {a["id"]: a for a in scan_agents()}
+    agents = []
+    for aid, info in sorted(reg["agents"].items()):
+        if not info.get("available"):
+            continue
+        scan = scanned.get(aid) or {}
+        agents.append({
+            "id": aid,
+            "name": (info.get("name") or scan.get("name") or aid).strip(),
+            "role": info.get("role") or "worker",
+            "description": info.get("description") or "",
+            "capabilities": info.get("capabilities") or [],
+            "task_types": info.get("task_types") or [],
+            "backend": scan.get("backend") or info.get("backend") or "",
+            "model": scan.get("model") or info.get("model") or "",
+            "workspace": scan.get("workspace") or info.get("workspace") or "",
+        })
+    return {"agents": agents}
 
 
 @app.get("/api/agents/{agent_id}/config")
@@ -983,7 +1022,26 @@ def _get_kernel_run(project_id: str) -> dict:
 
 
 def _is_kernel_running(project_id: str) -> bool:
+    try:
+        from common.project_runtime import get_project_runtime
+
+        if get_project_runtime().is_running(project_id):
+            return True
+    except Exception:
+        pass
     return bool(_get_kernel_run(project_id).get("running"))
+
+
+def _start_kernel_job(project_id: str, runner, *args, **kwargs) -> None:
+    """经 ProjectRuntime 调度后台内核（JobSupervisor + 并发槽 + 取消注册）。"""
+    from common.project_runtime import get_project_runtime
+
+    def _on_end(pid: str, _err: Optional[BaseException]) -> None:
+        _clear_kernel_run(pid)
+
+    get_project_runtime().start(
+        project_id, runner, *args, on_end=_on_end, **kwargs,
+    )
 
 
 def _clear_kernel_run(project_id: str) -> None:
@@ -1049,10 +1107,14 @@ async def api_demo():
     demo_goal = _read_demo_goal()
     backend = _system_default_backend()
     _set_kernel_run(project_id, running=True)
-    threading.Thread(
-        target=_run_kernel_bg, args=(project_id, demo_goal, "one_shot", 100000, "Demo 项目", False),
-        daemon=True
-    ).start()
+    try:
+        _start_kernel_job(
+            project_id, _run_kernel_bg,
+            project_id, demo_goal, "one_shot", 100000, "Demo 项目", False,
+        )
+    except RuntimeError:
+        _clear_kernel_run(project_id)
+        raise APIError("PROJECT_RUNNING", "Demo 项目已在运行")
     return {"project_id": project_id, "started": True}
 
 
@@ -1111,6 +1173,8 @@ def _run_kernel_bg(project_id: str, goal: str, mode: str, budget, title: str,
     try:
         from common.kernel_config import kernel_configs_for_run
         from common.run_kernel import run_project
+        from hub.services.project_hooks import hub_project_hooks
+
         defaults = process_defaults or {}
         backend = system_config.get("system", "default_backend", default="opencode")
         proc_cfg, wdog_cfg = kernel_configs_for_run(
@@ -1119,7 +1183,8 @@ def _run_kernel_bg(project_id: str, goal: str, mode: str, budget, title: str,
         )
         run_project(project_id, goal=goal, title=title, mode=mode, token_budget=budget,
                     review=review, workflow=workflow, split=split,
-                    config=proc_cfg, watchdog=wdog_cfg, backend=backend)
+                    config=proc_cfg, watchdog=wdog_cfg, backend=backend,
+                    hooks=hub_project_hooks())
     except Exception as e:  # noqa: BLE001 — 后台线程，错误回灌给状态查询
         _set_kernel_run(project_id, running=False, error=str(e))
         _mark_project_kernel_failed(project_id, str(e))
@@ -1132,6 +1197,7 @@ def _resume_kernel_bg(project_id: str) -> None:
         from common.kernel_config import kernel_configs_for_run
         from common.run_kernel import resume_project
         from common.store import Store
+        from hub.services.project_hooks import hub_project_hooks
 
         defaults = skill_config.get_all().get("process_defaults") or {}
         backend = system_config.get("system", "default_backend", default="opencode")
@@ -1146,7 +1212,8 @@ def _resume_kernel_bg(project_id: str) -> None:
             )
         finally:
             store.close()
-        resume_project(project_id, config=proc_cfg, watchdog=wdog_cfg, backend=backend)
+        resume_project(project_id, config=proc_cfg, watchdog=wdog_cfg, backend=backend,
+                       hooks=hub_project_hooks())
     except Exception as e:  # noqa: BLE001
         _set_kernel_run(project_id, running=False, error=str(e))
     else:
@@ -1340,11 +1407,14 @@ async def api_project_run(body: dict):
         budget=budget, workflow=workflow,
     )
     _set_kernel_run(project_id, running=True)
-    threading.Thread(
-        target=_run_kernel_bg,
-        args=(project_id, goal, mode, budget, title, review, workflow, split, process_defaults),
-        daemon=True,
-    ).start()
+    try:
+        _start_kernel_job(
+            project_id, _run_kernel_bg,
+            project_id, goal, mode, budget, title, review, workflow, split, process_defaults,
+        )
+    except RuntimeError:
+        _clear_kernel_run(project_id)
+        raise HTTPException(status_code=409, detail="该项目正在运行")
     return {
         "project_id": project_id,
         "title": title or project_id,
@@ -1369,7 +1439,11 @@ async def api_project_resume(project_id: str):
     if p.get("status") not in ("in_progress", "paused"):
         return {"resumed": False, "project_id": project_id, "reason": "项目已终态"}
     _set_kernel_run(project_id, running=True)
-    threading.Thread(target=_resume_kernel_bg, args=(project_id,), daemon=True).start()
+    try:
+        _start_kernel_job(project_id, _resume_kernel_bg, project_id)
+    except RuntimeError:
+        _clear_kernel_run(project_id)
+        raise HTTPException(status_code=409, detail="该项目正在运行")
     return {"resumed": True, "project_id": project_id}
 
 
@@ -1440,21 +1514,18 @@ _PROJECT_TERMINAL = {"completed", "failed", "partially_failed", "aborted", "canc
 
 @app.post("/api/projects/{project_id}/cancel")
 async def api_project_cancel(project_id: str):
-    """协作式取消：把项目状态置 cancelled，运行中的内核在任务间隙观察后停止派发。
+    """取消项目：Store 置 cancelled + cancel_event 终止当前 CLI 子进程 + 停止后续派发。"""
+    from common.project_runtime import get_project_runtime
 
-    注意：正在执行的当前任务（opencode 子进程）会自然跑完，之后不再派发新任务。
-    """
-    from common.store import Store
-    store = Store()
-    try:
-        proj = store.get_project(project_id)
-        if not proj:
+    ok, msg = get_project_runtime().cancel(project_id)
+    if not ok:
+        if msg == "项目不存在":
             raise APIError("PROJECT_NOT_FOUND", "项目不存在", status_code=404)
-        if proj.get("status") in _PROJECT_TERMINAL:
-            return {"success": False, "status": proj.get("status"), "message": "项目已结束"}
-        store.set_project_status(project_id, "cancelled")
-    finally:
-        store.close()
+        if msg.startswith("项目已终态"):
+            status = msg.split("：", 1)[-1] if "：" in msg else "unknown"
+            return {"success": False, "status": status, "message": "项目已结束"}
+        return {"success": False, "message": msg}
+    _clear_kernel_run(project_id)
     return {"success": True, "project_id": project_id, "status": "cancelled"}
 
 
@@ -1522,14 +1593,30 @@ async def api_suggest_id(description: str = Query("")):
 
 
 def main():
+    import logging
+
     port = int(os.environ.get("LOCAL_AGENT_PORT", "8765"))
+    log_level = os.environ.get("MYTEAM_LOG_LEVEL", "info").lower()
+    reload = os.environ.get("MYTEAM_RELOAD", "").lower() in ("1", "true", "yes")
+    logging.basicConfig(
+        level=getattr(logging, log_level.upper(), logging.INFO),
+        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    )
     print("  Local Agent Chat v2")
     print(f"  Local:   http://localhost:{port}")
     print(f"  Network: http://0.0.0.0:{port}  (局域网设备通过本机 IP 访问)")
     print(f"  Agents:  http://localhost:{port}/api/agents")
     print(f"  Backends: http://localhost:{port}/api/backends")
     print(f"  Groups:  http://localhost:{port}/api/groups")
-    uvicorn.run("hub.api.server:app", host="0.0.0.0", port=port, log_level="info", reload=True)
+    if reload:
+        print("  Reload:  enabled (MYTEAM_RELOAD=1)")
+    uvicorn.run(
+        "hub.api.server:app",
+        host="0.0.0.0",
+        port=port,
+        log_level=log_level,
+        reload=reload,
+    )
 
 
 if __name__ == "__main__":

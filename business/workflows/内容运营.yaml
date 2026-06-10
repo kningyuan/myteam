@@ -1,6 +1,6 @@
 id: 内容运营
 version: '1.0'
-description: 内容运营：选题调研 → 成稿 → 发布留痕；具体选题/平台在 goal 填写
+description: 通用内容运营（调研→成稿→发布）。知乎/小红书请优先用「知乎运营」「小红书运营」workflow
 options:
   review_enabled: false
   split_enabled: false
@@ -19,11 +19,14 @@ tasks:
   task_type: content
   dependencies:
   - t-research
-  description: 【输入】t-research
+  description: 【输入】t-research；【平台】见【项目目标】
 - id: t-publish
   name: 平台发布
-  agent: social
+  agent: social_zhihu
   task_type: publish-post
   dependencies:
   - t-draft
-  description: 【输入】t-draft；【须提交】已发布 URL 与截图
+  description: |
+    【输入】t-draft
+    【说明】知乎用 social_zhihu；小红书请在 goal 注明并改 workflow 为「小红书运营」
+    【须提交】已发布 URL 与截图

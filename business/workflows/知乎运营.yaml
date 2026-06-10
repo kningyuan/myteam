@@ -1,0 +1,38 @@
+id: 知乎运营
+version: '1.0'
+description: 知乎专栏运营：选题调研 → 成稿 → 知乎发布留痕；选题与账号在 goal 填写
+options:
+  review_enabled: false
+  split_enabled: false
+  parallel_enabled: false
+  max_parallel: 2
+tasks:
+- id: t-research
+  name: 选题调研
+  agent: research
+  task_type: research
+  dependencies: []
+  description: |
+    【对象】见【项目目标】
+    【视角】知乎受众、竞品选题、关键词机会
+    【范围】公开信息；禁止编造数据
+- id: t-draft
+  name: 知乎成稿
+  agent: content
+  task_type: content
+  dependencies:
+  - t-research
+  description: |
+    【输入】t-research
+    【平台】知乎专栏长文
+    【产出】标题、正文结构、GEO 关键词布局
+- id: t-publish
+  name: 知乎发布
+  agent: social_zhihu
+  task_type: publish-post
+  dependencies:
+  - t-draft
+  description: |
+    【输入】t-draft
+    【须提交】真实 zhuanlan.zhihu.com 文章 URL 与截图
+    【禁止】编造链接

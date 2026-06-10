@@ -38,11 +38,14 @@ tasks:
 
     【范围】仅 README、docs/、Releases；禁止全仓扫源码'
 - id: t5
-  name: 前端架构及页面地哦阿严
-  agent: UI
+  name: 前端架构调研
+  agent: frontend
   task_type: architecture-review
   dependencies: []
-  description: 【对象】目标 GitHub 仓库（链接见【项目目标】）
+  description: |
+    【对象】目标 GitHub 仓库（链接见【项目目标】）
+    【视角】前端/UI 架构与页面组织
+    【范围】仅 README、docs/、Releases；禁止全仓扫源码
 - id: t-summary
   name: 三视角综合报告
   agent: main

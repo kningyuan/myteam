@@ -59,7 +59,8 @@ function switchTab(tab, opts = {}) {
   document.querySelectorAll('.tab-content').forEach(t => t.classList.toggle('active', t.id === `tab-${tab}`));
 
   const showSidebar = (tab === 'chat' || tab === 'groups' || tab === 'projects');
-  document.getElementById('sidebar').style.display = showSidebar ? 'flex' : 'none';
+  document.body.classList.toggle('no-list', !showSidebar);
+  document.body.classList.remove('sidebar-open');
   document.querySelectorAll('.sidebar-panel').forEach(p => p.classList.toggle('active',
     (tab === 'chat' && p.id === 'sidebar-agents') ||
     (tab === 'groups' && p.id === 'sidebar-groups') ||
@@ -216,8 +217,9 @@ function setupEventListeners() {
     const selected = Array.from(sel.selectedOptions).map(o => o.value);
     if (!selected.length) return;
     for (const agentId of selected) { await fetch(`/api/groups/${S.currentGroupId}/members`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ agent_id: agentId }) }); }
-    openGroupConfig(); loadGroups(); renderGroupList();
+    openGroupConfig(); loadGroups(); renderGroupList(); refreshMembersPanel();
   });
+  DOM['btn-toggle-members']?.addEventListener('click', toggleMembersPanel);
   DOM['group-modal-close']?.addEventListener('click', () => DOM['group-config-modal'].classList.add('hidden'));
   DOM['group-config-modal']?.querySelector('.modal-close')?.addEventListener('click', () => DOM['group-config-modal'].classList.add('hidden'));
 

@@ -90,8 +90,8 @@ function selectAgent(id, opts = {}) {
   DOM['chat-view'].classList.remove('hidden');
   const a = S.agents.find(x => x.id === id);
   if (a) {
-    DOM['chat-agent-name'].textContent = a.name;
-    DOM['chat-agent-id'].textContent = [a.id, a.backend, a.model].filter(Boolean).join(' · ');
+    DOM['chat-agent-name'].textContent = a.name || a.id;
+    DOM['chat-agent-id'].textContent = [a.backend, a.model].filter(Boolean).join(' · ');
     applyAvatar(DOM['chat-agent-avatar'], id, 'agent');
     updateContextIndicator(S.contextTokens[id] || 0);
   }

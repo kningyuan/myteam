@@ -4,35 +4,35 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Agent Hub v2.1</title>
-<link rel="stylesheet" href="/static/tokens.css?v=5">
-<link rel="stylesheet" href="/static/layout.css?v=5">
-<link rel="stylesheet" href="/static/components.css?v=5">
-<link rel="stylesheet" href="/static/pages.css?v=8">
-<link rel="stylesheet" href="/static/style.css?v=50">
+<link rel="stylesheet" href="/static/tokens.css?v=7">
+<link rel="stylesheet" href="/static/layout.css?v=7">
+<link rel="stylesheet" href="/static/components.css?v=7">
+<link rel="stylesheet" href="/static/pages.css?v=9">
+<link rel="stylesheet" href="/static/style.css?v=51">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 </head>
-<body>
+<body class="no-list">
 <div id="app">
-  <!-- Top Nav -->
-  <nav id="top-nav">
-    <button id="btn-sidebar-toggle" class="btn-icon" title="菜单" type="button" aria-label="菜单" data-icon="menu"></button>
-    <span class="nav-logo">Agent Hub</span>
-    <div class="nav-tabs">
-      <button class="nav-tab active" data-tab="home"><span data-icon="home"></span> 首页</button>
-      <button class="nav-tab" data-tab="chat"><span data-icon="chat"></span> 对话</button>
-      <button class="nav-tab" data-tab="groups"><span data-icon="users"></span> 群组</button>
-      <button class="nav-tab" data-tab="projects"><span data-icon="clipboard"></span> 项目</button>
-      <button class="nav-tab" data-tab="agents"><span data-icon="sliders"></span> 管理</button>
-      <button class="nav-tab" data-tab="workflows"><span data-icon="clipboard"></span> Workflow</button>
-      <button class="nav-tab" data-tab="settings"><span data-icon="settings"></span> 设置</button>
+  <!-- Left Rail Nav (Discord-style) -->
+  <nav id="rail">
+    <div class="rail-logo" title="Agent Hub">AH</div>
+    <button id="btn-sidebar-toggle" class="rail-btn rail-mobile-only" title="列表" type="button" aria-label="列表" data-icon="menu"></button>
+    <div class="rail-tabs">
+      <button class="nav-tab active" data-tab="home" title="首页" aria-label="首页"><span data-icon="home"></span><span class="nav-label">首页</span></button>
+      <button class="nav-tab" data-tab="chat" title="对话" aria-label="对话"><span data-icon="chat"></span><span class="nav-label">对话</span></button>
+      <button class="nav-tab" data-tab="groups" title="群组" aria-label="群组"><span data-icon="users"></span><span class="nav-label">群组</span></button>
+      <button class="nav-tab" data-tab="projects" title="项目" aria-label="项目"><span data-icon="clipboard"></span><span class="nav-label">项目</span></button>
+      <button class="nav-tab" data-tab="agents" title="管理" aria-label="管理"><span data-icon="sliders"></span><span class="nav-label">管理</span></button>
+      <button class="nav-tab" data-tab="workflows" title="Workflow" aria-label="Workflow"><span data-icon="flow"></span><span class="nav-label">流程</span></button>
     </div>
-    <div class="nav-actions">
+    <div class="rail-bottom">
       <div class="theme-menu" id="theme-menu-wrap">
-        <button id="btn-theme" class="btn-icon" title="主题设置" type="button" data-icon="theme"></button>
+        <button id="btn-theme" class="rail-btn" title="主题设置" type="button" data-icon="theme"></button>
       </div>
-      <span id="status-badge" class="status online">就绪</span>
+      <button class="nav-tab rail-settings" data-tab="settings" title="设置" aria-label="设置"><span data-icon="settings"></span><span class="nav-label">设置</span></button>
+      <span id="status-badge" class="status online" title="服务状态">就绪</span>
     </div>
   </nav>
 
@@ -125,7 +125,7 @@
           <button id="new-msg-floater" class="new-msg-floater hidden" type="button" title="回到最新"><span data-icon="arrow-down"></span> 新消息</button>
           <div id="context-indicator" class="context-indicator hidden"><div class="ctx-bar"><div class="ctx-fill" style="width:0%"></div></div><span class="ctx-label">0 / 25k tokens</span></div>
           <div class="input-area">
-            <textarea id="message-input" rows="2" placeholder="输入消息...（Enter 发送，Shift+Enter 换行）"
+            <textarea id="message-input" rows="1" placeholder="输入消息...（Enter 发送，Shift+Enter 换行）"
                       autocomplete="off"></textarea>
             <button id="btn-send" disabled>发送</button>
           </div>
@@ -152,6 +152,7 @@
             </div>
             <div class="chat-actions">
               <button id="btn-open-project" class="btn-ghost hidden" title="打开该群组对应的项目"><span data-icon="clipboard"></span> 项目详情</button>
+              <button id="btn-toggle-members" class="btn-icon" title="成员面板" type="button" data-icon="panel"></button>
               <button id="btn-group-config" class="btn-icon" title="管理群组成员" data-icon="settings"></button>
               <div class="more-menu">
                 <button id="btn-group-more" class="btn-icon" title="更多" type="button" data-icon="more"></button>
@@ -164,11 +165,16 @@
           </div>
           <div id="group-messages" class="messages"></div>
           <div class="input-area">
-            <textarea id="group-input" rows="2" placeholder="输入群消息... @main @developer 等提及 Agent" autocomplete="off"></textarea>
+            <textarea id="group-input" rows="1" placeholder="输入群消息... @main @developer 等提及 Agent" autocomplete="off"></textarea>
             <button id="btn-group-send" disabled>发送</button>
             <div id="mention-dropdown" class="mention-dropdown hidden"></div>
           </div>
         </div>
+        <!-- Members detail panel (Discord-style) -->
+        <aside id="group-members-panel" class="detail-panel hidden">
+          <div class="detail-panel-title">成员 <span class="badge" id="group-members-count">0</span></div>
+          <div id="group-members-list" class="detail-panel-list"></div>
+        </aside>
       </div>
 
       <!-- Tab: Projects -->
@@ -826,15 +832,15 @@
 <script src="/static/markdown.js?v=1"></script>
 <script src="/static/dag-renderer.js?v=4"></script>
 <script src="/static/timeline.js?v=2"></script>
-<script src="/static/ui-core.js?v=5"></script>
+<script src="/static/ui-core.js?v=6"></script>
 <script src="/static/chat.js?v=3"></script>
-<script src="/static/group.js?v=3"></script>
-<script src="/static/project.js?v=7"></script>
-<script src="/static/manage.js?v=6"></script>
+<script src="/static/group.js?v=4"></script>
+<script src="/static/project.js?v=8"></script>
+<script src="/static/manage.js?v=7"></script>
 <script src="/static/settings.js?v=2"></script>
 <script src="/static/workflows.js?v=6"></script>
 <script src="/static/dashboard.js?v=1"></script>
-<script src="/static/app.js?v=44"></script>
+<script src="/static/app.js?v=45"></script>
 <div id="theme-dropdown" class="theme-dropdown hidden">
   <button type="button" data-theme="dark"><span data-icon="moon"></span> 深色</button>
   <button type="button" data-theme="light"><span data-icon="sun"></span> 浅色</button>

@@ -125,6 +125,8 @@ def test_cancel(client, tmp_path, monkeypatch):
     seed.upsert_project("p_done", title="D", status="completed")
     seed.close()
     monkeypatch.setattr(cstore, "Store", lambda *a, **k: orig(db))
+    from common.project_runtime import reset_project_runtime
+    reset_project_runtime()
 
     assert client.post("/api/projects/nope/cancel").status_code == 404
 

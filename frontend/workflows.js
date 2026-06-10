@@ -52,6 +52,7 @@ async function wfLoadMeta() {
     const regMap = (await rr.json()).agents || {};
     _wfAgentRecords = scanned.map(a => ({
       ...a,
+      name: (regMap[a.id] || {}).name || a.name || a.id,
       task_types: (regMap[a.id] || {}).task_types || [],
       role_hint: (regMap[a.id] || {}).description || '',
     }));

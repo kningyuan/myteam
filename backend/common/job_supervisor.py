@@ -10,7 +10,6 @@
 
 import logging
 import os
-import signal
 import threading
 import time
 from typing import Callable, Optional
@@ -32,11 +31,16 @@ class JobSupervisor:
             target=self._run_wrapper,
             args=(project_id, job_id, runner, args, kwargs),
             daemon=True,
+            name=f"job-{project_id}",
         )
         self._running_jobs[project_id] = t
         t.start()
         logger.info("job %s started for project %s", job_id, project_id)
         return job_id
+
+    def is_running(self, project_id: str) -> bool:
+        t = self._running_jobs.get(project_id)
+        return t is not None and t.is_alive()
 
     def _run_wrapper(self, project_id: str, job_id: str,
                      runner: Callable, args: tuple, kwargs: dict):
@@ -51,22 +55,20 @@ class JobSupervisor:
             self._running_jobs.pop(project_id, None)
 
     def cancel_job(self, project_id: str) -> bool:
-        """取消 job：设置 Store 标志位，发送 SIGTERM。返回 True 表示已取消。"""
+        """取消 job：Store 标志 + 进程内 cancel_event（同 Hub 进程内不 SIGTERM）。"""
+        from common.project_cancel import cancel_registry
+
         job = self.store.get_latest_job(project_id)
-        if not job:
+        if not job and not self.is_running(project_id):
+            cancel_registry.cancel(project_id)
             return False
-        self.store.cancel_job_request(project_id)
-        # 用 SIGTERM 终止进程
-        pid = job.get("pid")
-        if pid and pid != os.getpid():
-            try:
-                os.kill(pid, signal.SIGTERM)
-            except (OSError, PermissionError):
-                pass
-        # 标记取消
-        self.store.update_job_status(job["job_id"], "cancelled")
+        cancel_registry.cancel(project_id)
+        if job:
+            self.store.cancel_job_request(project_id)
+            if job.get("status") == "running":
+                self.store.update_job_status(job["job_id"], "cancelled")
         self._running_jobs.pop(project_id, None)
-        logger.info("job %s cancelled for project %s", job["job_id"], project_id)
+        logger.info("job cancelled for project %s", project_id)
         return True
 
     def get_job(self, project_id: str) -> Optional[dict]:

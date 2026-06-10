@@ -18,7 +18,7 @@ import os
 import queue
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, field
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -36,11 +36,18 @@ class WatchdogConfig:
     hard_idle_sec: float = 300.0   # 无事件超此 = 取消 + 重试
     poll_interval: float = 0.5
     max_attempts: int = 3
+    kind_soft_idle: dict[str, float] = field(default_factory=dict)
+    kind_hard_idle: dict[str, float] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         # 环境变量可覆盖阈值，便于运行时绕过而不改代码
         self.soft_idle_sec = float(os.environ.get("MYTEAM_SOFT_IDLE_SEC", str(self.soft_idle_sec)))
         self.hard_idle_sec = float(os.environ.get("MYTEAM_HARD_IDLE_SEC", str(self.hard_idle_sec)))
+
+    def idle_limits(self, kind: str) -> tuple[float, float]:
+        hard = self.kind_hard_idle.get(kind, self.hard_idle_sec)
+        soft = self.kind_soft_idle.get(kind, min(hard * 0.4, max(hard - 60.0, self.soft_idle_sec)))
+        return soft, hard
 
 
 @dataclass
@@ -79,6 +86,16 @@ class DeliveryContext:
 # Transport 协议：阻塞执行一次投递；通过 ctx.emit 回传事件；Agent 自行写 .response。
 Transport = Callable[[DeliveryContext], None]
 
+_agent_locks: dict[str, threading.Lock] = {}
+_agent_locks_guard = threading.Lock()
+
+
+def _lock_for(agent_id: str) -> threading.Lock:
+    with _agent_locks_guard:
+        if agent_id not in _agent_locks:
+            _agent_locks[agent_id] = threading.Lock()
+        return _agent_locks[agent_id]
+
 
 class AgentPort:
     def __init__(self, transport: Transport, store: Optional[Store] = None,
@@ -102,13 +119,15 @@ class AgentPort:
     def run(self, request) -> AgentPortResult:
         if isinstance(request, dict):
             request = parse_request(request)
-        last = AgentPortResult("error", None, request.interaction_id, 0, "未执行")
-        for attempt in range(1, self.config.max_attempts + 1):
-            last = self._attempt(request, attempt)
-            if last.status in ("done", "error", "budget_exceeded"):
-                return last
-            # timed_out / no_response → 继续重试（D12：hard_idle 或 CLI 早退未 submit）
-        return last
+        agent_id = request.agent_id or ""
+        with _lock_for(agent_id):
+            last = AgentPortResult("error", None, request.interaction_id, 0, "未执行")
+            for attempt in range(1, self.config.max_attempts + 1):
+                last = self._attempt(request, attempt)
+                if last.status in ("done", "error", "budget_exceeded", "cancelled"):
+                    return last
+                # timed_out / no_response → 继续重试（D12：hard_idle 或 CLI 早退未 submit）
+            return last
 
     def _attempt(self, req: InteractionRequest, attempt: int) -> AgentPortResult:
         iid = req.interaction_id
@@ -142,6 +161,9 @@ class AgentPort:
         # 事件队列 + 传输线程（事件在子线程产生，store 写入只在本线程，避免跨线程 sqlite）
         q: "queue.Queue[tuple[str, Optional[dict]]]" = queue.Queue()
         ctx = DeliveryContext(req, req_path, lambda k, p=None: q.put((k, p)))
+        if req.project_id:
+            from common.project_cancel import cancel_registry
+            cancel_registry.attach(req.project_id, ctx)
         th = threading.Thread(target=self._safe_transport, args=(ctx, q), daemon=True)
         th.start()
 
@@ -151,6 +173,7 @@ class AgentPort:
         event_tokens = 0
         token_acc = {"running": 0}
         cfg = self.config
+        soft_idle, hard_idle = cfg.idle_limits(req.kind or "")
 
         while True:
             drained, tok = self._drain(q, iid, token_acc)
@@ -206,8 +229,16 @@ class AgentPort:
                 return AgentPortResult("no_response", None, iid, attempt,
                                        "传输结束但未取回合法响应")
 
+            if req.project_id:
+                from common.project_cancel import cancel_registry
+                if cancel_registry.is_cancelled(req.project_id):
+                    ctx._cancel.set()
+                    th.join(timeout=5.0)
+                    self.store.update_interaction(iid, status="cancelled")
+                    return AgentPortResult("cancelled", None, iid, attempt, "项目已取消")
+
             idle = time.monotonic() - last_event
-            if idle >= cfg.hard_idle_sec:
+            if idle >= hard_idle:
                 adopted = self._try_adopt_deliverable(req, resp_path, req_mtime, iid)
                 if adopted is not None:
                     ctx._cancel.set()
@@ -218,13 +249,13 @@ class AgentPort:
                 self.store.append_run_event(iid, "watchdog_hard_kill", {"idle_sec": round(idle, 1)})
                 self.store.update_interaction(iid, status="timed_out")
                 agent_label = self._interaction_agent_label(iid)
-                print(f"  ✖ agent「{agent_label}」无响应超过 {cfg.hard_idle_sec:.0f}s，将终止并重试")
+                print(f"  ✖ agent「{agent_label}」无响应超过 {hard_idle:.0f}s，将终止并重试")
                 return AgentPortResult("timed_out", None, iid, attempt, "hard_idle 看门狗取消")
-            if idle >= cfg.soft_idle_sec and not soft_warned:
+            if idle >= soft_idle and not soft_warned:
                 soft_warned = True
                 self.store.append_run_event(iid, "watchdog_soft_idle", {"idle_sec": round(idle, 1)})
                 agent_label = self._interaction_agent_label(iid)
-                print(f"  ⚠ agent「{agent_label}」已 {idle:.0f}s 无响应（阈值 {cfg.soft_idle_sec:.0f}s），仍在等待...")
+                print(f"  ⚠ agent「{agent_label}」已 {idle:.0f}s 无响应（阈值 {soft_idle:.0f}s），仍在等待...")
 
             time.sleep(cfg.poll_interval)
 

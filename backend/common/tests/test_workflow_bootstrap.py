@@ -40,7 +40,7 @@ def test_pgd_agent_template_covers_workflow_rosters():
 
 
 def test_ensure_workflow_ready_creates_registry(pgd_env):
-    for aid in ("main", "research", "content", "social"):
+    for aid in ("main", "research", "content", "social_zhihu"):
         paths.workspace_dir(aid).mkdir(parents=True, exist_ok=True)
     profile = ensure_workflow_ready("内容运营", backend="claude")
     assert profile.id == "内容运营"

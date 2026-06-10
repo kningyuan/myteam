@@ -82,9 +82,37 @@
     "social": {
       "name": "社媒运营",
       "role": "worker",
-      "description": "内容发布与平台动作证据",
+      "description": "内容发布与平台动作证据（通用）",
       "capabilities": ["平台发布", "发布证据"],
       "task_types": ["publish-post"]
+    },
+    "social_zhihu": {
+      "name": "知乎运营",
+      "role": "worker",
+      "description": "知乎专栏真实发布与留痕",
+      "capabilities": ["知乎专栏发布", "发布留痕"],
+      "task_types": ["publish-post"]
+    },
+    "social_xhs": {
+      "name": "小红书运营",
+      "role": "worker",
+      "description": "小红书笔记发布与留痕",
+      "capabilities": ["小红书发布", "发布留痕"],
+      "task_types": ["publish-post"]
+    },
+    "docs": {
+      "name": "文档专家",
+      "role": "worker",
+      "description": "方案汇总与文档定稿",
+      "capabilities": ["文档结构化", "交付物汇总"],
+      "task_types": ["content", "architecture-review"]
+    },
+    "ops": {
+      "name": "运维专家",
+      "role": "worker",
+      "description": "部署执行与上线验证",
+      "capabilities": ["部署", "健康检查", "回滚"],
+      "task_types": ["code-deployment"]
     }
   }
 }
