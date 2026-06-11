@@ -1,0 +1,45 @@
+# 交付等级（delivery_profile）— 与 task_type 绑定，描述执行过程套餐
+# task_type 定义业务产出；profile 定义过程产物与 prompt 层。
+# 原则：同一 task_type 不因 agent 不同而变；业务不同则拆 task_type。
+
+version: "1.0"
+
+profiles:
+  none:
+    description: 仅 deliverable，兼容旧 task_type
+    process_artifacts: []
+    inject_catalog: false
+
+  light_v1:
+    description: 内容型交付 — 对齐 + 自检，无 means/catalog
+    process_artifacts:
+      - align.md
+      - verify.log
+    process_checks:
+      align.md:
+        min_length: 40
+        not_stub: true
+      verify.log:
+        min_length: 8
+    scaffold: business/playbooks/scripts/scaffold_light.sh
+    inject_catalog: false
+
+  all_v1:
+    description: 工具/means 型 — 完整 ALL + catalog 自选
+    process_artifacts:
+      - align.md
+      - plan.md
+      - verify.log
+      - ledger.entry.yaml
+      - trace.manifest.yaml
+    process_checks:
+      align.md:
+        min_length: 40
+        not_stub: true
+      plan.md:
+        min_length: 30
+        not_stub: true
+      verify.log:
+        min_length: 8
+    scaffold: business/playbooks/scripts/scaffold_process.sh
+    inject_catalog: true

@@ -1,11 +1,33 @@
 // ============ Dashboard ============
 
+let _dashboardInflight = null;
+
+function isHomeTabActive() {
+  return document.getElementById('tab-home')?.classList.contains('active') === true;
+}
+
+/** 首页总览：仅依赖 /api/obs/summary，不阻塞于 backends/config */
 async function renderDashboard() {
-  const stats = DOM['home-stats'], cards = DOM['home-projects'];
+  const stats = DOM['home-stats'];
+  const cards = DOM['home-projects'];
   if (!stats || !cards) return;
-  const rate = await getPriceRate();
-  try {
-    const d = await (await fetch('/api/obs/summary')).json();
+  if (!isHomeTabActive()) return;
+
+  if (_dashboardInflight) {
+    try { await _dashboardInflight; } catch (_) { /* 新一轮会重试 */ }
+    if (!isHomeTabActive()) return;
+  }
+
+  const run = (async () => {
+    const r = await fetch('/api/obs/summary');
+    const d = await r.json();
+    if (!r.ok) throw new Error(apiErr(d, `HTTP ${r.status}`));
+    if (!isHomeTabActive()) return;
+
+    let rate = 0;
+    try { rate = await getPriceRate(); } catch (_) { rate = 0; }
+    if (!isHomeTabActive()) return;
+
     const t = d.totals || {};
     stats.innerHTML = `
       <div class="stat-card"><div class="stat-num">${t.projects || 0}</div><div class="stat-lbl">项目总数</div></div>
@@ -27,6 +49,24 @@ async function renderDashboard() {
         <div class="home-card-foot">${p.task_count || 0} 任务 · ${(p.tokens || 0).toLocaleString()} tok${fmtYuan(p.tokens || 0, rate)}</div>
       </div>`;
     }).join('');
-    cards.querySelectorAll('.home-card.clickable').forEach(el => { el.addEventListener('click', () => { switchTab('projects'); selectProject(el.dataset.pid); }); });
-  } catch (e) { cards.innerHTML = `<div class="empty">加载失败：${esc(e.message || e)}</div>`; }
+    cards.querySelectorAll('.home-card.clickable').forEach(el => {
+      el.addEventListener('click', () => { switchTab('projects'); selectProject(el.dataset.pid); });
+    });
+  })();
+
+  _dashboardInflight = run;
+  try {
+    await run;
+  } catch (e) {
+    if (isHomeTabActive()) {
+      stats.innerHTML = '';
+      cards.innerHTML = `<div class="empty">加载失败：${esc(e.message || e)}</div>`;
+    }
+  } finally {
+    if (_dashboardInflight === run) _dashboardInflight = null;
+  }
+}
+
+function ensureHomeDashboard() {
+  if (isHomeTabActive() && typeof renderDashboard === 'function') void renderDashboard();
 }

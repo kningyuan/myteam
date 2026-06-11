@@ -58,8 +58,9 @@ tasks:
   - t-plan
   description: |
     【输入】t-plan 中 owner=frontend 或 双方 的前端部分
+    【Skill】business/skills/hub-ui-debug/SKILL.md + code-writing/SKILL.md
     【范围】myteam/frontend/；禁止改 backend 业务逻辑
-    【要求】load/save 字段与 API 契约一致；必要时补注释说明需重启 Hub 的项（如 port）
+    【要求】load/save 字段与 API 契约一致；改 JS 后跑 check_frontend_js.sh；必要时 bump index.html ?v=
 - id: t-test
   name: 回归测试
   agent: qa
@@ -71,7 +72,8 @@ tasks:
     【输入】t-fix-be、t-fix-fe
     【须跑】PYTHONPATH=backend pytest backend/common/tests/test_ui_config_linkage.py
     backend/common/tests/test_kernel_config.py backend/common/tests/test_skill_config_api.py -q
-    【手动】设置页逐项改值→保存→刷新→确认回显；新建项目确认 default_budget/review 默认值
+    【Skill】business/skills/hub-ui-debug/checklists/stuck_loading.md
+    【手动】设置页逐项改值→保存→刷新→确认回显；首页总览硬刷新无「加载中」；新建项目确认 default_budget/review 默认值
 - id: t-accept
   name: 升级验收
   agent: product

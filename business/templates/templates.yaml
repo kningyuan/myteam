@@ -36,6 +36,146 @@ research:
   - 信息来源
   - 关键发现
   - 结论
+product-research:
+  delivery_profile: light_v1
+  display_name: 产品调研
+  outcome_kind: artifact
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 调研背景
+      description: 产品视角 — 用户、市场、机会
+      required: true
+    - name: 信息来源
+      description: 填写「信息来源」
+      required: true
+    - name: 关键发现
+      description: 竞品、用户痛点、机会与约束
+      required: true
+    - name: 结论
+      description: 产品可行动结论
+      required: true
+    structure:
+    - H1 标题作为报告主标题
+    - 每个章节使用 H2 标题
+    - 引用来源标注出处和链接
+  check_rules:
+    required_sections:
+    - 调研背景
+    - 信息来源
+    - 关键发现
+    - 结论
+    min_length: 500
+  required_sections:
+  - 调研背景
+  - 信息来源
+  - 关键发现
+  - 结论
+product-planning:
+  delivery_profile: light_v1
+  display_name: 产品整体规划
+  outcome_kind: artifact
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 产品架构
+      description: 四大组件（连接器、运营平台、合规监测、开发平台）关系与分层
+      required: true
+    - name: 核心能力
+      description: 数据管控、资源交互/探查开发、隐私保护等，与第一章组件对齐
+      required: true
+    - name: 设计原则
+      description: 控制/业务平面分离、连接器模式、模块化集成等
+      required: true
+    - name: 运行模式
+      description: 数据流模式与业务流模式（连接器 vs 运营平台发起）
+      required: true
+    - name: 优势分析
+      description: 相对竞品与自建方案的差异化（原稿「不写」须补齐）
+      required: true
+    - name: 功能架构
+      description: 功能模块划分；注明架构图占位与图注说明
+      required: true
+    - name: 核心流程
+      description: 资源接入→开发→交付→监测等主流程
+      required: true
+    - name: 产品形态与使用方式
+      description: 软件/硬件/一体机及部署使用方式
+      required: true
+    - name: 中心化与去中心化
+      description: 两种建设/运营模式及适用客户
+      required: true
+    - name: 研发规划
+      description: 三期 MVP / 合规监测 / 安全开发，含工期与交付范围
+      required: true
+    - name: 与原文差异说明
+      description: 相对 source_ch3_current.md 的主要增补与修改点
+      required: true
+    structure:
+    - H1 第三章 产品整体规划
+    - 每个小节 H2，与 docx 目录一致
+    - 研发规划三期用表格或编号列表
+  check_rules:
+    required_sections:
+    - 产品架构
+    - 核心能力
+    - 设计原则
+    - 运行模式
+    - 优势分析
+    - 功能架构
+    - 核心流程
+    - 产品形态与使用方式
+    - 中心化与去中心化
+    - 研发规划
+    - 与原文差异说明
+    min_length: 2500
+  required_sections:
+  - 产品架构
+  - 核心能力
+  - 设计原则
+  - 运行模式
+  - 优势分析
+  - 功能架构
+  - 核心流程
+  - 产品形态与使用方式
+  - 中心化与去中心化
+  - 研发规划
+  - 与原文差异说明
+arch-research:
+  delivery_profile: light_v1
+  display_name: 架构调研
+  outcome_kind: artifact
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 调研背景
+      description: 架构视角 — 系统边界、技术上下文
+      required: true
+    - name: 信息来源
+      description: 填写「信息来源」
+      required: true
+    - name: 关键发现
+      description: 技术栈、模块划分、集成与扩展点
+      required: true
+    - name: 结论
+      description: 架构风险、建议与待验证点
+      required: true
+    structure:
+    - H1 标题作为报告主标题
+    - 每个章节使用 H2 标题
+    - 引用来源标注出处和链接
+  check_rules:
+    required_sections:
+    - 调研背景
+    - 信息来源
+    - 关键发现
+    - 结论
+    min_length: 500
+  required_sections:
+  - 调研背景
+  - 信息来源
+  - 关键发现
+  - 结论
 seo-plan:
   deliverable_template:
     required_heading_level: 2
@@ -181,6 +321,7 @@ code-deliverable:
   required_sections:
   - 正文
 strategy:
+  delivery_profile: light_v1
   deliverable_template:
     required_heading_level: 2
     sections:
@@ -418,6 +559,7 @@ code-testing:
   required_sections:
   - 正文
 requirements:
+  delivery_profile: light_v1
   deliverable_template:
     required_heading_level: 2
     sections:
@@ -459,6 +601,7 @@ requirements:
   - 方案方向
   - 风险与依赖
 decision-record:
+  delivery_profile: light_v1
   deliverable_template:
     required_heading_level: 2
     sections:
@@ -501,6 +644,7 @@ decision-record:
   - 阻塞项处理
   - 阶段结论
 acceptance-report:
+  delivery_profile: light_v1
   deliverable_template:
     required_heading_level: 2
     sections:
@@ -707,6 +851,83 @@ geo-verification:
     evidence_url:
       screenshot_field: 证据截图
       verify_title: false
+deck-build:
+  delivery_profile: all_v1
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 演示目标
+      description: 填写「演示目标」
+      required: true
+    - name: 文稿结构
+      description: 填写「文稿结构」
+      required: true
+    - name: 产出文件
+      description: 填写「产出文件」；须写明 deck.pptx
+      required: true
+    - name: 封面预览
+      description: 填写「封面预览」
+      required: true
+    structure:
+    - H1 标题作为交付记录主标题
+    - deck.pptx 与交付物 Markdown 同目录
+  check_rules:
+    required_sections:
+    - 演示目标
+    - 文稿结构
+    - 产出文件
+    - 封面预览
+    must_include:
+    - deck.pptx
+    file_exists:
+    - deck.pptx
+    min_length: 80
+  display_name: 演示文稿
+  outcome_kind: artifact
+  required_sections:
+  - 演示目标
+  - 文稿结构
+  - 产出文件
+  - 封面预览
+diagram-build:
+  delivery_profile: all_v1
+  display_name: 架构流程图
+  outcome_kind: artifact
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 图表目标
+      description: 填写「图表目标」
+      required: true
+    - name: 结构说明
+      description: 填写「结构说明」
+      required: true
+    - name: 产出文件
+      description: 须写明 diagram.drawio 与 diagram.png
+      required: true
+    - name: 预览
+      description: 填写「预览」
+      required: true
+    structure:
+    - H1 标题作为交付记录主标题
+    - diagram.drawio 与 diagram.png 与交付物 Markdown 同目录
+  check_rules:
+    required_sections:
+    - 图表目标
+    - 结构说明
+    - 产出文件
+    must_include:
+    - diagram.drawio
+    - diagram.png
+    file_exists:
+    - diagram.drawio
+    - diagram.png
+    min_length: 60
+  required_sections:
+  - 图表目标
+  - 结构说明
+  - 产出文件
+  - 预览
 custom-survey:
   display_name: 自定义调研
   deliverable_template:

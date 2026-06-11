@@ -1,0 +1,39 @@
+title: "myteam 产品 Skill 验证"
+subtitle: "Smoke Test Deck"
+author: "product"
+template: pitch
+
+slides:
+  - type: title
+    title: "myteam 产品 Skill 验证"
+    subtitle: "Smoke Test · product-operations"
+
+  - type: section
+    title: "背景"
+
+  - type: content
+    title: "为什么要做"
+    bullets:
+      - "product agent 需独立交付 PRD、策略与 PPT"
+      - "Skill 提供可验证脚本与 Gate 对齐"
+      - "WPS 可选，python-pptx 兜底"
+
+  - type: section
+    title: "方案"
+
+  - type: content
+    title: "Skill 包结构"
+    bullets:
+      - "product-operations 共享包"
+      - "wps-deck WPS 增强"
+      - "产品独立交付 workflow"
+
+  - type: content
+    title: "验收"
+    bullets:
+      - "verify_deck.py 校验 pptx"
+      - "run_skill_smoke.sh 一键回归"
+
+  - type: closing
+    title: "谢谢"
+    subtitle: "Q & A"

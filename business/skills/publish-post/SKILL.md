@@ -4,50 +4,59 @@ task_type: publish-post
 description: 动作型任务——真实发布内容到外部平台并产出动作证据（已发布URL+截图），而非纸面方案。
 ---
 
-# publish-post —— 真实发布执行
+# publish-post — 真实发布执行
 
-本技能用于 `task_type: publish-post` 的**动作型任务**。与「写方案/写草稿」不同，
-本任务的交付物是**动作证据**：线上可访问的已发布 URL + 发布成功截图。
-质量门禁会**真实访问**该 URL 并核对页面是否含帖子标题，证明动作确实发生。
+本技能用于 `task_type: publish-post` 的**动作型任务**。交付物是 **动作证据**：线上 URL + 截图；Gate 会 **HTTP 访问 URL** 并核对标题。
+
+## 知乎专栏（默认）
+
+**先读**：`business/skills/zhihu-operations/SKILL.md`  
+**发布前清单**：`business/skills/zhihu-operations/checklists/publish_preflight.md`
 
 ## 执行步骤
 
-1. 准备内容：根据任务描述确定 `标题` 与 `正文`（正文做好 GEO 关键词布局）。
-2. 调用发布脚本（知乎专栏）：
+1. 从 t-draft 取 **最终标题** 与 **正文**（读 `publish_title` / 正文章节或 `article_body.md`）。
+2. 若上游已有 `zhuanlan.zhihu.com/p/` URL → **只补截图与交付物**，勿重复发文。
+3. 发布前 preflight（登录 + 交付物格式可先写草稿再校验）：
 
 ```bash
-SHOT="<交付物目录>/evidence/zhihu-$(date +%Y%m%d-%H%M%S).png"
-bash skill/team/publish-post/scripts/publish_zhihu.sh "标题" "正文" "$SHOT"
+bash business/skills/zhihu-operations/scripts/check_zhihu_login.sh
+# 未登录: bash business/skills/zhihu-operations/scripts/login_zhihu.sh
 ```
 
-3. 读取脚本输出的 `PUBLISHED_URL=` 与 `SCREENSHOT=`。
-   - 退出码 `0`：发布成功（URL 形如 `zhuanlan.zhihu.com/p/<id>`）。
-   - 退出码 `2`：未登录——需先手动登录知乎再重试，不要伪造 URL。
-   - 退出码 `3`：发布后 URL 非文章页，疑似失败——排查后重试，**不得**编造已发布链接。
+4. 调用发布脚本：
 
-4. 按下面结构写交付物（章节标题必须与模板一致，门禁据此校验）：
-
-```markdown
-# 知乎发布记录
-
-## 发布平台
-知乎专栏（zhuanlan.zhihu.com）
-
-## 帖子标题
-<与线上页面完全一致的标题>
-
-## 已发布URL
-<脚本返回的 PUBLISHED_URL，单独成行>
-
-## 证据截图
-evidence/zhihu-YYYYMMDD-HHMMSS.png
-
-## 正文摘要
-<关键词布局与要点说明>
+```bash
+DELIV_DIR="<交付物目录>"
+mkdir -p "$DELIV_DIR/evidence"
+SHOT="$DELIV_DIR/evidence/zhihu-$(date +%Y%m%d-%H%M%S).png"
+bash business/skills/publish-post/scripts/publish_zhihu.sh "标题" @article_body.md "$SHOT"
+# 短文也可: ... "标题" "正文" "$SHOT"
 ```
 
-## 红线（务必遵守）
+5. 读取输出 `PUBLISHED_URL=`、`SCREENSHOT=`：
+   - `0`：成功（URL 含 `zhuanlan.zhihu.com/p/`）
+   - `2`：未登录 → `login_zhihu.sh` 后重试，**勿伪造 URL**
+   - `3`：URL 异常 → 排查后重试
+   - `4`：人机验证 → 有头登录后重试
 
-- **绝不编造已发布 URL 或截图**。门禁会真实访问 URL 核对标题，造假必被判失败。
-- 截图路径写**相对交付物目录**的路径，且文件须真实存在（门禁 `file_exists` 会查）。
-- 未登录/发布失败时如实上报失败原因，由上游（Deputy/Main）安排重试，不得短路。
+6. 按模板写交付物：`business/skills/zhihu-operations/templates/publish_record.md`
+
+7. submit 前静态校验：
+
+```bash
+python3 business/skills/zhihu-operations/scripts/verify_publish_deliverable.py \
+  "<交付物目录>/t-publish_deliverable.md"
+```
+
+或一步：`bash business/skills/zhihu-operations/scripts/run_publish_preflight.sh <交付物.md>`
+
+## 红线
+
+- **绝不编造** URL 或截图；门禁会真实访问 URL。
+- 截图路径写 **相对交付物目录**，文件须存在。
+- 失败如实上报，由 Deputy/Main 安排重试，不得短路。
+
+## 其它平台
+
+小红书等见对应 workflow；脚本与 Gate `evidence_url` 规则以 `templates.yaml` 为准（知乎以外尚未配专用脚本时须人工发布 + 真实 URL 证据）。

@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Optional
 
 from common.contracts import validate_response_dict
+from common.delivery_profiles import get_delivery_profile
 from common.registry import FormatSpec, get_spec, is_stub  # FormatSpec used by check_code_project
 
 # 复用 quality_gate 的证据校验工具，避免重复实现
@@ -179,6 +180,47 @@ def check_code_project(spec: FormatSpec, proj_dir: Path) -> GateResult:
     return res
 
 
+def _effective_process_content(content: str) -> str:
+    """去掉 HTML 注释后再判过程产物是否已填写。"""
+    return re.sub(r"<!--.*?-->", "", content or "", flags=re.DOTALL).strip()
+
+
+def check_process_artifacts(spec: FormatSpec, base_dir: Path) -> GateResult:
+    """过程产物质量门禁：align/plan 非模板、verify.log 有自检记录。"""
+    prof = get_delivery_profile(spec.delivery_profile)
+    if not prof.process_checks:
+        return GateResult(passed=True)
+
+    res = GateResult(passed=True)
+    for fname, rules in prof.process_checks.items():
+        path = base_dir / fname
+        if not path.is_file():
+            res.add("process_artifact", fname, "文件不存在")
+            continue
+        raw = path.read_text(encoding="utf-8", errors="replace")
+        eff = _effective_process_content(raw) if fname.endswith(".md") else raw.strip()
+        min_len = int(rules.get("min_length") or 0)
+        if min_len and len(eff) < min_len:
+            res.add(
+                "process_artifact",
+                f"{fname} 有效内容 ≥{min_len} 字符",
+                f"仅 {len(eff)} 字符",
+            )
+        if rules.get("not_stub"):
+            if fname.endswith(".md") and "<!--" in raw:
+                res.add(
+                    "process_artifact",
+                    f"{fname} 须填写实质内容",
+                    "仍含模板 HTML 注释",
+                )
+            elif is_stub(eff, max(8, min_len // 2)):
+                res.add("process_artifact", f"{fname} 须填写实质内容", "内容疑似模板/占位")
+
+    if not res.passed:
+        res.feedback = _feedback(spec.task_type, res.failures)
+    return res
+
+
 def check_execute(response: dict, *, base_dir: Optional[str] = None,
                   enforce_must_include: bool = False) -> GateResult:
     """execute 串联门禁（D14）：契约 → 格式/完整性 →（action）证据。质量不在此。"""
@@ -211,7 +253,15 @@ def check_execute(response: dict, *, base_dir: Optional[str] = None,
                   (response.get("meta") or {}).get("task_id") or ""
             if tid and base_dir:
                 proj = Path(base_dir) / tid
-        return check_code_project(spec, proj)
+        fmt = check_code_project(spec, proj)
+        root = Path(base_dir) if base_dir else proj.parent
+        if spec.delivery_profile and spec.delivery_profile != "none":
+            proc = check_process_artifacts(spec, root)
+            fmt.failures.extend(proc.failures)
+            fmt.passed = fmt.passed and proc.passed
+            if not fmt.passed:
+                fmt.feedback = _feedback(spec.task_type, fmt.failures)
+        return fmt
 
     if not dv_path or not Path(dv_path).exists():
         res = GateResult(passed=True)
@@ -225,6 +275,11 @@ def check_execute(response: dict, *, base_dir: Optional[str] = None,
         ev = check_action_evidence(spec, content, dv_path)
         fmt.failures.extend(ev.failures)
         fmt.passed = fmt.passed and ev.passed
+    root = Path(base_dir) if base_dir else Path(dv_path).parent
+    if spec.delivery_profile and spec.delivery_profile != "none":
+        proc = check_process_artifacts(spec, root)
+        fmt.failures.extend(proc.failures)
+        fmt.passed = fmt.passed and proc.passed
     if not fmt.passed:
         fmt.feedback = _feedback(spec.task_type, fmt.failures)
     return fmt

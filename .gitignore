@@ -42,3 +42,6 @@ Thumbs.db
 *.tmp
 /tmp/
 .gstack/
+
+# Node (means / skills local deps)
+**/node_modules/

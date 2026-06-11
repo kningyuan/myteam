@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Optional
 
 from common.paths import templates_file
+from common.delivery_profiles import merge_file_exists, resolve_profile_name
 
 # 防 stub 下限：低于此（去空白后字符数）或命中占位符 = stub（D14）。
 DEFAULT_STUB_FLOOR = 20
@@ -50,6 +51,11 @@ TASK_TYPE_DISPLAY_NAMES: dict[str, str] = {
     "geo-plan": "GEO策略 geo-plan",
     "geo-audit": "GEO审计 geo-audit",
     "geo-verification": "GEO验证 geo-verification",
+    "diagram-build": "架构流程图 diagram-build",
+    "deck-build": "演示文稿 deck-build",
+    "product-research": "产品调研 product-research",
+    "product-planning": "产品整体规划 product-planning",
+    "arch-research": "架构调研 arch-research",
 }
 
 
@@ -69,6 +75,7 @@ class FormatSpec:
     min_project_files: int = 1
     require_code_file: bool = False
     structure: list[str] = field(default_factory=list)
+    delivery_profile: str = "none"
 
 
 def _load_yaml(path: Path) -> dict:
@@ -112,6 +119,8 @@ def _build_spec(task_type: str, task_cfg: dict) -> FormatSpec:
     dt = task_cfg.get("deliverable_template", {}) or {}
     check_rules = task_cfg.get("check_rules", {}) or {}
     required_sections = list(check_rules.get("required_sections", []) or [])
+    profile_name = resolve_profile_name(task_cfg)
+    business_files = list(check_rules.get("file_exists", []) or [])
     return FormatSpec(
         task_type=task_type,
         display_name=resolve_display_name(task_type, task_cfg),
@@ -119,7 +128,7 @@ def _build_spec(task_type: str, task_cfg: dict) -> FormatSpec:
         required_sections=required_sections,
         required_heading_level=int(dt.get("required_heading_level", 2)),
         sections=list(dt.get("sections", []) or []),
-        file_exists=list(check_rules.get("file_exists", []) or []),
+        file_exists=merge_file_exists(business_files, profile_name),
         evidence=dict(check_rules.get("evidence_url", {}) or {}),
         stub_floor=int(check_rules.get("stub_floor", DEFAULT_STUB_FLOOR)),
         must_include=list(check_rules.get("must_include", []) or []),
@@ -127,6 +136,7 @@ def _build_spec(task_type: str, task_cfg: dict) -> FormatSpec:
         min_project_files=int(check_rules.get("min_project_files", 1) or 1),
         require_code_file=bool(check_rules.get("require_code_file", False)),
         structure=list(dt.get("structure", []) or []),
+        delivery_profile=profile_name,
     )
 
 
@@ -139,6 +149,8 @@ def _load_all(path_str: str) -> dict[str, FormatSpec]:
 def invalidate_registry_cache() -> None:
     """templates.yaml 写入后调用，使 load_registry / get_spec 读到最新配置。"""
     _load_all.cache_clear()
+    from common.delivery_profiles import invalidate_delivery_profiles_cache
+    invalidate_delivery_profiles_cache()
 
 
 def load_registry(path: Optional[Path] = None) -> dict[str, FormatSpec]:

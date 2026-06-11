@@ -1,0 +1,13 @@
+{
+  "name": "myteam-wps-deck",
+  "version": "0.1.0",
+  "private": true,
+  "description": "myteam product deck WPS add-in (PoC)",
+  "scripts": {
+    "debug": "wpsjs debug",
+    "build": "wpsjs build"
+  },
+  "devDependencies": {
+    "wps-jsapi": "^1.0.0"
+  }
+}

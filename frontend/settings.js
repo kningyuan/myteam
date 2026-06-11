@@ -1,6 +1,11 @@
 // ============ Settings ============
 let _settingsCfg = {};
+// _sysCfg 与 project.js 共用（勿在此重复 let 声明）
 const CLI_PATH_LABELS = { opencode: 'OpenCode CLI 路径', claude: 'Claude CLI 路径' };
+
+// --- Utility: percentage conversion ---
+const percentToDecimal = (p) => (p ?? 80) / 100;
+const decimalToPercent = (d) => (d ?? 0.8) * 100;
 
 function updateSettingsCliPath(backendId) {
   const label = DOM['set-cli-path-label']; const hint = DOM['set-cli-path-hint']; const input = DOM['set-cli-path'];
@@ -55,7 +60,7 @@ async function loadSettings() {
     if (DOM['set-max-concurrent-projects']) DOM['set-max-concurrent-projects'].value = pd.max_concurrent_projects ?? 2;
     const degThr = pd.budget_degrade_threshold ?? 0.8;
     if (DOM['set-budget-degrade-threshold']) {
-      DOM['set-budget-degrade-threshold'].value = Math.round(degThr * 100);
+      DOM['set-budget-degrade-threshold'].value = Math.round(decimalToPercent(degThr));
     }
     const degBackend = pd.budget_degrade_backend || '';
     updateSettingsDegradeBackendSelect(degBackend);
@@ -175,9 +180,9 @@ async function saveSettings() {
       hub: { ...(existingSkill.hub || {}), url: (DOM['set-hub-url']?.value || '').trim() || 'http://127.0.0.1:8765' },
       executor: { ...(existingSkill.executor || {}), poll_interval: parseInt(DOM['set-poll-interval']?.value) || 5, ack_timeout: parseInt(DOM['set-ack-timeout']?.value) || 300, task_timeout: parseInt(DOM['set-task-timeout']?.value) || 3600, agent_msg_timeout: parseInt(DOM['set-agent-msg-timeout']?.value) || 1800, team_config_timeout: parseInt(DOM['set-team-config-timeout']?.value) || 600, task_plan_timeout: parseInt(DOM['set-task-plan-timeout']?.value) || 600, max_retries: parseInt(DOM['set-max-retries']?.value) || 3 },
       auto_group: { ...(existingSkill.auto_group || {}), enabled: DOM['set-auto-group']?.checked !== false, include_main: DOM['set-auto-group-include-main']?.checked !== false, name_prefix: (DOM['set-auto-group-name-prefix']?.value || '').trim() },
-      process_defaults: (() => {
+      process_defaults: { ...(existingSkill.process_defaults || {}), ...(() => {
         const thrPct = parseFloat(DOM['set-budget-degrade-threshold']?.value);
-        const thr = (!Number.isNaN(thrPct) && thrPct > 0 && thrPct < 100) ? thrPct / 100 : 0.8;
+        const thr = (!Number.isNaN(thrPct) && thrPct > 0 && thrPct < 100) ? percentToDecimal(thrPct) : 0.8;
         return {
           max_gate_retries: parseInt(DOM['set-max-gate-retries']?.value, 10) || 5,
           split_enabled: !!DOM['set-split-default']?.checked,
@@ -192,7 +197,7 @@ async function saveSettings() {
           budget_degrade_backend: (DOM['set-budget-degrade-backend']?.value || '').trim(),
           budget_degrade_model: (DOM['set-budget-degrade-model']?.value || '').trim(),
         };
-      })(),
+      })() },
     };
     const [rSys, rSkill] = await Promise.all([
       fetch('/api/config', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ config: cfg }) }),

@@ -1,0 +1,30 @@
+# Agent 填写 — 由 brief_to_drawio.py 转为 .drawio
+title: "示例架构图"
+subtitle: ""
+page:
+  width: 1169
+  height: 827
+style:
+  font_size: 12
+  title_size: 18
+nodes:
+  - id: n1
+    label: "服务 A"
+    x: 80
+    y: 120
+    w: 160
+    h: 60
+    fill: "#dae8fc"
+    stroke: "#6c8ebf"
+  - id: n2
+    label: "服务 B"
+    x: 320
+    y: 120
+    w: 160
+    h: 60
+    fill: "#d5e8d4"
+    stroke: "#82b366"
+edges:
+  - from: n1
+    to: n2
+    label: "HTTP"

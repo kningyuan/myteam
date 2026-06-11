@@ -1,0 +1,6 @@
+- [ ] `deck_brief.yaml` 已填，页数 8–12（含 title/closing）
+- [ ] 已跑 `build_deck.sh`，exit 0
+- [ ] `deck.pptx` 存在于交付物目录
+- [ ] 已跑 `verify_deck.py`，exit 0
+- [ ] 交付物 Markdown 含 ## 产出文件 且写明 `deck.pptx`
+- [ ] WPS 路径失败时确认已走 python 兜底（日志中有 `fallback`）

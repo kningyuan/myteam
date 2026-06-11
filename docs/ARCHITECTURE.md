@@ -137,6 +137,6 @@ run_kernel.py
 | [CLAUDE.md](../CLAUDE.md) | 开发 invariant、命令 |
 | [docs/0608/15-标准协作模式总结.md](./0608/15-标准协作模式总结.md) | 金路径、E2E、反模式 |
 | [docs/new/01-整体指导-架构与目标.md](./new/01-整体指导-架构与目标.md) | 需求级架构与序列图 |
-| [docs/new/03-需求-实现映射与演进.md](./new/03-需求-实现映射与演进.md) | 需求 ID ↔ 代码锚点 |
+| [DESIGN-AGENT-DELIVERY.md](./DESIGN-AGENT-DELIVERY.md) | A/B 双块组合 · 单兵交付 · means |
 | [business/workflows/README.md](../business/workflows/README.md) | PGD workflow |
 | [docs/framework-decisions.md](./framework-decisions.md) | D1–D19 决策索引 |

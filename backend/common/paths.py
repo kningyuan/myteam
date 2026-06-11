@@ -124,6 +124,14 @@ def prompt_templates_file() -> Path:
     return BUSINESS_DIR / "templates" / "prompt_templates.yaml"
 
 
+def prompt_injections_file() -> Path:
+    return BUSINESS_DIR / "templates" / "prompt_injections.yaml"
+
+
+def delivery_profiles_file() -> Path:
+    return BUSINESS_DIR / "templates" / "delivery_profiles.yaml"
+
+
 def telegram_config_file() -> Path:
     """Telegram bot 配置：优先 config/telegram.json，其次 config/openclaw.json。"""
     for name in ("telegram.json", "openclaw.json"):

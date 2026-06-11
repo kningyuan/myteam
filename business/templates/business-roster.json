@@ -7,7 +7,7 @@
       "role": "coordinator",
       "description": "项目协调、阶段决策、验收汇总与部署签发；不主责具体实现或内容写作",
       "capabilities": ["项目协调", "阶段闸门", "决策汇总", "部署签发", "风险升级"],
-      "task_types": ["strategy", "decision-record", "code-deployment"],
+      "task_types": ["strategy", "decision-record", "code-deployment", "diagram-build"],
       "boundaries": {
         "does": ["组队与阶段仲裁", "汇总多角色交付物", "输出决策记录", "签发部署结论"],
         "does_not": ["写代码", "做数据分析", "发布社媒帖子", "代替产品写长篇方案正文"]
@@ -18,7 +18,7 @@
       "role": "worker",
       "description": "需求澄清、策略方案、验收标准与验收报告；方案编制的主笔角色之一",
       "capabilities": ["需求分析", "策略方案", "范围界定", "验收标准", "优先级排序", "竞品补充"],
-      "task_types": ["requirements", "strategy", "acceptance-report", "research", "architecture-review"],
+      "task_types": ["requirements", "strategy", "acceptance-report", "product-research", "product-planning", "research", "architecture-review", "deck-build", "diagram-build", "decision-record"],
       "boundaries": {
         "does": ["写 PRD 级需求与策略", "定义验收标准", "输出 acceptance-report"],
         "does_not": ["写生产代码", "执行 SQL 分析", "操作社媒发布", "做深度架构 ADR（交给 arch）"]
@@ -29,7 +29,7 @@
       "role": "worker",
       "description": "系统方案、架构评审、接口契约；不主责完整工程实现与运维操作",
       "capabilities": ["系统设计", "架构评审", "API 契约", "ADR", "技术风险识别", "架构调研"],
-      "task_types": ["system-design", "architecture-review", "code-review", "research"],
+      "task_types": ["system-design", "architecture-review", "code-review", "arch-research", "research", "diagram-build"],
       "boundaries": {
         "does": ["输出 system-design", "评审架构与代码设计", "定义模块边界与接口"],
         "does_not": ["主责大量 code-writing", "部署到生产", "发布内容", "替代 analyst 做数据分析"]
@@ -40,7 +40,7 @@
       "role": "worker",
       "description": "后端/API/核心业务逻辑实现、代码交付与后端侧 code-review",
       "capabilities": ["后端实现", "API 开发", "数据库设计", "单元测试", "代码评审", "工程化脚本"],
-      "task_types": ["code-writing", "code-deliverable", "code-review", "system-design", "architecture-review", "research"],
+      "task_types": ["code-writing", "code-deliverable", "code-review", "system-design", "architecture-review", "research", "diagram-build"],
       "boundaries": {
         "does": ["后端 code-writing/code-deliverable", "服务端重构与 API", "可提交可运行代码"],
         "does_not": ["前端 UI 实现（交给 frontend）", "社媒发布", "写策略报告代替 product", "运维部署执行（交给 ops）"]
@@ -51,7 +51,7 @@
       "role": "worker",
       "description": "前端 UI/交互实现、组件与页面交付、前端侧 code-review",
       "capabilities": ["前端架构", "UI 实现", "交互设计落地", "前端性能", "组件化", "前端代码评审"],
-      "task_types": ["code-writing", "code-deliverable", "code-review", "system-design", "architecture-review"],
+      "task_types": ["code-writing", "code-deliverable", "code-review", "system-design", "architecture-review", "diagram-build"],
       "boundaries": {
         "does": ["页面与组件 code-writing", "前端交互与样式", "前端 code-review"],
         "does_not": ["后端 API 实现", "数据库迁移", "社媒运营", "数据分析报告"]
@@ -84,7 +84,7 @@
       "role": "worker",
       "description": "指标口径、数据分析报告、可视化结论与可复用分析脚本",
       "capabilities": ["指标口径", "SQL 分析", "数据清洗", "可视化解读", "分析脚本", "结论建议"],
-      "task_types": ["data-analysis", "research", "strategy", "code-writing"],
+      "task_types": ["data-analysis", "research", "strategy", "code-writing", "diagram-build"],
       "boundaries": {
         "does": ["data-analysis 报告", "分析用 code-writing（SQL/Python）", "口径与发现解读"],
         "does_not": ["后端业务功能开发", "前端页面开发", "社媒发布", "代替 product 写需求文档"]
@@ -95,7 +95,7 @@
       "role": "worker",
       "description": "行业/竞品/受众/选题调研，为方案与内容提供证据",
       "capabilities": ["桌面调研", "竞品分析", "受众洞察", "证据整理", "信息源标注"],
-      "task_types": ["research", "architecture-review"],
+      "task_types": ["research", "architecture-review", "diagram-build"],
       "boundaries": {
         "does": ["research 报告", "整理引用与来源", "选题与竞品扫描"],
         "does_not": ["写最终成稿（交给 content/product）", "写代码", "平台发布操作"]
@@ -106,7 +106,7 @@
       "role": "worker",
       "description": "长文/图文成稿：知乎专栏、小红书笔记等；不负责平台点击发布",
       "capabilities": ["结构化写作", "知乎长文", "小红书图文", "标题优化", "读者体验", "引用规范"],
-      "task_types": ["content", "architecture-review"],
+      "task_types": ["content", "architecture-review", "diagram-build"],
       "boundaries": {
         "does": ["content 成稿（Markdown）", "按平台调性改写", "关键词与结构优化"],
         "does_not": ["浏览器发布操作（交给 social_*）", "后端开发", "数据分析"]
@@ -139,7 +139,7 @@
       "role": "worker",
       "description": "方案/交付物汇总、结构优化与可读性定稿",
       "capabilities": ["文档结构化", "多源汇总", "可读性优化", "目录与附录"],
-      "task_types": ["content", "architecture-review"],
+      "task_types": ["content", "architecture-review", "diagram-build"],
       "boundaries": {
         "does": ["汇总多角色交付物", "统一格式与章节", "输出可读定稿"],
         "does_not": ["改变业务结论（只整理不篡改）", "写代码", "平台发布"]

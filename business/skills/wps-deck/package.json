@@ -1,0 +1,17 @@
+{
+  "name": "wps-deck",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "wpsjs-rpc-sdk-new": "^1.1.0",
+    "xhr2": "^0.2.1"
+  }
+}

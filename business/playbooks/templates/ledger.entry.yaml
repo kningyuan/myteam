@@ -1,0 +1,24 @@
+# 单任务经验 — schema 见 business/experience/schema/ledger.entry.yaml
+task_id: ""
+task_type: ""
+project_id: ""
+timestamp: ""
+
+context:
+  goal: ""
+  inputs: []
+
+chosen:
+  skills: []
+  means: []
+
+outcome:
+  status: success
+  deliverables: []
+
+lesson:
+  worked: ""
+  failed: ""
+  next_time: ""
+
+probes: []

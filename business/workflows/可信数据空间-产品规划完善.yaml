@@ -1,0 +1,57 @@
+id: 可信数据空间-产品规划完善
+version: '1.0'
+description: 完善「副本可信数据空间.docx」第三章「产品整体规划」；输入材料在 business/inputs/trusted-data-space/
+options:
+  review_enabled: false
+  split_enabled: false
+  parallel_enabled: false
+  max_parallel: 1
+tasks:
+- id: t-gap
+  name: 第三章缺口分析
+  agent: product
+  task_type: product-research
+  dependencies: []
+  description: |
+    【对象】可信数据空间产品说明 Word 稿第三章「产品整体规划」
+    【输入材料】（相对 MYTEAM_ROOT）
+    - business/inputs/trusted-data-space/source_ch1_overview.md
+    - business/inputs/trusted-data-space/source_ch2_market.md
+    - business/inputs/trusted-data-space/source_ch3_current.md
+    【范围】只读上述提取文件；不修改 docx
+    【视角】产品 — 对照一二章，列出第三章各小节缺口、占位句、与需求/竞品未呼应处
+    【产出】产品向缺口分析报告（1000–1500 字），结论须含「完善优先级 Top5」
+- id: t-ch3
+  name: 第三章产品整体规划定稿
+  agent: product
+  task_type: product-planning
+  dependencies:
+  - t-gap
+  description: |
+    【对象】第三章「产品整体规划」完整正文（Markdown，供粘贴回 docx）
+    【输入】t-gap 报告 + 同上 source_*.md
+    【须补齐】
+    - 优势分析（原稿写「不写」— 必须撰写）
+    - 功能架构（原稿仅「图」— 须文字描述 + 图占位说明）
+    - 核心流程、产品形态、使用方式、中心化与去中心化（原稿仅标题）
+    - 设计原则第(4)点「适应不同安全等级」须展开
+    【约束】
+    - 与第一章四大组件、1.2 五类场景保持一致
+    - 呼应第二章济南大数据局/集团、国资委、信工所、国网山东等需求
+    - 保留三期研发工期（2026.7–9 MVP、2026.9–12 合规监测、2027.1–5 安全开发），可细化交付范围
+    - 全文 3000 字以上；文末「与原文差异说明」
+    【产出】t-ch3_deliverable.md — 用户复制进 Word 第三章
+- id: t-accept
+  name: 第三章验收
+  agent: product
+  task_type: acceptance-report
+  dependencies:
+  - t-ch3
+  description: |
+    【输入】t-gap、t-ch3；source_ch3_current.md
+    【验收标准】
+    - 11 个 H2 章节齐全（见 product-planning 注册表）
+    - 无「不写」「解决了xxx」类未处理占位
+    - 与一二章组件/客户/竞品表述无矛盾
+    - 三期研发可执行（每期有范围与演示目标）
+    【产出】逐项 PASS/FAIL + 粘贴回 docx 前的最后修改建议

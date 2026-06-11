@@ -33,9 +33,33 @@ Before adding or changing a Skill:
 ## Relationship to the System
 
 ```text
-System Kernel decides when and what to run.
-Strategy Registry defines what a valid task result looks like.
-Skill Pack teaches the agent how to produce that result.
+A · myteam (Kernel + workflows)     — when/who/Gate
+B · Agent Delivery (playbooks)    — ALL / catalog / experience
+B · Means (business/means/)       — scripts & templates (diagram-build, …)
+B · Skills (business/skills/)     — task_type router SKILL.md + catalog.yaml
 ```
+
+### B 层目录
+
+```text
+business/playbooks/          # ALL.md + 通用过程模板 + scaffold_process.sh
+business/means/              # 可插拔小工具（diagram-build …）
+business/skills/catalog.yaml # Agent 自选 means / router
+business/experience/         # ledger schema
+business/workspaces/         # AGENTS.md / SOUL.md 身份
+```
+
+Workflow **不得**写 `【Skill】`；自选记录在 `plan.md`。lint：`scripts/lint_workflows_no_skill.sh`。
+
+### Workflow 共享包（仍可用）
+
+```text
+business/skills/product-operations/
+business/skills/wps-deck/        # 待迁 means（Sprint 2+）
+  SKILL.md
+  scripts/
+```
+
+内核仍按 `business/skills/<task_type>/SKILL.md` 注入 router 路径。
 
 If a proposed Skill needs to control scheduling, persistence, or validation, it is probably not a Skill. Move that concern to the System Kernel or Strategy Registry instead.

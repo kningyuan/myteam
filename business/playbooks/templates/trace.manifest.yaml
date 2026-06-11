@@ -1,0 +1,21 @@
+# 追踪索引 — 与 deliverable 同目录；submit 前填写 interaction / gate 信息
+project_id: ""
+task_id: ""
+task_type: ""
+agent_id: ""
+
+interactions: []
+#  - id: ""
+#    kind: execute
+#    attempt: 1
+#    status: done
+
+artifacts: []
+#  - align.md
+#  - plan.md
+#  - verify.log
+#  - ledger.entry.yaml
+
+gate:
+  last_result: ""
+  checked_at: ""

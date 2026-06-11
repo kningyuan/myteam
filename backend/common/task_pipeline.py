@@ -18,7 +18,12 @@ from common.project_artifacts import (
     task_deliverable_base,
     task_project_dir,
 )
-from common.deliverable_guarantee import deliverable_abs_path, scaffold_markdown_deliverable
+from common.deliverable_guarantee import (
+    deliverable_abs_path,
+    scaffold_markdown_deliverable,
+    scaffold_process_artifacts,
+)
+from common.experience import promote_ledger_to_memory
 from common.prompt_templates import render_execute_intent
 from common.registry import get_spec
 from common.store import Store
@@ -76,12 +81,16 @@ class TaskPipeline:
 
         spec = get_spec(task_type)
         for attempt in range(1, self.config.max_gate_retries + 1):
-            if attempt == 1 and not is_code_project_task(task_type):
-                scaffold_markdown_deliverable(
-                    deliverable_abs_path(base_dir, rel_path, task_type),
-                    spec,
-                    title=task.get("name", tid),
-                )
+            if attempt == 1:
+                if not is_code_project_task(task_type):
+                    scaffold_markdown_deliverable(
+                        deliverable_abs_path(base_dir, rel_path, task_type),
+                        spec,
+                        title=task.get("name", tid),
+                    )
+                profile = spec.delivery_profile if spec else "none"
+                if profile and profile != "none":
+                    scaffold_process_artifacts(base_dir, profile)
             inp = {
                 "task": task,
                 "deliverable_path": rel_path,
@@ -312,5 +321,7 @@ class TaskPipeline:
             )
         self.store.append_run_event(interaction_id, "gate_passed",
                                     {"final_status": status})
+        base_dir = task_deliverable_base(project_id, tid, task_type)
+        promote_ledger_to_memory(base_dir, project_id, tid, task_type, self.store)
         self.release_files(agent, interaction_id)
         return TaskOutcome(tid, status, "", attempt, resp)

@@ -34,6 +34,8 @@ from common.paths import (
     workspace_dir,
 )
 from common.project_artifacts import is_code_project_task, task_project_dir
+from common.prompt_composer import compose_execute_layers
+from common.experience import append_experience_hints
 from common.registry import get_spec, load_registry
 
 RULES_DIR = BUSINESS_CONFIG_DIR.parent / "rules"
@@ -198,6 +200,9 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
         if skill_path:
             lines.append(f"【任务类型执行指引】请先阅读并按其中流程执行：{skill_path}")
             lines.append("")
+        profile = spec.delivery_profile if spec else "none"
+        compose_execute_layers(lines, task_type, profile)
+        append_experience_hints(lines, req.project_id, task_type)
         if spec and spec.outcome_kind == "code_project":
             proj = task_project_dir(req.project_id, req.task_id)
             lines.append("【交付物形态】代码工程目录（不是单篇说明文档）")
@@ -271,6 +276,10 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
                             lines.append(f"    说明：{desc}")
                         if ex:
                             lines.append(f"    示例：{ex}")
+                if spec.file_exists:
+                    lines.append("【门禁必选文件（须与 deliverable 同目录）】")
+                    for f in spec.file_exists:
+                        lines.append(f"  - {f}")
                 _append_acceptance_criteria(lines, req, spec)
         if spec and spec.outcome_kind == "code_project":
             outcome_hint = (

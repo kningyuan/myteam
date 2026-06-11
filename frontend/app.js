@@ -67,7 +67,7 @@ function switchTab(tab, opts = {}) {
     (tab === 'projects' && p.id === 'sidebar-projects')
   ));
 
-  if (tab === 'home') renderDashboard();
+  if (tab === 'home') ensureHomeDashboard();
   if (tab === 'chat') renderAgentList();
   if (tab === 'groups') { renderGroupList(); loadGroups(); }
   if (tab === 'projects') { renderProjectList(); loadProjects().then(renderProjectList); }
@@ -92,11 +92,22 @@ function saveUiState() {
 }
 
 async function restoreUiState() {
+  let st = null;
   try {
     const raw = localStorage.getItem(UI_STATE_KEY);
     if (!raw) return;
-    const st = JSON.parse(raw);
-    if (st.tab) switchTab(st.tab, { restore: true });
+    st = JSON.parse(raw);
+  } catch (e) {
+    console.warn('restoreUiState:', e);
+    return;
+  }
+  if (st.tab) switchTab(st.tab, { restore: true });
+  await finishRestoreSelection(st);
+}
+
+async function finishRestoreSelection(st) {
+  if (!st) return;
+  try {
     if (st.tab === 'chat' && st.agentId && S.agents.some(a => a.id === st.agentId && !S.hiddenAgents.has(a.id))) {
       selectAgent(st.agentId, { restore: true });
     } else if (st.tab === 'groups' && st.groupId && S.groups.some(g => g.id === st.groupId && g.status !== 'dissolved')) {
@@ -120,7 +131,16 @@ async function restoreUiState() {
       }
       selectProject(st.projectId, { restore: true, ptab: st.projectPtab || 'overview' });
     }
-  } catch (e) { console.warn('restoreUiState:', e); }
+  } catch (e) { console.warn('finishRestoreSelection:', e); }
+}
+
+function readSavedUiState() {
+  try {
+    const raw = localStorage.getItem(UI_STATE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_) {
+    return null;
+  }
 }
 
 // ============ Init ============
@@ -129,16 +149,21 @@ async function init() {
   hydrateIcons(document);
   loadChatHistory();
   loadTheme();
-  await loadHiddenChats();
   setupTabs();
   setupThemeMenu();
   setupWorkflowTab();
   setupEventListeners();
+
+  const saved = readSavedUiState();
+  if (saved?.tab) switchTab(saved.tab, { restore: true });
+  ensureHomeDashboard();
+
+  await loadHiddenChats();
   await Promise.all([loadAgents(), loadBackends(), loadGroups(), loadProjects()]);
   renderAgentList(); renderGroupList(); renderProjectList();
   setStatus('online');
-  await restoreUiState();
-  if (document.querySelector('.nav-tab.active')?.dataset.tab === 'home') renderDashboard();
+  await finishRestoreSelection(saved);
+  ensureHomeDashboard();
   startSidebarPoll();
 }
 
@@ -268,7 +293,7 @@ function setupEventListeners() {
     try {
       const rSkill = await fetch('/api/skill-config');
       const pd = ((await rSkill.json()).config || {}).process_defaults || {};
-      if (DOM['np-budget']) DOM['np-budget'].value = pd.default_project_budget || 1000000;
+      if (DOM['np-budget']) DOM['np-budget'].value = pd.default_project_budget ?? '';
       if (DOM['np-split']) DOM['np-split'].checked = !!pd.split_enabled;
     } catch (_) { /* ignore */ }
     DOM['np-goal']?.focus();

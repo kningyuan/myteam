@@ -1,0 +1,33 @@
+# Prompt 注入 — 按 delivery_profile / task_type 拼块（Strategy Registry）
+# 由 PromptComposer 调用；内核不硬编码业务文案。
+
+version: "1.1"
+
+injections:
+  execute:
+    by_delivery_profile:
+      light_v1:
+        blocks:
+          - |
+            【交付过程 · light_v1】须完成 Align + Verify，见 {all_playbook}
+            过程产物（与 deliverable 同目录）：align.md、verify.log
+            脚手架：{scaffold_script}
+            框架已在同目录预写 align.md 模板与 verify.log；请先填写 align.md 再写 deliverable
+            交卷前自检：① align.md 四节已填实质内容 ② deliverable 章节齐全 ③ verify.log 写入自检结论
+      all_v1:
+        blocks:
+          - |
+            【交付过程 · all_v1】须完成 Align→Launch→Learn，见 {all_playbook}
+            过程产物：align.md、plan.md、verify.log、ledger.entry.yaml、trace.manifest.yaml
+            脚手架：{scaffold_script}
+            框架已预写过程模板；plan.md 须记录 chosen_skills 与 means
+            交卷前自检：① align+plan 已填 ② means 探针输出写入 verify.log ③ ledger 填写 lesson
+            【means 自选】读 catalog，在 plan.md 记录 chosen_skills 与 means：{catalog}
+    by_task_type:
+      diagram-build:
+        blocks:
+          - |
+            【means 执行】{diagram_execution}
+            【探针】{diagram_probe}，输出写入 verify.log
+            【业务产出】diagram.drawio、diagram.png 与 deliverable 同目录
+            【交卷】verify_diagram.py 通过后再 submit_result

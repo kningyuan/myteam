@@ -28,5 +28,6 @@ tasks:
   - t-draft
   description: |
     【输入】t-draft
-    【说明】知乎用 social_zhihu；小红书请在 goal 注明并改 workflow 为「小红书运营」
+    【说明】知乎专栏请读 business/skills/zhihu-operations/SKILL.md
+    【说明】小红书请在 goal 注明并改 workflow 为「小红书运营」
     【须提交】已发布 URL 与截图

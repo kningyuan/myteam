@@ -1,0 +1,27 @@
+# ledger.entry.yaml — 单任务经验条目（复制到交付物目录并填写）
+task_id: ""          # 本任务 id
+task_type: ""        # 如 diagram-build
+project_id: ""       # 可选
+timestamp: ""        # ISO8601
+
+context:
+  goal: ""           # 一句话目标
+  inputs: []         # 上游或输入文件
+
+chosen:
+  skills: []         # catalog.yaml 中的 id，如 [diagram-build]
+  means: []          # 如 [brief_to_drawio, render_png]
+
+outcome:
+  status: success    # success | partial | failed
+  deliverables: []   # 产出文件名
+
+lesson:
+  worked: ""         # 什么做法有效
+  failed: ""         # 什么失败或踩坑（无则留空）
+  next_time: ""      # 下次建议
+
+probes:
+  - command: ""
+    exit_code: 0
+    note: ""

@@ -72,6 +72,50 @@ task_types:
       【通用约束】按注册表章节撰写；需求须可验证、可测试
       【交卷】先写 deliverable 再 submit_result
 
+  product-research:
+    execute: |
+      【任务类型】product-research 产品向调研（delivery_profile light_v1）
+      【本任务】
+      {task_description}
+      【通用约束】
+      - 范围以本任务【范围】为准；仅读 README、docs/、Releases 等公开材料
+      - 每章 5–8 句，全文 1000–1500 字（除非本任务另有篇幅说明）
+      - 行首二级标题：## 调研背景、## 信息来源、## 关键发现、## 结论
+      - 产品视角：用户、竞品、机会；非架构 deep-dive
+      【交卷】先编辑 deliverable 再 submit_result
+
+  product-planning:
+    execute: |
+      【任务类型】product-planning 产品整体规划章节（delivery_profile light_v1）
+      【本任务】
+      {task_description}
+      【通用约束】
+      - 必读 business/inputs/trusted-data-space/source_ch*.md（若任务描述另有路径则以任务为准）
+      - 行首二级标题须与注册表一致（产品架构、核心能力…与原文差异说明）
+      - 产出 Markdown 供粘贴进 docx，勿直接改 Word 文件
+      - 全文 3000 字以上；优势分析、功能架构、核心流程等不得留空占位
+      - 与第一章四大组件、第二章客户需求保持一致
+      【交卷】先 align → 写 deliverable → verify.log → submit_result
+
+  arch-research:
+    execute: |
+      【任务类型】arch-research 架构向调研（delivery_profile light_v1）
+      【本任务】
+      {task_description}
+      【通用约束】
+      - 范围以本任务【范围】为准；仅读 README、docs/、Releases 等公开材料
+      - 行首二级标题：## 调研背景、## 信息来源、## 关键发现、## 结论
+      - 架构视角：模块、技术栈、集成、风险；非产品商业叙事
+      【交卷】先编辑 deliverable 再 submit_result
+
+  diagram-build:
+    execute: |
+      【任务类型】diagram-build 架构/流程图（draw.io + PNG）
+      【本任务】
+      {task_description}
+      【必需章节】{required_sections}
+      【格式约束】须遵守 templates.yaml 注册表 file_exists；过程文件见 prompt 注入块
+
   _default:
     execute: |
       【任务类型】{task_type_label}（{task_type}，产出形态 {outcome_kind}）

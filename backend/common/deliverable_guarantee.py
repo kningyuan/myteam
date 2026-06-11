@@ -7,12 +7,48 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 from typing import Optional, Union
 
+from common.delivery_profiles import get_delivery_profile
+from common.paths import MYTEAM_ROOT
 from common.project_artifacts import artifact_rel_path, is_code_project_task
 from common.registry import FormatSpec, get_spec, is_stub
 from common.submit_result import submit
+
+_PROCESS_TEMPLATES = {
+    "align.md": "align.md",
+    "plan.md": "plan.md",
+    "ledger.entry.yaml": "ledger.entry.yaml",
+    "trace.manifest.yaml": "trace.manifest.yaml",
+}
+
+
+def scaffold_process_artifacts(base_dir: Path, delivery_profile: str) -> None:
+    """按 delivery_profile 预写过程产物模板（attempt 1；不覆盖已有实质内容）。"""
+    prof = get_delivery_profile(delivery_profile)
+    if not prof.process_artifacts:
+        return
+    base_dir.mkdir(parents=True, exist_ok=True)
+    tpl_root = MYTEAM_ROOT / "business" / "playbooks" / "templates"
+    for art in prof.process_artifacts:
+        dst = base_dir / art
+        if art == "verify.log":
+            if not dst.is_file():
+                dst.touch()
+            continue
+        tpl_name = _PROCESS_TEMPLATES.get(art)
+        if not tpl_name:
+            continue
+        src = tpl_root / tpl_name
+        if not src.is_file():
+            continue
+        if dst.is_file():
+            existing = dst.read_text(encoding="utf-8", errors="replace").strip()
+            if existing and not is_stub(existing, 20):
+                continue
+        shutil.copy2(src, dst)
 
 
 def _heading(level: int, title: str) -> str:
