@@ -6,6 +6,7 @@ action 任务证据校验生效；min_length 降为防 stub、must_include 默�
 """
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -156,7 +157,9 @@ def test_check_execute_action_evidence(tmp_path):
                          "screenshots": ["evidence/a.png"]},
         }},
     }
-    res = check_execute(env, base_dir=str(tmp_path))
+    # 不测 live 知乎页：只验 Gate 结构 + URL/截图；标题核对由 verify_published_url 单测覆盖
+    with patch("common.gate.verify_published_url", return_value=(True, False, "mock ok")):
+        res = check_execute(env, base_dir=str(tmp_path))
     assert res.passed, res.failures
 
 

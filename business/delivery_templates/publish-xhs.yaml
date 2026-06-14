@@ -1,0 +1,42 @@
+id: publish-xhs
+task_types:
+  - publish-post
+version: "1.0"
+display_name: 小红书笔记发布留痕
+description: |
+  publish-post 的小红书专用交付模板：Gate 校验 xiaohongshu.com 笔记 URL + 截图。
+  反爬较重，verify_title 关闭；以 URL 形态 + 截图文件为准。
+
+deliverable_template:
+  required_heading_level: 2
+  sections:
+    - name: 发布平台
+      description: 固定填写「小红书」
+      required: true
+    - name: 帖子标题
+      description: 与线上一致的笔记标题
+      required: true
+    - name: 已发布URL
+      description: 须为 xiaohongshu.com/explore/ 或 discovery/item 笔记链接
+      required: true
+    - name: 证据截图
+      description: 相对交付物目录的截图路径（须存在）
+      required: true
+    - name: 话题标签
+      description: 发布时使用的话题标签列表
+      required: true
+
+check_rules:
+  required_sections:
+    - 发布平台
+    - 帖子标题
+    - 已发布URL
+    - 证据截图
+    - 话题标签
+  must_include:
+    - xiaohongshu.com
+  min_length: 20
+  evidence_url:
+    host_contains: xiaohongshu.com
+    screenshot_field: 证据截图
+    verify_title: false

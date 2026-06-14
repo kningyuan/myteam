@@ -6,8 +6,9 @@ description: 升级验收 — 对照契约与测试结果，给出发布建议�
 
 # acceptance-report — 升级验收
 
-**产品专家任务先读**：`business/skills/product-operations/SKILL.md`  
-**myteam 配置贯通任务先读**：`business/skills/myteam-config-linkage/SKILL.md`
+**必须先读**：`business/skills/product-methodology/SKILL.md`（验收证据链）  
+**再读**：`business/skills/product-operations/SKILL.md`  
+**myteam 配置贯通任务再读**：`business/skills/myteam-config-linkage/SKILL.md`
 
 ## 通用产品验收（默认）
 

@@ -79,11 +79,12 @@ def render_kind_intent(kind: str, variables: dict[str, Any],
 
 def render_execute_intent(task: dict, path: Optional[Path] = None) -> str:
     """把 task.description 嵌入 task_type 标准 execute 模板。"""
-    from common.registry import TASK_TYPE_DISPLAY_NAMES, get_spec
+    from common.registry import TASK_TYPE_DISPLAY_NAMES, resolve_format_spec
 
     task_type = (task.get("task_type") or "").strip()
+    template_id = str(task.get("template_id") or "").strip() or None
     desc = (task.get("description") or task.get("name") or "").strip()
-    spec = get_spec(task_type) if task_type else None
+    spec = resolve_format_spec(task_type, template_id) if task_type else None
     tpl = get_task_type_prompt(task_type, "execute", path)
     if not tpl:
         return desc

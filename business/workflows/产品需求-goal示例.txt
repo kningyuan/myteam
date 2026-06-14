@@ -1,0 +1,20 @@
+# 产品需求 Workflow · Goal 示例（粘贴到 Hub「新建项目」）
+
+为 Agent Hub 增加「交付模板」管理能力：在「管理」Tab 内支持交付模板的列表、新建、编辑、删除，并与 Workflow 任务步骤的 template_id 联动。
+
+【背景】
+- 当前交付模板仅能通过 YAML 文件维护，Hub 无可视化 CRUD
+- Workflow 已支持 template_id，但模板与 task_type 的绑定关系不够直观
+
+【目标用户】
+- 产品/架构负责人：维护 Gate 章节契约
+- 日常使用者：在 Workflow 编辑页按任务类型选择合适模板
+
+【约束】
+- 模板仍以 YAML 存储于 business/delivery_templates/
+- 首版只跑通「产品需求」单场景，后续再扩展任务类型与模板
+
+【验收期望】
+- Hub 管理页可 CRUD 交付模板
+- 新建项目选「产品需求」workflow 能执行并完成 Gate
+- PRD 交付物包含背景、范围、架构、用户故事、方案方向、风险与依赖

@@ -8,6 +8,7 @@ from typing import Any
 class EventKind(str, Enum):
     STEP_START = "step_start"
     TEXT = "text"
+    REASONING = "reasoning"
     TOOL_USE = "tool_use"
     TOOL_RESULT = "tool_result"
     STEP_FINISH = "step_finish"

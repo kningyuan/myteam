@@ -10,7 +10,7 @@ DEFAULT_CONFIG = {
     "system": {
         "port": 8765,
         "default_backend": "opencode",
-        "default_model": "SenseNova/sensenova-6.7-flash-lite",
+        "default_model": "sensenova/sensenova-6.7-flash-lite",
         "debug": False,
         "price_per_mtok": 0,
         "default_review": False,

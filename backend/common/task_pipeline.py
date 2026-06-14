@@ -25,7 +25,7 @@ from common.deliverable_guarantee import (
 )
 from common.experience import promote_ledger_to_memory
 from common.prompt_templates import render_execute_intent
-from common.registry import get_spec
+from common.registry import spec_for_task
 from common.store import Store
 
 # 纯格式门禁失败：仅章节标题结构问题，可短 retry 修标题而不重写正文
@@ -76,10 +76,12 @@ class TaskPipeline:
             task_project_dir(project_id, tid)
         rel_path = artifact_rel_path(tid, task_type)
         feedback: list[str] = []
+        patch_hint: str = ""
 
         context = self.build_context(project_id, task) if self.config.inject_context else {}
 
-        spec = get_spec(task_type)
+        spec = spec_for_task(task)
+        template_id = str(task.get("template_id") or "").strip()
         for attempt in range(1, self.config.max_gate_retries + 1):
             if attempt == 1:
                 if not is_code_project_task(task_type):
@@ -104,6 +106,9 @@ class TaskPipeline:
                 )
                 if prev_sid:
                     inp["session_id"] = prev_sid
+            constraints = {"task_type": task_type, "template_id": template_id}
+            if patch_hint:
+                constraints["patch_hint"] = patch_hint
             req = {
                 "interaction_id": f"{project_id}:{tid}:execute:{attempt}",
                 "kind": "execute", "project_id": project_id, "task_id": tid,
@@ -111,7 +116,7 @@ class TaskPipeline:
                 "input": inp,
                 "context": context,
                 "response_schema": "execute.result@1.0",
-                "constraints": {"task_type": task_type},
+                "constraints": constraints,
                 "retry_feedback": feedback,
             }
             res = self.port.run(req)
@@ -134,6 +139,8 @@ class TaskPipeline:
             if isinstance(resp["meta"], dict):
                 resp["meta"].setdefault("task_type", task_type)
                 resp["meta"].setdefault("task_id", tid)
+                if template_id:
+                    resp["meta"].setdefault("template_id", template_id)
             gate_res = check_execute(resp, base_dir=str(base_dir),
                                      enforce_must_include=self.config.enforce_must_include)
             if gate_res.passed:
@@ -149,10 +156,9 @@ class TaskPipeline:
                 dv_abs = _resolve_deliverable_path(resp, base_dir)
                 if dv_abs:
                     feedback.append(f"上一轮交付物文件：{dv_abs}")
-                feedback.append(
-                    "请只调整 Markdown 标题结构以通过门禁，保留正文内容；"
-                    "禁止重读仓库或重写内容。"
-                )
+                patch_hint = "format_only"
+            else:
+                patch_hint = ""
             gf_payload: dict = {"failures": gate_res.failures}
             sid = inp.get("session_id") or lookup_interaction_session(
                 self.store, req["interaction_id"],
@@ -225,6 +231,7 @@ class TaskPipeline:
                            *, interaction_id: str) -> Optional[TaskOutcome]:
         tid = task["id"]
         task_type = task.get("task_type", "")
+        template_id = str(task.get("template_id") or "").strip()
         base_dir = task_deliverable_base(project_id, tid, task_type)
         rel_path = artifact_rel_path(tid, task_type)
         resp = dict(resp)
@@ -232,6 +239,8 @@ class TaskPipeline:
         if isinstance(resp["meta"], dict):
             resp["meta"].setdefault("task_type", task_type)
             resp["meta"].setdefault("task_id", tid)
+            if template_id:
+                resp["meta"].setdefault("template_id", template_id)
         gate_res = check_execute(resp, base_dir=str(base_dir),
                                  enforce_must_include=self.config.enforce_must_include)
         if not gate_res.passed:
@@ -277,19 +286,28 @@ class TaskPipeline:
             or task.get("reviewer", "")
         if not reviewer:
             return status
-        spec = get_spec(task_type) if task_type else None
+        spec = spec_for_task(task)
+        template_id = str(task.get("template_id") or "").strip()
         iid = f"{project_id}:{tid}:review"
+        review_input = {
+            "task": task,
+            "deliverable_path": rel_path,
+            "deliverable_base": str(task_deliverable_base(project_id, tid, task_type)),
+            "acceptance_criteria": spec.acceptance_criteria if spec else [],
+        }
+        if spec and spec.template_id:
+            review_input["template_id"] = spec.template_id
+            review_input["template_display_name"] = spec.template_display_name
+            review_input["template_sections"] = list(spec.sections or [])
+            review_input["file_exists"] = list(spec.file_exists or [])
         res = self.port.run({
             "interaction_id": iid, "kind": "review",
             "project_id": project_id, "task_id": tid, "agent_id": reviewer,
-            "intent": f"评审任务 {tid} 的交付物",
-            "input": {
-                "task": task,
-                "deliverable_path": rel_path,
-                "deliverable_base": str(task_deliverable_base(project_id, tid, task_type)),
-                "acceptance_criteria": spec.acceptance_criteria if spec else [],
-            },
+            "intent": f"评审任务 {tid} 的交付物"
+            + (f"（模板 {spec.template_id}）" if spec and spec.template_id else ""),
+            "input": review_input,
             "response_schema": "review.result@1.0",
+            "constraints": {"task_type": task_type, "template_id": template_id},
         })
         if res.status != "done":
             self.release_files(reviewer, iid)
@@ -310,6 +328,11 @@ class TaskPipeline:
         if self.config.review_enabled:
             status = self.peer_review(project_id, task, status, task_type, rel_path)
         self.store.set_task_status(project_id, tid, status)
+        try:
+            from common.ops_log import maybe_log_task_completion
+            maybe_log_task_completion(project_id, tid, task_type, status=status)
+        except Exception:
+            pass
         self.capture_summary(project_id, tid, resp, rel_path)
         if is_code_project_task(task_type):
             proj = task_project_dir(project_id, tid)

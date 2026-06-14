@@ -48,6 +48,12 @@ _zhihu_check_login_url() {
   return 0
 }
 
+_zhihu_export_cookies() {
+  local out="${1:?需要 cookie 输出路径}"
+  mkdir -p "$(dirname "$out")"
+  "$B" cookies > "$out"
+}
+
 _zhihu_cleanup_cookies() {
   [ -n "${COOKIE_TMP:-}" ] && rm -f "$COOKIE_TMP"
 }

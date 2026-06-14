@@ -78,10 +78,10 @@ function cacheDom() {
    'chat-agent-name','chat-agent-id','chat-agent-avatar',
    'group-name','group-members','group-avatar',
    'cf-description','cf-agent-id','cf-name','cf-backend','cf-model','cf-submit','cf-cancel','cf-status','cf-result',
-   'tab-chat','tab-groups','tab-projects','tab-agents','tab-workflows','tab-settings',
+   'tab-chat','tab-groups','tab-projects','tab-manage','tab-workflows','tab-settings',
    'project-list','project-count','project-welcome','project-detail-view',
    'project-title','project-meta','project-progress-text','project-progress-fill',
-   'project-tasks','project-fleet','project-cost','project-cost-overview','project-events',
+   'project-tasks','project-fleet','project-cost','project-cost-overview','project-events','project-launch-config',
    'project-trace','trace-title','trace-body','trace-close',
    'home-stats','home-projects','btn-home-new-project',
    'project-deliverable','deliverable-title','deliverable-task-nav','deliverable-meta','deliverable-files','deliverable-body',
@@ -92,8 +92,8 @@ function cacheDom() {
    'set-default-budget','set-max-gate-retries','set-soft-idle','set-hard-idle','set-max-cycles',
    'set-split-default','set-parallel-default','set-max-parallel','set-max-concurrent-projects',
    'wf-list','wf-new','wf-welcome','wf-editor','wf-id','wf-version','wf-description','wf-suggest',
-   'wf-review','wf-split','wf-parallel','wf-max-parallel','wf-tasks-body','wf-add-task',
-   'wf-save','wf-delete','wf-status',
+   'wf-review','wf-split','wf-parallel','wf-max-parallel',
+   'wf-tasks-body','wf-add-task','wf-save','wf-delete','wf-status',
    'set-budget-degrade-threshold','set-budget-degrade-backend','set-budget-degrade-model',
    'btn-theme','theme-dropdown',
    'modal-overlay','agent-config-modal','modal-backend','modal-model','modal-agent-info',
@@ -102,8 +102,11 @@ function cacheDom() {
    'group-members-panel','group-members-list','group-members-count','btn-toggle-members',
    'new-group-modal','ng-name','ng-desc','ng-submit','ng-cancel','btn-new-group',
    'status-badge','agent-count','btn-group-config','btn-send','btn-group-send',
-   'manage-agent-table','manage-agent-count','btn-create-agent','btn-sync-task-types',
-   'manage-tasktype-table','manage-tasktype-count','manage-memory-table','manage-memory-count',
+   'manage-agent-table','manage-agent-count','manage-agent-search','btn-create-agent','btn-sync-task-types',
+   'manage-tasktype-table','manage-tasktype-count','manage-tasktype-search',
+   'manage-dt-table','manage-dt-count','manage-dt-search','btn-new-dt','dt-upload',
+   'dt-modal','dt-modal-title','dt-id','dt-display-name','dt-description','dt-task-types','dt-default-for','dt-sections','dt-yaml','dt-save','dt-cancel','dt-status',
+   'kb-table','kb-count','kb-search',
    'create-agent-modal',
     'set-default-backend','set-default-model','set-port','set-cli-path','set-debug','set-audit-log','set-audit-log-max-bytes','set-price',
     'set-model-aliases','btn-save-settings','set-status','btn-apply-model-all',
@@ -138,6 +141,8 @@ const ICONS = {
   play: '<polygon points="8,5 19,12 8,19" class="fill"/>',
   flow: '<circle cx="6" cy="5" r="2.5"/><circle cx="18" cy="5" r="2.5"/><circle cx="12" cy="19" r="2.5"/><path d="M6 7.5v3a3 3 0 0 0 3 3h3M18 7.5v3a3 3 0 0 1-3 3h-3"/><line x1="12" y1="13.5" x2="12" y2="16.5"/>',
   panel: '<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="15" y1="4" x2="15" y2="20"/>',
+  book: '<path d="M5 4h9a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3V4Z"/><path d="M8 4h9a3 3 0 0 1 3 3v13H8V4Z"/>',
+  tag: '<path d="M4 10.5V4a2 2 0 0 1 2-2h6.5L20 9.5V20a2 2 0 0 1-2 2h-5.5"/><circle cx="8" cy="8" r="1.5" class="fill"/>',
 };
 function ic(name, cls) {
   return '<svg class="icon-svg' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" aria-hidden="true">' + (ICONS[name] || '') + '</svg>';
@@ -175,13 +180,36 @@ function agentDisplayName(id) {
   return agentDisplayLabel(id);
 }
 
-/** task_type UI 标签：display_name（可中/英/混合），注册键仍为 value */
+/** task_type 注册表缓存（UI 中文名解析） */
+let _taskTypeRecords = null;
+
+async function ensureTaskTypeRecords() {
+  if (_taskTypeRecords) return _taskTypeRecords;
+  try {
+    const r = await fetch('/api/task-types');
+    const d = await r.json();
+    _taskTypeRecords = d.task_types || [];
+  } catch (_) {
+    _taskTypeRecords = [];
+  }
+  return _taskTypeRecords;
+}
+
+function setTaskTypeRecords(list) {
+  _taskTypeRecords = Array.isArray(list) ? list : null;
+}
+
+function invalidateTaskTypeRecords() {
+  _taskTypeRecords = null;
+}
+
+/** task_type UI 标签：优先 display_name（中文），注册键仍为 value / API id */
 function taskTypeDisplayLabel(taskTypeOrRow, metaList) {
   const id = typeof taskTypeOrRow === 'string' ? taskTypeOrRow : taskTypeOrRow?.task_type;
   if (!id) return '';
   const row = typeof taskTypeOrRow === 'object' && taskTypeOrRow?.display_name
     ? taskTypeOrRow
-    : (metaList || []).find(x => x.task_type === id);
+    : (metaList || _taskTypeRecords || []).find(x => x.task_type === id);
   return (row?.display_name || id).trim() || id;
 }
 function shortPath(p) {

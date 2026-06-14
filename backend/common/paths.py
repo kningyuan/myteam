@@ -132,6 +132,10 @@ def delivery_profiles_file() -> Path:
     return BUSINESS_DIR / "templates" / "delivery_profiles.yaml"
 
 
+def delivery_templates_dir() -> Path:
+    return BUSINESS_DIR / "delivery_templates"
+
+
 def telegram_config_file() -> Path:
     """Telegram bot 配置：优先 config/telegram.json，其次 config/openclaw.json。"""
     for name in ("telegram.json", "openclaw.json"):

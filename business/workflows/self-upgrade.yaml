@@ -1,0 +1,107 @@
+id: self-upgrade
+version: '1.0'
+description: |
+  myteam 自身 Skill 体系升级链：plan → review → decision → 实现 → skill 草案 → code review → 验收 → 发版决策。
+  用于 REG-L3 与 Skill 自我升级验证；release-decision 须人工确认合入，禁止 auto-push。
+options:
+  review_enabled: true
+  skill_extract_enabled: true
+  parallel_enabled: false
+  max_parallel: 2
+  collaboration:
+    project_group:
+      enabled: false
+    notifications:
+      enabled: true
+    group_discussion:
+      enabled: false
+roster:
+  - main
+  - arch
+  - developer
+  - qa
+  - product
+tasks:
+  - id: upgrade-plan
+    name: 升级方案
+    agent: product
+    task_type: requirements
+    dependencies: []
+    description: |
+      【对象】myteam Agent Skill 体系与 L0–L4 自我升级机制（见 docs/DESIGN-SKILL-SYSTEM.md）
+      【产出】requirements：现状评估、缺口、实施路线图与验收标准
+      【约束】须引用 WORKFLOW_TASK_TYPE_MATRIX 与 catalog.yaml 覆盖情况
+      【来源策略】Skill 不必全自研：检索工具官网 / GitHub / 社区 Skill，每条缺口标注直接采纳 | 改造采纳 | 自我实现及 URL
+
+  - id: plan-review
+    name: 方案架构评审
+    agent: arch
+    task_type: architecture-review
+    dependencies:
+      - upgrade-plan
+    description: |
+      【输入】只读 upgrade-plan 交付物
+      【产出】architecture-review：对 Skill 体系设计的架构评审意见
+
+  - id: plan-decision
+    name: 方案决策
+    agent: main
+    task_type: decision-record
+    dependencies:
+      - plan-review
+    description: |
+      【输入】upgrade-plan + plan-review
+      【产出】decision-record：采纳/拒绝项；开放 🔴 须为 0 方可进入实现
+
+  - id: impl-upgrade
+    name: 实现升级
+    agent: developer
+    task_type: code-writing
+    dependencies:
+      - plan-decision
+    description: |
+      【输入】plan-decision 中已采纳项
+      【产出】code-writing：Hub API / Skill 草案页 / 文档等最小实现 diff 说明
+      【约束】禁止直接 push；变更须可回归 pytest + REG CHECK_ONLY
+
+  - id: skill-extract
+    name: Skill 模式抽提
+    agent: arch
+    task_type: research
+    dependencies:
+      - impl-upgrade
+    description: |
+      【对象】impl-upgrade 交付物与 docs/DESIGN-SKILL-SYSTEM.md
+      【产出】research：可复用 Skill 模式摘要（供 L3 auto-* 草案合入参考）
+      【说明】项目 completed 后内核另写 business/skills/auto-<project>-skill-extract/SKILL.md
+
+  - id: code-review
+    name: 代码审查
+    agent: qa
+    task_type: code-review
+    dependencies:
+      - impl-upgrade
+    description: |
+      【输入】impl-upgrade 变更说明与关键文件路径
+      【产出】code-review 报告
+
+  - id: acceptance
+    name: 验收报告
+    agent: product
+    task_type: acceptance-report
+    dependencies:
+      - code-review
+      - skill-extract
+    description: |
+      【输入】全链路交付物 + REG-L3 CHECK_ONLY 结果
+      【产出】acceptance-report：G1/G2 门禁核对
+
+  - id: release-decision
+    name: 发版决策
+    agent: main
+    task_type: decision-record
+    dependencies:
+      - acceptance
+    description: |
+      【输入】acceptance-report
+      【产出】decision-record：是否合入 main；须明确「人工 git commit，禁止 auto-push」

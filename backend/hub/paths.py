@@ -7,6 +7,8 @@ MYTEAM_ROOT = Path(__file__).resolve().parent.parent.parent
 BACKEND_DIR = MYTEAM_ROOT / "backend"
 
 FRONTEND_DIR = MYTEAM_ROOT / "frontend"
+FRONTEND_V2_DIR = MYTEAM_ROOT / "frontend-v2"
+FRONTEND_V2_DIST = FRONTEND_V2_DIR / "dist"
 CONFIG_DIR = MYTEAM_ROOT / "config"
 BUSINESS_DIR = MYTEAM_ROOT / "business"
 BUSINESS_CONFIG_DIR = BUSINESS_DIR / "config"
@@ -36,6 +38,8 @@ CHAT_ARCHIVES_DIR = BUSINESS_CONFIG_DIR / "chat_archives"
 GROUP_ARCHIVES_FILE = BUSINESS_CONFIG_DIR / "group_archives.json"
 
 IDENTITY_FILES = ["IDENTITY.md", "AGENTS.md", "SOUL.md", "USER.md"]
+# CLI 编排 + Hub 聊天实际读取的工作区 Markdown（与 IDENTITY_FILES 同源）
+AGENT_WORKSPACE_FILES = IDENTITY_FILES
 
 
 def resolve_path(path: str | Path) -> Path:

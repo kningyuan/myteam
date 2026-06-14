@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 回归测试主入口（本地 + CI 通用）
-# 用法: ./scripts/regression/run_regression.sh [--suite unit|reg02|reg04|reg05|k2|k7|k16|k17|o8|l3skill|framework|l2|l3|all]
+# 用法: ./scripts/regression/run_regression.sh [--suite unit|reg02|...|v1|p1|p3|all]
 # 退出码: 0=全通过, 1=部分失败
 
 set -e
@@ -45,6 +45,52 @@ REG_L2_PASS=0
 REG_L2_SKIP=0
 REG_L3_PASS=0
 REG_L3_SKIP=0
+
+REG_L3_PASS=0
+REG_L3_SKIP=0
+REG_V1_PASS=0
+
+# ---- Phase V1: 能力计划 CHECK_ONLY REG ----
+if [[ "$SUITE" == "v1" || "$SUITE" == "all" ]]; then
+    echo ""
+    echo "=== Phase V1: CHECK_ONLY REG（discuss + P0–P3）==="
+    set +e
+    V1_FAIL=0
+    REG_DISCUSS_CHECK_ONLY=1 "$REPO_ROOT/venv/bin/python3" scripts/regression/reg_discuss_loop.py || V1_FAIL=1
+    for reg in reg_p0_product_dev reg_p1_media_ops reg_p2_pm_pack reg_p3_geo reg_outcome_forms; do
+        REG_CHECK_ONLY=1 "$REPO_ROOT/venv/bin/python3" "scripts/regression/${reg}.py" || V1_FAIL=1
+    done
+    set -e
+    if [[ $V1_FAIL -eq 0 ]]; then
+        echo "Phase V1: PASS"
+        REG_V1_PASS=1
+    else
+        echo "Phase V1: FAIL"
+    fi
+fi
+
+# ---- Phase P1: 媒体 + 小红书 LIVE/CHECK REG ----
+if [[ "$SUITE" == "p1" ]]; then
+    echo ""
+    echo "=== Phase P1: media + xhs REG ==="
+    set +e
+    P1_FAIL=0
+    REG_CHECK_ONLY="${REG_CHECK_ONLY:-}" "$REPO_ROOT/venv/bin/python3" scripts/regression/reg_p1_media_ops.py || P1_FAIL=1
+    REG_CHECK_ONLY="${REG_CHECK_ONLY:-}" "$REPO_ROOT/venv/bin/python3" scripts/regression/reg_p1_xhs_ops.py || P1_FAIL=1
+    set -e
+    [[ $P1_FAIL -eq 0 ]] && echo "Phase P1: PASS" || echo "Phase P1: FAIL"
+fi
+
+# ---- Phase P3: GEO LIVE/CHECK REG ----
+if [[ "$SUITE" == "p3" ]]; then
+    echo ""
+    echo "=== Phase P3: GEO REG ==="
+    set +e
+    P3_FAIL=0
+    REG_CHECK_ONLY="${REG_CHECK_ONLY:-}" "$REPO_ROOT/venv/bin/python3" scripts/regression/reg_p3_geo.py || P3_FAIL=1
+    set -e
+    [[ $P3_FAIL -eq 0 ]] && echo "Phase P3: PASS" || echo "Phase P3: FAIL"
+fi
 
 # ---- Phase 1: 单元测试 ----
 if [[ "$SUITE" == "unit" || "$SUITE" == "all" ]]; then
@@ -434,6 +480,9 @@ if [[ $REG_L2_PASS -eq 0 && $REG_L2_SKIP -eq 0 && ("$SUITE" == "l2" || "$SUITE" 
     exit 1
 fi
 if [[ $REG_L3_PASS -eq 0 && $REG_L3_SKIP -eq 0 && ("$SUITE" == "l3" || "$SUITE" == "all") ]]; then
+    exit 1
+fi
+if [[ $REG_V1_PASS -eq 0 && ("$SUITE" == "v1" || "$SUITE" == "all") ]]; then
     exit 1
 fi
 exit 0

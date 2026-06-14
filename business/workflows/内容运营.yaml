@@ -1,33 +1,41 @@
 id: 内容运营
 version: '1.0'
-description: 通用内容运营（调研→成稿→发布）。知乎/小红书请优先用「知乎运营」「小红书运营」workflow
+description: |
+  内容持续运营：调研 → 策略 → 内容 → 知乎发布。
 options:
+  parallel_enabled: false
   review_enabled: false
   split_enabled: false
-  parallel_enabled: false
-  max_parallel: 2
 tasks:
-- id: t-research
-  name: 选题调研
-  agent: research
-  task_type: research
-  dependencies: []
-  description: '【对象】见【项目目标】'
-- id: t-draft
-  name: 内容成稿
-  agent: content
-  task_type: content
-  dependencies:
-  - t-research
-  description: 【输入】t-research；【平台】见【项目目标】
-- id: t-publish
-  name: 平台发布
-  agent: social_zhihu
-  task_type: publish-post
-  dependencies:
-  - t-draft
-  description: |
-    【输入】t-draft
-    【说明】知乎专栏请读 business/skills/zhihu-operations/SKILL.md
-    【说明】小红书请在 goal 注明并改 workflow 为「小红书运营」
-    【须提交】已发布 URL 与截图
+  - id: t-research
+    name: 调研
+    agent: research
+    task_type: research
+    dependencies: []
+    description: |
+      【对象】目标见【项目目标】
+      【视角】行业/竞品/受众
+  - id: t-strategy
+    name: 内容策略
+    agent: product
+    task_type: strategy
+    dependencies:
+      - t-research
+    description: |
+      【输入】只读 t-research；输出内容策略与排期
+  - id: t-content
+    name: 内容产出
+    agent: content
+    task_type: content
+    dependencies:
+      - t-strategy
+    description: |
+      【输入】只读 t-strategy；按策略撰写正文
+  - id: t-publish
+    name: 知乎发布
+    agent: social_zhihu
+    task_type: publish-post
+    dependencies:
+      - t-content
+    description: |
+      【输入】只读 t-content；在知乎专栏发布并附 URL/截图证据

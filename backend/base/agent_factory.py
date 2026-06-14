@@ -115,15 +115,13 @@ Agent ID: {agent_id}
 {"中文名: " + chinese_name if chinese_name else ""}
 描述: {description}
 
-请生成以下 6 个文件的内容，用 JSON 格式返回：
+请生成以下 4 个文件的内容，用 JSON 格式返回：
 
 {{
   "IDENTITY.md": "身份定义（emoji, name, role, vibe 等）",
   "AGENTS.md": "Agent 的能力、工作流程、协作方式",
   "SOUL.md": "灵魂与行为准则",
-  "USER.md": "用户信息（当前未知，写 placeholder）",
-  "TOOLS.md": "可用的工具描述",
-  "HEARTBEAT.md": "心跳检查项"
+  "USER.md": "用户信息（当前未知，写 placeholder）"
 }}
 
 要求：
@@ -195,30 +193,6 @@ description: {description}
 用户: 待配置
 联系方式: 待配置
 偏好: 待配置
-""",
-        "TOOLS.md": """# 可用工具
-
-## 基础工具
-- 文件读写：读取和写入工作目录中的文件
-- 代码执行：执行 shell 命令
-- 网络请求：进行 HTTP 请求
-
-## 注意事项
-- 所有操作在工作目录内进行
-- 遵守安全规范
-- 记录操作日志
-""",
-        "HEARTBEAT.md": """# 心跳检查项
-
-## 每日检查
-- [ ] 工作目录是否正常
-- [ ] 身份文件是否完整
-- [ ] 工具是否可用
-
-## 异常处理
-- 文件缺失：重新生成
-- 通信失败：等待重试
-- 任务超时：报告状态
 """,
     }
 

@@ -33,7 +33,7 @@ def test_skill_config_api_alias_and_reload(monkeypatch):
     def reload():
         reloaded["n"] += 1
 
-    monkeypatch.setattr(srv, "skill_config", fake)
+    monkeypatch.setattr("hub.api.routes.config.skill_config", fake)
     monkeypatch.setattr("common.skill_settings.reload_skill_settings", reload)
 
     client = TestClient(srv.app)

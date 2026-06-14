@@ -2,18 +2,17 @@
 
 import os
 import subprocess
-import threading
-import time
 from pathlib import Path
-from typing import Generator, Optional
+from typing import Generator
 
 from adapter.events import AgentEvent, EventKind
-from adapter.protocol import AdapterCapabilities, CLIAdapter, ModelInfo, RunRequest
+from adapter.protocol import AdapterCapabilities, ModelInfo, RunRequest
+from adapter.subprocess_cli import SubprocessCLIAdapter
 
 from adapters.claude.parser import parse_line
 
 
-class ClaudeCodeAdapter(CLIAdapter):
+class ClaudeCodeAdapter(SubprocessCLIAdapter):
     @property
     def id(self) -> str:
         return "claude"
@@ -122,11 +121,6 @@ class ClaudeCodeAdapter(CLIAdapter):
         if request.agent_id:
             env["OPENCLAW_WORKER_AGENT_ID"] = request.agent_id
 
-        proc: Optional[subprocess.Popen] = None
-        cancelled = False
-        stop_watch = threading.Event()
-        watcher: Optional[threading.Thread] = None
-
         try:
             proc = subprocess.Popen(
                 cmd, cwd=request.workspace, env=env,
@@ -134,82 +128,17 @@ class ClaudeCodeAdapter(CLIAdapter):
                 stderr=subprocess.PIPE, text=True, bufsize=1,
                 start_new_session=True,
             )
-
-            stderr_buf: list[str] = []
-
-            def _drain_stderr() -> None:
-                try:
-                    if proc.stderr:
-                        stderr_buf.append(proc.stderr.read())
-                except Exception:
-                    pass
-
-            stderr_thread = threading.Thread(target=_drain_stderr, daemon=True)
-            stderr_thread.start()
-
-            # 看门狗：cancel_event 触发时杀整个进程组（解除 stdout 阻塞 + 连子进程一起回收）
-            cancel_event = request.cancel_event
-            if cancel_event is not None:
-                def _canceller(p=proc, ev=cancel_event, stop=stop_watch):
-                    while not stop.wait(0.3):
-                        if p.poll() is not None:
-                            return
-                        if ev.is_set():
-                            self._terminate_group(p)
-                            return
-                watcher = threading.Thread(target=_canceller, daemon=True)
-                watcher.start()
-
-            # 写入 prompt 到 stdin
-            try:
-                proc.stdin.write(request.message)
-            except Exception:
-                pass
-            proc.stdin.close()
-
-            # 逐行读取 stream-json
-            # 注意：先 yield 当前行事件，再检查 cancel，保证 result 行（含 token 计量）
-            # 在取消信号到来时依然能从 stdout 缓冲中被读出并上报。
-            for line in proc.stdout:
-                for ev in parse_line(line):
-                    yield ev
-                if cancel_event and cancel_event.is_set():
-                    cancelled = True
-                    # 不立即 break：继续排空剩余缓冲行（含 result 行），
-                    # 进程会在 canceller 线程 300ms 内被杀死后自然 EOF。
-
-            if cancelled:
-                return
-
-            proc.wait()
-            stderr_thread.join(timeout=2.0)
-            stderr_out = "".join(stderr_buf)
-            if stderr_out.strip():
-                yield AgentEvent(EventKind.ERROR, {"message": stderr_out.strip()})
+            yield from self.stream_subprocess_io(
+                proc,
+                message=request.message,
+                cancel_event=request.cancel_event,
+                parse_line=parse_line,
+            )
 
         except FileNotFoundError:
             yield AgentEvent(EventKind.ERROR, {"message": f"Claude Code CLI 未找到: {cli_args[0]}"})
         except Exception as e:
             yield AgentEvent(EventKind.ERROR, {"message": str(e)})
-        finally:
-            stop_watch.set()
-            self._terminate_group(proc)
-            if watcher is not None:
-                watcher.join(timeout=1)
-
-    @staticmethod
-    def _terminate_group(proc: Optional[subprocess.Popen]) -> None:
-        """安全终止进程组。"""
-        if proc is None or proc.poll() is not None:
-            return
-        try:
-            pgid = os.getpgid(proc.pid)
-            os.killpg(pgid, 15)
-        except (ProcessLookupError, PermissionError, OSError):
-            try:
-                proc.terminate()
-            except Exception:
-                pass
 
 
 from adapter.registry import registry  # noqa: E402

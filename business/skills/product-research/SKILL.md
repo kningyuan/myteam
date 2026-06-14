@@ -10,6 +10,8 @@ agents:
 
 # product-research — 产品调研（task_type Router）
 
+**必须先读**：`business/skills/product-methodology/SKILL.md`
+
 **delivery_profile**：`light_v1`（align + verify，无 means/catalog）  
 **与 `research` 区别**：产品视角章节与验收；架构/技术向调研应使用独立 task_type（如未来的 arch-research）。
 

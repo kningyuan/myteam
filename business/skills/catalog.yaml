@@ -20,6 +20,18 @@ skills:
     router: business/skills/product-planning/SKILL.md
     means: []
 
+  - id: section-authoring
+    task_types: [section-authoring]
+    description: 方案/文档指定章节撰写
+    router: business/skills/section-authoring/SKILL.md
+    means: []
+
+  - id: section-review
+    task_types: [section-review]
+    description: 方案章节审计与放行判定
+    router: business/skills/section-review/SKILL.md
+    means: []
+
   - id: diagram-build
     task_types: [diagram-build]
     description: 架构/流程图 — brief → draw.io → PNG
@@ -48,6 +60,18 @@ skills:
       - id: python_pptx
         script: business/skills/wps-deck/scripts/build_deck_pptx.py
 
+  - id: xhs-operations
+    task_types: [publish-post]
+    description: 小红书运营 — 笔记成稿与发布留痕
+    router: business/skills/xhs-operations/SKILL.md
+    means: []
+
+  - id: zhihu-operations
+    task_types: [publish-post]
+    description: 知乎运营 — 专栏成稿与发布留痕
+    router: business/skills/zhihu-operations/SKILL.md
+    means: []
+
   - id: product-operations
     task_types: [research, requirements, strategy, acceptance-report, decision-record]
     description: 产品专家共享包
@@ -73,3 +97,48 @@ skills:
   - id: decision-record
     task_types: [decision-record]
     router: business/skills/decision-record/SKILL.md
+
+  - id: content
+    task_types: [content]
+    description: 内容成稿（图文/笔记）
+    router: business/skills/content/SKILL.md
+
+  - id: architecture-review
+    task_types: [architecture-review]
+    router: business/skills/architecture-review/SKILL.md
+
+  - id: code-writing
+    task_types: [code-writing]
+    router: business/skills/code-writing/SKILL.md
+
+  - id: code-deliverable
+    task_types: [code-deliverable]
+    router: business/skills/code-deliverable/SKILL.md
+
+  - id: code-review
+    task_types: [code-review]
+    router: business/skills/code-review/SKILL.md
+
+  - id: code-testing
+    task_types: [code-testing]
+    router: business/skills/code-testing/SKILL.md
+
+  - id: test-plan
+    task_types: [test-plan]
+    router: business/skills/test-plan/SKILL.md
+
+  # geo-* / data-analysis：内核 templates.yaml 直驱，无独立 Skill 目录
+  - id: geo-kernel
+    task_types: [geo-plan, geo-audit, geo-verification]
+    description: GEO 任务（registry 直驱）
+    router: business/skills/product-operations/SKILL.md
+
+  - id: config-bundle
+    task_types: [config-bundle]
+    description: 配置包（yaml/json）包态交付
+    router: business/skills/code-writing/SKILL.md
+
+  - id: data-analysis-kernel
+    task_types: [data-analysis]
+    description: 数据分析（registry 直驱）
+    router: business/skills/research/SKILL.md

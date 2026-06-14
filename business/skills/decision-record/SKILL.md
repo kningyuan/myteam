@@ -6,6 +6,7 @@ description: 阶段决策记录 — 评审汇总、采纳决策、阻塞项与�
 
 # decision-record — 决策记录
 
+**main 必须先读**：`business/skills/coordination-methodology/SKILL.md`（阶段汇总纪律）  
 **产品独立交付**（无 main）：`business/skills/product-operations/SKILL.md`  
 **多角色 workflow**：通常由 `main` 执行；product 只读上游。
 

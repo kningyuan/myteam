@@ -4,7 +4,7 @@
 
 Agent 执行统一通过 **opencode CLI** 适配器驱动（可扩展 claude 等其它 CLI）。
 
-> 设计与决策细节见 [`docs/framework-decisions.md`](docs/framework-decisions.md)（D1–D18）与 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。
+> 设计与决策细节见 [`docs/V1_CAPABILITY_PLAN.md`](docs/V1_CAPABILITY_PLAN.md)（v1 执行计划）、[`docs/framework-decisions.md`](docs/framework-decisions.md)（D1–D18）与 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。
 
 ---
 

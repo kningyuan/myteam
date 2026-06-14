@@ -145,10 +145,11 @@ def check_action_evidence(spec: FormatSpec, content: str,
 
 
 _CODE_EXTS = {".py", ".sh", ".js", ".ts", ".go", ".rb", ".java", ".rs"}
+_PACKAGE_EXTS = {".yaml", ".yml", ".json", ".toml", ".env", ".cfg", ".ini"}
 
 
 def check_code_project(spec: FormatSpec, proj_dir: Path) -> GateResult:
-    """代码工程型交付物：校验目录存在、最少文件数、必选文件、代码文件。"""
+    """包态交付物：校验目录、文件清单、扩展名约束。"""
     res = GateResult(passed=True)
     if not proj_dir.is_dir():
         res.add("code_project", f"代码工程目录 {proj_dir}", "目录不存在")
@@ -172,7 +173,11 @@ def check_code_project(spec: FormatSpec, proj_dir: Path) -> GateResult:
         if not (proj_dir / ref).exists():
             res.add("file_exists", ref, "文件不存在")
 
-    if spec.require_code_file and not any(p.suffix in _CODE_EXTS for p in files):
+    exts = set(spec.required_extensions or [])
+    if exts:
+        if not any(p.suffix in exts for p in files):
+            res.add("required_extensions", f"须含 {', '.join(sorted(exts))}", "未找到匹配扩展名")
+    elif spec.require_code_file and not any(p.suffix in _CODE_EXTS for p in files):
         res.add("code_file", "至少一个代码/脚本文件", "未找到 .py/.sh 等")
 
     if not res.passed:
@@ -236,7 +241,9 @@ def check_execute(response: dict, *, base_dir: Optional[str] = None,
     dv_path = str(Path(base_dir) / rel_path) if (base_dir and rel_path and not Path(rel_path).is_absolute()) else rel_path
 
     task_type = (response.get("meta") or {}).get("task_type") or response.get("task_type", "")
-    spec = get_spec(task_type) if task_type else None
+    template_id = str((response.get("meta") or {}).get("template_id") or "").strip() or None
+    from common.registry import resolve_format_spec
+    spec = resolve_format_spec(task_type, template_id) if task_type else None
     if spec is None:
         # 无注册表条目：只能做契约 + 文件存在性
         res = GateResult(passed=True)

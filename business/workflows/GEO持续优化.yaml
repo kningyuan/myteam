@@ -1,0 +1,53 @@
+id: GEO持续优化
+version: '1.0'
+description: |
+  GEO 持续优化闭环：调研 → 策略 → 审计 → 改稿 → 验证。
+  发布前 GEO 优先（Owner 决策 §8.2）。
+options:
+  parallel_enabled: false
+  review_enabled: false
+tasks:
+  - id: t-research
+    name: GEO 背景调研
+    agent: research
+    task_type: research
+    dependencies: []
+    description: |
+      【对象】目标见【项目目标】
+      【视角】AI 搜索可见性、竞品引用、受众问题
+  - id: t-plan
+    name: GEO 策略
+    agent: geo
+    task_type: geo-plan
+    dependencies:
+      - t-research
+    description: |
+      【输入】只读 t-research
+      【产出】GEO 优化策略
+  - id: t-audit
+    name: 内容 GEO 审计
+    agent: geo
+    task_type: geo-audit
+    dependencies:
+      - t-plan
+    description: |
+      【输入】只读 t-plan 与 Goal 指定页面/文稿
+      【产出】审计报告；写入 audit_log（若启用）
+  - id: t-content
+    name: 内容改稿
+    agent: content
+    task_type: content
+    dependencies:
+      - t-audit
+    description: |
+      【输入】只读 t-audit
+      【产出】按审计意见改稿
+  - id: t-verify
+    name: 效果验证
+    agent: geo
+    task_type: geo-verification
+    dependencies:
+      - t-content
+    description: |
+      【输入】只读 t-content
+      【产出】验证报告与证据

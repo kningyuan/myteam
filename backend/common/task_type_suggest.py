@@ -7,42 +7,47 @@ from typing import Any
 
 from common.task_type_store import list_task_type_ids
 
-# Gate 仅识别三种 outcome_kind；下拉文案覆盖常见现实任务形态
+# Gate 仅识别三种 outcome_kind；产品名：文档态 / 包态 / 证据态
 OUTCOME_KIND_CATALOG: list[dict[str, Any]] = [
     {
         "id": "artifact",
-        "label": "文档报告 artifact",
-        "summary": "Markdown 结构化交付物",
+        "label": "文档态 artifact",
+        "form_label_zh": "文档态",
+        "gate_algorithm": "check_format",
+        "summary": "Markdown 结构化交付物（章节 + 可选附件）",
         "covers": [
             "调研 / 竞品 / 行业分析",
             "需求 / 用户故事 / 验收标准",
-            "策略 / 方案对比 / 决策备忘",
-            "架构评审 / 代码评审 / 测试计划",
-            "验收报告 / 部署记录（文档式）",
+            "策略 / 方案 / 架构说明 / 评审",
+            "测试计划 / 验收报告 / 部署记录（文档式）",
         ],
-        "examples": ["research", "requirements", "strategy", "architecture-review", "test-plan"],
+        "examples": ["research", "requirements", "strategy", "architecture-review", "code-deployment"],
     },
     {
         "id": "action",
-        "label": "动作证据 action",
-        "summary": "须证明「已在外部完成动作」",
+        "label": "证据态 action",
+        "form_label_zh": "证据态",
+        "gate_algorithm": "check_action_evidence",
+        "summary": "须证明「已在外部完成动作」（URL / 截图 / 回执）",
         "covers": [
-            "内容发布（知乎/公众号等 URL + 截图）",
-            "线上配置 / 开关 / 发布操作留痕",
-            "任何需要 URL、截图、平台回执的验收",
+            "内容发布（知乎/小红书等 URL + 截图）",
+            "部署 smoke / 健康检查留痕",
+            "GEO 验证 / 线上配置留痕",
         ],
-        "examples": ["publish-post", "code-deployment"],
+        "examples": ["publish-post", "deploy-run", "geo-verification"],
     },
     {
         "id": "code_project",
-        "label": "代码工程 code_project",
-        "summary": "deliverables/<task_id>/ 可运行工程",
+        "label": "包态 code_project",
+        "form_label_zh": "包态",
+        "gate_algorithm": "check_code_project",
+        "summary": "deliverables/<task_id>/ 多文件目录交付（代码/配置/测试包）",
         "covers": [
             "功能实现 / 脚本 / 工具交付",
-            "补丁 / hotfix / 可执行代码包",
-            "须含 README、源码与运行说明",
+            "配置包（yaml/json/helm）",
+            "测试 harness / 用例目录",
         ],
-        "examples": ["code-writing", "code-deliverable"],
+        "examples": ["code-writing", "code-deliverable", "config-bundle"],
     },
 ]
 

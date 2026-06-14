@@ -6,7 +6,8 @@ description: PRD 级需求 — 范围、用户故事、可验证验收标准。
 
 # requirements — 需求 / PRD
 
-**先读**：`business/skills/product-operations/SKILL.md`  
+**必须先读**：`business/skills/product-methodology/SKILL.md`（范围、验收、优先级框架）  
+**再读**：`business/skills/product-operations/SKILL.md`  
 协作模式：`playbooks/team_handoff.md` · 独立模式：`playbooks/solo_delivery.md`
 
 ## 执行步骤

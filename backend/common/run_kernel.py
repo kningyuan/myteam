@@ -29,6 +29,7 @@ from common.agent_port import AgentPort, WatchdogConfig, reconcile_on_start
 from common.observability import BudgetConfig, check_budget
 from common.process import Process, ProcessConfig, ProjectOutcome
 from common.project_hooks import ProjectHooks
+from common.kernel_project_hooks import kernel_project_hooks
 from common.store import Store
 from common.workspace_gc import gc_workspace
 
@@ -142,13 +143,17 @@ def run_project(project_id: str, *, goal: str = "", title: str = "",
     wf_parallel = False
     wf_max_parallel = 4
     wf_skill_extract = False
+    wf_needs_review_blocks = False
     workflow_id: Optional[str] = None
+    loops = None
     if workflow:
         from common.workflow_bootstrap import ensure_workflow_ready
+        from common.goal_template import apply_goal_template_defaults
         profile = ensure_workflow_ready(workflow, backend=backend)
         workflow_id = profile.id
         agents = profile.roster
-        tasks = profile.instantiate_tasks(goal=goal)
+        tasks = apply_goal_template_defaults(profile.instantiate_tasks(goal=goal), goal)
+        loops = profile.loops
         opts = profile.options or {}
         if not review and opts.get("review_enabled"):
             wf_review = True
@@ -159,6 +164,8 @@ def run_project(project_id: str, *, goal: str = "", title: str = "",
             wf_max_parallel = int(opts.get("max_parallel") or 4)
         if opts.get("skill_extract_enabled"):
             wf_skill_extract = True
+        if opts.get("needs_review_blocks"):
+            wf_needs_review_blocks = True
 
     if config is None:
         from common.kernel_config import kernel_configs_for_run
@@ -171,6 +178,8 @@ def run_project(project_id: str, *, goal: str = "", title: str = "",
         base_cfg.max_parallel = wf_max_parallel
         if wf_skill_extract:
             base_cfg.skill_extract_enabled = True
+        if wf_needs_review_blocks:
+            base_cfg.needs_review_blocks = True
         if watchdog is None:
             watchdog = resolved_wdog
     else:
@@ -187,13 +196,15 @@ def run_project(project_id: str, *, goal: str = "", title: str = "",
                 base_cfg.review_enabled = True
             if not split and wf_split:
                 base_cfg.split_enabled = True
+            if wf_needs_review_blocks:
+                base_cfg.needs_review_blocks = True
     port = AgentPort(
         transport, store=store, config=watchdog or WatchdogConfig(),
         budget_checker=_budget_checker(store, base_cfg.token_budget),
     )
-    proc = Process(store, port, base_cfg, hooks=hooks)
+    proc = Process(store, port, base_cfg, hooks=hooks or kernel_project_hooks())
     return proc.run(project_id, title=title, goal=goal, agents=agents, tasks=tasks,
-                    workflow=workflow_id)
+                    workflow=workflow_id, loops=loops)
 
 
 def resume_project(project_id: str, *,
@@ -229,7 +240,7 @@ def resume_project(project_id: str, *,
         transport, store=store, config=watchdog or WatchdogConfig(),
         budget_checker=_budget_checker(store, proc_cfg.token_budget),
     )
-    proc = Process(store, port, proc_cfg, hooks=hooks)
+    proc = Process(store, port, proc_cfg, hooks=hooks or kernel_project_hooks())
     outcome = proc.resume(project_id)
     # gc 须在 settle 之后：reconcile 可能已将 timed_out 标 done，过早 gc 会删 .response
     gc_workspace(store)

@@ -78,69 +78,95 @@ product-planning:
   deliverable_template:
     required_heading_level: 2
     sections:
+    - name: 背景与目标
+      description: 产品定位、范围与成功标准
+      required: true
     - name: 产品架构
-      description: 四大组件（连接器、运营平台、合规监测、开发平台）关系与分层
+      description: 核心组件与分层关系（可按项目交付 drawio/png）
       required: true
     - name: 核心能力
-      description: 数据管控、资源交互/探查开发、隐私保护等，与第一章组件对齐
+      description: 关键能力与模块划分
       required: true
     - name: 设计原则
-      description: 控制/业务平面分离、连接器模式、模块化集成等
-      required: true
-    - name: 运行模式
-      description: 数据流模式与业务流模式（连接器 vs 运营平台发起）
       required: true
     - name: 优势分析
-      description: 相对竞品与自建方案的差异化（原稿「不写」须补齐）
+      description: 相对竞品或替代方案的差异化
       required: true
     - name: 功能架构
-      description: 功能模块划分；注明架构图占位与图注说明
       required: true
     - name: 核心流程
-      description: 资源接入→开发→交付→监测等主流程
       required: true
     - name: 产品形态与使用方式
-      description: 软件/硬件/一体机及部署使用方式
-      required: true
-    - name: 中心化与去中心化
-      description: 两种建设/运营模式及适用客户
       required: true
     - name: 研发规划
-      description: 三期 MVP / 合规监测 / 安全开发，含工期与交付范围
+      description: 分期交付与里程碑
       required: true
-    - name: 与原文差异说明
-      description: 相对 source_ch3_current.md 的主要增补与修改点
-      required: true
-    structure:
-    - H1 第三章 产品整体规划
-    - 每个小节 H2，与 docx 目录一致
-    - 研发规划三期用表格或编号列表
   check_rules:
     required_sections:
+    - 背景与目标
     - 产品架构
     - 核心能力
     - 设计原则
-    - 运行模式
     - 优势分析
     - 功能架构
     - 核心流程
     - 产品形态与使用方式
-    - 中心化与去中心化
     - 研发规划
-    - 与原文差异说明
-    min_length: 2500
+    min_length: 1500
   required_sections:
+  - 背景与目标
   - 产品架构
   - 核心能力
   - 设计原则
-  - 运行模式
   - 优势分析
   - 功能架构
   - 核心流程
   - 产品形态与使用方式
-  - 中心化与去中心化
   - 研发规划
-  - 与原文差异说明
+section-authoring:
+  delivery_profile: light_v1
+  display_name: 方案编制
+  outcome_kind: artifact
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 章节对象
+      description: Goal 指定的文档名、章节号/标题、完善范围
+      required: true
+    - name: 正文
+      description: 章节完整 Markdown 正文，可直接贴回源文档
+      required: true
+    - name: 依据与引用
+      description: 引用的材料路径、关键结论与原文对齐说明
+      required: true
+    - name: 变更说明
+      description: 相对源稿或上一轮审计反馈的主要修改点
+      required: true
+    - name: 自检清单
+      description: 逐条对照 Goal 与 task_type 章节的自检结果
+      required: true
+    structure:
+    - H1 标题含章节标识
+    - 每个小节 H2，标题与 Gate 章节名逐字一致
+    - 正文须可独立粘贴，不得留空占位
+  check_rules:
+    required_sections:
+    - 章节对象
+    - 正文
+    - 依据与引用
+    - 变更说明
+    - 自检清单
+    min_length: 800
+  acceptance_criteria:
+  - 完整覆盖「章节对象」「正文」「依据与引用」「变更说明」「自检清单」且内容具体可执行
+  - 正文与 Goal 指定章节范围一致，无空占位句
+  - 自检清单逐条可核对 Gate 章节与 Goal 要求
+  required_sections:
+  - 章节对象
+  - 正文
+  - 依据与引用
+  - 变更说明
+  - 自检清单
 arch-research:
   delivery_profile: light_v1
   display_name: 架构调研
@@ -477,6 +503,49 @@ architecture-review:
   - 发现与分级
   - 技术债务
   - 演进建议
+section-review:
+  delivery_profile: light_v1
+  display_name: 章节审计
+  outcome_kind: artifact
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 评审范围
+      description: 本轮审计的对象（章节、版本、引用材料）
+      required: true
+    - name: 审计结论
+      description: 明确写「放行」或「需修订」；放行时须说明依据
+      required: true
+    - name: 发现与分级
+      description: 🔴阻塞 🟡建议 🟢可选；无问题时写「无阻塞项」
+      required: true
+    - name: 修订要求
+      description: 需修订时逐条可执行修改项；放行时写「无」
+      required: true
+    structure:
+    - H1 标题含被审章节标识
+    - 每个小节 H2，标题与 Gate 章节名逐字一致
+    - 审计结论须单独成行，便于 Gate 与循环退出判定
+  check_rules:
+    required_sections:
+    - 评审范围
+    - 审计结论
+    - 发现与分级
+    - 修订要求
+    must_include:
+    - 审计结论
+    min_length: 200
+  acceptance_criteria:
+  - 评审须基于内容质量（合理性、准确性、完整性、可交付性），不得以字数/篇幅作为放行主要依据
+  - 完整覆盖「评审范围」「审计结论」「发现与分级」「修订要求」
+  - 审计结论明确为「放行」或「需修订」，不得模糊
+  - 放行依据须引用具体质量判断（可含抽样小节），不得仅写「字数达标」
+  - 需修订时修订要求逐条可定点 PATCH；放行时修订要求写「无」
+  required_sections:
+  - 评审范围
+  - 审计结论
+  - 发现与分级
+  - 修订要求
 code-review:
   deliverable_template:
     required_heading_level: 2
@@ -708,13 +777,75 @@ code-deployment:
     must_include:
     - 健康检查
     min_length: 200
-  display_name: 部署记录
+  display_name: 部署记录（文档态）
   outcome_kind: artifact
   required_sections:
   - 部署概要
   - 部署步骤
   - 验证结果
   - 回滚方案
+deploy-run:
+  display_name: 部署执行留痕
+  outcome_kind: action
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 部署环境
+      description: 填写部署环境
+      required: true
+    - name: 服务URL
+      description: 可访问的服务根 URL
+      required: true
+    - name: 健康检查
+      description: 探活结果与 HTTP 状态
+      required: true
+    - name: 证据截图
+      description: 截图相对路径
+      required: true
+  check_rules:
+    required_sections:
+    - 部署环境
+    - 服务URL
+    - 健康检查
+    - 证据截图
+    must_include:
+    - http
+    min_length: 30
+    evidence_url:
+      screenshot_field: 证据截图
+      verify_title: false
+  required_sections:
+  - 部署环境
+  - 服务URL
+  - 健康检查
+  - 证据截图
+config-bundle:
+  display_name: 配置包交付
+  outcome_kind: code_project
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 包说明
+      description: 配置用途与变更摘要
+      required: true
+    - name: 文件清单
+      description: 目录内文件说明
+      required: true
+  check_rules:
+    min_project_files: 2
+    required_extensions:
+    - .yaml
+    - .yml
+    - .json
+    file_exists:
+    - README.md
+    required_sections:
+    - 包说明
+    - 文件清单
+    min_length: 100
+  required_sections:
+  - 包说明
+  - 文件清单
 data-analysis:
   display_name: 数据分析
   outcome_kind: artifact

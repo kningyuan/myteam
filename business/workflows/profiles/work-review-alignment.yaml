@@ -1,0 +1,17 @@
+id: work-review-alignment
+description: Work–Review 循环 FAIL 后，work agent 与 review agent 在项目群内定点对齐改稿清单
+hook_module: work_review_alignment
+work_agent: product
+review_agent: main
+round_summary_label: 内容质量评审
+max_alignment_turns: 3
+review_sections:
+  conclusion: 审计结论
+  findings: 发现与分级
+  revisions: 修订要求
+patch_list_headings:
+  - 定点改稿清单
+  - 改稿清单
+  - PATCH 清单
+pass_marker: "REVIEW: PASS"
+fail_marker: "REVIEW: FAIL"

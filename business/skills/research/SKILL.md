@@ -44,6 +44,15 @@ bash business/skills/myteam-config-linkage/scripts/scan_config_inventory.sh
 
 交付物章节：`调研背景` `信息来源` `关键发现`（含表格）`结论`。
 
+## self-upgrade · skill-extract（REG-L3）
+
+当 workflow 为 `self-upgrade` 且 task_id 为 `skill-extract`：
+
+1. 阅读 `docs/DESIGN-SKILL-SYSTEM.md` 与 `impl-upgrade` 交付物。
+2. 输出 **research** 交付物：总结可写入正式 Skill 的 3–5 条模式（步骤/红线/脚本）。
+3. 填写 `ledger.entry.yaml` 的 `lesson.next_time`，供 L4 人工合入。
+4. 项目 **completed** 后，内核会在 `business/skills/auto-self-upgrade-skill-extract/SKILL.md` 写 L3 草案（勿与本文混淆）。
+
 ## 通用红线
 
 - 禁止无来源的数据结论。

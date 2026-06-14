@@ -14,7 +14,7 @@ from typing import Optional, Union
 from common.delivery_profiles import get_delivery_profile
 from common.paths import MYTEAM_ROOT
 from common.project_artifacts import artifact_rel_path, is_code_project_task
-from common.registry import FormatSpec, get_spec, is_stub
+from common.registry import FormatSpec, is_stub, resolve_format_spec
 from common.submit_result import submit
 
 _PROCESS_TEMPLATES = {
@@ -158,6 +158,9 @@ def try_adopt_deliverable_response(
     inp = req.input or {}
     constraints = req.constraints or {}
     task_type = constraints.get("task_type", "") if isinstance(constraints, dict) else ""
+    template_id = str(constraints.get("template_id") or "").strip() or None if isinstance(constraints, dict) else None
+    from common.registry import resolve_format_spec
+    spec = resolve_format_spec(task_type, template_id) if task_type else None
     rel_path = inp.get("deliverable_path") or artifact_rel_path(req.task_id or "", task_type)
     base = inp.get("deliverable_base")
     if not base:
@@ -173,7 +176,6 @@ def try_adopt_deliverable_response(
         if not abs_path.is_file():
             return None
         content = abs_path.read_text(encoding="utf-8", errors="replace")
-        spec = get_spec(task_type) if task_type else None
         if not deliverable_has_substance(content, spec):
             return None
 
@@ -200,6 +202,7 @@ def scaffold_for_execute_request(
     inp = req.input or {}
     constraints = req.constraints or {}
     task_type = constraints.get("task_type", "") if isinstance(constraints, dict) else ""
+    template_id = str(constraints.get("template_id") or "").strip() or None if isinstance(constraints, dict) else None
     if is_code_project_task(task_type):
         proj = deliverable_abs_path(
             Path(inp.get("deliverable_base") or "."),
@@ -213,7 +216,7 @@ def scaffold_for_execute_request(
     if not base:
         return None
     abs_path = deliverable_abs_path(Path(base), rel, task_type)
-    spec = get_spec(task_type) if task_type else None
+    spec = resolve_format_spec(task_type, template_id) if task_type else None
     return scaffold_markdown_deliverable(
         abs_path, spec, title=task_name or req.task_id or "交付物",
     )

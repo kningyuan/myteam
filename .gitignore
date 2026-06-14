@@ -5,6 +5,7 @@ __pycache__/
 *.so
 .Python
 venv/
+.venv/
 env/
 ENV/
 
@@ -45,3 +46,7 @@ Thumbs.db
 
 # Node (means / skills local deps)
 **/node_modules/
+frontend-v2/dist/
+
+# Regression forensics (large, reproducible locally)
+business/regression/artifacts/

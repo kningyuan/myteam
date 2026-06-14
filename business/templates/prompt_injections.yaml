@@ -24,6 +24,14 @@ injections:
             交卷前自检：① align+plan 已填 ② means 探针输出写入 verify.log ③ ledger 填写 lesson
             【means 自选】读 catalog，在 plan.md 记录 chosen_skills 与 means：{catalog}
     by_task_type:
+      product-planning:
+        blocks:
+          - |
+            【架构图 · tds-ch3 等模板】与 deliverable 同目录须交付：
+            - product-architecture.drawio + product-architecture.png（### 产品架构）
+            - functional-architecture.drawio + functional-architecture.png（### 功能架构）
+            作图可用 business/means/diagram-build/（probe.sh → brief_to_drawio.py / 手写 drawio → build_diagram.sh）
+            verify.log 须记录 draw.io 探针与 PNG 导出；Markdown 内嵌 ![](product-architecture.png) 与 ![](functional-architecture.png)
       diagram-build:
         blocks:
           - |

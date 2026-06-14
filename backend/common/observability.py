@@ -58,8 +58,34 @@ def _budget_state(used: int, budget: Optional[int], alert_ratio: float = 0.8) ->
     return ratio, "ok"
 
 
+def _launch_config(proj: dict, meta: dict) -> dict:
+    """从 project 行与 meta 组装发起时的配置快照（供概览展示）。"""
+    from common.goal_template import parse_goal_template_id
+
+    launch_meta = meta.get("launch") or {}
+    goal = (meta.get("goal") or "").strip()
+    workflow = (meta.get("workflow") or "").strip() or None
+    mode = proj.get("mode") or "one_shot"
+    mode_labels = {
+        "one_shot": "one_shot（跑一次）",
+        "recurring": "recurring（持续）",
+    }
+    return {
+        "goal": goal or None,
+        "workflow": workflow,
+        "workflow_label": workflow or "自由规划（main 即兴 task_plan）",
+        "mode": mode,
+        "mode_label": mode_labels.get(mode, mode),
+        "token_budget": meta.get("token_budget"),
+        "template_id": parse_goal_template_id(goal),
+        "review": bool(launch_meta.get("review")),
+        "split": bool(launch_meta.get("split")),
+        "backend": launch_meta.get("backend"),
+    }
+
+
 def project_overview(store: Store, project_id: str) -> dict:
-    """项目总览：状态 / DAG / 进度 / 成本预算。"""
+    """项目总览：状态 / DAG / 进度 / 成本预算 / 发起配置。"""
     proj = store.get_project(project_id) or {"project_id": project_id}
     tasks = store.list_tasks(project_id)
     counts: dict[str, int] = {}
@@ -68,9 +94,9 @@ def project_overview(store: Store, project_id: str) -> dict:
     done = counts.get("completed", 0) + counts.get("needs_review", 0)
     total = len(tasks) or 1
     used = store.tokens_total(project_id)
-    budget = (proj.get("meta") or {}).get("token_budget")
-    ratio, bstate = _budget_state(used, budget)
     meta = proj.get("meta") or {}
+    budget = meta.get("token_budget")
+    ratio, bstate = _budget_state(used, budget)
     return {
         "project_id": project_id,
         "title": proj.get("title") or project_id,  # 与 api-reference.md §11.1 + 前端 project.js 对齐；proj 兜底时退化为 pid
@@ -78,6 +104,9 @@ def project_overview(store: Store, project_id: str) -> dict:
         "mode": proj.get("mode"),
         "workflow": meta.get("workflow"),
         "launch_error": meta.get("launch_error"),
+        "created_at": proj.get("created_at"),
+        "updated_at": proj.get("updated_at"),
+        "launch": _launch_config(proj, meta),
         "task_counts": counts,
         "progress": round(done / total, 3),
         "tokens": used,
@@ -121,18 +150,69 @@ def projects_summary(store: Store) -> dict:
     }
 
 
+def _summarize_interaction_events(store: Store, interaction_id: str, *, kind: str) -> dict:
+    """从 run_event 提取门禁失败、评审结论、自评（execute response_snapshot）。"""
+    gate_failures: list = []
+    review = None
+    quality = None
+    for e in store.list_run_events(interaction_id):
+        payload = e.get("payload") or {}
+        if e["kind"] == "gate_failed":
+            gate_failures = payload.get("failures") or []
+        elif e["kind"] == "review_done":
+            review = payload
+        elif e["kind"] == "response_snapshot" and kind == "execute":
+            resp = payload.get("response") or {}
+            if isinstance(resp, dict):
+                q = resp.get("quality")
+                if isinstance(q, dict):
+                    quality = q
+    out: dict = {"gate_failures": gate_failures}
+    if review is not None:
+        out["review"] = review
+    if quality is not None:
+        out["quality"] = quality
+    return out
+
+
 def task_detail(store: Store, project_id: str, task_id: str) -> dict:
     """任务详情：当前 interaction / 重试 / outcome / 自评 / 存活态。"""
     task = store.get_task(project_id, task_id) or {}
     inters = [i for i in store.list_interactions(project_id) if i.get("task_id") == task_id]
+    interactions = []
+    latest_quality = None
+    for i in inters:
+        kind = i.get("kind") or ""
+        summary = _summarize_interaction_events(store, i["interaction_id"], kind=kind)
+        if kind == "execute" and summary.get("quality"):
+            latest_quality = summary["quality"]
+        interactions.append({
+            "interaction_id": i["interaction_id"],
+            "kind": kind,
+            "attempt": i["attempt"],
+            "status": i["status"],
+            "liveness": liveness(i),
+            "tokens": i["tokens"],
+            "response_ref": i["response_ref"],
+            **summary,
+        })
+    meta = task.get("meta") or {}
     return {
-        "task": {"id": task_id, "status": task.get("status"), "agent": task.get("agent"),
-                 "meta": task.get("meta")},
-        "interactions": [{
-            "interaction_id": i["interaction_id"], "attempt": i["attempt"],
-            "status": i["status"], "liveness": liveness(i),
-            "tokens": i["tokens"], "response_ref": i["response_ref"],
-        } for i in inters],
+        "task": {
+            "id": task_id,
+            "name": task.get("name"),
+            "status": task.get("status"),
+            "agent": task.get("agent"),
+            "reviewer": task.get("reviewer"),
+            "task_type": task.get("task_type"),
+            "meta": meta,
+            "fail_reason": meta.get("fail_reason"),
+            "fail_detail": meta.get("fail_detail"),
+            "summary": meta.get("summary"),
+            "ref": meta.get("ref"),
+        },
+        "latest_quality": latest_quality,
+        "interactions": interactions,
     }
 
 

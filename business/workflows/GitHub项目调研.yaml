@@ -1,58 +1,48 @@
 id: GitHub项目调研
 version: '1.0'
-description: 对任意 GitHub 开源项目做产品/架构/工程化三视角调研并汇总；发现该项目的真实特点以及可取之处；具体仓库在发起项目时填写 goal
+description: |
+  三视角并行调研（产品 / 架构 / 工程化）→ main 汇总 strategy 报告。
 options:
-  review_enabled: false
-  split_enabled: true
   parallel_enabled: true
   max_parallel: 3
+  review_enabled: false
+  split_enabled: false
 tasks:
-- id: t-product
-  name: 产品设计调研
-  agent: product
-  task_type: research
-  dependencies: []
-  description: '【对象】目标 GitHub 仓库（链接见【项目目标】）
-
-    【视角】产品：定位、目标用户、核心场景、与同类差异
-
-    【范围】仅 README、docs/、Releases；禁止全仓扫源码'
-- id: t-arch
-  name: 架构调研
-  agent: arch
-  task_type: architecture-review
-  dependencies: []
-  description: '【对象】目标 GitHub 仓库（链接见【项目目标】）
-
-    【视角】架构：技术栈、模块划分、集成方式、扩展点
-
-    【范围】仅 README、docs/、Releases；禁止全仓扫源码'
-- id: t-eng
-  name: 工程化调研
-  agent: developer
-  task_type: architecture-review
-  dependencies: []
-  description: '【对象】目标 GitHub 仓库（链接见【项目目标】）
-
-    【视角】工程化：构建/测试/CI、依赖、本地开发体验
-
-    【范围】仅 README、docs/、Releases；禁止全仓扫源码'
-- id: t5
-  name: 前端架构调研
-  agent: frontend
-  task_type: architecture-review
-  dependencies: []
-  description: |
-    【对象】目标 GitHub 仓库（链接见【项目目标】）
-    【视角】前端/UI 架构与页面组织
-    【范围】仅 README、docs/、Releases；禁止全仓扫源码
-- id: t-summary
-  name: 三视角综合报告
-  agent: main
-  task_type: strategy
-  dependencies:
-  - t-product
-  - t-arch
-  - t-eng
-  - t5
-  description: 【输入】只读 t-product、t-arch、t-eng 三份交付物
+  - id: t-product
+    name: 产品设计调研
+    agent: product
+    task_type: research
+    dependencies: []
+    description: |
+      【对象】目标 GitHub 仓库（链接见【项目目标】）
+      【视角】产品：定位、目标用户、核心场景、与同类差异
+      【范围】仅 README、docs/、Releases；禁止全仓扫源码
+  - id: t-arch
+    name: 架构调研
+    agent: arch
+    task_type: research
+    dependencies: []
+    description: |
+      【对象】目标 GitHub 仓库（链接见【项目目标】）
+      【视角】架构：技术栈、模块划分、集成方式、扩展点
+      【范围】仅 README、docs/、Releases；禁止全仓扫源码
+  - id: t-eng
+    name: 工程化调研
+    agent: developer
+    task_type: research
+    dependencies: []
+    description: |
+      【对象】目标 GitHub 仓库（链接见【项目目标】）
+      【视角】工程化：构建/测试/CI、依赖、本地开发体验
+      【范围】仅 README、docs/、Releases；禁止全仓扫源码
+  - id: t-summary
+    name: 三视角综合报告
+    agent: main
+    task_type: strategy
+    dependencies:
+      - t-product
+      - t-arch
+      - t-eng
+    description: |
+      【输入】只读 t-product、t-arch、t-eng 三份交付物
+      【产出】综合调研结论与建议

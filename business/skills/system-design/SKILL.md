@@ -6,6 +6,8 @@ description: 架构方案与 API 契约 — 输出可分工执行的 P0/P1 修�
 
 # system-design — 贯通方案与 API 契约
 
+**架构类任务必须先读**：`business/skills/system-architecture-methodology/SKILL.md`（约束→trade-off→ADR→C4）
+
 配置贯通类任务 **先读**：`business/skills/myteam-config-linkage/SKILL.md`
 
 ## 执行步骤

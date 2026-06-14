@@ -26,6 +26,30 @@ probe "/api/config"
 probe "/api/backends"
 probe "/api/agents"
 
+# 项目概览须含发起配置字段（旧 Hub 进程会缺 launch/created_at → 需 ./run.sh stop && ./run.sh start）
+if curl -s --max-time 5 "${BASE}/api/obs/projects" -o /tmp/myteam_ov.json 2>/dev/null; then
+  pid="$(python3 -c "import json; d=json.load(open('/tmp/myteam_ov.json')); ps=d.get('projects') or []; print(ps[0]['id'] if ps else '')" 2>/dev/null || true)"
+  if [ -n "$pid" ] && curl -s --max-time 5 "${BASE}/api/obs/projects/${pid}/overview" -o /tmp/myteam_ov_detail.json 2>/dev/null; then
+    if python3 -c "
+import json, sys
+d = json.load(open('/tmp/myteam_ov_detail.json'))
+missing = {'launch', 'created_at'} - set(d.keys())
+if missing:
+    print('FAIL overview missing keys:', ', '.join(sorted(missing)), file=sys.stderr)
+    print('HINT: restart Hub — cd myteam && ./run.sh stop && ./run.sh start', file=sys.stderr)
+    sys.exit(1)
+if not isinstance(d.get('launch'), dict):
+    print('FAIL overview.launch not object', file=sys.stderr)
+    sys.exit(1)
+print('OK   /api/obs/projects/${pid}/overview → launch snapshot')
+"; then
+      :
+    else
+      FAIL=1
+    fi
+  fi
+fi
+
 if [ "$FAIL" -eq 0 ]; then
   echo "probe: PASS"
   exit 0

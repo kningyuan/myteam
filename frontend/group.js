@@ -1,5 +1,60 @@
 // ============ Groups ============
 
+/** 群聊 IM 布局：头像 + 昵称 + 气泡（微信 / Telegram 风格） */
+function _agentAvatarColor(id) {
+  const palette = ['#4f46e5', '#0891b2', '#059669', '#d97706', '#7c3aed', '#db2777', '#2563eb', '#0d9488'];
+  let h = 0;
+  for (let i = 0; i < (id || '').length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return palette[h % palette.length];
+}
+
+function _groupSenderHead(agentId, isUser, grouped) {
+  if (grouped) return '';
+  if (isUser) return '<div class="sender-head is-user"><span class="sender-name">我</span></div>';
+  const name = agentDisplayName(agentId);
+  const idLine = name !== agentId ? `<span class="sender-id">@${esc(agentId)}</span>` : '';
+  return `<div class="sender-head"><span class="sender-name">${esc(name)}</span>${idLine}</div>`;
+}
+
+function _groupAvatarHtml(agentId, isUser, grouped) {
+  if (grouped) return '<div class="msg-avatar avatar-spacer" aria-hidden="true"></div>';
+  if (isUser) {
+    return '<div class="msg-avatar user-avatar" aria-label="我">我</div>';
+  }
+  const bg = _agentAvatarColor(agentId);
+  return `<div class="msg-avatar agent-avatar" data-agent="${esc(agentId)}" aria-label="${esc(agentId)}" style="background:${bg};color:#fff;border-color:transparent">${esc(getAvatar(agentId))}</div>`;
+}
+
+function _groupBubbleWrap(inner, mts, isUser) {
+  return `<div class="bubble${isUser ? ' bubble-own' : ' bubble-other'}">${inner}${msgMetaHtml(mts)}</div>`;
+}
+
+function _groupAgentShell(agentId, grouped, mts, innerBubble, extraClass) {
+  const cls = 'message group-agent' + (grouped ? ' grouped' : '') + (extraClass ? ' ' + extraClass : '');
+  return `<div class="${cls}">
+    <div class="msg-row">
+      ${_groupAvatarHtml(agentId, false, grouped)}
+      <div class="msg-body">
+        ${_groupSenderHead(agentId, false, grouped)}
+        ${_groupBubbleWrap(innerBubble, mts, false)}
+      </div>
+    </div>
+  </div>`;
+}
+
+function _groupUserShell(grouped, mts, text) {
+  const cls = 'message group-user' + (grouped ? ' grouped' : '');
+  return `<div class="${cls}">
+    <div class="msg-row">
+      ${_groupAvatarHtml('', true, grouped)}
+      <div class="msg-body">
+        ${_groupSenderHead('', true, grouped)}
+        ${_groupBubbleWrap(`<div class="msg-content">${esc(text)}</div>`, mts, true)}
+      </div>
+    </div>
+  </div>`;
+}
+
 async function loadGroups() {
   try {
     const r = await fetch('/api/groups');
@@ -209,13 +264,12 @@ function handleGroupThinking(data) {
     const c = DOM['group-messages']; const aId = data.agent_id; const mts = Date.now(); const gkey = 'agent:' + aId;
     _dateSep(c, mts);
     const grouped = _grouped(c, gkey, mts);
-    const div = document.createElement('div');
-    div.className = 'message group-agent' + (grouped ? ' grouped' : ''); div.id = `gt-${aId}`;
+    const inner = '<div class="thinking-section collapsed" aria-expanded="false"><div class="thinking-header"><span class="thinking-toggle">▼</span><span class="thinking-title">Agent 活动</span></div><div class="thinking-body"></div></div><div class="msg-content"></div>';
+    const wrap = document.createElement('div');
+    wrap.innerHTML = _groupAgentShell(aId, grouped, mts, inner, '');
+    const div = wrap.firstElementChild;
+    div.id = `gt-${aId}`;
     div.dataset.gkey = gkey; div.dataset.ts = String(mts); div.dataset.day = dayKeyOf(mts);
-    div.innerHTML = '<div class="msg-avatar avatar-badge" aria-label="' + esc(aId) + '">' + esc(getAvatar(aId)) + '</div>' +
-      '<div class="bubble">' + (grouped ? '' : '<div class="bubble-name">@' + esc(aId) + '</div>') +
-      '<div class="thinking-section collapsed" aria-expanded="false"><div class="thinking-header"><span class="thinking-toggle">▼</span><span class="thinking-title">Agent 活动</span></div><div class="thinking-body"></div></div>' +
-      '<div class="msg-content"></div>' + msgMetaHtml(mts) + '</div>';
     c.appendChild(div); block = div; scrollBottom(c);
   }
   const tb = block.querySelector('.thinking-body'); const ce = block.querySelector('.msg-content'); const ts = block.querySelector('.thinking-section');
@@ -242,20 +296,38 @@ function renderGroupMsg(msg, container) {
   const div = document.createElement('div');
   div.dataset.gkey = gkey; div.dataset.ts = String(mts); div.dataset.day = dayKeyOf(mts);
   if (isUser) {
-    div.className = 'message group-user' + (grouped ? ' grouped' : '');
-    div.innerHTML = '<div class="bubble"><div class="msg-content">' + esc(msg.text || '') + '</div>' + msgMetaHtml(mts) + '</div>';
-  } else if (isSystem) {
-    div.className = 'message system';
-    div.innerHTML = esc(msg.text || '').replace(/\n/g, '<br>');
+    const wrap = document.createElement('div');
+    wrap.innerHTML = _groupUserShell(grouped, mts, msg.text || '');
+    const el = wrap.firstElementChild;
+    el.dataset.gkey = gkey; el.dataset.ts = String(mts); el.dataset.day = dayKeyOf(mts);
+    c.appendChild(el); scrollBottom(c); return el;
+  }
+  if (isSystem) {
+    const text = msg.text || '';
+    const compact = text.length <= 80 && !text.includes('\n') && !text.includes('**') && !text.includes('📋');
+    if (compact) {
+      div.className = 'message system-pill';
+      div.innerHTML = `<span class="system-pill-inner">${esc(text).replace(/\n/g, '<br>')}</span>`;
+    } else {
+      div.className = 'message group-system-notice';
+      div.innerHTML = `<div class="msg-row">
+        <div class="msg-avatar system-avatar" aria-hidden="true">系</div>
+        <div class="msg-body">
+          <div class="sender-head"><span class="sender-name">系统通知</span></div>
+          ${_groupBubbleWrap('<div class="msg-content markdown-body"></div>', mts, false)}
+        </div>
+      </div>`;
+      renderBubbleMarkdown(div.querySelector('.msg-content'), text);
+    }
   } else {
     const aId = sender;
-    div.className = 'message group-agent' + (grouped ? ' grouped' : '');
-    div.innerHTML = '<div class="msg-avatar avatar-badge" aria-label="' + esc(aId) + '">' + esc(getAvatar(aId)) + '</div>' +
-      '<div class="bubble">' + (grouped ? '' : '<div class="bubble-name">@' + esc(aId) + '</div>') +
-      '<div class="msg-content"></div>' + msgMetaHtml(mts) + '</div>';
-    const ce = div.querySelector('.msg-content');
-    if ((msg.text || '').includes('📋')) { ce.innerHTML = esc(msg.text || '').replace(/\n/g, '<br>'); }
-    else { renderBubbleMarkdown(ce, msg.text || ''); }
+    const inner = '<div class="msg-content"></div>';
+    const wrap = document.createElement('div');
+    wrap.innerHTML = _groupAgentShell(aId, grouped, mts, inner, '');
+    const el = wrap.firstElementChild;
+    el.dataset.gkey = gkey; el.dataset.ts = String(mts); el.dataset.day = dayKeyOf(mts);
+    renderBubbleMarkdown(el.querySelector('.msg-content'), msg.text || '');
+    c.appendChild(el); scrollBottom(c); return el;
   }
   c.appendChild(div); scrollBottom(c); return div;
 }

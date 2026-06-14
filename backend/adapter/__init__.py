@@ -2,6 +2,7 @@
 
 from adapter.events import AgentEvent, EventKind
 from adapter.protocol import AdapterCapabilities, CLIAdapter, ModelInfo, RunRequest
+from adapter.subprocess_cli import SubprocessCLIAdapter
 from adapter.registry import registry
 from adapter.sse import encode_done, encode_error, encode_event
 
@@ -10,6 +11,7 @@ __all__ = [
     "EventKind",
     "AdapterCapabilities",
     "CLIAdapter",
+    "SubprocessCLIAdapter",
     "ModelInfo",
     "RunRequest",
     "registry",

@@ -1,7 +1,9 @@
 # myteam 架构说明
 
-> 版本：2026-06-10 · 分支：`upgrade/continued`  
+> 版本：2026-06-11 · 分支：`upgrade/continued`  
+> **v1 能力计划（执行权威）**：[`docs/V1_CAPABILITY_PLAN.md`](./V1_CAPABILITY_PLAN.md)  
 > **框架封板**：[`docs/FRAMEWORK-FREEZE.md`](./FRAMEWORK-FREEZE.md)（L1/L2 已封；增量在 workflow/Skill）  
+> REG/E2E 基线：[`docs/PRODUCTION_BASELINE.md`](./PRODUCTION_BASELINE.md)  
 > 金路径与 E2E 配方见 [`docs/0608/15-标准协作模式总结.md`](./0608/15-标准协作模式总结.md)。
 
 ---
@@ -26,6 +28,7 @@
 | **Skill Pack** | `business/skills/*/SKILL.md`、`workspace-*/AGENTS.md` | 具体执行步骤与角色人设 |
 
 **决策规则**：污染系统状态 → Kernel；改 task_type / 角色 / 验收 → Registry；只影响单次质量 → Skill。  
+**框架/业务边界清单**：[`docs/FRAMEWORK_BOUNDARY.md`](./FRAMEWORK_BOUNDARY.md)  
 **新增 task_type 必须先写 `templates.yaml`**，不能仅靠 Skill 让 Process 识别。
 
 ---
@@ -129,7 +132,23 @@ run_kernel.py
 
 ---
 
-## 9. 相关文档
+## 9. 前后端分工与端口化
+
+系统通过 **端口（Port）** 隔离「做什么」与「用什么跑」：
+
+| 层 | 职责 | 端口入口 |
+|----|------|----------|
+| **System Kernel** | DAG 调度、AgentPort、Gate、Store 真相 | `AgentPort` + 注入 `Transport` / `TokenUsageSink` |
+| **Hub** | 聊天 SSE、项目启动、REST 域路由 | `CLIAdapter` registry、`deps.we_store()` |
+| **Frontend** | UI 与 HTTP 客户端 | `frontend-v2/src/lib/api/{chat,projects,...}.ts` |
+
+**契约 → 注册/注入 → 实现** 的统一说明、全端口对照表与 codex/cursor stub 状态见 **[`docs/ARCHITECTURE-PORTS.md`](./ARCHITECTURE-PORTS.md)**。
+
+Hub API 按域拆分至 `backend/hub/api/routes/`（channels、projects、chat、workflows、jobs、workspace_events 等）；`server.py` 保留 lifespan、静态资源与尚未拆出的路由。
+
+---
+
+## 10. 相关文档
 
 | 文档 | 内容 |
 |------|------|

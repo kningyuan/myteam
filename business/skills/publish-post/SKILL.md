@@ -57,6 +57,26 @@ python3 business/skills/zhihu-operations/scripts/verify_publish_deliverable.py \
 - 截图路径写 **相对交付物目录**，文件须存在。
 - 失败如实上报，由 Deputy/Main 安排重试，不得短路。
 
+## 小红书笔记
+
+**先读**：`business/skills/xhs-operations/SKILL.md`  
+**Gate 模板**：workflow 任务 `template_id: publish-xhs`  
+**发布前清单**：`business/skills/xhs-operations/checklists/publish_preflight.md`
+
+```bash
+bash business/skills/xhs-operations/scripts/check_xhs_login.sh
+# 未登录: bash business/skills/xhs-operations/scripts/login_xhs.sh
+
+DELIV_DIR="<交付物目录>"
+mkdir -p "$DELIV_DIR/evidence"
+SHOT="$DELIV_DIR/evidence/xhs-$(date +%Y%m%d-%H%M%S).png"
+bash business/skills/publish-post/scripts/publish_xhs.sh "标题" @note_body.md "$SHOT"
+# 笔记须配图：脚本无法上传时人工发布，再填真实 URL + 截图
+
+python3 business/skills/xhs-operations/scripts/verify_publish_deliverable.py \
+  "<交付物目录>/t-publish_deliverable.md"
+```
+
 ## 其它平台
 
-小红书等见对应 workflow；脚本与 Gate `evidence_url` 规则以 `templates.yaml` 为准（知乎以外尚未配专用脚本时须人工发布 + 真实 URL 证据）。
+其它平台见对应 workflow；无专用脚本时须人工发布 + 真实 URL 证据。

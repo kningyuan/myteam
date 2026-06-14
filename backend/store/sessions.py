@@ -84,6 +84,16 @@ class SessionStore:
             del self._map[k]
             self._save()
 
+    def remove_for_agent_workspace(self, agent_id: str, workspace_key: str) -> int:
+        """移除某 Agent 在指定 workspace_key 下所有 Adapter 的 session 映射。"""
+        suffix = f":{agent_id}:{workspace_key}"
+        to_del = [k for k in self._map if k.endswith(suffix)]
+        for k in to_del:
+            del self._map[k]
+        if to_del:
+            self._save()
+        return len(to_del)
+
 
 session_store = SessionStore()
 

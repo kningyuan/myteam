@@ -32,6 +32,11 @@ def parse_line(line: str) -> list[AgentEvent]:
         if text:
             events.append(AgentEvent(EventKind.TEXT, {"content": text}))
 
+    elif event_type == "reasoning":
+        text = part.get("text", "")
+        if text:
+            events.append(AgentEvent(EventKind.REASONING, {"content": text}))
+
     elif event_type == "tool_use":
         name = part.get("tool") or part.get("name") or ""
         state = part.get("state", {}) or {}

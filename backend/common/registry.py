@@ -47,6 +47,8 @@ TASK_TYPE_DISPLAY_NAMES: dict[str, str] = {
     "decision-record": "决策记录 decision-record",
     "acceptance-report": "验收报告 acceptance-report",
     "code-deployment": "部署记录 code-deployment",
+    "deploy-run": "部署执行留痕 deploy-run",
+    "config-bundle": "配置包 config-bundle",
     "data-analysis": "数据分析 data-analysis",
     "geo-plan": "GEO策略 geo-plan",
     "geo-audit": "GEO审计 geo-audit",
@@ -55,6 +57,8 @@ TASK_TYPE_DISPLAY_NAMES: dict[str, str] = {
     "deck-build": "演示文稿 deck-build",
     "product-research": "产品调研 product-research",
     "product-planning": "产品整体规划 product-planning",
+    "section-authoring": "方案编制 section-authoring",
+    "section-review": "章节审计 section-review",
     "arch-research": "架构调研 arch-research",
 }
 
@@ -74,8 +78,57 @@ class FormatSpec:
     acceptance_criteria: list[str] = field(default_factory=list)
     min_project_files: int = 1
     require_code_file: bool = False
+    required_extensions: list[str] = field(default_factory=list)
     structure: list[str] = field(default_factory=list)
     delivery_profile: str = "none"
+    template_id: str = ""
+    template_display_name: str = ""
+
+
+def _spec_from_delivery_template(task_type: str, base: "FormatSpec", tpl) -> FormatSpec:
+    """用交付模板覆盖 Gate / scaffold / Review 字段；profile 来自 task_type。"""
+    from common.delivery_templates import DeliveryTemplate
+
+    assert isinstance(tpl, DeliveryTemplate)
+    dt = tpl.deliverable_template or {}
+    check_rules = tpl.check_rules or {}
+    required_sections = list(check_rules.get("required_sections") or [])
+    if not required_sections and dt.get("sections"):
+        required_sections = [
+            str(s.get("name", "")).strip()
+            for s in dt.get("sections", [])
+            if isinstance(s, dict) and s.get("required", True) and s.get("name")
+        ]
+    min_len = int(check_rules.get("min_length") or 0)
+    stub_floor = int(check_rules.get("stub_floor") or DEFAULT_STUB_FLOOR)
+    if min_len > stub_floor:
+        stub_floor = min_len
+    business_files = list(check_rules.get("file_exists") or [])
+    profile_name = base.delivery_profile
+    criteria = list(tpl.acceptance_criteria) if tpl.acceptance_criteria else _derive_acceptance_criteria(
+        {"acceptance_criteria": []}, required_sections,
+    )
+    evidence_cfg = dict(check_rules.get("evidence_url") or base.evidence or {})
+    return FormatSpec(
+        task_type=task_type,
+        display_name=tpl.display_name or base.display_name,
+        outcome_kind=base.outcome_kind,
+        required_sections=required_sections,
+        required_heading_level=int(dt.get("required_heading_level", base.required_heading_level or 2)),
+        sections=list(dt.get("sections") or []),
+        file_exists=business_files,
+        evidence=evidence_cfg,
+        stub_floor=stub_floor,
+        must_include=list(check_rules.get("must_include") or []),
+        acceptance_criteria=criteria,
+        min_project_files=int(check_rules.get("min_project_files", base.min_project_files) or base.min_project_files),
+        require_code_file=bool(check_rules.get("require_code_file", base.require_code_file)),
+        required_extensions=list(check_rules.get("required_extensions") or base.required_extensions or []),
+        structure=list(dt.get("structure") or []),
+        delivery_profile=profile_name,
+        template_id=tpl.id,
+        template_display_name=tpl.display_name or tpl.id,
+    )
 
 
 def _load_yaml(path: Path) -> dict:
@@ -135,6 +188,7 @@ def _build_spec(task_type: str, task_cfg: dict) -> FormatSpec:
         acceptance_criteria=_derive_acceptance_criteria(task_cfg, required_sections),
         min_project_files=int(check_rules.get("min_project_files", 1) or 1),
         require_code_file=bool(check_rules.get("require_code_file", False)),
+        required_extensions=[str(x) for x in (check_rules.get("required_extensions") or []) if str(x).strip()],
         structure=list(dt.get("structure", []) or []),
         delivery_profile=profile_name,
     )
@@ -150,7 +204,35 @@ def invalidate_registry_cache() -> None:
     """templates.yaml 写入后调用，使 load_registry / get_spec 读到最新配置。"""
     _load_all.cache_clear()
     from common.delivery_profiles import invalidate_delivery_profiles_cache
+    from common.delivery_templates import invalidate_delivery_templates_cache
     invalidate_delivery_profiles_cache()
+    invalidate_delivery_templates_cache()
+
+
+def resolve_format_spec(
+    task_type: str,
+    template_id: Optional[str] = None,
+    *,
+    path: Optional[Path] = None,
+) -> Optional[FormatSpec]:
+    """task_type 默认 + 可选 template_id 覆盖 Gate/scaffold/Review 结构。"""
+    base = get_spec(task_type, path)
+    if not base:
+        return None
+    tid = (template_id or "").strip()
+    if not tid:
+        return base
+    from common.delivery_templates import load_delivery_template
+    tpl = load_delivery_template(tid)
+    return _spec_from_delivery_template(task_type, base, tpl)
+
+
+def spec_for_task(task: dict, *, path: Optional[Path] = None) -> Optional[FormatSpec]:
+    tt = str(task.get("task_type") or "").strip()
+    if not tt:
+        return None
+    tpl = str(task.get("template_id") or "").strip() or None
+    return resolve_format_spec(tt, tpl, path=path)
 
 
 def load_registry(path: Optional[Path] = None) -> dict[str, FormatSpec]:

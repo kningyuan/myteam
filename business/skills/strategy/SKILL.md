@@ -6,7 +6,8 @@ description: 策略分析 — 背景、分析、方案、建议；须含不确�
 
 # strategy — 策略分析
 
-**先读**：`business/skills/product-operations/SKILL.md`
+**必须先读**：`business/skills/product-methodology/SKILL.md`  
+**再读**：`business/skills/product-operations/SKILL.md`
 
 ## 执行步骤
 

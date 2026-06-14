@@ -11,3 +11,7 @@ class ProjectHooks:
     on_team_ready: Optional[Callable[[str, list[str], str], None]] = None
     on_task_done: Optional[Callable[[str, str, str, str], None]] = None
     on_wave: Optional[Callable[[str, list[str]], None]] = None
+    # loop 单轮结束：project_id, loop_id, round_num, passed, work_task_id, review_task_id
+    on_loop_round_done: Optional[
+        Callable[[str, str, int, bool, str, str], None]
+    ] = None

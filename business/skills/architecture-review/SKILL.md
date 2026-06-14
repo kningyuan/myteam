@@ -6,6 +6,10 @@ description: 架构/配置/贯通性评审 — 输出可执行的差距矩阵与
 
 # architecture-review — 配置与架构评审
 
+**必须先读**（内核按 agent_id 注入）：
+- `arch` / `frontend` → `business/skills/system-architecture-methodology/SKILL.md`（C4 + 质量属性 + trade-off）
+- `qa` → `business/skills/qa-methodology/SKILL.md`（质量与可测性视角，非替代架构方法论）
+
 配置贯通类任务 **先读**：`business/skills/myteam-config-linkage/SKILL.md`
 
 ## 执行步骤

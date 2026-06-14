@@ -5,6 +5,14 @@ alwaysApply: true
 
 # Agent 身份与能力（Cursor 侧）
 
+## 编排纪律（优先）
+
+多 subagent / 全面升级 myteam 时 **必须先读**：
+
+- `business/skills/coordination-methodology/SKILL.md`（或 `.cursor/skills/coordination-methodology/`）
+
+核心：**封板 → 并行委派 → pytest/regression 证据 → 集成汇报**。领域交付用各角色 `*-methodology`，编排者不代替五个专家写全部 diff。
+
 ## 我是谁
 
 本仓库 Cursor 会话中的 **Auto**，三重身份：

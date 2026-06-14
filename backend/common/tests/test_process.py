@@ -85,8 +85,24 @@ def exec_env(iid, rel_path, quality):
 GOOD_Q = {"score": 0.9, "known_gaps": [], "notes": "ok"}
 
 
+def _ensure_process_artifacts(project_id: str) -> None:
+    """light_v1 过程产物：避免 Gate 因模板 stub 失败。"""
+    base = paths.deliverables_dir(project_id)
+    base.mkdir(parents=True, exist_ok=True)
+    align = base / "align.md"
+    if not align.is_file() or "<!--" in align.read_text(encoding="utf-8", errors="replace"):
+        align.write_text(
+            "# Align\n\n## 对象\n\n目标\n\n## 输入\n\n输入\n\n## 成功标准\n\n标准\n\n## 非目标\n\n无\n",
+            encoding="utf-8",
+        )
+    vlog = base / "verify.log"
+    if not vlog.is_file() or len(vlog.read_text(encoding="utf-8", errors="replace").strip()) < 8:
+        vlog.write_text("PASS: self-check ok\n", encoding="utf-8")
+
+
 def _write_exec(ctx, content, quality):
     req = ctx.request
+    _ensure_process_artifacts(req.project_id)
     rel = f"{req.task_id}_deliverable.md"
     dv = paths.deliverables_dir(req.project_id) / rel
     dv.write_text(content, encoding="utf-8")
@@ -221,9 +237,10 @@ def test_gate_retry_reuses_session(env):
 
 
 def test_pure_format_retry_includes_deliverable_path(env):
-    """纯格式门禁失败时，下一轮 retry_feedback 附带旧稿路径与短修标题指令。"""
+    """纯格式门禁失败时，下一轮 retry_feedback 附带旧稿路径，patch_hint=format_only。"""
     store, wcfg = env
     seen_feedback: list[list[str]] = []
+    seen_patch_hint: list[str] = []
 
     def transport(ctx):
         ctx.emit("step_start")
@@ -232,6 +249,7 @@ def test_pure_format_retry_includes_deliverable_path(env):
             _write_exec(ctx, bad_content("research"), GOOD_Q)
         else:
             seen_feedback.append(list(ctx.request.retry_feedback or []))
+            seen_patch_hint.append((ctx.request.constraints or {}).get("patch_hint", ""))
             _write_exec(ctx, valid_content("research"), GOOD_Q)
 
     proc = Process(store, _port(store, wcfg, transport), ProcessConfig(max_gate_retries=3))
@@ -243,8 +261,7 @@ def test_pure_format_retry_includes_deliverable_path(env):
     fb = "\n".join(seen_feedback[0])
     assert "上一轮交付物文件：" in fb
     assert "t1_deliverable.md" in fb
-    assert "只调整 Markdown 标题结构" in fb
-    assert "禁止重读仓库或重写内容" in fb
+    assert seen_patch_hint == ["format_only"]
 
 
 def test_gate_exhausted_failed_blocks_dependents(env):
@@ -985,12 +1002,11 @@ def test_auto_create_agent_direct(tmp_path, monkeypatch):
     assert ws_dir.is_dir()
     assert (ws_dir / ".trigger").is_dir()
     assert (ws_dir / ".response").is_dir()
-    for fname in ["IDENTITY.md", "AGENTS.md", "SOUL.md"]:
+    for fname in ["IDENTITY.md", "AGENTS.md", "SOUL.md", "USER.md"]:
         assert (ws_dir / fname).is_file(), f"缺少 {fname}"
-        content = (ws_dir / fname).read_text(encoding="utf-8")
-        assert "测试开发者" in content or "test_dev" in content
-    for fname in ["USER.md", "TOOLS.md", "HEARTBEAT.md"]:
-        assert (ws_dir / fname).is_file(), f"缺少 {fname}"
+        if fname != "USER.md":
+            content = (ws_dir / fname).read_text(encoding="utf-8")
+            assert "测试开发者" in content or "test_dev" in content
 
     # 验证 agents_config.json
     import json
@@ -1141,9 +1157,11 @@ def test_fail_reason_passed_to_triage(env):
     assert triage_inputs[0].get("fail_reason") == "no_response"
 
 
-def test_kernel_triage_k7_measurable(env, tmp_path):
+def test_kernel_triage_k7_measurable(env, tmp_path, monkeypatch):
     """C：真实 Process 路径失败→triage 产出可计 K7（非种子 SQL）。"""
     import sqlite3
+
+    monkeypatch.setattr("common.agent_port.audit_enabled", lambda: True)
 
     _REG = Path(__file__).resolve().parents[3] / "scripts" / "regression"
     sys.path.insert(0, str(_REG))

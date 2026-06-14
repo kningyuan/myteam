@@ -116,8 +116,37 @@ def test_project_events_route(client):
 def test_task_detail_and_404(client):
     r = client.get("/api/obs/projects/p1/tasks/task_001")
     assert r.status_code == 200
-    assert len(r.json()["interactions"]) == 1
+    body = r.json()
+    assert len(body["interactions"]) == 1
+    assert body["task"]["id"] == "task_001"
     assert client.get("/api/obs/projects/p1/tasks/nope").status_code == 404
+
+
+def test_task_detail_gate_and_quality(client, tmp_path, monkeypatch):
+    db = tmp_path / "state2.db"
+    seed = Store(db)
+    seed.upsert_project("p2", title="T", status="in_progress")
+    seed.upsert_task("p2", "t1", agent="research", task_type="research", status="failed",
+                     meta={"fail_reason": "gate_exhausted", "fail_detail": "重试耗尽"})
+    iid = "p2:t1:execute:1"
+    seed.create_interaction(iid, "execute", "p2", task_id="t1", agent_id="research")
+    seed.append_run_event(iid, "gate_failed", {
+        "failures": [{"rule": "required_sections", "expected": "## 结论", "actual": "缺失"}],
+    })
+    seed.append_run_event(iid, "response_snapshot", {
+        "response": {"quality": {"score": 0.85, "known_gaps": ["样本偏少"], "notes": "基本完成"}},
+    })
+    seed.close()
+    monkeypatch.setattr(obs_api, "_store", lambda: Store(db))
+    app = FastAPI()
+    app.include_router(obs_api.router)
+    c = TestClient(app)
+    r = c.get("/api/obs/projects/p2/tasks/t1")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["task"]["fail_reason"] == "gate_exhausted"
+    assert data["latest_quality"]["score"] == 0.85
+    assert data["interactions"][0]["gate_failures"][0]["rule"] == "required_sections"
 
 
 def test_timeline(client):

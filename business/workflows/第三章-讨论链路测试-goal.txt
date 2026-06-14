@@ -1,0 +1,16 @@
+【测试目标】验证 Work–Review 循环在 REVIEW: FAIL 后的完整链路：
+项目群讨论（product↔main 定点对齐）→ 生成改稿清单 → product PATCH → 再审 PASS。
+
+【材料】复用 tds-ch3-rerun2 已通过的第三章交付物作为基线，不重写全文。
+
+【只读基线】
+- business/tasks/project/tds-ch3-rerun2/deliverables/ch3_quality_round-r1-work_deliverable.md
+- 同目录下 product-architecture / functional-architecture 的 drawio 与 png
+
+【成功标准】
+1. 第 1 轮 main 评审 REVIEW: FAIL
+2. 项目群出现结构化讨论与「定点改稿清单」
+3. 第 2 轮 product 仅 PATCH 清单项
+4. 第 2 轮 main REVIEW: PASS
+
+template_id: tds-ch3-product-planning

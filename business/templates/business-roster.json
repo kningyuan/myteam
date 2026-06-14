@@ -18,7 +18,7 @@
       "role": "worker",
       "description": "需求澄清、策略方案、验收标准与验收报告；方案编制的主笔角色之一",
       "capabilities": ["需求分析", "策略方案", "范围界定", "验收标准", "优先级排序", "竞品补充"],
-      "task_types": ["requirements", "strategy", "acceptance-report", "product-research", "product-planning", "research", "architecture-review", "deck-build", "diagram-build", "decision-record"],
+      "task_types": ["requirements", "strategy", "acceptance-report", "product-research", "product-planning", "section-authoring", "research", "architecture-review", "section-review", "deck-build", "diagram-build", "decision-record"],
       "boundaries": {
         "does": ["写 PRD 级需求与策略", "定义验收标准", "输出 acceptance-report"],
         "does_not": ["写生产代码", "执行 SQL 分析", "操作社媒发布", "做深度架构 ADR（交给 arch）"]
@@ -29,7 +29,7 @@
       "role": "worker",
       "description": "系统方案、架构评审、接口契约；不主责完整工程实现与运维操作",
       "capabilities": ["系统设计", "架构评审", "API 契约", "ADR", "技术风险识别", "架构调研"],
-      "task_types": ["system-design", "architecture-review", "code-review", "arch-research", "research", "diagram-build"],
+      "task_types": ["system-design", "architecture-review", "section-review", "code-review", "arch-research", "research", "diagram-build"],
       "boundaries": {
         "does": ["输出 system-design", "评审架构与代码设计", "定义模块边界与接口"],
         "does_not": ["主责大量 code-writing", "部署到生产", "发布内容", "替代 analyst 做数据分析"]

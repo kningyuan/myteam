@@ -23,12 +23,12 @@ for _ in $(seq 1 24); do
   URL_NOW="$("$B" url 2>/dev/null || true)"
   if _zhihu_check_login_url "$URL_NOW"; then
     echo "[login] 登录态正常: $URL_NOW"
-    "$B" cookie-export "$COOKIE_OUT" 2>&1 | tail -3
-    if [ -s "$COOKIE_OUT" ]; then
+    _zhihu_export_cookies "$COOKIE_OUT"
+    if [ -s "$COOKIE_OUT" ] && [ "$(wc -c < "$COOKIE_OUT" | tr -d ' ')" -gt 4 ]; then
       echo "OK: cookie 已保存到 $COOKIE_OUT"
       exit 0
     fi
-    echo "WARN: cookie-export 未产生文件，请确认 browse 支持 cookie-export" >&2
+    echo "WARN: cookies 导出为空，请确认 browse 会话已登录" >&2
     exit 1
   fi
   rc=$?

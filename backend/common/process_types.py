@@ -16,7 +16,7 @@ class BudgetExceededError(Exception):
 @dataclass
 class ProcessConfig:
     mode: str = "one_shot"                 # one_shot | recurring
-    max_gate_retries: int = 5              # 确定性门禁失败的重试上限（D18）
+    max_gate_retries: int = 3              # 确定性门禁失败的重试上限（D18 → D19 PATCH 减为 3）
     max_plan_retries: int = 2              # task_plan 指派团队外 agent 时的重试上限
     review_enabled: bool = False           # 是否走同行评审（TaskPipeline.peer_review）
     quality_floor: float = 0.6             # 自评低于此 → needs_review

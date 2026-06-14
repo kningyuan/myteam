@@ -1,0 +1,38 @@
+id: prd-lite
+task_types:
+  - requirements
+default_for: requirements
+version: "1.0"
+display_name: 轻量需求说明（PRD Lite）
+description: |
+  小改动、内部对齐用需求文档：3 节结构，不要求架构图附件。
+
+deliverable_template:
+  required_heading_level: 2
+  sections:
+    - name: 背景与目标
+      description: 问题背景、业务目标、成功指标
+      required: true
+    - name: 范围
+      description: In Scope / Out of Scope
+      required: true
+    - name: 用户故事与验收标准
+      description: 用户故事 + 可测验收标准（表格或列表）
+      required: true
+  structure:
+    - H1 作为需求文档主标题
+    - 验收标准使用表格或编号列表
+
+check_rules:
+  required_sections:
+    - 背景与目标
+    - 范围
+    - 用户故事与验收标准
+  must_include:
+    - Out of Scope
+  min_length: 400
+
+acceptance_criteria:
+  - 三节齐全，每节有实质内容（非占位符）
+  - 范围节明确 Out of Scope
+  - 验收标准可测试、可核对

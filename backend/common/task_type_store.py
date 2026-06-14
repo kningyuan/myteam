@@ -153,10 +153,17 @@ def agents_using_task_type(task_type: str) -> list[str]:
 
 def format_task_type_api(spec) -> dict[str, Any]:
     """将 FormatSpec 转为 Hub / 管理 Tab API 结构。"""
+    from common.task_type_suggest import list_outcome_kind_catalog
+
+    catalog = {o["id"]: o for o in list_outcome_kind_catalog()}
+    kind_meta = catalog.get(spec.outcome_kind) or {}
     gate_checks = []
     if spec.outcome_kind == "code_project":
         gate_checks.append(f"≥{spec.min_project_files} 个文件")
-        if spec.require_code_file:
+        exts = getattr(spec, "required_extensions", None) or []
+        if exts:
+            gate_checks.append(f"扩展名 {', '.join(exts)}")
+        elif spec.require_code_file:
             gate_checks.append("须含脚本/代码")
         gate_checks.extend(spec.file_exists)
     else:
@@ -166,6 +173,8 @@ def format_task_type_api(spec) -> dict[str, Any]:
         "task_type": spec.task_type,
         "display_name": spec.display_name or spec.task_type,
         "outcome_kind": spec.outcome_kind,
+        "outcome_form_label": kind_meta.get("form_label_zh") or spec.outcome_kind,
+        "gate_algorithm": kind_meta.get("gate_algorithm") or "",
         "required_sections": spec.required_sections,
         "must_include": spec.must_include,
         "stub_floor": spec.stub_floor,
@@ -184,10 +193,11 @@ def format_task_type_api(spec) -> dict[str, Any]:
 
 
 def list_task_types_for_api() -> list[dict[str, Any]]:
-    return [
-        format_task_type_api(spec)
-        for _, spec in sorted(load_registry().items(), key=lambda x: x[0])
-    ]
+    from common.hub_operation_meta import attach_operated_at, sort_by_operated_at
+
+    items = [format_task_type_api(spec) for _, spec in load_registry().items()]
+    items = attach_operated_at(items, "task_type", id_key="task_type")
+    return sort_by_operated_at(items, id_key="task_type")
 
 
 def workflows_using_task_type(task_type: str) -> list[str]:

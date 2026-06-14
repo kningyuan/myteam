@@ -23,4 +23,5 @@ if _zhihu_check_login_url "$URL_NOW"; then
   echo "OK: 知乎登录态正常"
   exit 0
 fi
-exit $?
+rc=$?
+exit "${rc:-2}"

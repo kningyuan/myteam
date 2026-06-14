@@ -6,12 +6,60 @@
 <title>Agent Hub v2.1</title>
 <link rel="stylesheet" href="/static/tokens.css?v=7">
 <link rel="stylesheet" href="/static/layout.css?v=7">
-<link rel="stylesheet" href="/static/components.css?v=7">
-<link rel="stylesheet" href="/static/pages.css?v=9">
+<link rel="stylesheet" href="/static/components.css?v=8">
+<link rel="stylesheet" href="/static/pages.css?v=22">
 <link rel="stylesheet" href="/static/style.css?v=51">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
+<script>
+(function () {
+  var KEY = 'agentHub_uiState_v2';
+  var TABS = ['home', 'chat', 'groups', 'projects', 'manage', 'workflows', 'settings'];
+  var MTABS = ['agents', 'tasktypes', 'templates', 'knowledge'];
+  var tab = 'home', mtab = 'agents';
+  try {
+    var h = (location.hash || '').replace(/^#+/, '').trim();
+    if (h) {
+      var p = h.split('/').filter(Boolean);
+      if (p[0] === 'manage') {
+        tab = 'manage';
+        mtab = MTABS.indexOf(p[1]) >= 0 ? p[1] : 'agents';
+      } else if (TABS.indexOf(p[0]) >= 0) {
+        tab = p[0];
+      }
+    } else {
+      var s = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (s && s.tab) {
+        var legacy = { agents: 'manage', tasktypes: 'manage', knowledge: 'manage' };
+        var raw = s.tab;
+        tab = legacy[raw] || raw;
+        if (TABS.indexOf(tab) < 0) tab = 'home';
+        if (tab === 'manage') {
+          mtab = s.manageMtab || (raw === 'tasktypes' ? 'tasktypes' : raw === 'knowledge' ? 'knowledge' : 'agents');
+          if (MTABS.indexOf(mtab) < 0) mtab = 'agents';
+        }
+      }
+    }
+  } catch (_) { /* ignore */ }
+  document.documentElement.dataset.uiTab = tab;
+  if (tab === 'manage') document.documentElement.dataset.uiMtab = mtab;
+})();
+</script>
+<style id="ui-boot">
+html[data-ui-tab]:not([data-ui-tab="home"]) #tab-home { display: none !important; }
+html[data-ui-tab="manage"] #tab-manage,
+html[data-ui-tab="chat"] #tab-chat,
+html[data-ui-tab="groups"] #tab-groups,
+html[data-ui-tab="projects"] #tab-projects,
+html[data-ui-tab="workflows"] #tab-workflows,
+html[data-ui-tab="settings"] #tab-settings { display: flex !important; flex-direction: column; min-height: 0; }
+html[data-ui-tab="manage"] .mtab-panel { display: none !important; }
+html[data-ui-tab="manage"][data-ui-mtab="agents"] .mtab-panel[data-mtab="agents"],
+html[data-ui-tab="manage"][data-ui-mtab="tasktypes"] .mtab-panel[data-mtab="tasktypes"],
+html[data-ui-tab="manage"][data-ui-mtab="templates"] .mtab-panel[data-mtab="templates"],
+html[data-ui-tab="manage"][data-ui-mtab="knowledge"] .mtab-panel[data-mtab="knowledge"] { display: block !important; }
+</style>
 </head>
 <body class="no-list">
 <div id="app">
@@ -24,10 +72,11 @@
       <button class="nav-tab" data-tab="chat" title="对话" aria-label="对话"><span data-icon="chat"></span><span class="nav-label">对话</span></button>
       <button class="nav-tab" data-tab="groups" title="群组" aria-label="群组"><span data-icon="users"></span><span class="nav-label">群组</span></button>
       <button class="nav-tab" data-tab="projects" title="项目" aria-label="项目"><span data-icon="clipboard"></span><span class="nav-label">项目</span></button>
-      <button class="nav-tab" data-tab="agents" title="管理" aria-label="管理"><span data-icon="sliders"></span><span class="nav-label">管理</span></button>
+      <button class="nav-tab" data-tab="manage" title="管理" aria-label="管理"><span data-icon="sliders"></span><span class="nav-label">管理</span></button>
       <button class="nav-tab" data-tab="workflows" title="Workflow" aria-label="Workflow"><span data-icon="flow"></span><span class="nav-label">流程</span></button>
     </div>
     <div class="rail-bottom">
+      <a href="/v2/" class="rail-btn rail-hub2-link" title="Hub 2.0 产品化 UI">2.0</a>
       <div class="theme-menu" id="theme-menu-wrap">
         <button id="btn-theme" class="rail-btn" title="主题设置" type="button" data-icon="theme"></button>
       </div>
@@ -82,6 +131,17 @@
       <!-- Tab: Home / Dashboard -->
       <div id="tab-home" class="tab-content active">
         <div class="home-panel">
+          <div id="hub2-upgrade-banner" class="hub2-upgrade-banner hidden">
+            <div class="hub2-upgrade-banner__body">
+              <span class="hub2-upgrade-banner__badge">NEW</span>
+              <div>
+                <strong>Hub 2.0 已就绪</strong>
+                <p>侧栏导航 · 项目 DAG · 群组 SSE · 任务类型与产出形态</p>
+              </div>
+            </div>
+            <a href="/v2/" class="btn-primary hub2-upgrade-banner__cta">打开新版 →</a>
+            <button type="button" class="hub2-upgrade-banner__close" id="hub2-banner-dismiss" title="关闭">×</button>
+          </div>
           <div class="home-header">
             <h2>总览</h2>
             <button id="btn-home-new-project" class="btn-primary"><span data-icon="plus"></span> 发起项目</button>
@@ -218,8 +278,12 @@
               <button class="ptab" data-ptab="cost">成本</button>
             </div>
 
-            <!-- 概览：任务 DAG + 舰队 -->
+            <!-- 概览：发起配置 + 任务 DAG + 舰队 -->
             <div class="ptab-panel active" data-ptab="overview">
+              <div class="project-section project-launch-section">
+                <h3>发起配置</h3>
+                <div id="project-launch-config" class="launch-config-card">—</div>
+              </div>
               <div class="project-section">
                 <h3>任务 &amp; 产出 <small class="hint">点任务查看交付物正文</small></h3>
                 <div id="project-tasks" class="task-list"></div>
@@ -284,40 +348,79 @@
         </div>
       </div>
 
-      <!-- Tab: Agent Management -->
-      <div id="tab-agents" class="tab-content">
+      <!-- Tab: Manage (Agent / 任务类型 / 交付模板 / 知识库) -->
+      <div id="tab-manage" class="tab-content">
         <div class="manage-panel">
-          <div class="manage-header">
-            <div class="manage-header-left">
-              <h2>Agent 管理</h2>
-              <span class="badge" id="manage-agent-count">0</span>
-            </div>
-            <div class="manage-header-actions">
-              <button type="button" id="btn-sync-task-types" class="btn-secondary btn-sm">补全任务类型</button>
-              <button id="btn-create-agent" class="btn-primary"><span data-icon="plus"></span> 创建 Agent</button>
+          <div class="manage-top">
+            <h2>管理</h2>
+            <div class="manage-subnav">
+              <button type="button" class="mtab active" data-mtab="agents">Agent</button>
+              <button type="button" class="mtab" data-mtab="tasktypes">任务类型</button>
+              <button type="button" class="mtab" data-mtab="templates">交付模板</button>
+              <button type="button" class="mtab" data-mtab="knowledge">知识库</button>
             </div>
           </div>
-          <p class="subtitle">管理所有 Agent 的配置、后端和模型；未配置「可执行任务类型」的 Agent 无法被 workflow 正确指派</p>
-          <div id="manage-agent-table"></div>
 
-          <div class="manage-header mt-section">
-            <div class="manage-header-left">
-              <h2>任务类型</h2>
-              <span class="badge" id="manage-tasktype-count">0</span>
+          <div class="mtab-panel active" data-mtab="agents">
+            <div class="manage-header">
+              <div class="manage-header-left">
+                <span class="manage-panel-title">Agent</span>
+                <span class="badge" id="manage-agent-count">0</span>
+              </div>
+              <div class="manage-header-actions">
+                <input id="manage-agent-search" type="search" class="manage-search" placeholder="搜索 ID / 名称 / 后端 / 任务类型…" autocomplete="off">
+                <button type="button" id="btn-sync-task-types" class="btn-secondary btn-sm">补全任务类型</button>
+                <button id="btn-create-agent" class="btn-primary"><span data-icon="plus"></span> 创建 Agent</button>
+              </div>
             </div>
-            <button type="button" id="btn-new-tasktype" class="btn-secondary btn-sm">新建类型</button>
+            <p class="subtitle">配置后端、模型与可执行任务类型；按 Hub 内最近操作排序</p>
+            <div id="manage-agent-table"></div>
           </div>
-          <p class="subtitle">定义交付物模板与门禁；Agent 须在此注册类型中勾选方可执行</p>
-          <div id="manage-tasktype-table"></div>
 
-          <div class="manage-header mt-section">
-            <div class="manage-header-left">
-              <h2>知识库</h2>
-              <span class="badge" id="manage-memory-count">0</span>
+          <div class="mtab-panel" data-mtab="tasktypes">
+            <div class="manage-header">
+              <div class="manage-header-left">
+                <span class="manage-panel-title">任务类型</span>
+                <span class="badge" id="manage-tasktype-count">0</span>
+              </div>
+              <div class="manage-header-actions">
+                <input id="manage-tasktype-search" type="search" class="manage-search" placeholder="搜索 ID / 名称 / 章节 / 门禁…" autocomplete="off">
+                <button type="button" id="btn-new-tasktype" class="btn-secondary btn-sm">新建类型</button>
+              </div>
             </div>
+            <p class="subtitle">能力类 + 默认 Gate 壳（无 template_id 时使用）；按 Hub 内最近操作排序</p>
+            <div id="manage-tasktype-table"></div>
           </div>
-          <p class="subtitle">项目沉淀的长期记忆 / KB 条目（只读）</p>
-          <div id="manage-memory-table"></div>
+
+          <div class="mtab-panel" data-mtab="templates">
+            <div class="manage-header">
+              <div class="manage-header-left">
+                <span class="manage-panel-title">交付模板</span>
+                <span class="badge" id="manage-dt-count">0</span>
+              </div>
+              <div class="manage-header-actions">
+                <input id="manage-dt-search" type="search" class="manage-search" placeholder="搜索 ID / 名称 / 任务类型…" autocomplete="off">
+                <button type="button" id="btn-new-dt" class="btn-secondary btn-sm">新建模板</button>
+                <label class="btn-secondary btn-sm btn-file"><span data-icon="plus"></span> 导入模板文件<input type="file" id="dt-upload" accept=".yaml,.yml" hidden></label>
+              </div>
+            </div>
+            <p class="subtitle">场景化目录契约（Gate/Review 结构）；须绑定任务类型，Workflow 选模板时按类型过滤。模板以 YAML 文件存储，亦可用表单快速编辑。</p>
+            <div id="manage-dt-table"></div>
+          </div>
+
+          <div class="mtab-panel" data-mtab="knowledge">
+            <div class="manage-header">
+              <div class="manage-header-left">
+                <span class="manage-panel-title">知识库</span>
+                <span class="badge" id="kb-count">0</span>
+              </div>
+              <div class="manage-header-actions">
+                <input id="kb-search" type="search" class="manage-search" placeholder="搜索标题 / 项目 / 标签…" autocomplete="off">
+              </div>
+            </div>
+            <p class="subtitle">项目运行沉淀的长期记忆（只读）；按写入时间倒序</p>
+            <div id="kb-table"></div>
+          </div>
         </div>
       </div>
 
@@ -335,7 +438,7 @@
           <div class="wf-main">
             <div id="wf-welcome" class="wf-welcome">
               <p>选择左侧 workflow 编辑，或点击「新建」</p>
-              <p class="hint">description 写类任务变量（对象/视角/范围）；具体仓库链接待【项目目标】；格式由 task_type 模板承担</p>
+              <p class="hint">description 写类任务变量（对象/视角/范围）；具体仓库链接待【项目目标】；格式由任务类型模板承担</p>
             </div>
             <div id="wf-editor" class="wf-editor hidden">
               <div class="wf-form-grid">
@@ -374,11 +477,12 @@
                   <h3>任务列表</h3>
                   <button type="button" id="wf-add-task" class="btn-secondary btn-sm">添加任务</button>
                 </div>
+                <p class="hint wf-tasks-hint">任务 ID 为 <code>task-N</code> / <code>step-N</code>（不可改）。<strong>交付模板</strong>决定 Gate/Review 章节结构；Goal 可写 <code>template_id: xxx</code> 覆盖未指定的任务。依赖：Ctrl/⌘ 多选。</p>
                 <div class="wf-tasks-scroll">
                   <table class="wf-tasks-table">
                     <thead>
                       <tr>
-                        <th class="wf-col-order">顺序</th><th>ID</th><th>名称</th><th>Agent</th><th>类型</th><th>依赖</th><th>description</th><th></th>
+                        <th class="wf-col-order">顺序</th><th>ID</th><th>名称</th><th>模式</th><th>Agent</th><th>类型</th><th>交付模板</th><th>依赖</th><th></th>
                       </tr>
                     </thead>
                     <tbody id="wf-tasks-body"></tbody>
@@ -785,6 +889,70 @@
   </div>
 </div>
 
+<!-- Delivery Template Modal -->
+<div id="dt-modal" class="modal hidden">
+  <div class="modal-content modal-xl dt-modal-content">
+    <div class="modal-header">
+      <h3 id="dt-modal-title">交付模板</h3>
+      <button class="modal-close dt-modal-close" data-icon="x"></button>
+    </div>
+    <div class="modal-body dt-modal-body">
+      <p class="hint dt-form-hint">模板保存在 <code>business/delivery_templates/*.yaml</code>。常用字段可在下方填写；高级用户可展开 YAML 直接编辑完整配置。</p>
+      <div class="dt-form-grid">
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label for="dt-id">模板 ID</label>
+            <input id="dt-id" placeholder="例如 prd-standard">
+            <p class="hint">英文标识，创建后不可修改；用于 Workflow 引用。</p>
+          </div>
+          <div class="form-group flex-1">
+            <label for="dt-display-name">显示名称</label>
+            <input id="dt-display-name" placeholder="例如 方案章节编制">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="dt-description">描述</label>
+          <input id="dt-description" placeholder="适用场景、产出说明">
+        </div>
+        <div class="form-row dt-form-row-split">
+          <div class="form-group flex-1">
+            <label for="dt-task-types">绑定任务类型</label>
+            <p class="hint">按住 Ctrl（Mac：⌘）可多选；Workflow 在该类型下可选此模板。</p>
+            <select id="dt-task-types" multiple size="10" class="dt-task-types-select"></select>
+          </div>
+          <div class="form-group flex-1 dt-side-col">
+            <div class="form-group">
+              <label for="dt-default-for">默认任务类型</label>
+              <select id="dt-default-for" class="wf-input-sm">
+                <option value="">（不设置）</option>
+              </select>
+              <p class="hint">当某任务类型未指定模板时，优先使用本模板；须为左侧已勾选的任务类型之一。</p>
+            </div>
+            <div class="form-group">
+              <label for="dt-sections">必需章节</label>
+              <input id="dt-sections" placeholder="章节对象, 正文, 依据与引用">
+              <p class="hint">逗号分隔；快速新建时使用，会生成 Gate 校验的章节清单。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <details class="dt-yaml-details">
+        <summary>高级：完整配置（YAML）</summary>
+        <div class="form-group">
+          <label for="dt-yaml">YAML 内容</label>
+          <textarea id="dt-yaml" rows="12" class="dt-yaml" placeholder="留空则按上方字段生成；填写后保存时以 YAML 为准"></textarea>
+          <p class="hint">系统仅支持 YAML 格式存储。导入 <code>.yaml</code> / <code>.yml</code> 文件时会填入此处。</p>
+        </div>
+      </details>
+      <div id="dt-status" class="form-status"></div>
+    </div>
+    <div class="modal-footer">
+      <button id="dt-save" class="btn-primary">保存</button>
+      <button id="dt-cancel" class="btn-secondary">取消</button>
+    </div>
+  </div>
+</div>
+
 <!-- Agent Manage Modal -->
 <div id="manage-modal" class="modal hidden">
   <div class="modal-content">
@@ -815,7 +983,7 @@
       </div>
       <div class="form-group">
         <label>可执行任务类型</label>
-        <p class="hint">勾选后该 Agent 才能被 workflow / 内核指派对应 task_type；类型须在下方「任务类型」中已注册。</p>
+        <p class="hint">勾选后该 Agent 才能被 workflow / 内核指派对应任务类型；类型须在「任务类型」中已注册。</p>
         <button type="button" id="mm-suggest-task-types" class="btn-secondary btn-sm">按职责自动勾选</button>
         <div id="mm-task-types" class="tasktype-checkboxes"></div>
       </div>
@@ -853,15 +1021,16 @@
 <script src="/static/markdown.js?v=1"></script>
 <script src="/static/dag-renderer.js?v=4"></script>
 <script src="/static/timeline.js?v=2"></script>
-<script src="/static/ui-core.js?v=6"></script>
+<script src="/static/ui-core.js?v=8"></script>
 <script src="/static/chat.js?v=3"></script>
-<script src="/static/group.js?v=4"></script>
-<script src="/static/project.js?v=8"></script>
-<script src="/static/manage.js?v=7"></script>
+<script src="/static/group.js?v=6"></script>
+<script src="/static/project.js?v=11"></script>
+<script src="/static/manage.js?v=16"></script>
+<script src="/static/knowledge.js?v=2"></script>
 <script src="/static/settings.js?v=4"></script>
-<script src="/static/workflows.js?v=6"></script>
-<script src="/static/dashboard.js?v=3"></script>
-<script src="/static/app.js?v=47"></script>
+<script src="/static/workflows.js?v=19"></script>
+<script src="/static/dashboard.js?v=4"></script>
+<script src="/static/app.js?v=52"></script>
 <div id="theme-dropdown" class="theme-dropdown hidden">
   <button type="button" data-theme="dark"><span data-icon="moon"></span> 深色</button>
   <button type="button" data-theme="light"><span data-icon="sun"></span> 浅色</button>

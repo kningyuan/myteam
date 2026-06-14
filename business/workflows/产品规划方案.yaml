@@ -1,0 +1,82 @@
+id: 产品规划方案
+version: '2.2'
+description: |
+  产品撰写「产品整体规划」↔ 项目经理**内容质量**评审（评合理性，非字数）。
+  评审 FAIL：项目群内定点对齐 → product 仅 PATCH → 再评审，直至 REVIEW: PASS。
+options:
+  review_enabled: false
+  needs_review_blocks: true
+  group_discussion_enabled: true
+  loop_discussion_profile: work-review-alignment
+  collaboration:
+    project_group:
+      enabled: true
+    notifications:
+      enabled: true
+    group_discussion:
+      enabled: true
+      profile: work-review-alignment
+  split_enabled: false
+  parallel_enabled: false
+  max_parallel: 1
+loops:
+- id: ch3_quality_round
+  description: 第三章 Work–Review 直到 main 内容质量评审通过
+  max_rounds: 5
+  on_pass: complete
+  on_exhaust: needs_review
+  until:
+  - type: deliverable_marker
+    task: review
+    marker: "REVIEW: PASS"
+  body:
+  - id: work
+    name: 编写/修订产品整体规划
+    agent: product
+    task_type: product-planning
+    template_id: tds-ch3-product-planning
+    dependencies: []
+    description: |
+      【对象】Goal 指定的方案/产品（可信数据空间）
+      【轮次】第 {round}/{max_rounds} 轮（loop: {loop_id}）
+      【第 1 轮】按 tds-ch3-product-planning 撰写第三章「产品整体规划」全部 ### 小节
+      【第 2+ 轮 · PATCH 模式】
+        - 基线已复制：deliverables/{prev_work_task_id}_deliverable.md → {work_task_id}_deliverable.md
+        - **仅修改**群讨论「定点改稿清单」中的 ### 小节/段落；其余章节 verbatim 保留
+        - 禁止全文重写、禁止调整未在清单中的章节顺序与措辞
+        - 必读：{loop_id}-r{prev_round}-review_deliverable.md、{loop_id}-r{prev_round}-group_discussion.md
+      【只读】business/inputs/trusted-data-space/source_ch1_overview.md
+      【只读】business/inputs/trusted-data-space/source_ch2_market.md
+      【只读】business/inputs/trusted-data-space/source_ch3_current.md
+      【约束】不修改第一、二章结论；架构图仅清单要求时改 drawio/png
+      【架构图】product-architecture.drawio/.png、functional-architecture.drawio/.png（内嵌 Markdown）
+      【产出】{work_task_id}_deliverable.md + 架构图（不是评审意见）
+  - id: review
+    name: 项目经理内容质量评审
+    agent: main
+    task_type: section-review
+    dependencies:
+    - work
+    description: |
+      【对象】本轮 work 交付物 `{work_task_id}_deliverable.md`
+      【轮次】第 {round}/{max_rounds} 轮
+      【评审标准 — 看内容是否合理，不看字数】
+        - 合理性：架构/流程/规划是否自洽、说得通
+        - 准确性：与 Goal、第一/二章材料是否一致（组件、竞品、工期）
+        - 完整性：关键节是否有实质论述（非占位、非套话）
+        - 可交付性：能否据此改 Word
+        - **禁止**以字数、超过 min_length 作为放行依据
+      【第 1 轮】全章抽样深读 + 上述质量维度审计
+      【第 2+ 轮 · 回归审计】
+        - 优先核对群讨论「定点改稿清单」是否全部落实
+        - 清单外章节是否与 {prev_work_task_id} 一致（未被擅自改动）
+        - 对修改段落再审合理性；勿因风格偏好要求重写整章
+      【输入】同轮 work；Goal；第一、二章只读材料；上一轮 review + 群讨论（若 round>1）
+      【产出】section-review（## 评审范围 / ## 审计结论 / ## 发现与分级 / ## 修订要求）
+      【循环标记】全文末行单独写 REVIEW: PASS 或 REVIEW: FAIL
+      【审计结论】PASS→「放行」（依据须含质量判断，不得仅写字数）；FAIL→「需修订」且须可定点 PATCH
+tasks:
+- id: t-ch3-plan
+  name: 第三章产品整体规划（Work-Review 循环）
+  loop: ch3_quality_round
+  dependencies: []

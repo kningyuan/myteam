@@ -89,13 +89,49 @@ task_types:
       【任务类型】product-planning 产品整体规划章节（delivery_profile light_v1）
       【本任务】
       {task_description}
+      【Gate 章节】{required_sections}
       【通用约束】
       - 必读 business/inputs/trusted-data-space/source_ch*.md（若任务描述另有路径则以任务为准）
-      - 行首二级标题须与注册表一致（产品架构、核心能力…与原文差异说明）
+      - 标题层级以交付模板为准（tds-ch3 为 ### 小节）
       - 产出 Markdown 供粘贴进 docx，勿直接改 Word 文件
       - 全文 3000 字以上；优势分析、功能架构、核心流程等不得留空占位
       - 与第一章四大组件、第二章客户需求保持一致
-      【交卷】先 align → 写 deliverable → verify.log → submit_result
+      - 若模板要求架构图：同目录交付 product-architecture.* 与 functional-architecture.*（.drawio + .png），Markdown 内嵌 ![](*.png)
+      【交卷】先 align → 作图/写 deliverable → verify.log → submit_result
+
+  section-authoring:
+    execute: |
+      【任务类型】section-authoring 方案编制（delivery_profile light_v1）
+      【本任务】
+      {task_description}
+      【Gate 章节】{required_sections}
+      【通用约束】
+      - 以 Goal 指定的文档与章节为准；材料路径见任务描述
+      - H2 标题须与注册表逐字一致：章节对象、正文、依据与引用、变更说明、自检清单
+      - 正文须完整可粘贴；禁止空占位
+      - 若 round>1，变更说明须回应上一轮 section-review 修订要求
+      【交卷】先编辑 deliverable 再 submit_result
+
+  section-review:
+    execute: |
+      【任务类型】section-review 章节/方案**内容质量**审计（评「是否合理」，不评字数）
+      【本任务】
+      {task_description}
+      【Gate 章节】{required_sections}
+      【评审重心 — 按优先级】
+      1. **合理性**：论述自洽吗？产品/功能架构、流程、规划是否说得通？
+      2. **准确性**：与 Goal、第一/二章只读材料是否一致？竞品、工期、术语有无错误？
+      3. **完整性**：关键节是否有**实质内容**（非占位、非套话）？架构图与文字是否匹配？
+      4. **可交付性**：读者能否据此改 docx/交付客户？
+      【明确禁止】
+      - 不得以字数、篇幅、超过 min_length/3000 字作为放行主要依据（字数最多 🟢 备注）
+      - 不得仅核对「章节齐不齐」而放行；须抽样深读并引用原文说明质量判断
+      - 禁止重写 work 正文替代评审报告
+      【PASS / FAIL】
+      - 无 🔴 且上述质量维度达标 → 审计结论「放行」+ REVIEW: PASS
+      - 存在 🔴 或关键论述明显不合理 → 「需修订」+ REVIEW: FAIL；修订要求须可定点 PATCH
+      【发现与分级】🔴阻塞 🟡建议 🟢可选；无阻塞写「无阻塞项」
+      【交卷】先编辑 deliverable 再 submit_result
 
   arch-research:
     execute: |

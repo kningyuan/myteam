@@ -1,0 +1,42 @@
+id: deploy-smoke
+task_types:
+  - deploy-run
+version: "1.0"
+display_name: 部署 Smoke 留痕
+description: |
+  deploy-run（证据态）专用模板：部署 URL + 健康检查截图。
+  与 code-deployment（文档态部署记录）正交。
+
+deliverable_template:
+  required_heading_level: 2
+  sections:
+    - name: 部署环境
+      description: staging / prod / 内网等
+      required: true
+    - name: 服务URL
+      description: 部署后可访问的根 URL
+      required: true
+    - name: 健康检查
+      description: curl/探活结果摘要（含 HTTP 状态码）
+      required: true
+    - name: 证据截图
+      description: 健康检查或页面截图路径（相对交付物目录）
+      required: true
+
+check_rules:
+  required_sections:
+    - 部署环境
+    - 服务URL
+    - 健康检查
+    - 证据截图
+  must_include:
+    - http
+  min_length: 30
+  evidence_url:
+    host_contains: ""
+    screenshot_field: 证据截图
+    verify_title: false
+
+acceptance_criteria:
+  - 服务 URL 可访问且健康检查与截图一致
+  - 回滚入口已在 code-deployment 文档中说明（如有）

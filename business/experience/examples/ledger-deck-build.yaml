@@ -1,0 +1,31 @@
+# 示例：deck-build 任务完成后写入 deliverables/ledger.entry.yaml
+task_id: t-deck
+task_type: deck-build
+project_id: example-pm-pack
+timestamp: "2026-06-10T12:00:00+08:00"
+
+context:
+  goal: 产品经理交付 workflow — 演示文稿
+  inputs:
+    - t-plan_deliverable.md
+    - t-req_deliverable.md
+
+chosen:
+  skills: [deck-build]
+  means: [wps_deck]
+
+outcome:
+  status: success
+  deliverables:
+    - t-deck_deliverable.md
+    - deck.pptx
+
+lesson:
+  worked: 先列 slide 大纲（每页标题 + 3 要点）再填正文，Gate 章节一次过
+  failed: 未跑 check_wps_ready.sh 时 build_deck 会 hang
+  next_time: align.md 写清「页数上限」；verify.log 记录 wps 探针 exit code
+
+probes:
+  - command: bash business/skills/wps-deck/scripts/check_wps_ready.sh
+    exit_code: 0
+    note: 发布前必跑

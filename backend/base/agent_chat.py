@@ -280,27 +280,24 @@ def build_system_prompt(agent_id: str, workspace: str) -> str:
     return "\n\n".join(sections) if sections else ""
 
 
-def create_merged_rules_file(agent_id: str, workspace: str) -> Optional[str]:
-    """动态合并规则文件"""
-    universal_rules = RULES_DIR / "universal-rules.md"
-    agent_agents_md = Path(workspace) / "AGENTS.md"
+def create_merged_rules_file(
+    agent_id: str,
+    workspace: str,
+    *,
+    profile: str = "conversation",
+) -> Optional[str]:
+    """动态合并规则文件（默认讨论模式；execute 传 profile='workflow_execute'）。"""
+    from common.rules_merge import RulesProfile, merge_rules_file
+
+    builder = AgentIdentityBuilder(agent_id, workspace)
     try:
-        fd, temp_path = tempfile.mkstemp(suffix=".md", prefix=f"rules-{agent_id}-", dir="/tmp")
-        builder = AgentIdentityBuilder(agent_id, workspace)
-        chinese_name = builder.extract_chinese_name()
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(f"# {chinese_name} - 完整规则\n\n")
-            if universal_rules.exists():
-                f.write(universal_rules.read_text(encoding="utf-8"))
-                f.write("\n\n---\n\n")
-            for rfile in ["brainstorming-guide.md", "worker-template.md"]:
-                fp = RULES_DIR / rfile
-                if agent_id != "main" and fp.exists():
-                    f.write(fp.read_text(encoding="utf-8"))
-                    f.write("\n\n---\n\n")
-            if agent_agents_md.exists():
-                f.write(agent_agents_md.read_text(encoding="utf-8"))
-        return temp_path
+        return merge_rules_file(
+            agent_id,
+            workspace,
+            RULES_DIR,
+            profile=profile,  # type: ignore[arg-type]
+            chinese_name=builder.extract_chinese_name(),
+        )
     except Exception as e:
         print(f"[WARN] 创建规则文件失败: {e}", file=sys.stderr)
         return None
@@ -362,15 +359,56 @@ def clear_agent_chat_context(agent_id: str) -> tuple[bool, str]:
 
 # ============ 流式对话 ============
 
-def stream_chat(agent_id: str, message: str, cancel_event=None,
-                *, use_memory: bool = False) -> Generator[str, None, None]:
+def stream_chat(
+    agent_id: str,
+    message: str,
+    cancel_event=None,
+    *,
+    use_memory: bool = False,
+    rules_profile: str = "conversation",
+    discuss_only: bool | None = None,
+    workspace_key: str | None = None,
+    memory_scope=None,
+    group_id: str = "",
+    project_id: str = "",
+    memory_mode: str = "",
+) -> Generator[str, None, None]:
     """与 Agent 对话 — 委托 hub.services.ChatService（Adapter 抽象层）。
 
     use_memory=True：DM 记忆路径（对话进 Store + Context Assembler）。群组/通知等保持默认 False。
+    rules_profile：conversation=讨论/私聊/圆桌；workflow_execute=项目任务 execute。
+    group_id/project_id：群或圆桌场景下用于 memory scope 隔离（与 workspace_key 二选一传入）。
     """
     from hub.services.chat_service import chat_service
-    yield from chat_service.stream(agent_id, message, cancel_event=cancel_event,
-                                   use_memory=use_memory)
+    from common.agent_memory import (
+        MemoryScope,
+        memory_scope_dm,
+        memory_scope_group,
+        memory_scope_roundtable,
+    )
+
+    profile = rules_profile
+    if discuss_only is True:
+        profile = "conversation"
+
+    scope = memory_scope
+    if scope is None and group_id:
+        if memory_mode == "roundtable":
+            scope = memory_scope_roundtable(group_id, agent_id, project_id=project_id)
+        else:
+            scope = memory_scope_group(group_id, agent_id, project_id=project_id)
+    elif scope is None:
+        scope = memory_scope_dm(agent_id)
+
+    yield from chat_service.stream(
+        agent_id,
+        message,
+        cancel_event=cancel_event,
+        use_memory=use_memory,
+        rules_profile=profile,  # type: ignore[arg-type]
+        workspace_key=workspace_key,
+        memory_scope=scope,
+    )
 
 
 def get_agent_model(agent_id: str) -> str:

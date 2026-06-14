@@ -26,6 +26,15 @@ import common.paths as paths
 from common.agent_port import AgentPort
 from common.dag_dispatch import deps_block, derive_project_status, ready_tasks
 from common.decision_pipeline import DecisionPipeline
+from common.loop_runtime import (
+    LoopSpec,
+    build_patch_goal_prefix,
+    evaluate_until,
+    instantiate_round_body_tasks,
+    loop_body_task_id,
+    loop_placeholder_outcome_status,
+    seed_patch_baseline,
+)
 from common.plan_expansion import PlanExpander
 from common.plan_gate import check_plan, prefix_cycle, topological_order
 from common.process_types import (
@@ -41,6 +50,7 @@ from common.workspace_gc import gc_project_workspace, remove_interaction_files
 from common.observability import BudgetConfig, check_budget
 from common.project_artifacts import artifact_rel_path, task_deliverable_base
 from common.project_hooks import ProjectHooks
+from common.store import Store
 
 # 向后兼容 re-export
 from common.agent_bootstrap import _auto_create_agent  # noqa: F401
@@ -64,6 +74,7 @@ class Process:
         self._expander = PlanExpander(
             decision=self._decisions, store=self.store, config=self.config,
         )
+        self._loops_by_id: dict[str, LoopSpec] = {}
 
     def _release_interaction_files(self, agent_id: str, interaction_id: str) -> None:
         remove_interaction_files(agent_id, interaction_id)
@@ -73,12 +84,14 @@ class Process:
     def run(self, project_id: str, *, title: str = "", goal: str = "",
             agents: Optional[list[str]] = None,
             tasks: Optional[list[dict]] = None,
-            workflow: Optional[str] = None) -> ProjectOutcome:
+            workflow: Optional[str] = None,
+            loops: Optional[list[LoopSpec]] = None) -> ProjectOutcome:
         """跑一个项目。
 
         若给定 agents/tasks 则直接用（便于测试与已规划场景）；否则走 team_config / task_plan
         两个 Interaction 由 Main 决策（live 路径）。
         """
+        self._loops_by_id = {spec.id: spec for spec in (loops or [])}
         try:
             return self._run_impl(
                 project_id, title=title, goal=goal, agents=agents, tasks=tasks, workflow=workflow,
@@ -94,9 +107,20 @@ class Process:
                   agents: Optional[list[str]] = None,
                   tasks: Optional[list[dict]] = None,
                   workflow: Optional[str] = None) -> ProjectOutcome:
-        proj_meta: dict = {"token_budget": self.config.token_budget, "goal": goal}
+        existing = self.store.get_project(project_id) or {}
+        existing_meta = dict(existing.get("meta") or {})
+        proj_meta = {**existing_meta, "token_budget": self.config.token_budget, "goal": goal}
         if workflow:
             proj_meta["workflow"] = workflow
+        launch = dict(existing_meta.get("launch") or {})
+        if self.config.review_enabled:
+            launch["review"] = True
+        if self.config.split_enabled:
+            launch["split"] = True
+        if self.config.default_backend:
+            launch["backend"] = self.config.default_backend
+        if launch:
+            proj_meta["launch"] = launch
         self.store.upsert_project(project_id, title=title, mode=self.config.mode,
                                   status="in_progress", meta=proj_meta)
         logging.info("▶ 启动项目：%s", project_id)
@@ -114,7 +138,7 @@ class Process:
                 tasks = self._expander.expand(project_id, tasks, agents)
             if paused := self._pause_if_over_budget(project_id):
                 return paused
-        check = check_plan(tasks, set(agents))
+        check = check_plan([t for t in tasks if not t.get("loop")], set(agents))
         if not check.passed:
             raise RuntimeError(f"plan gate 校验失败（{project_id}）：{check.feedback}")
         self._persist_tasks(project_id, tasks)
@@ -134,6 +158,9 @@ class Process:
             raise RuntimeError(f"项目无任务：{project_id}")
         wf = (proj.get("meta") or {}).get("workflow")
         if wf:
+            from common.workflow_loader import load_workflow
+            profile = load_workflow(wf)
+            self._loops_by_id = {spec.id: spec for spec in profile.loops}
             tasks = self._merge_workflow_descriptions(wf, tasks)
 
         store_outcomes = {
@@ -172,15 +199,22 @@ class Process:
             return ProjectOutcome(project_id, "paused", outcomes)
 
     def _tasks_from_store(self, project_id: str) -> list[dict]:
-        return [{
-            "id": r["task_id"],
-            "name": r.get("name", ""),
-            "agent": r.get("agent", ""),
-            "reviewer": r.get("reviewer", ""),
-            "task_type": r.get("task_type", ""),
-            "dependencies": r.get("dependencies") or [],
-            "description": (r.get("meta") or {}).get("description", ""),
-        } for r in self.store.list_tasks(project_id)]
+        out: list[dict] = []
+        for r in self.store.list_tasks(project_id):
+            meta = r.get("meta") or {}
+            row = {
+                "id": r["task_id"],
+                "name": r.get("name", ""),
+                "agent": r.get("agent", ""),
+                "reviewer": r.get("reviewer", ""),
+                "task_type": r.get("task_type", ""),
+                "dependencies": r.get("dependencies") or [],
+                "description": meta.get("description", ""),
+            }
+            if meta.get("loop"):
+                row["loop"] = meta["loop"]
+            out.append(row)
+        return out
 
     def _merge_workflow_descriptions(self, workflow_id: str, tasks: list[dict]) -> list[dict]:
         """resume 时从 workflow 补全 store 中缺失的 task description（intent 来源）。"""
@@ -200,12 +234,16 @@ class Process:
     def _persist_tasks(self, project_id: str, tasks: list[dict]) -> None:
         for t in tasks:
             desc = t.get("description", "")
-            meta = {"description": desc} if desc else None
+            meta: dict = {}
+            if desc:
+                meta["description"] = desc
+            if t.get("loop"):
+                meta["loop"] = t["loop"]
             self.store.upsert_task(
                 project_id, t["id"], name=t.get("name", ""), agent=t.get("agent", ""),
                 reviewer=t.get("reviewer", ""), task_type=t.get("task_type", ""),
                 dependencies=t.get("dependencies", []), status="pending",
-                meta=meta,
+                meta=meta or None,
             )
 
     # ── recurring：周期循环 + 轮次继承（D10）────────────────────
@@ -297,6 +335,87 @@ class Process:
         self._notify_task_done(project_id, task, outcome)
         return outcome, decision
 
+    def _execute_loop(self, project_id: str, placeholder: dict) -> TaskOutcome:
+        """运行 workflow loop 占位 task：多轮 body 直到 until 满足或耗尽。"""
+        loop_id = str(placeholder.get("loop") or "").strip()
+        spec = self._loops_by_id.get(loop_id)
+        placeholder_id = placeholder["id"]
+        if spec is None:
+            return TaskOutcome(placeholder_id, "failed", f"未知 loop「{loop_id}」")
+
+        goal_prefix = ""
+        desc = placeholder.get("description", "")
+        if desc.strip():
+            goal_prefix = desc.strip() + "\n\n"
+
+        rounds_used = 0
+        for round_num in range(1, spec.max_rounds + 1):
+            rounds_used = round_num
+            round_goal_prefix = goal_prefix if round_num == 1 else build_patch_goal_prefix(
+                project_id, round_num, spec.id,
+            )
+            if round_num > 1:
+                prev_work = loop_body_task_id(spec.id, round_num - 1, "work")
+                cur_work = loop_body_task_id(spec.id, round_num, "work")
+                seed_patch_baseline(project_id, prev_work, cur_work)
+            round_tasks = instantiate_round_body_tasks(
+                spec, round_num, goal_prefix=round_goal_prefix,
+            )
+            self._persist_tasks(project_id, round_tasks)
+
+            by_id = {t["id"]: t for t in round_tasks}
+            order = topological_order(round_tasks)
+            round_outcomes: dict[str, TaskOutcome] = {}
+            body_types = {t["id"]: t.get("task_type", "") for t in round_tasks}
+
+            for body_tid in order:
+                outcome, decision = self._execute_task(project_id, by_id[body_tid])
+                round_outcomes[body_tid] = outcome
+                if decision == "abort":
+                    return TaskOutcome(placeholder_id, "failed", "loop 内任务中止", round_num)
+
+            passed = evaluate_until(
+                spec, round_num, round_outcomes, self.store, project_id, body_types,
+            )
+            work_tid = loop_body_task_id(spec.id, round_num, "work")
+            review_tid = loop_body_task_id(spec.id, round_num, "review")
+            if self._hooks and self._hooks.on_loop_round_done:
+                try:
+                    self._hooks.on_loop_round_done(
+                        project_id, spec.id, round_num, passed, work_tid, review_tid,
+                    )
+                except Exception:
+                    pass
+            self.store.append_run_event(
+                f"{project_id}:loop:{loop_id}",
+                "loop_round_done",
+                {"round": round_num, "passed": passed, "placeholder": placeholder_id},
+            )
+            if passed:
+                self.store.append_run_event(
+                    f"{project_id}:loop:{loop_id}",
+                    "loop_finished",
+                    {"state": "passed", "rounds_used": round_num},
+                )
+                self.store.update_task_meta(
+                    project_id, placeholder_id,
+                    summary=f"loop 通过（第 {round_num} 轮）", loop_rounds=round_num,
+                )
+                status = loop_placeholder_outcome_status(spec, passed=True)
+                self.store.set_task_status(project_id, placeholder_id, status)
+                return TaskOutcome(placeholder_id, status, "", round_num)
+
+        self.store.append_run_event(
+            f"{project_id}:loop:{loop_id}",
+            "loop_finished",
+            {"state": "exhausted", "rounds_used": rounds_used},
+        )
+        status = loop_placeholder_outcome_status(spec, passed=False)
+        self.store.set_task_status(project_id, placeholder_id, status)
+        return TaskOutcome(
+            placeholder_id, status, "loop until 未满足", rounds_used,
+        )
+
     def _fire_team_ready(self, project_id: str, agents: Optional[list[str]], title: str) -> None:
         if not self._hooks or not self._hooks.on_team_ready or not agents:
             return
@@ -362,23 +481,38 @@ class Process:
                         pass
 
             parallel = self.config.parallel_enabled and len(wave) > 1
+            loop_tids = {
+                tid for tid in wave
+                if by_id[tid].get("loop") and by_id[tid]["loop"] in self._loops_by_id
+            }
             if parallel:
                 workers = min(len(wave), self.config.max_parallel)
                 with ThreadPoolExecutor(max_workers=workers) as pool:
-                    futs = {
-                        pool.submit(self._execute_task, project_id, by_id[tid]): tid
-                        for tid in wave
-                    }
+                    futs = {}
+                    for tid in wave:
+                        task = by_id[tid]
+                        if tid in loop_tids:
+                            futs[pool.submit(self._execute_loop, project_id, task)] = tid
+                        else:
+                            futs[pool.submit(self._execute_task, project_id, task)] = tid
                     for fut in as_completed(futs):
                         tid = futs[fut]
-                        outcome, decision = fut.result()
-                        outcomes[tid] = outcome
-                        if decision == "abort":
-                            aborted = True
+                        if tid in loop_tids:
+                            outcomes[tid] = fut.result()
+                        else:
+                            outcome, decision = fut.result()
+                            outcomes[tid] = outcome
+                            if decision == "abort":
+                                aborted = True
                         self._print_progress(project_id, outcomes, len(order))
             else:
                 for tid in wave:
-                    outcome, decision = self._execute_task(project_id, by_id[tid])
+                    task = by_id[tid]
+                    if task.get("loop") and task["loop"] in self._loops_by_id:
+                        outcome = self._execute_loop(project_id, task)
+                        decision = None
+                    else:
+                        outcome, decision = self._execute_task(project_id, task)
                     outcomes[tid] = outcome
                     if decision == "abort":
                         aborted = True

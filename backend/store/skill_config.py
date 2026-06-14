@@ -42,6 +42,20 @@ DEFAULT_SKILL_CONFIG = {
         "budget_degrade_backend": "",
         "budget_degrade_model": "",
     },
+    "group_discussion": {
+        "default_max_rounds": 3,
+        "max_rounds_cap": 50,
+        "roundtable_turn_timeout": 300,
+        "quorum_ratio": 0.667,
+        "auto_finalize_on_max_rounds": True,
+        "allow_round_extension": True,
+        "kill_cli_on_cancel": True,
+        "terminate_commands": [
+            "/终止讨论",
+            "/终止圆桌",
+            "/stop roundtable",
+        ],
+    },
 }
 
 

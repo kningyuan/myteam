@@ -1,54 +1,48 @@
 id: GEO优化
 version: '1.0'
-description: GEO优化全流程：调研 → 策略 → 审计 → 改稿 → 效果验证；具体站点/页面在 goal 填写
+description: |
+  GEO 持续优化：调研 → 策略 → 审计 → 改稿 → 验证。
 options:
-  review_enabled: false
-  split_enabled: true
   parallel_enabled: false
-  max_parallel: 2
+  review_enabled: false
 tasks:
-- id: t-research
-  name: GEO/竞品调研
-  agent: research
-  task_type: research
-  dependencies: []
-  description: '【对象】见【项目目标】
-
-    【视角】GEO 与 AI 搜索可见性'
-- id: t-plan
-  name: GEO策略方案
-  agent: geo
-  task_type: geo-plan
-  dependencies:
-  - t-research
-  description: 【输入】t-research
-- id: t-audit
-  name: 页面GEO审计
-  agent: geo
-  task_type: geo-audit
-  dependencies:
-  - t-plan
-  description: 【输入】t-plan；【对象】见【项目目标】中的页面/栏目
-- id: t-content
-  name: GEO导向改稿
-  agent: content
-  task_type: content
-  dependencies:
-  - t-audit
-  description: 【输入】t-audit 改写建议
-- id: t-verify
-  name: GEO效果验证
-  agent: geo
-  task_type: geo-verification
-  dependencies:
-  - t-content
-  description: '【输入】t-content
-
-    【须含】目标页面 URL、查询词、AI 回答摘要、证据截图'
-- id: t-summary
-  name: 阶段汇总
-  agent: main
-  task_type: strategy
-  dependencies:
-  - t-verify
-  description: 【输入】只读前述交付物
+  - id: t-research
+    name: GEO 背景调研
+    agent: research
+    task_type: research
+    dependencies: []
+    description: |
+      【对象】目标见【项目目标】
+      【视角】AI 搜索可见性、竞品引用、受众问题
+  - id: t-plan
+    name: GEO 策略
+    agent: geo
+    task_type: geo-plan
+    dependencies:
+      - t-research
+    description: |
+      【输入】只读 t-research；输出 GEO 优化策略
+  - id: t-audit
+    name: 页面审计
+    agent: geo
+    task_type: geo-audit
+    dependencies:
+      - t-plan
+    description: |
+      【输入】只读 t-plan；审计目标页面可引用性与结构
+  - id: t-content
+    name: 内容改稿
+    agent: content
+    task_type: content
+    dependencies:
+      - t-audit
+    description: |
+      【输入】只读 t-audit；按审计意见改稿
+  - id: t-verify
+    name: 效果验证
+    agent: geo
+    task_type: geo-verification
+    dependencies:
+      - t-content
+    description: |
+      【输入】只读 t-content；执行验证动作并附 URL/截图

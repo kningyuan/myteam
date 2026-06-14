@@ -92,6 +92,7 @@ async def list_memory(project_id: str | None = None, text: str = "", limit: int 
     store = _store()
     try:
         rows = store.memory_search(project_id=project_id, text=text)
+        rows.sort(key=lambda r: (r.get("created_at") or "", r.get("id") or 0), reverse=True)
         out = []
         for r in rows[: max(1, min(limit, 200))]:
             content = r.get("content") or ""

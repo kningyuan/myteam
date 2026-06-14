@@ -1,0 +1,14 @@
+# 示例：section-review FAIL 后第二轮 PATCH 的 ledger
+task_id: ch3_quality_round-r1-review
+task_type: section-review
+project_id: tds-ch3-discuss-test
+
+lesson:
+  worked: 引用 work 原文逐条打 🔴，修订要求可定点到 ### 小节
+  failed: 仅以「字数不足」打 FAIL — 违反 section-review 红线
+  next_time: 放行须写 REVIEW: PASS 在 deliverable 末尾；FAIL 须含可执行 PATCH 清单
+
+outcome:
+  status: partial
+  deliverables:
+    - ch3_quality_round-r1-review_deliverable.md

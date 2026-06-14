@@ -6,7 +6,8 @@ description: 运行 pytest 与配置贯通测试，输出可复现的通过/失�
 
 # code-testing — 配置与回归验证
 
-配置贯通类任务 **先读**：`business/skills/myteam-config-linkage/SKILL.md`
+**必须先读**：`business/skills/qa-methodology/SKILL.md`  
+配置贯通类任务 **再读**：`business/skills/myteam-config-linkage/SKILL.md`
 
 ## 执行步骤
 

@@ -121,6 +121,52 @@ function setHtmlIfChanged(el, key, html) {
 }
 function setTextIfChanged(el, val) { if (el && el.textContent !== val) el.textContent = val; }
 
+function fmtLaunchTime(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return String(ts);
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function launchFlag(label, on) {
+  const cls = on ? 'launch-flag on' : 'launch-flag off';
+  const mark = on ? '✓' : '—';
+  return `<span class="${cls}"><span class="launch-flag-mark">${mark}</span>${esc(label)}</span>`;
+}
+
+function parseGoalTemplateId(goal) {
+  const m = String(goal || '').match(/(?:^|\n)\s*template_id\s*:\s*(\S+)/i);
+  return m ? m[1].trim() : '';
+}
+
+function renderLaunchConfig(ov) {
+  const lc = ov.launch || {};
+  const workflow = lc.workflow || ov.workflow;
+  const workflowLabel = lc.workflow_label || workflow || '自由规划（main 即兴 task_plan）';
+  const mode = lc.mode || ov.mode;
+  const modeLabel = lc.mode_label || mode;
+  const budget = lc.token_budget ?? ov.budget;
+  const budgetText = budget != null && budget !== '' ? `${Number(budget).toLocaleString()} tok` : '不限';
+  const templateId = lc.template_id || parseGoalTemplateId(lc.goal || ov.goal);
+  const tpl = templateId ? `<code class="launch-code">${esc(templateId)}</code>` : '<span class="hint">未指定</span>';
+  const backend = lc.backend ? `<code class="launch-code">${esc(lc.backend)}</code>` : '<span class="hint">系统默认</span>';
+  const goal = (lc.goal || ov.goal || '').trim();
+  const createdAt = ov.created_at || ov.updated_at;
+  const goalBlock = goal
+    ? `<div class="launch-goal-block"><div class="launch-k">项目目标</div><pre class="launch-goal">${esc(goal)}</pre></div>`
+    : '<div class="launch-goal-block"><div class="launch-k">项目目标</div><p class="hint launch-empty">未记录</p></div>';
+  return `<div class="launch-config-grid">
+    <div class="launch-kv"><span class="launch-k">工作流</span><span class="launch-v">${esc(workflowLabel)}</span></div>
+    <div class="launch-kv"><span class="launch-k">模式</span><span class="launch-v">${esc(modeLabel || '—')}</span></div>
+    <div class="launch-kv"><span class="launch-k">Token 预算</span><span class="launch-v">${budgetText}</span></div>
+    <div class="launch-kv"><span class="launch-k">交付模板</span><span class="launch-v">${tpl}</span></div>
+    <div class="launch-kv"><span class="launch-k">CLI 后端</span><span class="launch-v">${backend}</span></div>
+    <div class="launch-kv"><span class="launch-k">创建时间</span><span class="launch-v">${fmtLaunchTime(createdAt)}</span></div>
+    <div class="launch-kv launch-kv-wide"><span class="launch-k">运行选项</span><span class="launch-v launch-flags">${launchFlag('同行评审', lc.review)}${launchFlag('自动拆分子任务', lc.split)}</span></div>
+  </div>${goalBlock}`;
+}
+
 async function selectProject(id, opts = {}) {
   S.currentProjectId = id; S.currentAgentId = null; S.currentGroupId = null;
   _selectedTaskId = '';
@@ -179,6 +225,8 @@ async function refreshProjectDetail(id) {
     const pct = Math.round((ov.progress || 0) * 100);
     setTextIfChanged(DOM['project-progress-text'], `${pct}%`);
     if (DOM['project-progress-fill'].style.width !== `${pct}%`) DOM['project-progress-fill'].style.width = `${pct}%`;
+
+    setHtmlIfChanged(DOM['project-launch-config'], 'launchConfig', renderLaunchConfig(ov));
 
     const tasks = ov.tasks || [];
     const byTask = (cost && cost.by_task) || {};
@@ -691,13 +739,15 @@ async function openDeliverable(projectId, taskId, opts = {}) {
     const r = await fetch(`/api/projects/${encodeURIComponent(projectId)}/deliverable/${encodeURIComponent(taskId)}`);
     const d = await r.json();
     if (!r.ok) throw new Error(apiErr(d, '加载失败'));
+    await ensureTaskTypeRecords();
+    const typeLabel = d.task_type ? taskTypeDisplayLabel(d.task_type) : '任务';
     const files = d.files || []; const primary = d.primary || {};
     _deliverable.files = files;
     if (!files.length && !primary.exists && !d.exists) { DOM['deliverable-meta'].textContent = '该任务暂无交付物'; return; }
     const taskName = (S.projects || []).find(p => p.id === projectId)?.title || '';
     const baseHint = d.base === 'code_project' ? `deliverables/${d.project_dir || taskId + '/'}` : 'deliverables/*.md';
     DOM['deliverable-title'].textContent = `交付物 · ${taskId}${taskName ? ' · ' + taskName : ''}`;
-    DOM['deliverable-meta'].textContent = `${d.task_type || '任务'} · ${baseHint} · ${files.length} 个文件 · 左侧选文件预览`;
+    DOM['deliverable-meta'].textContent = `${typeLabel} · ${baseHint} · ${files.length} 个文件 · 左侧选文件预览`;
     renderDeliverableFileList(files, '');
     const defaultPath = primary.path || (files[0] && files[0].path) || '';
     if (defaultPath) { await loadDeliverableFile(projectId, taskId, defaultPath); }

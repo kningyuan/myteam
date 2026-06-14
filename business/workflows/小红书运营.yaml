@@ -1,37 +1,56 @@
 id: 小红书运营
 version: '1.0'
-description: 小红书笔记运营：选题调研 → 图文成稿 → 小红书发布留痕；选题与账号在 goal 填写
+description: |
+  小红书持续运营：调研 → 策略 → 图文笔记 → 发布留痕。
+  启动时使用 --mode recurring --max-cycles N 实现周期 tick。
 options:
-  review_enabled: false
-  split_enabled: false
   parallel_enabled: false
-  max_parallel: 2
+  review_enabled: false
+  group_discussion_enabled: false
+  collaboration:
+    project_group:
+      enabled: true
+    notifications:
+      enabled: true
+    group_discussion:
+      enabled: false
 tasks:
-- id: t-research
-  name: 选题调研
-  agent: research
-  task_type: research
-  dependencies: []
-  description: |
-    【对象】见【项目目标】
-    【视角】小红书受众、爆款结构、话题标签
-- id: t-draft
-  name: 小红书成稿
-  agent: content
-  task_type: content
-  dependencies:
-  - t-research
-  description: |
-    【输入】t-research
-    【平台】小红书图文笔记
-    【产出】标题、正文、话题标签建议、封面文案
-- id: t-publish
-  name: 小红书发布
-  agent: social_xhs
-  task_type: publish-post
-  dependencies:
-  - t-draft
-  description: |
-    【输入】t-draft
-    【须提交】真实笔记链接与截图证据
-    【禁止】编造链接
+  - id: t-research
+    name: 选题调研
+    agent: research
+    task_type: research
+    dependencies: []
+    description: |
+      【对象】目标见【项目目标】
+      【视角】小红书热点、竞品笔记、受众画像、话题标签
+      【产出】选题表（含来源 URL）
+  - id: t-strategy
+    name: 内容策略
+    agent: product
+    task_type: strategy
+    dependencies:
+      - t-research
+    description: |
+      【输入】只读 t-research
+      【产出】内容日历、话题标签策略、笔记形式（图文/短图文）
+  - id: t-content
+    name: 笔记成稿
+    agent: content
+    task_type: content
+    dependencies:
+      - t-strategy
+    description: |
+      【输入】只读 t-strategy
+      【产出】小红书笔记：标题（≤20字建议）、正文（分段+emoji）、话题标签、封面/配图说明
+      【格式】见 business/skills/xhs-operations/templates/xhs_note_draft.md
+  - id: t-publish
+    name: 小红书发布
+    agent: social_xhs
+    task_type: publish-post
+    template_id: publish-xhs
+    dependencies:
+      - t-content
+    description: |
+      【输入】只读 t-content
+      【产出】发布记录（xhs 笔记 URL + 截图）；须真实发布，禁止伪造链接
+      【Skill】business/skills/xhs-operations/SKILL.md

@@ -83,10 +83,7 @@ def gc_terminal_interactions(store: Store) -> dict:
     timed_out/failed 且磁盘仍有可采纳 .response 时跳过删除，留给 reconcile /
     settle 回收，避免启动 gc 与对账竞态。
     """
-    rows = store._conn.execute(
-        "SELECT interaction_id, agent_id, status FROM interaction "
-        "WHERE status IN ('done','timed_out','failed')"
-    ).fetchall()
+    rows = store.list_interactions_by_statuses(("done", "timed_out", "failed"))
     files_removed = 0
     seen: set[tuple[str, str]] = set()
     for r in rows:

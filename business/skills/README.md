@@ -23,6 +23,7 @@
 
 Before adding or changing a Skill:
 
+0. **Check external sources first** — official docs, GitHub repos, or community skills. Decide **direct adopt**, **adapt**, or **self-implement** (see `docs/DESIGN-SKILL-SYSTEM.md` §3.2). Record URL, license, and adoption path in frontmatter or `references/UPSTREAM.md`.
 1. Confirm the task type already exists in `business/templates/templates.yaml`, or add it there first.
 2. Keep `SKILL.md` focused on how the agent should execute the task.
 3. Make evidence requirements concrete and falsifiable: URL, screenshot, external id, or file path.

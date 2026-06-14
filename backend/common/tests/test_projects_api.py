@@ -20,6 +20,8 @@ import hub.api.server as srv  # noqa: E402
 import hub.paths as hub_paths  # noqa: E402
 import common.store as cstore  # noqa: E402
 import common.project_admin as padmin  # noqa: E402
+from hub.services import kernel_run  # noqa: E402
+from hub.services import project_launch as plaunch  # noqa: E402
 
 
 @pytest.fixture()
@@ -28,9 +30,9 @@ def client():
 
 
 def test_slug():
-    assert srv._slug("Hello World!! 你好") == "Hello_World_你好"
-    assert srv._slug("") == "project"
-    assert len(srv._slug("x" * 100)) == 24
+    assert plaunch.slug("Hello World!! 你好") == "Hello_World_你好"
+    assert plaunch.slug("") == "project"
+    assert len(plaunch.slug("x" * 100)) == 24
 
 
 def test_run_requires_goal(client):
@@ -44,12 +46,11 @@ def test_run_starts_background(client, tmp_path, monkeypatch):
     monkeypatch.setattr(cstore, "Store", lambda *a, **k: orig(db))
 
     calls = {}
-    monkeypatch.setattr(srv, "_run_kernel_bg",
+    monkeypatch.setattr(plaunch, "run_kernel_bg",
                         lambda *a, **k: calls.setdefault("hit", True))
     pid = "ui_test_proj_unit"
     try:
-        srv._clear_kernel_run(pid)
-        srv._KERNEL_RUNS.pop(pid, None)
+        kernel_run._clear_kernel_run(pid)
         r = client.post("/api/projects/run",
                         json={"goal": "做点事", "project_id": pid, "mode": "one_shot"})
         assert r.status_code == 200
@@ -60,11 +61,11 @@ def test_run_starts_background(client, tmp_path, monkeypatch):
         assert obs.status_code == 200
         assert any(p["id"] == pid for p in obs.json()["projects"])
         # 重复发起（标记 running）→ 409
-        srv._KERNEL_RUNS[pid] = {"running": True, "error": None}
+        kernel_run._set_kernel_run(pid, running=True)
         r2 = client.post("/api/projects/run", json={"goal": "x", "project_id": pid})
         assert r2.status_code == 409
     finally:
-        srv._KERNEL_RUNS.pop(pid, None)
+        kernel_run._clear_kernel_run(pid)
 
 
 def test_deliverable_path_safety(client):
@@ -150,7 +151,7 @@ def test_resume_uses_sqlite_not_task_data_json(client, tmp_path, monkeypatch):
     from common.project_runtime import reset_project_runtime
     reset_project_runtime()
 
-    monkeypatch.setattr(srv, "_resume_kernel_bg", lambda pid: None)
+    monkeypatch.setattr(plaunch, "resume_kernel_bg", lambda pid: None)
 
     assert client.post("/api/projects/nope/resume").status_code == 404
 
@@ -160,7 +161,7 @@ def test_resume_uses_sqlite_not_task_data_json(client, tmp_path, monkeypatch):
 
     ok = client.post("/api/projects/p_pause/resume")
     assert ok.status_code == 200 and ok.json()["resumed"] is True
-    srv._KERNEL_RUNS.pop("p_pause", None)
+    kernel_run._clear_kernel_run("p_pause")
 
 
 def test_delete(client, tmp_path, monkeypatch):
@@ -180,9 +181,9 @@ def test_delete(client, tmp_path, monkeypatch):
     assert client.request("DELETE", "/api/projects/ab..").status_code == 400
     assert client.request("DELETE", "/api/projects/nope").status_code == 404
 
-    srv._KERNEL_RUNS["p_del"] = {"running": True, "error": None}
+    kernel_run._set_kernel_run("p_del", running=True)
     assert client.request("DELETE", "/api/projects/p_del").status_code == 409
-    srv._KERNEL_RUNS.pop("p_del", None)
+    kernel_run._clear_kernel_run("p_del")
 
     ok = client.request("DELETE", "/api/projects/p_del")
     assert ok.status_code == 200 and ok.json()["success"] is True
@@ -200,13 +201,13 @@ def test_kernel_run_persisted_and_reconciled(tmp_path, monkeypatch):
     store.upsert_project("p_hub", title="H", status="in_progress")
     store.close()
 
-    srv._set_kernel_run("p_hub", running=True)
+    kernel_run._set_kernel_run("p_hub", running=True)
     store2 = cstore.Store()
     meta = (store2.get_project("p_hub") or {}).get("meta") or {}
     store2.close()
     assert meta.get("hub_kernel_run", {}).get("running") is True
 
-    cleared = srv._reconcile_stale_kernel_runs()
+    cleared = kernel_run._reconcile_stale_kernel_runs()
     assert cleared >= 1
     store3 = cstore.Store()
     meta2 = (store3.get_project("p_hub") or {}).get("meta") or {}

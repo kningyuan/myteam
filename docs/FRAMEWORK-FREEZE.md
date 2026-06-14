@@ -2,7 +2,8 @@
 
 > **版本**：2026-06-10  
 > **状态**：L1/L2 System Kernel + Hub 集成 **已封板**  
-> **验证**：`PYTHONPATH=backend venv/bin/python3 -m pytest backend -q` → **353 passed**
+> **验证**：`PYTHONPATH=backend venv/bin/python3 -m pytest backend -q` → **470 passed**  
+> **V1 REG**：`./scripts/regression/run_regression.sh --suite v1` → CHECK_ONLY PASS
 
 ---
 

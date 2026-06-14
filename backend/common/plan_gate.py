@@ -61,16 +61,23 @@ def check_plan(tasks: list[dict], team: set[str], *,
         return PlanCheckResult(False, f"任务 id 有重复：{', '.join(dupes)}")
 
     id_set = set(ids)
+    exec_tasks = [t for t in tasks if not t.get("loop")]
 
-    bad_agents = sorted({t.get("agent", "") for t in tasks
-                         if t.get("agent", "") not in team})
+    bad_agents = sorted({
+        aid for t in exec_tasks
+        for aid in [str(t.get("agent") or "").strip()]
+        if aid and aid not in team
+    })
     if bad_agents:
         return PlanCheckResult(False,
             f"以下 agent 不在团队名册中：{', '.join(bad_agents)}；"
             f"每个任务的 agent 只能从 [{', '.join(sorted(team))}] 中选。")
 
-    bad_types = sorted({t.get("task_type", "") for t in tasks
-                        if get_spec(t.get("task_type", "")) is None})
+    bad_types = sorted({
+        tt for t in exec_tasks
+        for tt in [str(t.get("task_type") or "").strip()]
+        if tt and get_spec(tt) is None
+    })
     if bad_types:
         return PlanCheckResult(False,
             f"以下 task_type 未在注册表中：{', '.join(bad_types)}；"
@@ -80,7 +87,7 @@ def check_plan(tasks: list[dict], team: set[str], *,
         from common.agent_registry import agent_task_type_map
         cap_map = agent_task_type_map()
         cap_errors: list[str] = []
-        for t in tasks:
+        for t in exec_tasks:
             aid = t.get("agent", "")
             tt = t.get("task_type", "")
             allowed = cap_map.get(aid)

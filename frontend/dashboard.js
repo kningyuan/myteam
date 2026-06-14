@@ -70,3 +70,19 @@ async function renderDashboard() {
 function ensureHomeDashboard() {
   if (isHomeTabActive() && typeof renderDashboard === 'function') void renderDashboard();
 }
+
+const HUB2_BANNER_KEY = 'myteam_hub2_banner_dismissed';
+
+function initHub2Banner() {
+  const banner = document.getElementById('hub2-upgrade-banner');
+  const dismiss = document.getElementById('hub2-banner-dismiss');
+  if (!banner) return;
+  try {
+    if (localStorage.getItem(HUB2_BANNER_KEY) === '1') return;
+  } catch (_) { /* ignore */ }
+  banner.classList.remove('hidden');
+  dismiss?.addEventListener('click', () => {
+    banner.classList.add('hidden');
+    try { localStorage.setItem(HUB2_BANNER_KEY, '1'); } catch (_) { /* ignore */ }
+  });
+}

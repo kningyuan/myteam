@@ -122,7 +122,7 @@ def test_retry_feedback_shown_for_decision_kinds():
         "retry_feedback": ["以下 agent 不在团队名册中：ghost；只能从 [research] 中选。"],
     })
     prompt = build_worker_prompt(req, Path("/tmp/x.response"), Path("/tmp/deliv"))
-    assert "逐条修正" in prompt
+    assert "PATCH 修正" in prompt
     assert "ghost" in prompt
 
 

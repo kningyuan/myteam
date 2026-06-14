@@ -19,7 +19,6 @@ from __future__ import annotations
 import json
 import sqlite3
 import sys
-import threading
 import time
 from pathlib import Path
 from typing import Any, Optional
@@ -28,6 +27,8 @@ if __package__ in (None, ""):  # 作为脚本直接运行时，确保 common 包
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from common.paths import TASKS_DIR
+from common.store_backend import StoreBackend
+from common.store_sqlite import SQLiteStoreBackend
 
 
 def default_db_path() -> Path:
@@ -185,60 +186,81 @@ CREATE TABLE IF NOT EXISTS job (
     cancel_requested INTEGER DEFAULT 0,
     error           TEXT
 );
+
+CREATE TABLE IF NOT EXISTS publish_log (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id      TEXT NOT NULL,
+    task_id         TEXT DEFAULT '',
+    platform        TEXT DEFAULT '',
+    deliverable     TEXT DEFAULT '',
+    status          TEXT DEFAULT 'completed',
+    meta            TEXT DEFAULT 'null',
+    created_at      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_publish_log_project ON publish_log(project_id);
+
+CREATE TABLE IF NOT EXISTS audit_log (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id      TEXT NOT NULL,
+    task_id         TEXT DEFAULT '',
+    audit_type      TEXT DEFAULT 'geo',
+    deliverable     TEXT DEFAULT '',
+    status          TEXT DEFAULT 'completed',
+    meta            TEXT DEFAULT 'null',
+    created_at      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_audit_log_project ON audit_log(project_id);
+
+CREATE TABLE IF NOT EXISTS agent_config (
+    agent_id        TEXT PRIMARY KEY,
+    config          TEXT NOT NULL DEFAULT '{}',
+    version         INTEGER DEFAULT 1,
+    updated_at      TEXT
+);
+
+CREATE TABLE IF NOT EXISTS workflow_version (
+    workflow_id     TEXT NOT NULL,
+    version         INTEGER NOT NULL,
+    body            TEXT NOT NULL,
+    updated_at      TEXT,
+    PRIMARY KEY (workflow_id, version)
+);
 """
 
 
 class Store:
-    """SQLite 真相库句柄。每线程独立连接，共享 WAL 文件。"""
+    """SQLite 真相库句柄。每线程独立连接，共享 WAL 文件。
 
-    def __init__(self, db_path: str | Path | None = None):
+    Persistence I/O is delegated to a pluggable :class:`~common.store_backend.StoreBackend`
+    (default: :class:`~common.store_sqlite.SQLiteStoreBackend`).
+    """
+
+    def __init__(
+        self,
+        db_path: str | Path | None = None,
+        backend: StoreBackend | None = None,
+    ):
         self.db_path = Path(db_path) if db_path else default_db_path()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._tls = threading.local()
-        self._fts = False
-        self._bootstrap_schema()
+        if backend is None:
+            self._backend: StoreBackend = SQLiteStoreBackend(self.db_path, _SCHEMA)
+        else:
+            self._backend = backend
 
-    def _open_connection(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA synchronous=NORMAL")
-        conn.execute("PRAGMA busy_timeout=5000")
-        return conn
-
-    def _bootstrap_schema(self) -> None:
-        conn = self._open_connection()
-        conn.executescript(_SCHEMA)
-        self._fts = self._init_message_fts(conn)
-        conn.commit()
-        conn.close()
+    @property
+    def backend(self) -> StoreBackend:
+        return self._backend
 
     @property
     def _conn(self) -> sqlite3.Connection:
-        conn = getattr(self._tls, "conn", None)
-        if conn is None:
-            conn = self._open_connection()
-            self._tls.conn = conn
-        return conn
+        return self._backend.connection
 
-    def _init_message_fts(self, conn: sqlite3.Connection) -> bool:
-        """message 全文索引（trigram，CJK 子串召回友好）。FTS5/trigram 不可用时回退 LIKE。"""
-        for tokenize in ("tokenize='trigram'", ""):
-            try:
-                conn.execute(
-                    "CREATE VIRTUAL TABLE IF NOT EXISTS message_fts USING fts5("
-                    "text, conversation_id UNINDEXED" + (", " + tokenize if tokenize else "") + ")"
-                )
-                return True
-            except sqlite3.OperationalError:
-                conn.execute("DROP TABLE IF EXISTS message_fts")
-        return False
+    @property
+    def _fts(self) -> bool:
+        return self._backend.fts_enabled
 
     def close(self):
-        conn = getattr(self._tls, "conn", None)
-        if conn is not None:
-            conn.close()
-            self._tls.conn = None
+        self._backend.close()
 
     def __enter__(self):
         return self
@@ -449,6 +471,17 @@ class Store:
         ).fetchall()
         return [self._row(r) for r in rows]
 
+    def list_interactions_by_statuses(self, statuses: tuple) -> list[dict]:
+        """按 status 集合列出 interaction（对账 / workspace GC 用）。"""
+        if not statuses:
+            return []
+        placeholders = ",".join("?" * len(statuses))
+        rows = self._conn.execute(
+            f"SELECT * FROM interaction WHERE status IN ({placeholders})",
+            statuses,
+        ).fetchall()
+        return [self._row(r) for r in rows]
+
     def tokens_total(self, project_id: str) -> int:
         row = self._conn.execute(
             "SELECT COALESCE(SUM(tokens),0) FROM interaction WHERE project_id=?", (project_id,)
@@ -549,6 +582,12 @@ class Store:
             params.append(status)
         sql += " ORDER BY updated_at DESC"
         return [dict(r) for r in self._conn.execute(sql, params).fetchall()]
+
+    def get_job(self, job_id: str) -> Optional[dict]:
+        row = self._conn.execute(
+            "SELECT * FROM job WHERE job_id=?", (job_id,)
+        ).fetchone()
+        return dict(row) if row else None
 
     def cancel_job_request(self, project_id: str) -> bool:
         self._conn.execute(
@@ -698,6 +737,18 @@ class Store:
         d = self._row(row)
         d["participants"] = _loads(d.get("participants")) or []
         return d
+
+    def list_all_conversations(self) -> list[dict]:
+        """列出全部 conversation，按 updated_at 降序。"""
+        rows = self._conn.execute(
+            "SELECT * FROM conversation ORDER BY updated_at DESC"
+        ).fetchall()
+        out = []
+        for r in rows:
+            d = self._row(r)
+            d["participants"] = _loads(d.get("participants")) or []
+            out.append(d)
+        return out
 
     def get_or_create_dm(self, agent_id: str) -> str:
         """取/建一个人↔单 agent 的 DM 会话，返回 conversation_id。"""
@@ -912,6 +963,86 @@ class Store:
         d = cls._row(row)
         d["parts"] = _loads(d.get("parts"))
         return d
+
+    # ── publish_log / audit_log（Phase 3 运营持久化）────────────
+
+    def insert_publish_log(self, project_id: str, *, task_id: str = "", platform: str = "",
+                           deliverable: str = "", status: str = "completed",
+                           meta: Optional[dict] = None) -> int:
+        with self._conn:
+            cur = self._conn.execute(
+                """INSERT INTO publish_log
+                     (project_id, task_id, platform, deliverable, status, meta, created_at)
+                   VALUES (?,?,?,?,?,?,?)""",
+                (project_id, task_id, platform, deliverable, status, _dumps(meta), _now()),
+            )
+            return int(cur.lastrowid)
+
+    def list_publish_logs(self, project_id: str, *, limit: int = 50) -> list[dict]:
+        rows = self._conn.execute(
+            "SELECT * FROM publish_log WHERE project_id=? ORDER BY id DESC LIMIT ?",
+            (project_id, limit),
+        ).fetchall()
+        return [self._row(r) for r in rows]
+
+    def insert_audit_log(self, project_id: str, *, task_id: str = "", audit_type: str = "geo",
+                         deliverable: str = "", status: str = "completed",
+                         meta: Optional[dict] = None) -> int:
+        with self._conn:
+            cur = self._conn.execute(
+                """INSERT INTO audit_log
+                     (project_id, task_id, audit_type, deliverable, status, meta, created_at)
+                   VALUES (?,?,?,?,?,?,?)""",
+                (project_id, task_id, audit_type, deliverable, status, _dumps(meta), _now()),
+            )
+            return int(cur.lastrowid)
+
+    def list_audit_logs(self, project_id: str, *, limit: int = 50) -> list[dict]:
+        rows = self._conn.execute(
+            "SELECT * FROM audit_log WHERE project_id=? ORDER BY id DESC LIMIT ?",
+            (project_id, limit),
+        ).fetchall()
+        return [self._row(r) for r in rows]
+
+    # ── agent_config / workflow_version（Phase 4 配置版本）──────
+
+    def upsert_agent_config(self, agent_id: str, config: dict) -> int:
+        row = self._conn.execute(
+            "SELECT version FROM agent_config WHERE agent_id=?", (agent_id,)
+        ).fetchone()
+        ver = (int(row[0]) + 1) if row else 1
+        now = _now()
+        with self._conn:
+            self._conn.execute(
+                """INSERT INTO agent_config (agent_id, config, version, updated_at)
+                   VALUES (?,?,?,?)
+                   ON CONFLICT(agent_id) DO UPDATE SET
+                     config=excluded.config, version=excluded.version,
+                     updated_at=excluded.updated_at""",
+                (agent_id, _dumps(config), ver, now),
+            )
+        return ver
+
+    def get_agent_config_row(self, agent_id: str) -> Optional[dict]:
+        row = self._conn.execute(
+            "SELECT * FROM agent_config WHERE agent_id=?", (agent_id,)
+        ).fetchone()
+        return self._row(row) if row else None
+
+    def save_workflow_version(self, workflow_id: str, body: dict) -> int:
+        row = self._conn.execute(
+            "SELECT MAX(version) FROM workflow_version WHERE workflow_id=?",
+            (workflow_id,),
+        ).fetchone()
+        ver = int(row[0] or 0) + 1
+        now = _now()
+        with self._conn:
+            self._conn.execute(
+                """INSERT INTO workflow_version (workflow_id, version, body, updated_at)
+                   VALUES (?,?,?,?)""",
+                (workflow_id, ver, _dumps(body), now),
+            )
+        return ver
 
 
 def _main(argv: list[str]) -> int:

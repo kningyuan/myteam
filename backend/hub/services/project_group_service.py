@@ -46,9 +46,14 @@ def _resolve_project_display_name(project_id: str, hint: str = "") -> str:
     return project_id
 
 
-def _group_title(project_id: str, project_name: str = "") -> str:
+def _group_title(
+    project_id: str,
+    project_name: str = "",
+    *,
+    name_prefix: str = "",
+) -> str:
     display = _resolve_project_display_name(project_id, project_name)
-    prefix = (skill_config.get("auto_group", "name_prefix", default="") or "").strip()
+    prefix = (name_prefix or skill_config.get("auto_group", "name_prefix", default="") or "").strip()
     if prefix:
         return f"{prefix}{display}" if prefix.endswith((":", "：", " ")) else f"{prefix}: {display}"
     return display
@@ -60,15 +65,18 @@ def setup_project_group(
     project_name: str = "",
 ) -> tuple[bool, str, Optional[str]]:
     """为项目创建/同步协作群并绑定 project_id。返回 (ok, message, group_id)。"""
-    if not skill_config.get("auto_group", "enabled", default=True):
-        return True, "auto_group disabled", None
+    from common.workflow_collaboration import collaboration_for_project
+
+    collab = collaboration_for_project(project_id)
+    if not collab.project_group_enabled:
+        return True, "project_group disabled by workflow", None
 
     members = set(team or [])
-    if skill_config.get("auto_group", "include_main", default=True):
+    if collab.include_main:
         members.add("main")
 
     display = _resolve_project_display_name(project_id, project_name)
-    group_name = _group_title(project_id, project_name)
+    group_name = _group_title(project_id, project_name, name_prefix=collab.name_prefix)
     group_desc = f"项目协作 · {display}"
 
     existing = find_group_by_project(project_id)
@@ -110,8 +118,10 @@ def post_project_progress(
     sender: str = "system",
 ) -> tuple[bool, str]:
     """向绑定项目的群组发送进度通报（无 @ 时不触发 Agent 路由）。"""
-    if not skill_config.get("notifications", "use_project_group", default=True):
-        return False, "project group notifications disabled"
+    from common.workflow_collaboration import notifications_enabled
+
+    if not notifications_enabled(project_id):
+        return False, "project group notifications disabled by workflow"
 
     try:
         from common.skill_settings import hub_base_url

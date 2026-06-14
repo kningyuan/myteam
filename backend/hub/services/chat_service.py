@@ -17,10 +17,9 @@ from adapter.events import EventKind
 from adapter.protocol import RunRequest
 from adapter.registry import registry
 from adapter.sse import encode_done, encode_error, encode_event
+from common.rules_merge import RulesProfile, merge_rules_file
 from hub.paths import RULES_DIR, resolve_workspace
 from store.sessions import session_store
-
-# 过渡期：复用 base 的身份与配置
 from base.agent_identity import AgentIdentityBuilder, multi_agent_manager
 from base.agent_chat import get_agent_backend_config, _load_agents_config
 
@@ -35,15 +34,32 @@ class ChatService:
         cancel_event: Optional[Event] = None,
         *,
         use_memory: bool = False,
+        rules_profile: RulesProfile = "conversation",
+        workspace_key: Optional[str] = None,
+        memory_scope=None,
     ) -> Generator[str, None, None]:
         """1-on-1 流式对话。
 
         use_memory=True（DM 路径，P0）：对话历史进 Store、由 Context Assembler 组装上下文，
         own-history、不依赖 opencode -s。其余调用方（群组/通知/工厂）保持 use_memory=False 旧路径。
+        rules_profile：conversation=讨论/私聊/圆桌；workflow_execute=项目任务 execute。
+        workspace_key：Adapter session 映射键；默认 workspace-{agent_id}，群/圆桌由 agent_memory 提供。
+        memory_scope：外挂记忆作用域；若提供则 before/after_turn 由 provider 处理。
         """
         if use_memory:
             yield from self._stream_memory(agent_id, message, cancel_event)
             return
+        from common.agent_memory import (
+            MemoryScope,
+            get_agent_memory_provider,
+            inject_memory_hints,
+            memory_scope_dm,
+        )
+
+        scope = memory_scope if isinstance(memory_scope, MemoryScope) else memory_scope_dm(agent_id)
+        provider = get_agent_memory_provider()
+        hint = provider.before_turn(scope, message)
+        effective_message = inject_memory_hints(message, hint)
         agent_cfg = _load_agents_config().get(agent_id, {})
         workspace = resolve_workspace(agent_id, agent_cfg.get("workspace"))
         if not workspace.is_dir():
@@ -57,17 +73,18 @@ class ChatService:
             return
 
         model = backend_cfg.model
-        rules_file = self._merge_rules(agent_id, str(workspace))
+        rules_file = self._merge_rules(agent_id, str(workspace), profile=rules_profile)
         system_prompt = self._build_system_prompt(agent_id, str(workspace))
         full_message = (
-            f"【系统指令】\n{system_prompt}\n\n【用户消息】\n{message}"
-            if system_prompt else message
+            f"【系统指令】\n{system_prompt}\n\n【用户消息】\n{effective_message}"
+            if system_prompt else effective_message
         )
 
         adapter_id = backend_cfg.backend_id
-        ws_key = f"workspace-{agent_id}"
+        ws_key = workspace_key or provider.session_key(scope)
         session_id = session_store.get(adapter_id, agent_id, ws_key)
         sid = ""
+        assistant_buf: list[str] = []
 
         try:
             has_output = False
@@ -94,6 +111,10 @@ class ChatService:
                     has_output = True
                     encoded = encode_event(event)
                     if encoded:
+                        if event.kind == EventKind.TEXT:
+                            chunk = (event.data or {}).get("content", "")
+                            if chunk:
+                                assistant_buf.append(chunk)
                         yield encoded
 
             yield from _run(session_id)
@@ -105,6 +126,11 @@ class ChatService:
 
             if sid:
                 session_store.set(adapter_id, agent_id, ws_key, sid)
+
+            try:
+                provider.after_turn(scope, message, "".join(assistant_buf).strip())
+            except Exception:
+                pass
 
             yield encode_done(sid)
 
@@ -169,14 +195,33 @@ class ChatService:
                 agent_id=agent_id,
                 cancel_event=cancel_event,
             )
+            from common.thinking_trace import append_thinking_payload
+
             buf: list[str] = []
+            trace_parts: list[dict] = []
+            trace_reply_scratch: list[str] = []
             cancelled = False
             for event in adapter.run(req):
+                if cancel_event is not None and cancel_event.is_set():
+                    cancelled = True
+                    break
                 if event.kind == EventKind.SESSION:
                     continue
                 if event.kind == EventKind.ERROR:
                     yield encode_error(event.data.get("message", ""))
                     return
+                payload = event.to_thinking_payload()
+                if payload:
+                    if (
+                        payload.get("type") == "text"
+                        and event.data.get("source") == "result"
+                        and buf
+                    ):
+                        pass
+                    else:
+                        append_thinking_payload(
+                            payload, trace_reply_scratch, trace_parts,
+                        )
                 if event.kind == EventKind.TEXT:
                     content = event.data.get("content", "") or ""
                     if not content:
@@ -187,17 +232,19 @@ class ChatService:
                             buf.append(content)
                     else:
                         buf.append(content)
-                if cancel_event is not None and cancel_event.is_set():
-                    cancelled = True
                 encoded = encode_event(event)
                 if encoded:
                     yield encoded
 
             reply = "".join(buf).strip()
-            if reply:
-                store.append_message(conv_id, "agent", agent_id, text=reply,
-                                     parts=[{"type": "text", "text": reply}] + citations,
-                                     backend=backend_cfg.backend_id)
+            if reply and not cancelled:
+                msg_meta = {"thinking": trace_parts} if trace_parts else None
+                store.append_message(
+                    conv_id, "agent", agent_id, text=reply,
+                    parts=[{"type": "text", "text": reply}] + citations,
+                    backend=backend_cfg.backend_id,
+                    meta=msg_meta,
+                )
             if not cancelled:
                 maybe_update_summary(
                     store, conv_id,
@@ -244,28 +291,21 @@ class ChatService:
             sections.append(f"<multi_agent_context>\n{multi}\n</multi_agent_context>")
         return "\n\n".join(sections)
 
-    def _merge_rules(self, agent_id: str, workspace: str) -> Optional[str]:
-        universal = RULES_DIR / "universal-rules.md"
-        agents_md = Path(workspace) / "AGENTS.md"
-        try:
-            fd, temp_path = tempfile.mkstemp(suffix=".md", prefix=f"rules-{agent_id}-", dir="/tmp")
-            builder = AgentIdentityBuilder(agent_id, workspace)
-            chinese_name = builder.extract_chinese_name()
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                f.write(f"# {chinese_name} - 完整规则\n\n")
-                if universal.exists():
-                    f.write(universal.read_text(encoding="utf-8"))
-                    f.write("\n\n---\n\n")
-                for name in ["brainstorming-guide.md", "worker-template.md"]:
-                    fp = RULES_DIR / name
-                    if agent_id != "main" and fp.exists():
-                        f.write(fp.read_text(encoding="utf-8"))
-                        f.write("\n\n---\n\n")
-                if agents_md.exists():
-                    f.write(agents_md.read_text(encoding="utf-8"))
-            return temp_path
-        except Exception:
-            return None
+    def _merge_rules(
+        self,
+        agent_id: str,
+        workspace: str,
+        *,
+        profile: RulesProfile = "conversation",
+    ) -> Optional[str]:
+        builder = AgentIdentityBuilder(agent_id, workspace)
+        return merge_rules_file(
+            agent_id,
+            workspace,
+            RULES_DIR,
+            profile=profile,
+            chinese_name=builder.extract_chinese_name(),
+        )
 
 
 chat_service = ChatService()

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
@@ -10,6 +11,7 @@ from typing import Any, Optional
 import yaml
 
 from common.agent_id_policy import normalize_agent_ids, normalize_plan_tasks
+from common.loop_runtime import LoopSpec, parse_loop_specs, validate_loop_specs
 from common.paths import BUSINESS_DIR
 from common.plan_gate import check_plan
 
@@ -23,6 +25,7 @@ class WorkflowProfile:
     tasks: list[dict]
     options: dict[str, Any] = field(default_factory=dict)
     phases: list[dict] = field(default_factory=list)
+    loops: list[LoopSpec] = field(default_factory=list)
 
     def instantiate_tasks(self, *, goal: str = "") -> list[dict]:
         """复制 task 列表，将 goal 注入 description。"""
@@ -43,13 +46,18 @@ def workflows_dir() -> Path:
     return BUSINESS_DIR / "workflows"
 
 
-def roster_from_tasks(tasks: list[dict]) -> list[str]:
+def roster_from_tasks(tasks: list[dict], loops: Optional[list[LoopSpec]] = None) -> list[str]:
     """从任务 DAG 推导团队名册：各步 agent 去重；无 main 时前置 main（协调者）。"""
     roster: list[str] = []
     for t in tasks:
         aid = str(t.get("agent") or "").strip()
         if aid and aid not in roster:
             roster.append(aid)
+    for spec in loops or []:
+        for t in spec.body:
+            aid = str(t.get("agent") or "").strip()
+            if aid and aid not in roster:
+                roster.append(aid)
     if "main" not in roster:
         roster.insert(0, "main")
     return roster
@@ -81,7 +89,8 @@ def load_workflow(workflow_id: str, *, path: Optional[Path] = None) -> WorkflowP
     tasks = normalize_plan_tasks(raw.get("tasks") or [])
     if not tasks:
         raise ValueError(f"workflow「{wid}」未定义 tasks")
-    roster = normalize_agent_ids(roster_from_tasks(tasks))
+    loops = parse_loop_specs(raw.get("loops"))
+    roster = normalize_agent_ids(roster_from_tasks(tasks, loops))
 
     profile = WorkflowProfile(
         id=wid,
@@ -91,6 +100,7 @@ def load_workflow(workflow_id: str, *, path: Optional[Path] = None) -> WorkflowP
         tasks=tasks,
         options=dict(raw.get("options") or {}),
         phases=list(raw.get("phases") or []),
+        loops=parse_loop_specs(raw.get("loops")),
     )
     validate_workflow(profile)
     return profile
@@ -107,6 +117,29 @@ def _pgd_bootstrap_agent_ids() -> set[str]:
         return set()
 
 
+def _validate_template_refs(tasks: list[dict], loops: Optional[list[LoopSpec]] = None) -> None:
+    from common.delivery_templates import DeliveryTemplateError, load_delivery_template
+
+    seen: set[str] = set()
+    for t in tasks:
+        tid = str(t.get("template_id") or "").strip()
+        if tid and tid not in seen:
+            seen.add(tid)
+            try:
+                load_delivery_template(tid)
+            except DeliveryTemplateError as e:
+                raise ValueError(str(e)) from e
+    for spec in loops or []:
+        for t in spec.body:
+            tid = str(t.get("template_id") or "").strip()
+            if tid and tid not in seen:
+                seen.add(tid)
+                try:
+                    load_delivery_template(tid)
+                except DeliveryTemplateError as e:
+                    raise ValueError(str(e)) from e
+
+
 def validate_workflow(profile: WorkflowProfile) -> None:
     """校验 DAG、agent 可用性、task_type 注册与 agent 能力绑定。"""
     from common.agent_registry import agent_task_type_map, list_available_agent_ids
@@ -114,13 +147,19 @@ def validate_workflow(profile: WorkflowProfile) -> None:
 
     team = set(profile.roster)
     instantiated = profile.instantiate_tasks()
-    result = check_plan(instantiated, team, check_capabilities=True)
-    if not result.passed:
-        raise ValueError(f"workflow「{profile.id}」校验失败：{result.feedback}")
 
     available = set(list_available_agent_ids())
     boot = _pgd_bootstrap_agent_ids()
-    used_agents = {str(t.get("agent") or "").strip() for t in profile.tasks if t.get("agent")}
+    used_agents = set()
+    for t in profile.tasks:
+        aid = str(t.get("agent") or "").strip()
+        if aid:
+            used_agents.add(aid)
+    for spec in profile.loops:
+        for t in spec.body:
+            aid = str(t.get("agent") or "").strip()
+            if aid:
+                used_agents.add(aid)
     missing_agents = sorted(a for a in used_agents if a not in available and a not in boot)
     if missing_agents:
         raise ValueError(
@@ -130,6 +169,8 @@ def validate_workflow(profile: WorkflowProfile) -> None:
     cap_map = agent_task_type_map()
     bind_errors: list[str] = []
     for t in profile.tasks:
+        if t.get("loop"):
+            continue
         tt = str(t.get("task_type") or "").strip()
         aid = str(t.get("agent") or "").strip()
         if tt and get_spec(tt) is None:
@@ -141,6 +182,22 @@ def validate_workflow(profile: WorkflowProfile) -> None:
     if bind_errors:
         raise ValueError(
             f"workflow「{profile.id}」任务绑定无效：\n- " + "\n- ".join(sorted(bind_errors)))
+
+    plan_tasks = instantiated
+    if plan_tasks:
+        result = check_plan(plan_tasks, team, check_capabilities=True)
+        if not result.passed:
+            raise ValueError(f"workflow「{profile.id}」校验失败：{result.feedback}")
+
+    if profile.loops:
+        validate_loop_specs(profile.loops, profile.tasks, team)
+        if profile.options.get("review_enabled"):
+            logging.warning(
+                "workflow「%s」同时启用 loops 与 review_enabled，建议 loop body 内显式 review 步",
+                profile.id,
+            )
+
+    _validate_template_refs(profile.tasks, profile.loops)
 
 
 def read_workflow_raw(workflow_id: str) -> dict:
@@ -166,7 +223,8 @@ def write_workflow_raw(data: dict, *, workflow_id: Optional[str] = None) -> str:
     data = dict(data)
     data["id"] = wid
     tasks = list(data.get("tasks") or [])
-    roster = roster_from_tasks(tasks)
+    loops = parse_loop_specs(data.get("loops"))
+    roster = roster_from_tasks(tasks, loops)
     profile = WorkflowProfile(
         id=wid,
         version=str(data.get("version", "1.0")),
@@ -175,6 +233,7 @@ def write_workflow_raw(data: dict, *, workflow_id: Optional[str] = None) -> str:
         tasks=tasks,
         options=dict(data.get("options") or {}),
         phases=list(data.get("phases") or []),
+        loops=parse_loop_specs(data.get("loops")),
     )
     validate_workflow(profile)
 
@@ -188,6 +247,11 @@ def write_workflow_raw(data: dict, *, workflow_id: Optional[str] = None) -> str:
         yaml.dump(data, allow_unicode=True, default_flow_style=False, sort_keys=False),
         encoding="utf-8",
     )
+    try:
+        from common.store import Store
+        Store().save_workflow_version(wid, data)
+    except Exception:
+        pass
     return wid
 
 

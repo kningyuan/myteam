@@ -5,23 +5,23 @@
     "main": {
       "name": "项目经理",
       "role": "coordinator",
-      "description": "项目协调与阶段仲裁；产出 decision-record；部署记录",
-      "capabilities": ["协调", "决策", "阶段闸门", "部署记录"],
-      "task_types": ["strategy", "decision-record", "code-deployment"]
+      "description": "项目协调与阶段仲裁；内容质量评审（section-review）与 decision-record",
+      "capabilities": ["协调", "决策", "阶段闸门", "内容评审", "部署记录"],
+      "task_types": ["strategy", "decision-record", "section-review", "code-deployment"]
     },
     "product": {
       "name": "产品专家",
       "role": "worker",
       "description": "需求、策略、验收；问题优先，明确范围与验收标准",
       "capabilities": ["需求", "策略", "验收", "优先级"],
-      "task_types": ["strategy", "research", "requirements", "acceptance-report", "architecture-review", "deck-build", "diagram-build", "decision-record"]
+      "task_types": ["strategy", "research", "requirements", "acceptance-report", "architecture-review", "section-authoring", "section-review", "deck-build", "diagram-build", "decision-record"]
     },
     "arch": {
       "name": "架构师",
       "role": "worker",
       "description": "系统方案与架构评审；可承担架构视角调研；不主责完整工程实现",
       "capabilities": ["系统设计", "内核", "API", "代码审查", "架构调研"],
-      "task_types": ["system-design", "architecture-review", "code-review", "research"]
+      "task_types": ["system-design", "architecture-review", "section-review", "code-review", "research"]
     },
     "developer": {
       "name": "研发专家",

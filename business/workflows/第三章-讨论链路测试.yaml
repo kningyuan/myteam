@@ -1,0 +1,75 @@
+id: 第三章-讨论链路测试
+version: '1.0'
+description: |
+  群讨论 PATCH 链路集成测试：基线复制 → 强制 FAIL 评审 → 群对齐 → PATCH → 再审 PASS。
+options:
+  review_enabled: false
+  needs_review_blocks: true
+  group_discussion_enabled: true
+  loop_discussion_profile: work-review-alignment
+  collaboration:
+    project_group:
+      enabled: true
+    notifications:
+      enabled: true
+    group_discussion:
+      enabled: true
+      profile: work-review-alignment
+  split_enabled: false
+  parallel_enabled: false
+  max_parallel: 1
+loops:
+- id: discuss_test_round
+  description: FAIL→群讨论→PATCH→PASS 链路验证
+  max_rounds: 3
+  on_pass: complete
+  on_exhaust: needs_review
+  until:
+  - type: deliverable_marker
+    task: review
+    marker: "REVIEW: PASS"
+  body:
+  - id: work
+    name: 准备/修订测试交付物
+    agent: product
+    task_type: product-planning
+    dependencies: []
+    description: |
+      【对象】群讨论 PATCH 链路测试（可信数据空间第三章基线）
+      【轮次】第 {round}/{max_rounds} 轮（loop: {loop_id}）
+      【第 1 轮 · 基线复制】
+        - 将 business/tasks/project/tds-ch3-rerun2/deliverables/ch3_quality_round-r1-work_deliverable.md
+          复制为 deliverables/{work_task_id}_deliverable.md
+        - 同目录复制 product-architecture / functional-architecture 的 .drawio 与 .png（若存在）
+        - **禁止**重写正文，仅复制对齐路径
+      【第 2+ 轮 · PATCH 模式】
+        - 基线已复制：deliverables/{prev_work_task_id}_deliverable.md → {work_task_id}_deliverable.md
+        - **仅修改**群讨论「定点改稿清单」中的 ### 小节/段落；其余 verbatim 保留
+        - 必读：{loop_id}-r{prev_round}-review_deliverable.md、{loop_id}-r{prev_round}-group_discussion.md
+      【产出】{work_task_id}_deliverable.md（不是评审意见）
+  - id: review
+    name: 项目经理内容质量评审（测试）
+    agent: main
+    task_type: section-review
+    dependencies:
+    - work
+    description: |
+      【对象】本轮 work 交付物 `{work_task_id}_deliverable.md`
+      【轮次】第 {round}/{max_rounds} 轮
+      【测试 run — 群讨论 PATCH 链路验证】
+      第 1 轮（round=1）：
+        - **必须** REVIEW: FAIL（本 run 目的即触发群讨论，不得 PASS）
+        - 在「发现与分级」列 ≥2 个 🟡 可定点修改项（指定 ### 小节）
+        - 「修订要求」逐条给出具体改法，须可 PATCH
+        - 末行单独写 REVIEW: FAIL
+      第 2+ 轮：
+        - 优先核对群讨论「定点改稿清单」是否全部落实
+        - 清单外章节与 {prev_work_task_id} 一致
+        - 质量 OK 则 REVIEW: PASS
+      【产出】section-review（## 评审范围 / ## 审计结论 / ## 发现与分级 / ## 修订要求）
+      【循环标记】全文末行 REVIEW: PASS 或 REVIEW: FAIL
+tasks:
+- id: t-discuss-test
+  name: 群讨论 PATCH 链路测试（Work-Review 循环）
+  loop: discuss_test_round
+  dependencies: []

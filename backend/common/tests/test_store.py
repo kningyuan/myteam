@@ -126,6 +126,42 @@ def test_memory_write_search(store):
     assert not store.memory_search(tags=["nope"])
 
 
+def test_list_all_conversations(store):
+    store.create_conversation("channel/project-a", kind="project", project_id="pro_a", title="A")
+    store.create_conversation("dm:research", kind="dm", title="Research DM")
+    convs = store.list_all_conversations()
+    ids = {c["conversation_id"] for c in convs}
+    assert ids == {"channel/project-a", "dm:research"}
+    dm = next(c for c in convs if c["conversation_id"] == "dm:research")
+    assert dm["participants"] == []
+
+
+def test_list_interactions_by_statuses(store):
+    store.upsert_project("pro_x")
+    store.create_interaction("i_pending", "execute", "pro_x", agent_id="a1")
+    store.create_interaction("i_running", "execute", "pro_x", agent_id="a2")
+    store.update_interaction("i_running", status="running")
+    store.create_interaction("i_done", "execute", "pro_x", agent_id="a3")
+    store.update_interaction("i_done", status="done")
+
+    active = store.list_interactions_by_statuses(("pending", "running"))
+    assert {r["interaction_id"] for r in active} == {"i_pending", "i_running"}
+
+    done = store.list_interactions_by_statuses(("done",))
+    assert {r["interaction_id"] for r in done} == {"i_done"}
+
+    assert store.list_interactions_by_statuses(()) == []
+
+
+def test_get_job(store):
+    jid = store.create_job("pro_x", pid=12345)
+    job = store.get_job(jid)
+    assert job is not None
+    assert job["job_id"] == jid
+    assert job["project_id"] == "pro_x"
+    assert store.get_job("nonexistent") is None
+
+
 def test_delete_project_purges_all_tables_and_isolates(store):
     # 目标项目：含 task / interaction / run_event / memory + 合成 budget 事件
     store.upsert_project("pro_del", title="待删")

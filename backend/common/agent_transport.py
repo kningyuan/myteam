@@ -97,10 +97,18 @@ def _ensure_backend_importable() -> None:
 
 def _default_adapter(backend: str = "opencode"):
     _ensure_backend_importable()
-    if backend == "claude":
-        from adapters.claude import ClaudeCodeAdapter
-        return ClaudeCodeAdapter()
+    import adapters  # noqa: F401 — side-effect registration
+
+    from adapter.registry import registry
+
+    adapter = registry.get(backend)
+    if adapter is not None:
+        return adapter
+    fallback = registry.get("opencode")
+    if fallback is not None:
+        return fallback
     from adapters.opencode.adapter import OpenCodeAdapter
+
     return OpenCodeAdapter()
 
 
@@ -111,30 +119,18 @@ def _default_request_factory(**kw):
 
 
 def _build_rules_file(agent_id: str) -> Optional[str]:
-    """合并 universal-rules + AGENTS.md，供内核 execute 与 Hub 聊天同源（D1）。"""
+    """项目 execute：universal + worker-template + AGENTS.md（D1 与 Hub 规则目录同源）。"""
+    from common.rules_merge import merge_rules_file
+
     ws = str(workspace_dir(agent_id))
-    universal = RULES_DIR / "universal-rules.md"
-    agents_md = Path(ws) / "AGENTS.md"
-    try:
-        fd, temp_path = tempfile.mkstemp(
-            suffix=".md", prefix=f"rules-{agent_id}-", dir="/tmp",
-        )
-        chinese_name = _AGENT_DISPLAY_NAMES.get(agent_id, agent_id)
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(f"# {chinese_name} - 完整规则\n\n")
-            if universal.exists():
-                f.write(universal.read_text(encoding="utf-8"))
-                f.write("\n\n---\n\n")
-            for name in ["brainstorming-guide.md", "worker-template.md"]:
-                fp = RULES_DIR / name
-                if agent_id != "main" and fp.exists():
-                    f.write(fp.read_text(encoding="utf-8"))
-                    f.write("\n\n---\n\n")
-            if agents_md.exists():
-                f.write(agents_md.read_text(encoding="utf-8"))
-        return temp_path
-    except Exception:
-        return None
+    chinese_name = _AGENT_DISPLAY_NAMES.get(agent_id, agent_id)
+    return merge_rules_file(
+        agent_id,
+        ws,
+        RULES_DIR,
+        profile="workflow_execute",
+        chinese_name=chinese_name,
+    )
 
 
 def _load_agents_config() -> dict:
@@ -195,10 +191,25 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
         base = (req.input or {}).get("deliverable_base")
         abs_dv = (Path(base) / rel) if base else (deliv_dir / rel)
         task_type = (req.constraints or {}).get("task_type", "")
-        spec = get_spec(task_type) if task_type else None
+        template_id = str((req.constraints or {}).get("template_id") or "").strip() or None
+        from common.registry import resolve_format_spec
+        spec = resolve_format_spec(task_type, template_id) if task_type else None
         skill_path = _task_type_skill_path(task_type) if task_type else None
         if skill_path:
             lines.append(f"【任务类型执行指引】请先阅读并按其中流程执行：{skill_path}")
+            lines.append("")
+        from common.skill_methodology import methodology_skill_paths
+
+        meth_paths = methodology_skill_paths(task_type, req.agent_id)
+        for meth_path in meth_paths:
+            lines.append(f"【方法论】请先阅读并按其中框架思考与交付：{meth_path}")
+        if meth_paths:
+            lines.append("")
+        if spec and spec.template_id:
+            lines.append(
+                f"【交付模板】{spec.template_display_name or spec.template_id}（id={spec.template_id}）"
+            )
+            lines.append("须严格按模板章节与 Gate 规则交卷；章节标题与模板逐字一致。")
             lines.append("")
         profile = spec.delivery_profile if spec else "none"
         compose_execute_layers(lines, task_type, profile)
@@ -297,17 +308,36 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
         abs_dv = (Path(base) / rel) if base else (deliv_dir / rel)
         criteria = (req.input or {}).get("acceptance_criteria") or []
         task_type = (req.constraints or {}).get("task_type", "")
+        template_id = (req.input or {}).get("template_id") or (req.constraints or {}).get("template_id") or ""
+        sections = (req.input or {}).get("template_sections") or []
+        attach = (req.input or {}).get("file_exists") or []
+        if template_id:
+            lines.append(f"【交付模板】{template_id}")
         if is_code_project_task(task_type):
             proj = Path(base) if base else (deliv_dir / req.task_id)
             lines.append(f"请通读代码工程目录内全部相关文件：{proj}")
             lines.append("（脚本、README、测试用例/记录/报告、output/ 产出等均在此目录）")
         else:
             lines.append(f"请打开并通读交付物文件：{abs_dv}")
+        if sections:
+            lines.append("【逐章评审】对照模板每一章的内容质量（非仅标题是否存在）：")
+            for sec in sections:
+                if not isinstance(sec, dict):
+                    continue
+                name = sec.get("name", "")
+                desc = sec.get("description", "")
+                if name:
+                    lines.append(f"  - ## {name}" + (f"：{desc}" if desc else ""))
+        if attach:
+            lines.append("【附件/图评审】须存在且与正文一致：")
+            for f in attach:
+                lines.append(f"  - {f}")
         if criteria:
-            lines.append("逐条对照以下验收标准评审：")
+            lines.append("【验收标准】逐条对照：")
             for c in criteria:
                 lines.append(f"  - {c}")
-        lines.append("整体达标则 passed=true；否则 passed=false，并在 feedback 写明须修正之处。")
+        lines.append("【全文一致性】术语、范围、架构/流程描述前后须自洽，无矛盾。")
+        lines.append("整体达标则 passed=true；否则 passed=false，feedback 按章节列出须修正之处。")
         result_hint = '"result": %s' % _RESULT_SKELETON["review"]
     else:
         lines.append("输入数据：")
@@ -337,10 +367,26 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
         result_hint = '"result": %s' % _RESULT_SKELETON.get(kind, "{ ... }")
 
     if req.retry_feedback:
+        patch_hint = (req.constraints or {}).get("patch_hint", "")
         lines.append("")
-        lines.append("【上一次未通过校验，请逐条修正】")
-        for f in req.retry_feedback:
-            lines.append(f"  ❌ {f}")
+        if patch_hint == "format_only":
+            lines.append("【PATCH 修正 — 仅调整标题结构，保留正文】")
+            for f in req.retry_feedback:
+                if f.startswith("上一轮"):
+                    lines.append(f"  📁 {f}")
+                else:
+                    lines.append(f"  ❌ {f}")
+            lines.append("")
+            lines.append("【指示】交付物已存在，仅修正标题层级与章节名使其通过门禁；")
+            lines.append("禁止重读仓库、禁止重写正文、禁止重新调研。")
+        else:
+            lines.append("【PATCH 修正 — 针对以下问题做定点修改】")
+            for f in req.retry_feedback:
+                lines.append(f"  ❌ {f}")
+            lines.append("")
+            dv_path = (req.input or {}).get("deliverable_path", "")
+            if dv_path:
+                lines.append(f"交付物文件：{dv_path}（请直接编辑此文件，不要重写）")
 
     lines += [
         "",

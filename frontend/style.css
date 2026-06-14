@@ -45,7 +45,7 @@ html, body { font-size: var(--text-base); }
 /* ============== Narrow screen responsive overrides ============== */
 @media (max-width: 820px) {
   :root { --content-padding-x: var(--space-4); }
-  #manage-agent-table, #manage-tasktype-table, #manage-memory-table { overflow-x:auto; }
+  #manage-agent-table, #manage-tasktype-table, #kb-table { overflow-x:auto; }
   .manage-table { min-width:600px; }
   .manage-panel, .settings-panel { padding:20px 16px; }
   #theme-dropdown { right: 12px; }

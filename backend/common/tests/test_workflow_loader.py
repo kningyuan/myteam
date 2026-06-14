@@ -78,3 +78,13 @@ def test_数据分析_has_required_task_types():
     assert "requirements" in kinds
     assert "data-analysis" in kinds
     assert "acceptance-report" in kinds
+
+
+def test_self_upgrade_workflow_loads():
+    assert "self-upgrade" in list_workflows()
+    profile = load_workflow("self-upgrade")
+    assert profile.id == "self-upgrade"
+    assert profile.options.get("skill_extract_enabled") is True
+    task_ids = {t["id"] for t in profile.tasks}
+    assert "skill-extract" in task_ids
+    assert "upgrade-plan" in task_ids

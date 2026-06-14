@@ -2,33 +2,28 @@
 """将 workflow 任务步骤绑定到 Agent 已声明的 task_types（与 plan_gate 一致）。"""
 from __future__ import annotations
 
+import json
 from copy import deepcopy
-from typing import Any
 
 from common.agent_registry import agent_task_type_map, list_available_agent_ids
+from common.paths import BUSINESS_CONFIG_DIR
 
-# task_type → 优先尝试的 agent_id（须已在 workspace 且勾选对应类型）
-TASK_TYPE_AGENT_PRIORITY: dict[str, list[str]] = {
-    "research": ["research", "product", "analyst", "arch", "developer", "geo", "seo"],
-    "strategy": ["product", "main", "analyst"],
-    "requirements": ["product"],
-    "system-design": ["arch", "developer", "frontend"],
-    "architecture-review": ["arch", "product", "qa", "frontend"],
-    "code-writing": ["developer", "frontend", "analyst"],
-    "code-review": ["arch", "developer", "qa", "frontend"],
-    "code-testing": ["qa", "tester"],
-    "test-plan": ["qa", "tester"],
-    "content": ["content", "geo", "docs"],
-    "publish-post": ["social_zhihu", "social_xhs", "social"],
-    "acceptance-report": ["product"],
-    "decision-record": ["main"],
-    "code-deployment": ["main", "ops"],
-    "data-analysis": ["analyst"],
-    "geo-plan": ["geo"],
-    "geo-audit": ["geo"],
-    "geo-verification": ["geo"],
-    "seo-plan": ["seo"],
-}
+_PRIORITY_CACHE: dict[str, list[str]] | None = None
+
+
+def _load_task_type_agent_priority() -> dict[str, list[str]]:
+    global _PRIORITY_CACHE
+    if _PRIORITY_CACHE is not None:
+        return _PRIORITY_CACHE
+    path = BUSINESS_CONFIG_DIR / "task_type_agent_priority.json"
+    if path.is_file():
+        try:
+            _PRIORITY_CACHE = json.loads(path.read_text(encoding="utf-8"))
+            return _PRIORITY_CACHE
+        except (OSError, json.JSONDecodeError):
+            pass
+    _PRIORITY_CACHE = {}
+    return _PRIORITY_CACHE
 
 
 def _agent_can(cap_map: dict[str, list[str]], available: set[str], aid: str, tt: str) -> bool:
@@ -47,10 +42,11 @@ def _pick_agent_for_task_type(
     available: set[str],
     prefer: str = "",
 ) -> str:
+    priority = _load_task_type_agent_priority()
     candidates: list[str] = []
     if prefer:
         candidates.append(prefer)
-    candidates.extend(TASK_TYPE_AGENT_PRIORITY.get(tt, []))
+    candidates.extend(priority.get(tt, []))
     for aid in cap_map:
         if aid not in candidates:
             candidates.append(aid)

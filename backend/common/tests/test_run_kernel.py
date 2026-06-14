@@ -124,6 +124,7 @@ def test_hub_path_merges_workflow_parallel_flags(env, monkeypatch):
         profile = SimpleNamespace(
             id=wf_id,
             roster=["research"],
+            loops=[],
             options={
                 "parallel_enabled": True,
                 "max_parallel": 3,

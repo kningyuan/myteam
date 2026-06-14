@@ -6,9 +6,21 @@ description: 在 myteam 仓库内做最小正确实现，附带测试。
 
 # code-writing — myteam 工程改动
 
-配置贯通类任务 **先读**：`business/skills/myteam-config-linkage/SKILL.md`
+**必须先读**（内核按 agent_id 注入对应方法论）：
+- `developer` → `business/skills/backend-engineering-methodology/SKILL.md`
+- `frontend` → `business/skills/frontend-engineering-methodology/SKILL.md`
+
+配置贯通类任务 **再读**：`business/skills/myteam-config-linkage/SKILL.md`
 
 改动 `frontend/` 任意文件 **先读**：`business/skills/hub-ui-debug/SKILL.md`（含语法/重复 let 扫描与「加载中」排查）
+
+## Gate 章节（H2 须与 templates.yaml `code-writing` 逐字一致）
+
+| 章节 / 规则 | 要求 |
+|-------------|------|
+| 正文 | 改了哪些文件、每项如何验证 |
+| code_project | `deliverables/<task_id>/` 含可运行代码 + `README.md` |
+| 结构校验 | `min_project_files` ≥ 2、含代码文件、`README.md` 存在 |
 
 ## 执行步骤
 

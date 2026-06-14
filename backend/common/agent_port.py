@@ -28,6 +28,7 @@ from common.paths import response_dir, trigger_dir
 from common.store import Store
 from common.deliverable_guarantee import try_adopt_deliverable_response
 from common.submit_result import _atomic_write_json
+from common.token_usage import StoreTokenUsageSink, TokenUsageSink
 
 
 @dataclass
@@ -100,11 +101,13 @@ def _lock_for(agent_id: str) -> threading.Lock:
 class AgentPort:
     def __init__(self, transport: Transport, store: Optional[Store] = None,
                  config: Optional[WatchdogConfig] = None,
-                 budget_checker: Optional[Callable[[str], bool]] = None):
+                 budget_checker: Optional[Callable[[str], bool]] = None,
+                 token_sink: Optional[TokenUsageSink] = None):
         self.transport = transport
         self.store = store or Store()
         self.config = config or WatchdogConfig()
         self.budget_checker = budget_checker
+        self._token_sink = token_sink or StoreTokenUsageSink(self.store)
 
     # ── 路径（文件=缓存，按 interaction_id 命名，D12）─────────
 
@@ -309,7 +312,14 @@ class AgentPort:
                 running = _apply_step_finish_tokens(payload, token_acc)
                 tokens = max(tokens, running)
                 if running > 0:
-                    self.store.bump_interaction_tokens(iid, running)
+                    inter = self.store.get_interaction(iid) or {}
+                    self._token_sink.record_usage(
+                        inter.get("project_id", ""),
+                        iid,
+                        running,
+                        agent_id=inter.get("agent_id", ""),
+                        backend=inter.get("backend", ""),
+                    )
         return drained, tokens, cli_error
 
     def _read_valid_response(self, resp_path: Path, iid: str, req_mtime: float) -> Optional[dict]:
@@ -330,7 +340,10 @@ class AgentPort:
 
     def _finalize_done(self, iid: str, resp_path: Path, resp: dict,
                        event_tokens: int = 0) -> None:
-        finalize_interaction(self.store, iid, resp_path, resp, event_tokens)
+        finalize_interaction(
+            self.store, iid, resp_path, resp, event_tokens,
+            token_sink=self._token_sink,
+        )
 
     @staticmethod
     def _unlink(path: Path) -> None:
@@ -427,14 +440,23 @@ def read_adoptable_response(agent_id: str, interaction_id: str) -> tuple[Optiona
 
 
 def finalize_interaction(store: Store, interaction_id: str, resp_path: Path, resp: dict,
-                         event_tokens: int = 0) -> None:
+                         event_tokens: int = 0,
+                         token_sink: Optional[TokenUsageSink] = None) -> None:
     """把合法响应写入 store 真相（interaction=done）。"""
     meta = resp.get("meta") or {}
     meta_tokens = meta.get("tokens") if isinstance(meta, dict) else None
     tokens = event_tokens if event_tokens > 0 else (
         meta_tokens if isinstance(meta_tokens, int) else 0)
     if tokens > 0:
-        store.bump_interaction_tokens(interaction_id, tokens)
+        sink = token_sink or StoreTokenUsageSink(store)
+        inter = store.get_interaction(interaction_id) or {}
+        sink.record_usage(
+            inter.get("project_id", ""),
+            interaction_id,
+            tokens,
+            agent_id=inter.get("agent_id", ""),
+            backend=inter.get("backend", ""),
+        )
     store.update_interaction(
         interaction_id, status="done", response_ref=str(resp_path),
     )
@@ -478,10 +500,7 @@ def reconcile_on_start(store: Optional[Store] = None) -> dict[str, int]:
     后续 gc_workspace 删掉 .response 导致断点续跑无法结算。
     """
     store = store or Store()
-    rows = store._conn.execute(
-        """SELECT interaction_id, agent_id FROM interaction
-           WHERE status IN ('pending','running','timed_out')"""
-    ).fetchall()
+    rows = store.list_interactions_by_statuses(("pending", "running", "timed_out"))
     return _reconcile_rows(
         store, rows,
         adopted_kind="reconcile_adopted", timed_out_kind="reconcile_timed_out",

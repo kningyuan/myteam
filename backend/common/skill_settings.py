@@ -58,6 +58,20 @@ def skill_config_all() -> dict:
     return dict(_load())
 
 
+def _agent_memory() -> dict:
+    raw = _load().get("agent_memory")
+    return dict(raw) if isinstance(raw, dict) else {}
+
+
+def agent_memory_backend(default: str = "native") -> str:
+    return str(_agent_memory().get("backend") or default).strip() or default
+
+
+def agent_memory_enabled(default: bool = True) -> bool:
+    raw = _agent_memory().get("enabled", default)
+    return bool(raw)
+
+
 def hub_base_url() -> str:
     """skill_config.hub.url — 进度通报/外链默认 Hub 根地址。"""
     url = str((_load().get("hub") or {}).get("url") or "").strip().rstrip("/")
@@ -66,3 +80,60 @@ def hub_base_url() -> str:
 
 def agent_msg_timeout(default: int = 1800) -> int:
     return section_int("executor", "agent_msg_timeout", default)
+
+
+def _group_discussion() -> dict:
+    raw = _load().get("group_discussion")
+    return dict(raw) if isinstance(raw, dict) else {}
+
+
+def group_discussion_default_max_rounds(default: int = 3) -> int:
+    return max(1, section_int("group_discussion", "default_max_rounds", default))
+
+
+def roundtable_max_rounds_cap(default: int = 50) -> int:
+    return max(1, section_int("group_discussion", "max_rounds_cap", default))
+
+
+def roundtable_turn_timeout_sec(default: int = 300) -> int:
+    gd = _group_discussion().get("roundtable_turn_timeout")
+    if gd is not None:
+        try:
+            configured = int(gd)
+            cap = agent_msg_timeout()
+            return max(60, min(configured, cap))
+        except (TypeError, ValueError):
+            pass
+    return section_int("executor", "roundtable_turn_timeout", default)
+
+
+def roundtable_quorum_ratio(default: float = 2 / 3) -> float:
+    try:
+        val = float(_group_discussion().get("quorum_ratio", default))
+        return max(0.0, min(1.0, val))
+    except (TypeError, ValueError):
+        return default
+
+
+def group_discussion_auto_finalize_on_max_rounds(default: bool = True) -> bool:
+    val = _group_discussion().get("auto_finalize_on_max_rounds", default)
+    return bool(val) if val is not None else default
+
+
+def group_discussion_allow_round_extension(default: bool = True) -> bool:
+    val = _group_discussion().get("allow_round_extension", default)
+    return bool(val) if val is not None else default
+
+
+def group_discussion_kill_cli_on_cancel(default: bool = True) -> bool:
+    val = _group_discussion().get("kill_cli_on_cancel", default)
+    return bool(val) if val is not None else default
+
+
+def roundtable_terminate_commands() -> list[str]:
+    raw = _group_discussion().get("terminate_commands")
+    if isinstance(raw, list):
+        cmds = [str(c).strip() for c in raw if str(c).strip()]
+        if cmds:
+            return cmds
+    return ["/终止讨论", "/终止圆桌", "/stop roundtable"]

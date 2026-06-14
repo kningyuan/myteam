@@ -48,6 +48,64 @@ async function loadAgents() {
 }
 
 // ============ Tab System ============
+const MAIN_TABS = ['home', 'chat', 'groups', 'projects', 'manage', 'workflows', 'settings'];
+const MANAGE_MTABS = ['agents', 'tasktypes', 'templates', 'knowledge'];
+const LEGACY_TAB_MAP = { agents: 'manage', tasktypes: 'manage', knowledge: 'manage' };
+
+function normalizeSavedUiState(st) {
+  if (!st || !st.tab) return null;
+  const rawTab = st.tab;
+  const tab = LEGACY_TAB_MAP[rawTab] || rawTab;
+  if (!MAIN_TABS.includes(tab)) return null;
+  let manageMtab = st.manageMtab || 'agents';
+  if (tab === 'manage' && LEGACY_TAB_MAP[rawTab] && rawTab !== 'manage') {
+    manageMtab = rawTab === 'tasktypes' ? 'tasktypes' : rawTab === 'knowledge' ? 'knowledge' : 'agents';
+  }
+  if (!MANAGE_MTABS.includes(manageMtab)) manageMtab = 'agents';
+  return { ...st, tab, manageMtab };
+}
+
+function parseTabHash() {
+  const h = (location.hash || '').replace(/^#+/, '').trim();
+  if (!h) return null;
+  const parts = h.split('/').filter(Boolean);
+  if (parts[0] === 'manage') {
+    const manageMtab = MANAGE_MTABS.includes(parts[1]) ? parts[1] : 'agents';
+    return { tab: 'manage', manageMtab };
+  }
+  if (MAIN_TABS.includes(parts[0])) return { tab: parts[0] };
+  return null;
+}
+
+function syncTabHash() {
+  try {
+    const tab = document.querySelector('.nav-tab.active')?.dataset.tab || 'home';
+    let want = `#${tab}`;
+    if (tab === 'manage') {
+      const mtab = document.querySelector('.manage-subnav .mtab.active')?.dataset.mtab || 'agents';
+      want = `#manage/${mtab}`;
+    }
+    if (location.hash !== want) history.replaceState(null, '', want);
+  } catch (_) { /* ignore */ }
+}
+
+function clearUiBootHints() {
+  delete document.documentElement.dataset.uiTab;
+  delete document.documentElement.dataset.uiMtab;
+  document.getElementById('ui-boot')?.remove();
+}
+
+function setupHashRouting() {
+  window.addEventListener('hashchange', () => {
+    const parsed = parseTabHash();
+    if (!parsed) return;
+    switchTab(parsed.tab, { restore: true, manageMtab: parsed.manageMtab });
+    if (parsed.tab === 'manage' && parsed.manageMtab && typeof switchManageTab === 'function') {
+      switchManageTab(parsed.manageMtab, { restore: true });
+    }
+  });
+}
+
 function setupTabs() {
   document.querySelectorAll('.nav-tab').forEach(tab => {
     tab.addEventListener('click', () => switchTab(tab.dataset.tab));
@@ -71,7 +129,7 @@ function switchTab(tab, opts = {}) {
   if (tab === 'chat') renderAgentList();
   if (tab === 'groups') { renderGroupList(); loadGroups(); }
   if (tab === 'projects') { renderProjectList(); loadProjects().then(renderProjectList); }
-  if (tab === 'agents') { renderManageAgents(); renderTaskTypes(); renderMemory(); }
+  if (tab === 'manage') loadManageTab(opts.manageMtab);
   if (tab === 'settings') loadSettings();
   if (tab === 'workflows') loadWorkflowTab();
   if (tab !== 'groups') disconnectGroupEvents();
@@ -84,24 +142,32 @@ function saveUiState() {
   try {
     const tab = document.querySelector('.nav-tab.active')?.dataset.tab || 'chat';
     const projectPtab = document.querySelector('.project-subnav .ptab.active')?.dataset.ptab || 'overview';
+    const manageMtab = document.querySelector('.manage-subnav .mtab.active')?.dataset.mtab
+      || (typeof _manageMtab !== 'undefined' ? _manageMtab : null)
+      || 'agents';
     localStorage.setItem(UI_STATE_KEY, JSON.stringify({
       tab, agentId: S.currentAgentId, groupId: S.currentGroupId,
-      projectId: S.currentProjectId, projectPtab,
+      projectId: S.currentProjectId, projectPtab, manageMtab,
     }));
+    syncTabHash();
   } catch (e) { /* ignore */ }
 }
 
 async function restoreUiState() {
-  let st = null;
-  try {
-    const raw = localStorage.getItem(UI_STATE_KEY);
-    if (!raw) return;
-    st = JSON.parse(raw);
-  } catch (e) {
-    console.warn('restoreUiState:', e);
+  let st = normalizeSavedUiState(readSavedUiState()) || {};
+  const fromHash = parseTabHash();
+  if (fromHash) st = { ...st, ...fromHash };
+  st = normalizeSavedUiState(st);
+  if (!st?.tab) {
+    clearUiBootHints();
     return;
   }
-  if (st.tab) switchTab(st.tab, { restore: true });
+  switchTab(st.tab, { restore: true, manageMtab: st.manageMtab });
+  if (st.tab === 'manage' && typeof switchManageTab === 'function') {
+    switchManageTab(st.manageMtab || 'agents', { restore: true });
+  }
+  clearUiBootHints();
+  syncTabHash();
   await finishRestoreSelection(st);
 }
 
@@ -152,18 +218,18 @@ async function init() {
   setupTabs();
   setupThemeMenu();
   setupWorkflowTab();
+  setupManageSubnav();
+  setupManagePanelActions();
   setupEventListeners();
-
-  const saved = readSavedUiState();
-  if (saved?.tab) switchTab(saved.tab, { restore: true });
-  ensureHomeDashboard();
+  setupHashRouting();
 
   await loadHiddenChats();
   await Promise.all([loadAgents(), loadBackends(), loadGroups(), loadProjects()]);
   renderAgentList(); renderGroupList(); renderProjectList();
   setStatus('online');
-  await finishRestoreSelection(saved);
+  await restoreUiState();
   ensureHomeDashboard();
+  initHub2Banner();
   startSidebarPoll();
 }
 
@@ -340,6 +406,21 @@ function setupEventListeners() {
   DOM['mm-save']?.addEventListener('click', saveManageModal);
   DOM['mm-cancel']?.addEventListener('click', () => DOM['manage-modal'].classList.add('hidden'));
   DOM['btn-sync-task-types']?.addEventListener('click', () => syncMissingTaskTypes());
+  DOM['manage-agent-search']?.addEventListener('input', () => renderManageAgents());
+  DOM['manage-tasktype-search']?.addEventListener('input', () => renderTaskTypes());
+  DOM['manage-dt-search']?.addEventListener('input', () => renderDeliveryTemplates());
+  DOM['kb-search']?.addEventListener('input', () => renderKnowledge());
+  DOM['btn-new-dt']?.addEventListener('click', () => openDtModal(null));
+  DOM['dt-save']?.addEventListener('click', saveDtModal);
+  DOM['dt-cancel']?.addEventListener('click', closeDtModal);
+  DOM['dt-modal']?.querySelectorAll('.dt-modal-close, .modal-close').forEach(el => {
+    el.addEventListener('click', closeDtModal);
+  });
+  DOM['dt-upload']?.addEventListener('change', (e) => {
+    const f = e.target.files?.[0];
+    handleDtUpload(f);
+    e.target.value = '';
+  });
   DOM['mm-suggest-task-types']?.addEventListener('click', () => suggestManageTaskTypes());
   DOM['manage-modal']?.querySelector('.modal-close')?.addEventListener('click', () => DOM['manage-modal'].classList.add('hidden'));
   DOM['btn-new-tasktype']?.addEventListener('click', () => openTaskTypeModal(null));
