@@ -80,6 +80,7 @@ def _launch_config(proj: dict, meta: dict) -> dict:
         "template_id": parse_goal_template_id(goal),
         "review": bool(launch_meta.get("review")),
         "split": bool(launch_meta.get("split")),
+        "max_cycles": launch_meta.get("max_cycles"),
         "backend": launch_meta.get("backend"),
     }
 
@@ -116,6 +117,7 @@ def project_overview(store: Store, project_id: str) -> dict:
         "tasks": [{"id": t["task_id"], "name": t.get("name", ""), "status": t["status"],
                    "agent": t["agent"], "dependencies": t["dependencies"],
                    "summary": (t.get("meta") or {}).get("summary", "")} for t in tasks],
+        "iterations": _build_iterations(store, project_id),
     }
 
 
@@ -228,11 +230,77 @@ _FEED_KINDS = {
     "review_done", "review_unreachable",
     "blocked", "budget_alert", "budget_over", "budget_degrade", "budget_exceeded",
     "budget_exceeded_pause", "cycle_done",
+    "loop_round_done", "loop_finished", "loop_round_assess", "loop_transition", "branch_selected",
     "watchdog_soft_idle", "watchdog_hard_kill", "transport_error",
     "reconcile_timed_out", "reconcile_adopted",
     "tool_use", "tool_result", "prompt_sent", "request_snapshot", "response_snapshot",
     "message", "parallel_wave",
 }
+
+
+def _build_iterations(store: Store, project_id: str) -> list[dict]:
+    """从 loop 占位 task meta 与 run_event 聚合 iterations[]。"""
+    iterations: list[dict] = []
+    for t in store.list_tasks(project_id):
+        meta = t.get("meta") or {}
+        loop_id = str(meta.get("loop") or "").strip()
+        if not loop_id:
+            continue
+        placeholder_id = t["task_id"]
+        iid = f"{project_id}:loop:{loop_id}"
+        rounds_done: list[dict] = []
+        finished: Optional[dict] = None
+        last_assess: Optional[dict] = None
+        for e in store.list_run_events(iid):
+            kind = e.get("kind")
+            payload = e.get("payload") or {}
+            if kind == "loop_round_done":
+                rounds_done.append(payload)
+            elif kind == "loop_finished":
+                finished = payload
+            elif kind == "loop_round_assess":
+                last_assess = payload
+        current_round = 0
+        body_key = "default"
+        if rounds_done:
+            last = rounds_done[-1]
+            current_round = int(last.get("round") or 0)
+            body_key = str(last.get("body_key") or "default")
+        elif last_assess:
+            current_round = int(last_assess.get("round") or 0)
+            body_key = str(last_assess.get("body_key") or "default")
+        rounds_used = int((finished or {}).get("rounds_used") or current_round or 0)
+        state = "running"
+        if finished:
+            fs = str(finished.get("state") or "")
+            if fs == "passed":
+                state = "passed"
+            elif fs == "exhausted":
+                state = "exhausted"
+            else:
+                state = fs or "finished"
+        elif t.get("status") in ("completed", "needs_review"):
+            state = "passed" if t.get("status") == "completed" else "needs_review"
+        last_assess_marker = meta.get("last_assess_marker")
+        if last_assess:
+            last_assess_marker = (
+                last_assess.get("marker")
+                or meta.get("last_assess_marker")
+            )
+        iterations.append({
+            "loop_id": loop_id,
+            "placeholder_task_id": placeholder_id,
+            "state": state,
+            "current_round": current_round,
+            "max_rounds": meta.get("loop_max_rounds"),
+            "body_key": body_key,
+            "last_assess_marker": last_assess_marker,
+            "last_assess_action": (last_assess or {}).get("action"),
+            "last_assess_matched_rule": (last_assess or {}).get("matched_rule"),
+            "rounds_used": rounds_used,
+            "placeholder_status": t.get("status"),
+        })
+    return iterations
 
 
 def project_events(store: Store, project_id: str) -> list[dict]:

@@ -12,6 +12,7 @@ export type ProjectLaunchConfig = {
   backend?: string
   review?: boolean
   split?: boolean
+  max_cycles?: number
 }
 
 export type ProjectOverview = {
@@ -37,6 +38,20 @@ export type ProjectOverview = {
     agent?: string
     dependencies?: string[]
     summary?: string
+    loop?: string
+  }[]
+  iterations?: {
+    loop_id?: string
+    placeholder_task_id?: string
+    state?: string
+    current_round?: number
+    max_rounds?: number
+    body_key?: string
+    last_assess_marker?: string
+    last_assess_action?: string
+    last_assess_matched_rule?: number
+    rounds_used?: number
+    placeholder_status?: string
   }[]
 }
 
@@ -208,6 +223,7 @@ export async function runProject(body: {
   budget?: number
   review?: boolean
   split?: boolean
+  max_cycles?: number
 }): Promise<{ project_id: string }> {
   const res = await hubFetch<{ project_id: string }>("/api/projects/run", {
     method: "POST",

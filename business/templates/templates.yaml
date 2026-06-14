@@ -982,6 +982,39 @@ geo-verification:
     evidence_url:
       screenshot_field: 证据截图
       verify_title: false
+iteration-assess:
+  delivery_profile: light_v1
+  display_name: 迭代评估
+  outcome_kind: artifact
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 评估对象
+      description: 本轮被评估的交付物与上下文
+      required: true
+    - name: 评估结论
+      description: 有效 / 无效 / 无法判断；末行须含 ITERATION marker
+      required: true
+    - name: 发现摘要
+      required: true
+    - name: 下一步建议
+      required: true
+  check_rules:
+    required_sections:
+    - 评估对象
+    - 评估结论
+    - 发现摘要
+    - 下一步建议
+    must_include_one_of:
+    - 'ITERATION: PASS'
+    - 'ITERATION: STOP'
+    - 'ITERATION: CONTINUE'
+    - 'REVIEW: PASS'
+    - 'REVIEW: FAIL'
+    min_length: 120
+  acceptance_criteria:
+  - 结论末行必须为声明式 marker，供内核 transition 解析
+  - 禁止仅用自然语言暗示继续/停止而无 marker
 deck-build:
   delivery_profile: all_v1
   deliverable_template:
@@ -1091,3 +1124,37 @@ my-type:
     required_sections:
     - 正文
     min_length: 200
+office-doc:
+  display_name: Office文档
+  outcome_kind: artifact
+  delivery_profile: light_v1
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 文档目标
+      description: 说明要创建/修改的 Office 文档类型与用途
+      required: true
+    - name: 内容大纲
+      description: 文档的结构与核心内容要点
+      required: true
+    - name: 产出文件
+      description: 明确产出的文件名与格式（.docx/.xlsx/.pptx）
+      required: true
+    - name: 质量验证
+      description: 执行 officecli validate + view issues 的结果
+      required: true
+    structure:
+    - H1 标题作为交付记录主标题
+    - 产出文件与交付物 Markdown 同目录
+  check_rules:
+    required_sections:
+    - 文档目标
+    - 内容大纲
+    - 产出文件
+    - 质量验证
+    min_length: 100
+  required_sections:
+  - 文档目标
+  - 内容大纲
+  - 产出文件
+  - 质量验证

@@ -1,0 +1,88 @@
+id: GEO持续优化-迭代
+version: "1.0"
+description: |
+  GEO 内容持续优化 — audit→assess→patch(revise+verify) 多轮迭代。
+  FAIL 后切换 patch body 定点改稿；PASS 退出 loop。
+options:
+  parallel_enabled: false
+  review_enabled: false
+loops:
+  - id: geo_wave
+    max_rounds: 6
+    min_rounds: 1
+    default_body: audit
+    on_pass: complete
+    on_exhaust: needs_review
+    bodies:
+      audit:
+        - id: audit
+          name: 内容 GEO 审计
+          agent: geo
+          task_type: geo-audit
+          dependencies: []
+          description: |
+            【对象】Goal 指定页面/文稿
+            【轮次】第 {round}/{max_rounds} 轮（loop: {loop_id}）
+            【产出】审计报告；写入 audit_log（若启用）
+        - id: assess
+          name: 迭代评估
+          agent: main
+          task_type: iteration-assess
+          dependencies: [audit]
+          description: |
+            【对象】本轮 audit 交付物
+            【产出】iteration-assess；末行 ITERATION/REVIEW marker
+      patch:
+        - id: revise
+          name: 内容改稿
+          agent: content
+          task_type: content
+          dependencies: []
+          description: |
+            【输入】只读上一轮 audit/revise 意见
+            【轮次】第 {round}/{max_rounds} 轮 · patch 分支
+            【产出】按审计意见改稿
+        - id: verify
+          name: 效果验证
+          agent: geo
+          task_type: geo-verification
+          dependencies: [revise]
+          description: |
+            【输入】只读 revise 交付物
+            【产出】验证报告与证据
+        - id: assess
+          name: 迭代评估
+          agent: main
+          task_type: iteration-assess
+          dependencies: [verify]
+          description: |
+            【对象】本轮 verify 交付物
+            【产出】iteration-assess；末行 ITERATION/REVIEW marker
+    assess:
+      ref: assess
+      inputs:
+        - { kind: goal }
+        - { kind: phase.deliverable, phase: audit }
+        - { kind: ops_log, table: publish_log, optional: true }
+    transition:
+      - { when: deliverable_marker, task: assess, marker: "ITERATION: PASS", action: exit, outcome: complete }
+      - { when: deliverable_marker, task: assess, marker: "REVIEW: PASS", action: exit, outcome: complete }
+      - { when: deliverable_marker, task: assess, marker: "REVIEW: FAIL", action: continue, next_body: patch }
+      - { when: deliverable_marker, task: assess, marker: "ITERATION: CONTINUE", action: continue, next_body: patch }
+      - { when: exhausted, action: exit, outcome: needs_review }
+tasks:
+  - id: t-prep-keywords
+    name: 关键词基线
+    agent: research
+    task_type: research
+    dependencies: []
+    description: |
+      【对象】Goal 指定行业/产品
+      【产出】关键词与竞品引用基线
+  - id: t-geo-loop
+    name: GEO 迭代波次
+    loop: geo_wave
+    dependencies: [t-prep-keywords]
+    description: |
+      【对象】GEO 持续优化 loop 占位
+      【说明】内核按 geo_wave bodies/transition 多轮执行

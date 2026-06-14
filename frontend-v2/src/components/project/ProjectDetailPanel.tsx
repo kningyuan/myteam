@@ -27,6 +27,7 @@ import {
 import { listGroups } from "@/lib/api/groups"
 import { useOnResourceInvalidate } from "@/hooks/useResourceQuery"
 import { ProjectTaskQualityCard } from "@/components/project/ProjectTaskQualityCard"
+import { IterationProgressCard } from "@/components/project/IterationProgressCard"
 import { ProjectDag } from "@/components/project/ProjectDag"
 import { ProjectDeliverablePanel } from "@/components/project/ProjectDeliverablePanel"
 import { ProjectExecTree } from "@/components/project/ProjectExecTree"
@@ -44,11 +45,23 @@ function fmtTime(iso?: string) {
   }
 }
 
-function LaunchConfig({ ov }: { ov: ProjectOverview }) {
+function LaunchConfig({ ov, cyclesDone }: { ov: ProjectOverview; cyclesDone?: number }) {
   const lc = ov.launch || {}
   const items = [
     ["工作流", lc.workflow_label || lc.workflow || ov.workflow || "自由规划"],
     ["模式", lc.mode_label || lc.mode || ov.mode || "—"],
+    ...(ov.mode === "recurring" || lc.mode === "recurring"
+      ? [
+          [
+            "周期进度",
+            lc.max_cycles
+              ? `${cyclesDone ?? 0} / ${lc.max_cycles} 周期完成`
+              : cyclesDone
+                ? `${cyclesDone} 周期完成`
+                : "—",
+          ] as const,
+        ]
+      : []),
     [
       "Token 预算",
       lc.token_budget ?? ov.budget
@@ -225,6 +238,7 @@ export function ProjectDetailPanel({
   const active = running || !["completed", "failed", "cancelled"].includes(status)
   const byTask = cost.by_task ?? {}
   const totalTok = cost.project ?? ov.tokens ?? 0
+  const cyclesDone = events.filter((e) => e.kind === "cycle_done").length
 
   return (
     <div className="project-workspace" ref={mainRef}>
@@ -333,7 +347,7 @@ export function ProjectDetailPanel({
             <TabsContent value="overview" className="project-tab-panel space-y-4">
               <section className="project-section">
                 <h3>发起配置</h3>
-                <LaunchConfig ov={ov} />
+                <LaunchConfig ov={ov} cyclesDone={cyclesDone} />
               </section>
               <section className="project-section">
                 <h3>舰队状态</h3>
@@ -348,6 +362,16 @@ export function ProjectDetailPanel({
                     <span className="hint">暂无</span>
                   )}
                 </div>
+              </section>
+              <section className="project-section">
+                <h3>迭代轮次</h3>
+                <IterationProgressCard
+                  iterations={ov.iterations}
+                  highlightTaskId={selectedTaskId}
+                />
+                {!ov.iterations?.length && (
+                  <p className="hint text-sm text-[var(--color-muted-foreground)]">暂无 loop 迭代</p>
+                )}
               </section>
               <section className="project-section">
                 <h3>成本摘要</h3>

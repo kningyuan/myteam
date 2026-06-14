@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { toast } from "sonner"
-import { getConfig } from "@/lib/api/config"
+import { getConfig, getSkillConfig } from "@/lib/api/config"
 import { deleteProject, listProjects, runProject } from "@/lib/api/projects"
 import { listWorkflows, type WorkflowSummary } from "@/lib/api/workflows"
 import { useResourceQuery } from "@/hooks/useResourceQuery"
@@ -47,7 +47,18 @@ function NewProjectDialog({
   const [budget, setBudget] = useState("")
   const [review, setReview] = useState(false)
   const [split, setSplit] = useState(false)
+  const [maxCycles, setMaxCycles] = useState("3")
   const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    getSkillConfig()
+      .then((skill) => {
+        const pd = (skill.process_defaults || {}) as Record<string, unknown>
+        setMaxCycles(String(pd.max_cycles ?? 3))
+      })
+      .catch(() => {})
+  }, [open])
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -55,6 +66,7 @@ function NewProjectDialog({
     setBusy(true)
     try {
       const budgetNum = parseInt(budget, 10)
+      const cyclesNum = parseInt(maxCycles, 10)
       const res = await runProject({
         goal: goal.trim(),
         title: title.trim() || undefined,
@@ -63,6 +75,8 @@ function NewProjectDialog({
         budget: !Number.isNaN(budgetNum) && budgetNum > 0 ? budgetNum : undefined,
         review: review || undefined,
         split: split || undefined,
+        max_cycles:
+          mode === "recurring" && !Number.isNaN(cyclesNum) && cyclesNum > 0 ? cyclesNum : undefined,
       })
       toast.success("项目已启动", { description: res.project_id })
       setTitle("")
@@ -152,6 +166,19 @@ function NewProjectDialog({
                 placeholder="例如：1000000"
               />
             </div>
+            {mode === "recurring" && (
+              <div className="grid gap-2">
+                <Label htmlFor="project-max-cycles">最大周期数</Label>
+                <Input
+                  id="project-max-cycles"
+                  type="number"
+                  min={1}
+                  value={maxCycles}
+                  onChange={(e) => setMaxCycles(e.target.value)}
+                  placeholder="默认 3"
+                />
+              </div>
+            )}
             <div className="flex flex-wrap gap-4 text-sm">
               <label className="flex items-center gap-2">
                 <input type="checkbox" checked={review} onChange={(e) => setReview(e.target.checked)} />

@@ -4,7 +4,7 @@ task_type: research
 project_id: p_demo
 task_id: t1
 agent: research
-source_deliverable: /private/var/folders/zk/nx74mgdn5_x4sy4dsxzt2j8w0000gn/T/pytest-of-kuanghualong/pytest-225/test_reconcile_runs_on_start0/project/p_demo/deliverables/t1_deliverable.md
+source_deliverable: /private/var/folders/zk/nx74mgdn5_x4sy4dsxzt2j8w0000gn/T/pytest-of-kuanghualong/pytest-286/test_reconcile_runs_on_start0/project/p_demo/deliverables/t1_deliverable.md
 description: L3 自动抽提 skill 草案（scaffold）
 ---
 
@@ -21,7 +21,7 @@ description: L3 自动抽提 skill 草案（scaffold）
 | task_type | research |
 | agent | research |
 | project_goal | g |
-| deliverable | `/private/var/folders/zk/nx74mgdn5_x4sy4dsxzt2j8w0000gn/T/pytest-of-kuanghualong/pytest-225/test_reconcile_runs_on_start0/project/p_demo/deliverables/t1_deliverable.md` |
+| deliverable | `/private/var/folders/zk/nx74mgdn5_x4sy4dsxzt2j8w0000gn/T/pytest-of-kuanghualong/pytest-286/test_reconcile_runs_on_start0/project/p_demo/deliverables/t1_deliverable.md` |
 
 ## Pattern 摘要（交付物前 500 字）
 

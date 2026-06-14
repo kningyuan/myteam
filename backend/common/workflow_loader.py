@@ -11,7 +11,7 @@ from typing import Any, Optional
 import yaml
 
 from common.agent_id_policy import normalize_agent_ids, normalize_plan_tasks
-from common.loop_runtime import LoopSpec, parse_loop_specs, validate_loop_specs
+from common.loop_runtime import LoopSpec, iter_loop_body_tasks, parse_loop_specs, validate_loop_specs
 from common.paths import BUSINESS_DIR
 from common.plan_gate import check_plan
 
@@ -54,7 +54,7 @@ def roster_from_tasks(tasks: list[dict], loops: Optional[list[LoopSpec]] = None)
         if aid and aid not in roster:
             roster.append(aid)
     for spec in loops or []:
-        for t in spec.body:
+        for t in iter_loop_body_tasks(spec):
             aid = str(t.get("agent") or "").strip()
             if aid and aid not in roster:
                 roster.append(aid)
@@ -130,7 +130,7 @@ def _validate_template_refs(tasks: list[dict], loops: Optional[list[LoopSpec]] =
             except DeliveryTemplateError as e:
                 raise ValueError(str(e)) from e
     for spec in loops or []:
-        for t in spec.body:
+        for t in iter_loop_body_tasks(spec):
             tid = str(t.get("template_id") or "").strip()
             if tid and tid not in seen:
                 seen.add(tid)
@@ -156,7 +156,7 @@ def validate_workflow(profile: WorkflowProfile) -> None:
         if aid:
             used_agents.add(aid)
     for spec in profile.loops:
-        for t in spec.body:
+        for t in iter_loop_body_tasks(spec):
             aid = str(t.get("agent") or "").strip()
             if aid:
                 used_agents.add(aid)

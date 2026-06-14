@@ -31,6 +31,7 @@ def persist_project_launch(
     review: bool = False,
     split: bool = False,
     backend: Optional[str] = None,
+    max_cycles: Optional[int] = None,
 ) -> None:
     """发起瞬间写入 SQLite，避免仅后台线程落库导致刷新后项目列表为空。"""
     from common.store import Store
@@ -47,6 +48,8 @@ def persist_project_launch(
         launch["review"] = True
     if split:
         launch["split"] = True
+    if max_cycles is not None and max_cycles >= 1:
+        launch["max_cycles"] = max_cycles
     if backend:
         launch["backend"] = backend
     if launch:
@@ -86,6 +89,7 @@ def run_kernel_bg(
     workflow: Optional[str] = None,
     split: bool = False,
     process_defaults: Optional[dict] = None,
+    max_cycles: Optional[int] = None,
 ) -> None:
     try:
         from common.kernel_config import kernel_configs_for_run
@@ -98,6 +102,7 @@ def run_kernel_bg(
             defaults if defaults else None,
             mode=mode,
             token_budget=budget,
+            max_cycles=max_cycles,
             review=review,
             split=split,
             backend=backend,

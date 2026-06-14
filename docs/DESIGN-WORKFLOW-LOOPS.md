@@ -1,7 +1,7 @@
 # Workflow Loops — 条件循环编排 · 设计草案
 
 > 版本：2026-06-11 · **RFC / 重大升级**  
-> 状态：**草案**（未实现）  
+> 状态：**v2 扩展进行中**（PR1 schema/validate 已落地；运行时状态机见 [docs/0614](./0614/README.md)）  
 > 关联：[DESIGN-AGENT-DELIVERY.md](./DESIGN-AGENT-DELIVERY.md) · [FRAMEWORK-FREEZE.md](./FRAMEWORK-FREEZE.md)
 
 ---

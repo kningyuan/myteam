@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 import { listAgents, type AgentSummary } from "@/lib/api/agents"
 import {
@@ -17,6 +17,16 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
+import { LoopEditorPanel, serializeLoopSpec } from "./LoopEditorPanel"
+import {
+  collectAllNodeIds,
+  defaultLoopSpec,
+  loopsToRecord,
+  taskTypesForAgent,
+  templatesForTaskType,
+  type LoopSpec,
+  typeLabelMap,
+} from "./loopHelpers"
 
 const WF_TEMPLATE: WorkflowDetail = {
   id: "GitHub项目调研",
@@ -58,24 +68,12 @@ function nextTaskId(tasks: WfTask[]): string {
   return `task-${n}`
 }
 
-function taskTypesForAgent(agentId: string, agents: AgentSummary[]): string[] {
-  return agents.find((a) => a.id === agentId)?.task_types ?? []
-}
-
-function templatesForTaskType(taskType: string, templates: DeliveryTemplateSummary[]) {
-  const tt = taskType.trim()
-  if (!tt) return templates
-  const bound = templates.filter((t) => (t.task_types || []).includes(tt))
-  const unbound = templates.filter((t) => !(t.task_types || []).length)
-  return bound.length ? [...bound, ...unbound] : templates
-}
-
 function autoDescription(task: WfTask, isLoop: boolean): string {
   if (task.description?.trim()) return task.description
   const lines: string[] = []
   if (task.name) lines.push(`【任务】${task.name}`)
   if (isLoop) {
-    lines.push("【说明】多轮循环任务")
+    lines.push("【说明】多轮循环；每轮 body 与 until 见 loops 配置")
   } else {
     if (task.agent) lines.push(`【执行】${task.agent}`)
     if (task.task_type) lines.push(`【类型】${task.task_type}`)
@@ -101,24 +99,17 @@ export function WorkflowEditor({
   const [description, setDescription] = useState("")
   const [options, setOptions] = useState(WF_TEMPLATE.options!)
   const [tasks, setTasks] = useState<WfTask[]>([])
-  const [loops, setLoops] = useState<Record<string, unknown>[]>([])
+  const [loopSpecs, setLoopSpecs] = useState<Record<string, LoopSpec>>({})
   const [agents, setAgents] = useState<AgentSummary[]>([])
   const [taskTypes, setTaskTypes] = useState<TaskTypeSummary[]>([])
   const [templates, setTemplates] = useState<DeliveryTemplateSummary[]>([])
 
-  const typeLabel = useMemo(
-    () => Object.fromEntries(taskTypes.map((t) => [t.task_type, t.display_name || t.task_type])),
-    [taskTypes],
-  )
+  const typeLabel = useMemo(() => typeLabelMap(taskTypes), [taskTypes])
 
-  const allNodeIds = useMemo(() => {
-    const ids = tasks.map((t) => t.id).filter(Boolean)
-    return ids.map((nid) => {
-      const t = tasks.find((x) => x.id === nid)
-      const name = (t?.name || "").trim()
-      return { id: nid, label: name ? `${nid} · ${name}` : nid }
-    })
-  }, [tasks])
+  const allNodeIds = useMemo(
+    () => collectAllNodeIds(tasks, loopSpecs),
+    [tasks, loopSpecs],
+  )
 
   const fillForm = useCallback((data: WorkflowDetail) => {
     setId(data.id || "")
@@ -131,7 +122,7 @@ export function WorkflowEditor({
       max_parallel: data.options?.max_parallel ?? 3,
     })
     setTasks(data.tasks?.length ? [...data.tasks] : [])
-    setLoops(data.loops?.length ? [...data.loops] : [])
+    setLoopSpecs(loopsToRecord(data.loops))
   }, [])
 
   useEffect(() => {
@@ -159,6 +150,49 @@ export function WorkflowEditor({
 
   function updateTask(index: number, patch: Partial<WfTask>) {
     setTasks((prev) => prev.map((t, i) => (i === index ? { ...t, ...patch } : t)))
+  }
+
+  function setTaskMode(index: number, mode: "normal" | "loop_ref") {
+    const task = tasks[index]
+    if (!task) return
+    const tid = task.id
+    if (mode === "loop_ref") {
+      setLoopSpecs((specs) => ({
+        ...specs,
+        [tid]: specs[tid] || defaultLoopSpec(tid),
+      }))
+      setTasks((prev) =>
+        prev.map((t, i) =>
+          i === index
+            ? {
+                ...t,
+                loop: tid,
+                agent: undefined,
+                task_type: undefined,
+                template_id: undefined,
+              }
+            : t,
+        ),
+      )
+      return
+    }
+    setLoopSpecs((specs) => {
+      const next = { ...specs }
+      delete next[tid]
+      return next
+    })
+    const { loop: _loop, ...rest } = task as WfTask & { loop?: string }
+    setTasks((prev) =>
+      prev.map((t, i) =>
+        i === index
+          ? {
+              ...rest,
+              agent: rest.agent || agents[0]?.id || "research",
+              task_type: rest.task_type || "research",
+            }
+          : t,
+      ),
+    )
   }
 
   function moveTask(index: number, delta: number) {
@@ -189,34 +223,48 @@ export function WorkflowEditor({
   }
 
   function removeTask(index: number) {
+    const task = tasks[index]
+    if (task?.loop) {
+      setLoopSpecs((specs) => {
+        const next = { ...specs }
+        delete next[task.loop!]
+        return next
+      })
+    }
     setTasks((prev) => prev.filter((_, i) => i !== index))
   }
 
   function buildPayload(): WorkflowDetail {
+    const loops: LoopSpec[] = []
+    const payloadTasks = tasks.map((t) => {
+      const isLoop = !!(t.loop && String(t.loop).trim())
+      const base = {
+        id: t.id,
+        name: (t.name || "").trim(),
+        dependencies: t.dependencies || [],
+        description: autoDescription(t, isLoop),
+      }
+      if (isLoop) {
+        const loopId = String(t.loop)
+        const spec = serializeLoopSpec(loopSpecs[loopId] || defaultLoopSpec(loopId))
+        loops.push({ ...spec, id: loopId })
+        return { ...base, loop: loopId }
+      }
+      const item: WfTask = {
+        ...base,
+        agent: t.agent || "",
+        task_type: t.task_type || "research",
+      }
+      if (t.template_id?.trim()) item.template_id = t.template_id.trim()
+      return item
+    })
+
     const payload: WorkflowDetail = {
       id: id.trim(),
       version: version.trim() || "1.0",
       description: description.trim(),
       options: { ...options },
-      tasks: tasks.map((t) => {
-        const isLoop = !!(t as WfTask & { loop?: string }).loop
-        const base = {
-          id: t.id,
-          name: (t.name || "").trim(),
-          dependencies: t.dependencies || [],
-          description: autoDescription(t, isLoop),
-        }
-        if (isLoop) {
-          return { ...base, loop: (t as WfTask & { loop?: string }).loop }
-        }
-        const item: WfTask = {
-          ...base,
-          agent: t.agent || "",
-          task_type: t.task_type || "research",
-        }
-        if (t.template_id?.trim()) item.template_id = t.template_id.trim()
-        return item
-      }),
+      tasks: payloadTasks,
     }
     if (loops.length) payload.loops = loops
     return payload
@@ -383,6 +431,7 @@ export function WorkflowEditor({
                   <th className="w-12" />
                   <th>ID</th>
                   <th>名称</th>
+                  <th>模式</th>
                   <th>Agent</th>
                   <th>任务类型</th>
                   <th>交付模板</th>
@@ -392,148 +441,178 @@ export function WorkflowEditor({
               </thead>
               <tbody>
                 {tasks.map((task, i) => {
-                  const isLoop = !!(task as WfTask & { loop?: string }).loop
+                  const isLoop = !!(task.loop && String(task.loop).trim())
                   const allowedTypes = taskTypesForAgent(task.agent || "", agents)
                   const tplPool = templatesForTaskType(task.task_type || "", templates)
                   return (
-                    <tr key={task.id}>
-                      <td>
-                        <div className="wf-order-btns">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 px-1"
-                            disabled={i === 0}
-                            onClick={() => moveTask(i, -1)}
-                          >
-                            ↑
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 px-1"
-                            disabled={i === tasks.length - 1}
-                            onClick={() => moveTask(i, 1)}
-                          >
-                            ↓
-                          </Button>
-                        </div>
-                      </td>
-                      <td>
-                        <code className="wf-id-badge">{task.id}</code>
-                        {isLoop && (
-                          <Badge variant="secondary" className="ml-1 text-[10px]">
-                            循环
-                          </Badge>
-                        )}
-                      </td>
-                      <td>
-                        <input
-                          className="wf-input-sm"
-                          value={task.name || ""}
-                          onChange={(e) => updateTask(i, { name: e.target.value })}
-                        />
-                      </td>
-                      <td>
-                        {isLoop ? (
-                          <span className="text-xs text-[var(--color-muted-foreground)]">—</span>
-                        ) : (
+                    <Fragment key={task.id}>
+                      <tr>
+                        <td>
+                          <div className="wf-order-btns">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 px-1"
+                              disabled={i === 0}
+                              onClick={() => moveTask(i, -1)}
+                            >
+                              ↑
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 px-1"
+                              disabled={i === tasks.length - 1}
+                              onClick={() => moveTask(i, 1)}
+                            >
+                              ↓
+                            </Button>
+                          </div>
+                        </td>
+                        <td>
+                          <code className="wf-id-badge">{task.id}</code>
+                          {isLoop && (
+                            <Badge variant="secondary" className="ml-1 text-[10px]">
+                              循环
+                            </Badge>
+                          )}
+                        </td>
+                        <td>
+                          <input
+                            className="wf-input-sm"
+                            value={task.name || ""}
+                            onChange={(e) => updateTask(i, { name: e.target.value })}
+                          />
+                        </td>
+                        <td>
                           <select
                             className="wf-input-sm"
-                            value={task.agent || ""}
-                            onChange={(e) => {
-                              const agent = e.target.value
-                              const types = taskTypesForAgent(agent, agents)
-                              updateTask(i, {
-                                agent,
-                                task_type: types.includes(task.task_type || "")
-                                  ? task.task_type
-                                  : types[0] || task.task_type,
-                              })
-                            }}
+                            value={isLoop ? "loop_ref" : "normal"}
+                            onChange={(e) =>
+                              setTaskMode(i, e.target.value as "normal" | "loop_ref")
+                            }
                           >
-                            {agents.map((a) => (
-                              <option key={a.id} value={a.id}>
-                                {a.name || a.id}
-                              </option>
-                            ))}
+                            <option value="normal">普通</option>
+                            <option value="loop_ref">循环</option>
                           </select>
-                        )}
-                      </td>
-                      <td>
-                        {isLoop ? (
-                          <span className="text-xs text-[var(--color-muted-foreground)]">—</span>
-                        ) : (
-                          <select
-                            className="wf-input-sm"
-                            value={task.task_type || ""}
-                            onChange={(e) => updateTask(i, { task_type: e.target.value, template_id: "" })}
-                          >
-                            {(allowedTypes.length ? allowedTypes : taskTypes.map((t) => t.task_type)).map(
-                              (tid) => (
+                        </td>
+                        <td>
+                          {isLoop ? (
+                            <span className="text-xs text-[var(--color-muted-foreground)]">—</span>
+                          ) : (
+                            <select
+                              className="wf-input-sm"
+                              value={task.agent || ""}
+                              onChange={(e) => {
+                                const agent = e.target.value
+                                const types = taskTypesForAgent(agent, agents)
+                                updateTask(i, {
+                                  agent,
+                                  task_type: types.includes(task.task_type || "")
+                                    ? task.task_type
+                                    : types[0] || task.task_type,
+                                })
+                              }}
+                            >
+                              {agents.map((a) => (
+                                <option key={a.id} value={a.id}>
+                                  {a.name || a.id}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </td>
+                        <td>
+                          {isLoop ? (
+                            <span className="text-xs text-[var(--color-muted-foreground)]">—</span>
+                          ) : (
+                            <select
+                              className="wf-input-sm"
+                              value={task.task_type || ""}
+                              onChange={(e) =>
+                                updateTask(i, { task_type: e.target.value, template_id: "" })
+                              }
+                            >
+                              {(allowedTypes.length
+                                ? allowedTypes
+                                : taskTypes.map((t) => t.task_type)
+                              ).map((tid) => (
                                 <option key={tid} value={tid}>
                                   {typeLabel[tid] || tid}
                                 </option>
-                              ),
-                            )}
-                          </select>
-                        )}
-                      </td>
-                      <td>
-                        {isLoop ? (
-                          <span className="text-xs text-[var(--color-muted-foreground)]">—</span>
-                        ) : (
+                              ))}
+                            </select>
+                          )}
+                        </td>
+                        <td>
+                          {isLoop ? (
+                            <span className="text-xs text-[var(--color-muted-foreground)]">—</span>
+                          ) : (
+                            <select
+                              className="wf-input-sm"
+                              value={task.template_id || ""}
+                              onChange={(e) => updateTask(i, { template_id: e.target.value })}
+                            >
+                              <option value="">（任务类型默认）</option>
+                              {tplPool.map((tpl) => (
+                                <option key={tpl.id} value={tpl.id}>
+                                  {tpl.display_name || tpl.id}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </td>
+                        <td>
                           <select
-                            className="wf-input-sm"
-                            value={task.template_id || ""}
-                            onChange={(e) => updateTask(i, { template_id: e.target.value })}
+                            multiple
+                            className="wf-deps-multi wf-input-sm h-[72px]"
+                            value={task.dependencies || []}
+                            onChange={(e) => {
+                              const deps = Array.from(e.target.selectedOptions).map((o) => o.value)
+                              updateTask(i, { dependencies: deps })
+                            }}
                           >
-                            <option value="">（任务类型默认）</option>
-                            {tplPool.map((tpl) => (
-                              <option key={tpl.id} value={tpl.id}>
-                                {tpl.display_name || tpl.id}
-                              </option>
-                            ))}
+                            {allNodeIds
+                              .filter((n) => n.id !== task.id)
+                              .map((n) => (
+                                <option key={n.id} value={n.id}>
+                                  {n.label}
+                                </option>
+                              ))}
                           </select>
-                        )}
-                      </td>
-                      <td>
-                        <select
-                          multiple
-                          className="wf-deps-multi wf-input-sm h-[72px]"
-                          value={task.dependencies || []}
-                          onChange={(e) => {
-                            const deps = Array.from(e.target.selectedOptions).map((o) => o.value)
-                            updateTask(i, { dependencies: deps })
-                          }}
-                        >
-                          {allNodeIds
-                            .filter((n) => n.id !== task.id)
-                            .map((n) => (
-                              <option key={n.id} value={n.id}>
-                                {n.label}
-                              </option>
-                            ))}
-                        </select>
-                      </td>
-                      <td>
-                        <Button type="button" size="sm" variant="ghost" onClick={() => removeTask(i)}>
-                          删
-                        </Button>
-                      </td>
-                    </tr>
+                        </td>
+                        <td>
+                          <Button type="button" size="sm" variant="ghost" onClick={() => removeTask(i)}>
+                            删
+                          </Button>
+                        </td>
+                      </tr>
+                      {isLoop && (
+                        <tr className="wf-loop-detail-row">
+                          <td colSpan={9}>
+                            <LoopEditorPanel
+                              loopId={task.loop!}
+                              spec={loopSpecs[task.loop!] || defaultLoopSpec(task.loop!)}
+                              onChange={(spec) =>
+                                setLoopSpecs((prev) => ({ ...prev, [task.loop!]: spec }))
+                              }
+                              agents={agents}
+                              taskTypes={taskTypes}
+                              templates={templates}
+                              typeLabel={typeLabel}
+                              depNodes={allNodeIds}
+                            />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   )
                 })}
               </tbody>
             </table>
           </div>
-          {loops.length > 0 && (
-            <p className="px-4 py-3 text-xs text-[var(--color-muted-foreground)]">
-              此工作流含 {loops.length} 个循环配置，保存时会一并保留。
-            </p>
-          )}
         </div>
       </div>
     </div>

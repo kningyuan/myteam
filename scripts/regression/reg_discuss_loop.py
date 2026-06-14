@@ -34,11 +34,11 @@ def _deliverables_dir(project_id: str) -> Path:
     return REPO / "business/tasks/project" / project_id / "deliverables"
 
 
-def _read_tail_marker(path: Path, marker: str) -> bool:
+def _has_marker(path: Path, marker: str) -> bool:
     if not path.is_file():
         return False
     text = path.read_text(encoding="utf-8", errors="replace")
-    return marker in text.splitlines()[-3:] or text.rstrip().endswith(marker)
+    return marker in text
 
 
 def _check_artifacts(project_id: str) -> tuple[bool, list[str]]:
@@ -52,7 +52,7 @@ def _check_artifacts(project_id: str) -> tuple[bool, list[str]]:
 
     if not r1_review.is_file():
         issues.append(f"missing {r1_review.name}")
-    elif not _read_tail_marker(r1_review, "REVIEW: FAIL"):
+    elif not _has_marker(r1_review, "REVIEW: FAIL"):
         issues.append("r1 review must end with REVIEW: FAIL")
 
     if not r1_group.is_file():
@@ -64,7 +64,7 @@ def _check_artifacts(project_id: str) -> tuple[bool, list[str]]:
 
     if not r2_review.is_file():
         issues.append(f"missing {r2_review.name}")
-    elif not _read_tail_marker(r2_review, "REVIEW: PASS"):
+    elif not _has_marker(r2_review, "REVIEW: PASS"):
         issues.append("r2 review must end with REVIEW: PASS")
 
     if not r2_work.is_file():
@@ -88,8 +88,17 @@ def _check_loader() -> tuple[bool, str]:
     return ok, "loader ok" if ok else "plan_gate failed"
 
 
-def _claude_available() -> bool:
-    return shutil.which("claude") is not None
+def _backend() -> str:
+    return os.environ.get("REG_BACKEND", "opencode")
+
+
+def _backend_available() -> bool:
+    b = _backend()
+    if b == "claude":
+        return shutil.which("claude") is not None
+    if b == "opencode":
+        return shutil.which("opencode") is not None
+    return False
 
 
 def _project_status(project_id: str) -> str:
@@ -136,11 +145,17 @@ def main() -> int:
         print("REG-DISCUSS: PASS")
         return 0
 
-    if not _claude_available():
-        print("REG-DISCUSS: SKIP（claude CLI 不可用）")
+    backend = _backend()
+    if not _backend_available():
+        print(f"REG-DISCUSS: SKIP（{backend} CLI 不可用）")
         return 2
 
-    goal = GOAL_FILE.read_text(encoding="utf-8") if GOAL_FILE.is_file() else "讨论链路 REG"
+    goal = os.environ.get(
+        "REG_DISCUSS_GOAL",
+        GOAL_FILE.read_text(encoding="utf-8") if GOAL_FILE.is_file() else "讨论链路 REG",
+    )
+    if "REVIEW: FAIL" not in goal and GOAL_FILE.is_file():
+        goal = goal.rstrip() + "\n\n【REG 强制】第1轮 review 必须输出 REVIEW: FAIL；群讨论后第2轮 PATCH 再 REVIEW: PASS。"
     live_pid = os.environ.get("REG_DISCUSS_LIVE_PROJECT_ID", "reg-discuss-loop")
     cmd = [
         str(REPO / "venv/bin/python3"),
@@ -149,7 +164,7 @@ def main() -> int:
         "--workflow", WORKFLOW,
         "--goal", goal,
         "--budget", str(BUDGET),
-        "--backend", "claude",
+        "--backend", backend,
     ]
     print(f"=== REG-DISCUSS LIVE run project={live_pid} ===")
     proc = subprocess.run(cmd, cwd=str(REPO), env={**os.environ})

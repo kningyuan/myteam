@@ -142,3 +142,9 @@ skills:
     task_types: [data-analysis]
     description: 数据分析（registry 直驱）
     router: business/skills/research/SKILL.md
+
+  - id: officecli
+    task_types: [office-doc]
+    description: Office 文档创建/分析/修改 — .docx / .xlsx / .pptx 全流程 CLI
+    router: business/skills/officecli/SKILL.md
+    means: []

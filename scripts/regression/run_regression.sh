@@ -57,6 +57,8 @@ if [[ "$SUITE" == "v1" || "$SUITE" == "all" ]]; then
     set +e
     V1_FAIL=0
     REG_DISCUSS_CHECK_ONLY=1 "$REPO_ROOT/venv/bin/python3" scripts/regression/reg_discuss_loop.py || V1_FAIL=1
+    REG_ITER_CHECK_ONLY=1 "$REPO_ROOT/venv/bin/python3" scripts/regression/reg_iteration_assess.py || V1_FAIL=1
+    REG_GEO_ITER_CHECK_ONLY=1 "$REPO_ROOT/venv/bin/python3" scripts/regression/reg_geo_iteration.py || V1_FAIL=1
     for reg in reg_p0_product_dev reg_p1_media_ops reg_p2_pm_pack reg_p3_geo reg_outcome_forms; do
         REG_CHECK_ONLY=1 "$REPO_ROOT/venv/bin/python3" "scripts/regression/${reg}.py" || V1_FAIL=1
     done

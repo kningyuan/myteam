@@ -17,6 +17,23 @@ def claude_available() -> bool:
     return shutil.which("claude") is not None
 
 
+def opencode_available() -> bool:
+    import shutil
+    return shutil.which("opencode") is not None
+
+
+def backend_available(backend: str) -> bool:
+    if backend == "claude":
+        return claude_available()
+    if backend == "opencode":
+        return opencode_available()
+    return False
+
+
+def reg_backend() -> str:
+    return os.environ.get("REG_BACKEND", "opencode")
+
+
 def check_workflow_loader(workflow_id: str, *, goal: str = "REG check") -> tuple[bool, str]:
     sys.path.insert(0, str(REPO / "backend"))
     from common.plan_gate import check_plan
@@ -153,9 +170,9 @@ def reg_main(
         print(f"{reg_id}: FAIL")
         return 1
 
-    backend = os.environ.get("REG_BACKEND", "claude")
-    if backend == "claude" and not claude_available():
-        print(f"{reg_id}: SKIP（claude CLI 不可用）")
+    backend = reg_backend()
+    if not backend_available(backend):
+        print(f"{reg_id}: SKIP（{backend} CLI 不可用）")
         return 2
 
     rc = run_live_kernel(

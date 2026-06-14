@@ -47,6 +47,14 @@ async def api_project_run(body: dict):
     review = bool(body.get("review"))
     split = bool(body.get("split"))
     workflow = (body.get("workflow") or "").strip() or None
+    max_cycles = None
+    if mode == "recurring" and body.get("max_cycles") is not None:
+        try:
+            max_cycles = int(body.get("max_cycles"))
+            if max_cycles < 1:
+                max_cycles = None
+        except (TypeError, ValueError):
+            max_cycles = None
     process_defaults = skill_config.get_all().get("process_defaults") or {}
     if workflow:
         from common.workflow_loader import load_workflow
@@ -71,6 +79,7 @@ async def api_project_run(body: dict):
         review=review,
         split=split,
         backend=backend,
+        max_cycles=max_cycles,
     )
     _set_kernel_run(project_id, running=True)
     try:
@@ -86,6 +95,7 @@ async def api_project_run(body: dict):
             workflow,
             split,
             process_defaults,
+            max_cycles,
         )
     except RuntimeError:
         _clear_kernel_run(project_id)

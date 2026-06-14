@@ -35,11 +35,15 @@ def dispatch_loop_round_done(
     *,
     passed: bool,
     work_task_id: str,
-    review_task_id: str,
+    review_task_id: str = "",
+    assess_task_id: str = "",
     max_rounds: int = 5,
     profile: LoopDiscussionProfile | None = None,
 ) -> None:
     """loop 单轮结束后：通报；FAIL 且启用群讨论时加载 business hook 对齐。"""
+    assess_tid = (assess_task_id or review_task_id or "").strip()
+    if not assess_tid:
+        assess_tid = review_task_id
     if not group_enabled(project_id):
         return
     group = find_project_group(project_id)
@@ -54,7 +58,7 @@ def dispatch_loop_round_done(
     review_agent = (profile.review_agent if profile else "") or "main"
     label = (profile.round_summary_label if profile else "") or "评审"
 
-    review_text = read_deliverable(project_id, review_task_id)
+    review_text = read_deliverable(project_id, assess_tid)
     if profile:
         conclusion, findings, revisions = _review_excerpt(review_text, profile)
     else:
@@ -64,7 +68,7 @@ def dispatch_loop_round_done(
     body = (
         f"{header}\n"
         f"work: `{work_task_id}`\n"
-        f"review: `{review_task_id}`\n\n"
+        f"review: `{assess_tid}`\n\n"
         f"**审计结论**：{conclusion[:400]}\n\n"
         f"**发现与分级**：\n{findings[:800]}\n\n"
         f"**修订要求**：\n{revisions[:800]}"
@@ -96,7 +100,7 @@ def dispatch_loop_round_done(
             review_agent,
             (
                 f"第 {round_num} 轮评审未通过。"
-                f"请阅读 `{review_task_id}_deliverable.md` 修订要求；"
+                f"请阅读 `{assess_tid}_deliverable.md` 修订要求；"
                 f"内核将直接启动第 {round_num + 1} 轮改稿（群讨论未启用）。"
             ),
             route_mentions=False,
@@ -123,7 +127,7 @@ def dispatch_loop_round_done(
         group["id"],
         loop_id,
         round_num,
-        review_task_id=review_task_id,
+        review_task_id=assess_tid,
         work_task_id=work_task_id,
         findings=findings,
         revisions=revisions,

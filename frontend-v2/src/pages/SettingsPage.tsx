@@ -87,6 +87,7 @@ export function SettingsPage({ section = "system" }: { section?: SettingsSection
   const [maxConcurrentProjects, setMaxConcurrentProjects] = useState("2")
   const [budgetDegradeThreshold, setBudgetDegradeThreshold] = useState("80")
   const [splitDefault, setSplitDefault] = useState(false)
+  const [maxCycles, setMaxCycles] = useState("3")
 
   const [rawCfg, setRawCfg] = useState<Record<string, unknown>>({})
   const [rawSkill, setRawSkill] = useState<Record<string, unknown>>({})
@@ -162,6 +163,7 @@ export function SettingsPage({ section = "system" }: { section?: SettingsSection
         setMaxConcurrentProjects(String(pd.max_concurrent_projects ?? 2))
         setBudgetDegradeThreshold(String(Math.round(Number(pd.budget_degrade_threshold ?? 0.8) * 100)))
         setSplitDefault(!!pd.split_enabled)
+        setMaxCycles(String(pd.max_cycles ?? 3))
       })
       .catch((e: Error) => toast.error("加载设置失败", { description: e.message }))
       .finally(() => setLoading(false))
@@ -250,6 +252,7 @@ export function SettingsPage({ section = "system" }: { section?: SettingsSection
         max_parallel: parseInt(maxParallel, 10) || 3,
         max_concurrent_projects: parseInt(maxConcurrentProjects, 10) || 2,
         split_enabled: splitDefault,
+        max_cycles: parseInt(maxCycles, 10) || 3,
         budget_degrade_threshold:
           !Number.isNaN(thrPct) && thrPct > 0 && thrPct < 100 ? thrPct / 100 : 0.8,
       }
@@ -490,6 +493,18 @@ export function SettingsPage({ section = "system" }: { section?: SettingsSection
           <SettingRow label="最大并发项目" value={<Input value={maxConcurrentProjects} onChange={(e) => setMaxConcurrentProjects(e.target.value)} className="max-w-[120px]" />} />
           <SettingRow label="预算降级阈值（%）" value={<Input value={budgetDegradeThreshold} onChange={(e) => setBudgetDegradeThreshold(e.target.value)} className="max-w-[120px]" />} />
           <CheckboxRow label="默认自动拆分子任务" checked={splitDefault} onChange={setSplitDefault} />
+          <SettingRow
+            label="最大周期数（recurring）"
+            value={
+              <Input
+                type="number"
+                min={1}
+                value={maxCycles}
+                onChange={(e) => setMaxCycles(e.target.value)}
+                className="max-w-[120px]"
+              />
+            }
+          />
         </SettingSection>
       )}
     </div>

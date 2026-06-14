@@ -57,7 +57,7 @@ def test_project_fallback_without_store(monkeypatch):
 def test_collaboration_for_project_reads_meta(monkeypatch):
     class FakeStore:
         def get_project(self, project_id: str):
-            return {"meta": {"workflow": "第三章-讨论链路测试"}}
+            return {"meta": {"workflow": "产品规划方案"}}
 
         def close(self):
             pass

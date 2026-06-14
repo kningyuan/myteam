@@ -1,0 +1,26 @@
+id: iteration-v2-fixture
+version: "1.0"
+description: PR1–PR3 回归用最小 v2 loop
+options:
+  review_enabled: false
+loops:
+  - id: demo
+    max_rounds: 3
+    min_rounds: 1
+    default_body: default
+    bodies:
+      default:
+        - { id: work, agent: research, task_type: research, dependencies: [] }
+        - { id: assess, agent: main, task_type: iteration-assess, dependencies: [work] }
+    assess:
+      ref: assess
+      inputs:
+        - { kind: goal }
+        - { kind: phase.deliverable, phase: work }
+    transition:
+      - { when: deliverable_marker, task: assess, marker: "ITERATION: PASS", action: exit, outcome: complete }
+      - { when: deliverable_marker, task: assess, marker: "ITERATION: STOP", action: exit }
+      - { when: deliverable_marker, task: assess, marker: "ITERATION: CONTINUE", action: continue }
+      - { when: exhausted, action: exit, outcome: needs_review }
+tasks:
+  - { id: t-demo, name: 迭代演示, loop: demo, dependencies: [] }

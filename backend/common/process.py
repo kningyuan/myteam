@@ -28,12 +28,8 @@ from common.dag_dispatch import deps_block, derive_project_status, ready_tasks
 from common.decision_pipeline import DecisionPipeline
 from common.loop_runtime import (
     LoopSpec,
-    build_patch_goal_prefix,
-    evaluate_until,
-    instantiate_round_body_tasks,
-    loop_body_task_id,
-    loop_placeholder_outcome_status,
-    seed_patch_baseline,
+    RunLoopDeps,
+    run_loop,
 )
 from common.plan_expansion import PlanExpander
 from common.plan_gate import check_plan, prefix_cycle, topological_order
@@ -336,84 +332,36 @@ class Process:
         return outcome, decision
 
     def _execute_loop(self, project_id: str, placeholder: dict) -> TaskOutcome:
-        """运行 workflow loop 占位 task：多轮 body 直到 until 满足或耗尽。"""
+        """运行 workflow loop 占位 task（委托 loop_runtime.run_loop）。"""
         loop_id = str(placeholder.get("loop") or "").strip()
         spec = self._loops_by_id.get(loop_id)
-        placeholder_id = placeholder["id"]
         if spec is None:
-            return TaskOutcome(placeholder_id, "failed", f"未知 loop「{loop_id}」")
+            return TaskOutcome(placeholder["id"], "failed", f"未知 loop「{loop_id}」")
 
         goal_prefix = ""
         desc = placeholder.get("description", "")
         if desc.strip():
             goal_prefix = desc.strip() + "\n\n"
 
-        rounds_used = 0
-        for round_num in range(1, spec.max_rounds + 1):
-            rounds_used = round_num
-            round_goal_prefix = goal_prefix if round_num == 1 else build_patch_goal_prefix(
-                project_id, round_num, spec.id,
-            )
-            if round_num > 1:
-                prev_work = loop_body_task_id(spec.id, round_num - 1, "work")
-                cur_work = loop_body_task_id(spec.id, round_num, "work")
-                seed_patch_baseline(project_id, prev_work, cur_work)
-            round_tasks = instantiate_round_body_tasks(
-                spec, round_num, goal_prefix=round_goal_prefix,
-            )
-            self._persist_tasks(project_id, round_tasks)
+        proj_meta = (self.store.get_project(project_id) or {}).get("meta") or {}
+        goal_text = str(proj_meta.get("goal") or "")
 
-            by_id = {t["id"]: t for t in round_tasks}
-            order = topological_order(round_tasks)
-            round_outcomes: dict[str, TaskOutcome] = {}
-            body_types = {t["id"]: t.get("task_type", "") for t in round_tasks}
+        on_round = None
+        if self._hooks and self._hooks.on_loop_round_done:
+            on_round = self._hooks.on_loop_round_done
 
-            for body_tid in order:
-                outcome, decision = self._execute_task(project_id, by_id[body_tid])
-                round_outcomes[body_tid] = outcome
-                if decision == "abort":
-                    return TaskOutcome(placeholder_id, "failed", "loop 内任务中止", round_num)
-
-            passed = evaluate_until(
-                spec, round_num, round_outcomes, self.store, project_id, body_types,
-            )
-            work_tid = loop_body_task_id(spec.id, round_num, "work")
-            review_tid = loop_body_task_id(spec.id, round_num, "review")
-            if self._hooks and self._hooks.on_loop_round_done:
-                try:
-                    self._hooks.on_loop_round_done(
-                        project_id, spec.id, round_num, passed, work_tid, review_tid,
-                    )
-                except Exception:
-                    pass
-            self.store.append_run_event(
-                f"{project_id}:loop:{loop_id}",
-                "loop_round_done",
-                {"round": round_num, "passed": passed, "placeholder": placeholder_id},
-            )
-            if passed:
-                self.store.append_run_event(
-                    f"{project_id}:loop:{loop_id}",
-                    "loop_finished",
-                    {"state": "passed", "rounds_used": round_num},
-                )
-                self.store.update_task_meta(
-                    project_id, placeholder_id,
-                    summary=f"loop 通过（第 {round_num} 轮）", loop_rounds=round_num,
-                )
-                status = loop_placeholder_outcome_status(spec, passed=True)
-                self.store.set_task_status(project_id, placeholder_id, status)
-                return TaskOutcome(placeholder_id, status, "", round_num)
-
-        self.store.append_run_event(
-            f"{project_id}:loop:{loop_id}",
-            "loop_finished",
-            {"state": "exhausted", "rounds_used": rounds_used},
+        deps = RunLoopDeps(
+            execute_task=self._execute_task,
+            persist_tasks=self._persist_tasks,
+            append_run_event=self.store.append_run_event,
+            update_task_meta=self.store.update_task_meta,
+            set_task_status=self.store.set_task_status,
+            store=self.store,
+            on_loop_round_done=on_round,
         )
-        status = loop_placeholder_outcome_status(spec, passed=False)
-        self.store.set_task_status(project_id, placeholder_id, status)
-        return TaskOutcome(
-            placeholder_id, status, "loop until 未满足", rounds_used,
+        return run_loop(
+            project_id, placeholder, spec, deps=deps,
+            goal_prefix=goal_prefix, goal_text=goal_text,
         )
 
     def _fire_team_ready(self, project_id: str, agents: Optional[list[str]], title: str) -> None:

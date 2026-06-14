@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import common.paths as paths  # noqa: E402
 from common.agent_port import AgentPort, WatchdogConfig  # noqa: E402
-from common.loop_runtime import LoopSpec  # noqa: E402
+from common.loop_runtime import AssessSpec, LoopSpec, TransitionRule  # noqa: E402
 from common.process import Process, ProcessConfig  # noqa: E402
 from common.registry import get_spec  # noqa: E402
 from common.store import Store  # noqa: E402
@@ -179,3 +179,163 @@ def test_loop_passes_on_third_round(env):
                    agents=["main", "product", "arch"], loops=[loop])
     assert out.tasks["t-loop"].status == "completed"
     assert state["round"] == 3
+
+
+def test_v2_assess_stop_blocked_by_min_rounds(env):
+    """ITERATION: STOP 在 min_rounds 内被强制 continue。"""
+    store, wcfg = env
+    rounds = {"n": 0}
+
+    def transport(ctx):
+        tid = ctx.request.task_id
+        if tid.endswith("-work"):
+            _write(ctx, _valid("strategy"), GOOD_Q)
+        elif tid.endswith("-assess"):
+            rounds["n"] += 1
+            _write(ctx, _valid("strategy") + "\n\nITERATION: STOP\n", GOOD_Q)
+
+    loop = LoopSpec(
+        id="v2min",
+        max_rounds=5,
+        min_rounds=2,
+        is_v2=True,
+        default_body="default",
+        bodies={
+            "default": [
+                {"id": "work", "agent": "product", "task_type": "strategy", "dependencies": []},
+                {"id": "assess", "agent": "main", "task_type": "strategy",
+                 "dependencies": ["work"]},
+            ],
+        },
+        assess=AssessSpec(ref="assess"),
+        transition=[
+            TransitionRule(
+                when="deliverable_marker", task="assess", marker="ITERATION: STOP",
+                action="exit", outcome="needs_review",
+            ),
+            TransitionRule(
+                when="deliverable_marker", task="assess", marker="ITERATION: PASS",
+                action="exit", outcome="complete",
+            ),
+        ],
+    )
+    proc = Process(store, AgentPort(transport, store=store, config=wcfg), ProcessConfig())
+    out = proc.run(
+        "p_v2min",
+        tasks=[{"id": "t-loop", "loop": "v2min", "dependencies": []}],
+        agents=["main", "product", "arch"],
+        loops=[loop],
+    )
+    assert rounds["n"] >= 2
+    assert out.tasks["t-loop"].status != "needs_review" or rounds["n"] >= 2
+
+
+def test_v2_assess_continue_multi_round(env):
+    store, wcfg = env
+    assess_round = {"n": 0}
+
+    def transport(ctx):
+        tid = ctx.request.task_id
+        if tid.endswith("-work"):
+            _write(ctx, _valid("strategy"), GOOD_Q)
+        elif tid.endswith("-assess"):
+            assess_round["n"] += 1
+            marker = "ITERATION: PASS" if assess_round["n"] >= 2 else "ITERATION: CONTINUE"
+            _write(ctx, _valid("strategy") + f"\n\n{marker}\n", GOOD_Q)
+
+    loop = LoopSpec(
+        id="v2cont",
+        max_rounds=5,
+        min_rounds=1,
+        is_v2=True,
+        default_body="default",
+        bodies={
+            "default": [
+                {"id": "work", "agent": "product", "task_type": "strategy", "dependencies": []},
+                {"id": "assess", "agent": "main", "task_type": "strategy",
+                 "dependencies": ["work"]},
+            ],
+        },
+        assess=AssessSpec(ref="assess"),
+        transition=[
+            TransitionRule(
+                when="deliverable_marker", task="assess", marker="ITERATION: CONTINUE",
+                action="continue",
+            ),
+            TransitionRule(
+                when="deliverable_marker", task="assess", marker="ITERATION: PASS",
+                action="exit", outcome="complete",
+            ),
+        ],
+    )
+    proc = Process(store, AgentPort(transport, store=store, config=wcfg), ProcessConfig())
+    out = proc.run(
+        "p_v2cont",
+        tasks=[{"id": "t-loop", "loop": "v2cont", "dependencies": []}],
+        agents=["main", "product", "arch"],
+        loops=[loop],
+    )
+    assert out.tasks["t-loop"].status == "completed"
+    assert assess_round["n"] == 2
+
+
+def test_v2_next_body_patch_branch(env):
+    store, wcfg = env
+    bodies_seen: list[str] = []
+
+    def transport(ctx):
+        tid = ctx.request.task_id
+        if "-r1-" in tid:
+            bodies_seen.append("audit")
+        elif "-r2-" in tid:
+            bodies_seen.append("patch")
+        if tid.endswith("-audit") or tid.endswith("-revise"):
+            _write(ctx, _valid("strategy"), GOOD_Q)
+        elif tid.endswith("-assess"):
+            if "-r1-" in tid:
+                _write(ctx, _valid("strategy") + "\n\nREVIEW: FAIL\n", GOOD_Q)
+            else:
+                _write(ctx, _valid("strategy") + "\n\nITERATION: PASS\n", GOOD_Q)
+        elif tid.endswith("-verify"):
+            _write(ctx, _valid("architecture-review"), GOOD_Q)
+
+    loop = LoopSpec(
+        id="geobr",
+        max_rounds=4,
+        min_rounds=1,
+        is_v2=True,
+        default_body="audit",
+        bodies={
+            "audit": [
+                {"id": "audit", "agent": "product", "task_type": "strategy", "dependencies": []},
+                {"id": "assess", "agent": "main", "task_type": "strategy", "dependencies": ["audit"]},
+            ],
+            "patch": [
+                {"id": "revise", "agent": "product", "task_type": "strategy", "dependencies": []},
+                {"id": "verify", "agent": "arch", "task_type": "architecture-review",
+                 "dependencies": ["revise"]},
+                {"id": "assess", "agent": "main", "task_type": "strategy", "dependencies": ["verify"]},
+            ],
+        },
+        assess=AssessSpec(ref="assess"),
+        transition=[
+            TransitionRule(
+                when="deliverable_marker", task="assess", marker="REVIEW: FAIL",
+                action="continue", next_body="patch",
+            ),
+            TransitionRule(
+                when="deliverable_marker", task="assess", marker="ITERATION: PASS",
+                action="exit", outcome="complete",
+            ),
+        ],
+    )
+    proc = Process(store, AgentPort(transport, store=store, config=wcfg), ProcessConfig())
+    out = proc.run(
+        "p_geobr",
+        tasks=[{"id": "t-loop", "loop": "geobr", "dependencies": []}],
+        agents=["main", "product", "arch"],
+        loops=[loop],
+    )
+    assert "audit" in bodies_seen
+    assert "patch" in bodies_seen
+    assert out.tasks["t-loop"].status == "completed"

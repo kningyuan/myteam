@@ -7,7 +7,7 @@
       "role": "coordinator",
       "description": "项目协调与阶段仲裁；内容质量评审（section-review）与 decision-record",
       "capabilities": ["协调", "决策", "阶段闸门", "内容评审", "部署记录"],
-      "task_types": ["strategy", "decision-record", "section-review", "code-deployment"]
+      "task_types": ["strategy", "decision-record", "section-review", "code-deployment", "iteration-assess"]
     },
     "product": {
       "name": "产品专家",

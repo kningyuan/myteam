@@ -53,6 +53,11 @@ export const EVENT_LABELS: Record<string, string> = {
   budget_exceeded: "交互超预算",
   budget_exceeded_pause: "超预算暂停",
   cycle_done: "周期完成",
+  loop_round_done: "循环轮次完成",
+  loop_round_assess: "循环评估",
+  loop_transition: "循环分支切换",
+  branch_selected: "循环分支选定",
+  loop_finished: "循环结束",
   watchdog_soft_idle: "疑似卡住",
   watchdog_hard_kill: "看门狗中止",
   transport_error: "传输错误",
@@ -166,6 +171,31 @@ export function eventDetail(e: { kind?: string; payload?: Record<string, unknown
     const shown = tasks.slice(0, 3).join(", ")
     const more = tasks.length > 3 ? ` +${tasks.length - 3}` : ""
     return `共 ${p.count || tasks.length} 个任务${shown ? `：${shown}${more}` : ""}`
+  }
+  if (kind === "loop_round_done") {
+    const round = p.round ?? "?"
+    const passed = p.passed === true ? "通过" : p.passed === false ? "未通过" : ""
+    const bodyKey = p.body_key ? ` · body=${p.body_key}` : ""
+    return `第 ${round} 轮${passed ? ` · ${passed}` : ""}${bodyKey}`
+  }
+  if (kind === "loop_round_assess") {
+    const round = p.round ?? "?"
+    const action = p.action ? ` · ${p.action}` : ""
+    return `第 ${round} 轮${action}`
+  }
+  if (kind === "loop_transition") {
+    const from = p.from_body || "?"
+    const to = p.to_body || "?"
+    return `${from} → ${to}`
+  }
+  if (kind === "branch_selected") {
+    const to = p.body_key || p.to_body || "?"
+    return `→ ${to}`
+  }
+  if (kind === "loop_finished") {
+    const state = String(p.state || "")
+    const rounds = p.rounds_used != null ? ` · ${p.rounds_used} 轮` : ""
+    return `${state || "结束"}${rounds}`
   }
   if (kind === "blocked" || kind === "plan_rejected") {
     return String(p.reason || (Array.isArray(p.invalid_agents) ? p.invalid_agents.join(", ") : ""))

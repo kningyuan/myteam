@@ -301,7 +301,8 @@ export function ProjectExecTree({
   return (
     <div className="exec-panel">
       <p className="exec-panel-hint">
-        交互步骤：展开后上方为思考过程（工具调用与模型输出），下方为门禁、Prompt 等里程碑
+        交互步骤：展开后上方为思考过程（工具调用与模型输出），下方为门禁、Prompt 等里程碑。
+        项目动态含循环轮次完成（loop_round_done）与循环结束（loop_finished）事件。
       </p>
       <div className="exec-tree">
         {interactionEvents.map((e, idx) => {

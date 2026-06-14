@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from common.agent_id_policy import normalize_agent_ids, normalize_plan_tasks
-from common.loop_runtime import parse_loop_specs, validate_loop_specs
+from common.loop_runtime import LoopSpec, iter_loop_body_tasks, parse_loop_specs, validate_loop_specs
 from common.plan_gate import check_plan
 from common.registry import get_spec
 from common.workflow_loader import roster_from_tasks
@@ -127,7 +127,7 @@ def _validate_agents(
 
     # Loop body 中的 agent
     for spec in loops:
-        for t in spec.body:
+        for t in iter_loop_body_tasks(spec):
             aid = str(t.get("agent") or "").strip()
             tid = str(t.get("id") or "unknown").strip()
             if aid and aid not in agent_pool:
