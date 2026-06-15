@@ -1,6 +1,6 @@
 # Hub 2.0（React + Vite + shadcn 风格组件）
 
-与 v1 `frontend/` 并行；API 不变，仅 UI 重写。
+默认生产 UI。经典版 `frontend/` 已归档（源码保留，默认不再对外提供）。
 
 ## 开发
 
@@ -18,7 +18,9 @@ cd frontend-v2 && npm install && npm run dev
 ```bash
 npm run build
 cd .. && ./run.sh restart
-# 打开 http://127.0.0.1:8765/v2/
+# 打开 http://127.0.0.1:8765/  （自动进入 /v2/）
 ```
 
-FastAPI 在 `frontend-v2/dist` 存在时自动挂载 `/v2`。
+Hub 在 `frontend-v2/dist` 存在时：`/` 302 → `/v2/`，并挂载 `/v2` SPA。
+
+临时恢复经典版：`MYTEAM_V1_UI=1 ./run.sh start`，访问 http://127.0.0.1:8765/classic/

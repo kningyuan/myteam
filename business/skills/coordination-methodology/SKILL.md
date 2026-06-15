@@ -1,11 +1,10 @@
 ---
-name: coordination-methodology
+name: "协作方法论"
 task_type: coordination-methodology
 description: >-
   编排纪律：范围→封板→并行委派→回归验证→集成汇报。
   main / Cursor 编排者、decision-record / code-deployment 必须先读本 skill。
 ---
-
 # 编排纪律（Coordination Methodology）
 
 > **适用**：myteam `main`（项目经理）、Cursor 侧总协调 Agent、阶段决策与部署签发类任务。  

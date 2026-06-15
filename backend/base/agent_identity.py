@@ -9,7 +9,10 @@ _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
+from common.rules_merge import normalize_rules_profile
 from hub.paths import IDENTITY_FILES, WORKSPACE_PREFIX, WORKSPACES_DIR
+
+_NON_EXECUTE_PROFILES = frozenset({"interactive", "discussion"})
 
 
 class AgentIdentityBuilder:
@@ -80,14 +83,19 @@ class AgentIdentityBuilder:
         }
         return agent_names.get(self.agent_id, f"Agent-{self.agent_id}")
 
-    def get_identity_context(self) -> str:
+    def get_identity_context(self, *, rules_profile: str = "workflow_execute") -> str:
+        """编排 execute 含 AGENTS.md；interactive/discussion 排除执行段。"""
         if not self.identity_content:
             return ""
+        profile = normalize_rules_profile(rules_profile)
+        blocks = self.identity_content
+        if profile in _NON_EXECUTE_PROFILES:
+            blocks = [b for b in blocks if not b.startswith("# AGENTS.md\n")]
         return "\n".join([
             "=" * 40,
             "Agent 身份信息",
             "=" * 40,
-            "\n".join(self.identity_content),
+            "\n".join(blocks),
             "=" * 40,
         ])
 

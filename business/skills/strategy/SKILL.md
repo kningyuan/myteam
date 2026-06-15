@@ -1,9 +1,8 @@
 ---
-name: strategy
+name: "策略规划"
 task_type: strategy
 description: 策略分析 — 背景、分析、方案、建议；须含不确定性。
 ---
-
 # strategy — 策略分析
 
 **必须先读**：`business/skills/product-methodology/SKILL.md`  

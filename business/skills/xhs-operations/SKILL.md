@@ -1,10 +1,9 @@
 ---
-name: xhs-operations
+name: "小红书运营"
 description: 小红书运营 workflow 共享包 — 选题调研 → 笔记成稿 → 真实发布留痕。
 workflows:
   - 小红书运营
 ---
-
 # xhs-operations — 小红书账号运营共享 Skill
 
 **适用 workflow**：`小红书运营`（发布步使用 `template_id: publish-xhs`）。

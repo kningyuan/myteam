@@ -1,9 +1,8 @@
 ---
-name: code-writing
+name: "代码编写"
 task_type: code-writing
 description: 在 myteam 仓库内做最小正确实现，附带测试。
 ---
-
 # code-writing — myteam 工程改动
 
 **必须先读**（内核按 agent_id 注入对应方法论）：

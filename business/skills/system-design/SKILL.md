@@ -1,9 +1,8 @@
 ---
-name: system-design
+name: "系统设计"
 task_type: system-design
 description: 架构方案与 API 契约 — 输出可分工执行的 P0/P1 修复清单。
 ---
-
 # system-design — 贯通方案与 API 契约
 
 **架构类任务必须先读**：`business/skills/system-architecture-methodology/SKILL.md`（约束→trade-off→ADR→C4）

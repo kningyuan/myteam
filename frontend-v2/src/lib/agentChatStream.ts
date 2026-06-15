@@ -13,11 +13,19 @@ import {
 import { invalidateResources } from "@/lib/dataRefresh"
 import { applyThinkingEvent, type ThinkingEvent } from "@/lib/thinking"
 
+export type CitationPart = {
+  title?: string
+  url?: string
+  snippet?: string
+  source?: string
+}
+
 export type AgentUiMessage = {
   id: string
   role: "user" | "agent"
   text: string
   thinking?: ThinkingEvent[]
+  citations?: CitationPart[]
   streaming?: boolean
 }
 
@@ -33,7 +41,11 @@ type AgentChatSession = {
   activeTurn: ActiveTurn | null
   abortCtrl: AbortController | null
   error: string
+  contextTokens: number
 }
+
+const CONTEXT_TOKEN_BUDGET = 25000
+const agentEventSources = new Map<string, EventSource>()
 
 const sessions = new Map<string, AgentChatSession>()
 const agentListeners = new Map<string, Set<() => void>>()
@@ -53,6 +65,7 @@ function ensureSession(agentId: string): AgentChatSession {
       activeTurn: null,
       abortCtrl: null,
       error: "",
+      contextTokens: 0,
     }
     sessions.set(agentId, s)
   }
@@ -125,6 +138,7 @@ export function getAgentChatSnapshot(agentId: string) {
     error: s.error,
     loaded: s.loaded,
     restoreDraft: s.restoreDraft,
+    contextTokens: s.contextTokens,
   }
 }
 
@@ -156,7 +170,69 @@ function emitSettled(agentId: string) {
   settleListeners.forEach((fn) => fn(agentId))
 }
 
+export function getAgentContextTokens(agentId: string): number {
+  return ensureSession(agentId).contextTokens
+}
+
+export function getContextTokenBudget(): number {
+  return CONTEXT_TOKEN_BUDGET
+}
+
+function accumulateContextTokens(agentId: string, tokenData?: ThinkingEvent["tokens"]) {
+  if (!tokenData) return
+  const add =
+    tokenData.total ||
+    (Number(tokenData.input) || 0) + (Number(tokenData.output) || 0)
+  if (!add) return
+  const s = ensureSession(agentId)
+  s.contextTokens += add
+  notify(agentId)
+}
+
+export function resetAgentContextTokens(agentId: string) {
+  const s = ensureSession(agentId)
+  s.contextTokens = 0
+  notify(agentId)
+}
+
+function connectAgentBackgroundEvents(agentId: string) {
+  if (!agentId || agentEventSources.has(agentId)) return
+  const es = new EventSource(`/api/agents/${encodeURIComponent(agentId)}/events`)
+  agentEventSources.set(agentId, es)
+  es.onmessage = (e) => {
+    if (!e.data || e.data === "[DONE]") return
+    try {
+      const ev = JSON.parse(e.data) as { event?: string; data?: Record<string, unknown> }
+      if (ev.event === "agent_thinking" && ev.data) {
+        const s = ensureSession(agentId)
+        const blockId = `bg_${Date.now()}`
+        s.messages = [
+          ...s.messages,
+          {
+            id: blockId,
+            role: "agent",
+            text: String(ev.data.preview || ev.data.message || "[后台任务进行中]"),
+            thinking: [],
+            streaming: true,
+          },
+        ]
+        notify(agentId)
+      } else if (ev.event === "agent_done") {
+        notify(agentId)
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  es.onerror = () => {
+    es.close()
+    agentEventSources.delete(agentId)
+    window.setTimeout(() => connectAgentBackgroundEvents(agentId), 3000)
+  }
+}
+
 export async function ensureAgentChatLoaded(agentId: string): Promise<void> {
+  connectAgentBackgroundEvents(agentId)
   await syncAgentChatFromServer(agentId)
 }
 
@@ -193,6 +269,7 @@ export async function sendAgentChatMessage(agentId: string, text: string): Promi
       if (ac.signal.aborted || s.userCancelled) return
       if (ev.event === "thinking") {
         const d = ev.data as ThinkingEvent
+        if (d?.type === "step_finish" && d.tokens) accumulateContextTokens(agentId, d.tokens)
         const next = applyThinkingEvent(thinkingEvents, content, d as Record<string, unknown>)
         content = next.text
         thinkingEvents = next.thinking
@@ -202,6 +279,14 @@ export async function sendAgentChatMessage(agentId: string, text: string): Promi
             : m,
         )
         notify(agentId)
+      } else if (ev.event === "citations") {
+        const cites = Array.isArray(ev.data) ? (ev.data as CitationPart[]) : []
+        if (cites.length) {
+          s.messages = s.messages.map((m) =>
+            m.id === agentMsgId ? { ...m, citations: cites } : m,
+          )
+          notify(agentId)
+        }
       } else if (ev.event === "error") {
         const d = ev.data as { message?: string }
         content = d?.message || "发生错误"

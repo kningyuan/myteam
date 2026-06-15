@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { listWorkflows } from "@/lib/api/workflows"
 import { useResourceQuery } from "@/hooks/useResourceQuery"
@@ -10,8 +11,14 @@ export function WorkflowsSection() {
   const { workflowId } = useParams()
   const navigate = useNavigate()
   const { data: workflows } = useResourceQuery("workflows", listWorkflows, [])
+  const [editorDirty, setEditorDirty] = useState(false)
 
   const showEditor = workflowId === "new" || !!workflowId
+
+  function navigateWorkflow(target: string) {
+    if (editorDirty && !window.confirm("有未保存的修改，确定离开？")) return
+    navigate(target)
+  }
 
   return (
     <DiscordShell
@@ -19,7 +26,7 @@ export function WorkflowsSection() {
         <ListColumn
           title="工作流"
           action={
-            <Button size="sm" onClick={() => navigate("/workflows/new")}>
+            <Button size="sm" onClick={() => navigateWorkflow("/workflows/new")}>
               新建
             </Button>
           }
@@ -31,7 +38,7 @@ export function WorkflowsSection() {
               sub={`${w.task_count ?? "—"} 任务`}
               avatar={w.id}
               active={w.id === workflowId}
-              onClick={() => navigate(`/workflows/${encodeURIComponent(w.id)}`)}
+              onClick={() => navigateWorkflow(`/workflows/${encodeURIComponent(w.id)}`)}
             />
           ))}
         </ListColumn>
@@ -40,10 +47,13 @@ export function WorkflowsSection() {
       {showEditor ? (
         <WorkflowEditor
           workflowId={workflowId === "new" ? null : workflowId!}
+          onDirtyChange={setEditorDirty}
           onSaved={(id) => {
+            setEditorDirty(false)
             navigate(`/workflows/${encodeURIComponent(id)}`, { replace: true })
           }}
           onDeleted={() => {
+            setEditorDirty(false)
             navigate("/workflows")
           }}
         />

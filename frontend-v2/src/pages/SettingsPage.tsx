@@ -76,16 +76,24 @@ export function SettingsPage({ section = "system" }: { section?: SettingsSection
   const [gdTerminateCommands, setGdTerminateCommands] = useState("/终止讨论\n/终止圆桌\n/stop roundtable")
 
   const [pollInterval, setPollInterval] = useState("5")
+  const [ackTimeout, setAckTimeout] = useState("300")
   const [taskTimeout, setTaskTimeout] = useState("3600")
   const [agentMsgTimeout, setAgentMsgTimeout] = useState("1800")
+  const [teamConfigTimeout, setTeamConfigTimeout] = useState("600")
+  const [taskPlanTimeout, setTaskPlanTimeout] = useState("600")
   const [maxRetries, setMaxRetries] = useState("3")
 
   const [defaultBudget, setDefaultBudget] = useState("1000000")
   const [maxGateRetries, setMaxGateRetries] = useState("5")
+  const [softIdleSec, setSoftIdleSec] = useState("240")
+  const [hardIdleSec, setHardIdleSec] = useState("900")
   const [parallelEnabled, setParallelEnabled] = useState(false)
   const [maxParallel, setMaxParallel] = useState("3")
   const [maxConcurrentProjects, setMaxConcurrentProjects] = useState("2")
   const [budgetDegradeThreshold, setBudgetDegradeThreshold] = useState("80")
+  const [budgetDegradeBackend, setBudgetDegradeBackend] = useState("")
+  const [budgetDegradeModel, setBudgetDegradeModel] = useState("")
+  const [degradeModels, setDegradeModels] = useState<BackendModel[]>([])
   const [splitDefault, setSplitDefault] = useState(false)
   const [maxCycles, setMaxCycles] = useState("3")
 
@@ -151,23 +159,61 @@ export function SettingsPage({ section = "system" }: { section?: SettingsSection
 
         const ex = (skill.executor || {}) as Record<string, unknown>
         setPollInterval(String(ex.poll_interval ?? 5))
+        setAckTimeout(String(ex.ack_timeout ?? 300))
         setTaskTimeout(String(ex.task_timeout ?? 3600))
         setAgentMsgTimeout(String(ex.agent_msg_timeout ?? 1800))
+        setTeamConfigTimeout(String(ex.team_config_timeout ?? 600))
+        setTaskPlanTimeout(String(ex.task_plan_timeout ?? 600))
         setMaxRetries(String(ex.max_retries ?? 3))
 
         const pd = (skill.process_defaults || {}) as Record<string, unknown>
         setDefaultBudget(String(pd.default_project_budget ?? 1000000))
         setMaxGateRetries(String(pd.max_gate_retries ?? 5))
+        setSoftIdleSec(String(pd.soft_idle_sec ?? 240))
+        setHardIdleSec(String(pd.hard_idle_sec ?? 900))
         setParallelEnabled(!!pd.parallel_enabled)
         setMaxParallel(String(pd.max_parallel ?? 3))
         setMaxConcurrentProjects(String(pd.max_concurrent_projects ?? 2))
         setBudgetDegradeThreshold(String(Math.round(Number(pd.budget_degrade_threshold ?? 0.8) * 100)))
+        const degBackend = String(pd.budget_degrade_backend || "")
+        const degModel = String(pd.budget_degrade_model || "")
+        setBudgetDegradeBackend(degBackend)
+        setBudgetDegradeModel(degModel)
+        if (degBackend) {
+          listBackendModels(degBackend)
+            .then((ms) => {
+              setDegradeModels(ms)
+              if (degModel && ms.some((m) => m.id === degModel)) setBudgetDegradeModel(degModel)
+              else if (ms[0]) setBudgetDegradeModel(ms[0].id)
+            })
+            .catch(() => setDegradeModels([]))
+        } else {
+          setDegradeModels([])
+        }
         setSplitDefault(!!pd.split_enabled)
         setMaxCycles(String(pd.max_cycles ?? 3))
       })
       .catch((e: Error) => toast.error("加载设置失败", { description: e.message }))
       .finally(() => setLoading(false))
   }, [])
+
+  async function onDegradeBackendChange(id: string) {
+    setBudgetDegradeBackend(id)
+    if (!id) {
+      setDegradeModels([])
+      setBudgetDegradeModel("")
+      return
+    }
+    try {
+      const ms = await listBackendModels(id)
+      setDegradeModels(ms)
+      if (ms.find((m) => m.default)) setBudgetDegradeModel(ms.find((m) => m.default)!.id)
+      else if (ms[0]) setBudgetDegradeModel(ms[0].id)
+      else setBudgetDegradeModel("")
+    } catch {
+      setDegradeModels([])
+    }
+  }
 
   async function onBackendChange(id: string) {
     setDefaultBackend(id)
@@ -239,8 +285,11 @@ export function SettingsPage({ section = "system" }: { section?: SettingsSection
       skillCfg.executor = {
         ...((skillCfg.executor || {}) as Record<string, unknown>),
         poll_interval: parseInt(pollInterval, 10) || 5,
+        ack_timeout: parseInt(ackTimeout, 10) || 300,
         task_timeout: parseInt(taskTimeout, 10) || 3600,
         agent_msg_timeout: parseInt(agentMsgTimeout, 10) || 1800,
+        team_config_timeout: parseInt(teamConfigTimeout, 10) || 600,
+        task_plan_timeout: parseInt(taskPlanTimeout, 10) || 600,
         max_retries: parseInt(maxRetries, 10) || 3,
       }
       const thrPct = parseFloat(budgetDegradeThreshold)
@@ -248,6 +297,8 @@ export function SettingsPage({ section = "system" }: { section?: SettingsSection
         ...((skillCfg.process_defaults || {}) as Record<string, unknown>),
         default_project_budget: parseInt(defaultBudget, 10) || 1000000,
         max_gate_retries: parseInt(maxGateRetries, 10) || 5,
+        soft_idle_sec: parseInt(softIdleSec, 10) || 240,
+        hard_idle_sec: parseInt(hardIdleSec, 10) || 900,
         parallel_enabled: parallelEnabled,
         max_parallel: parseInt(maxParallel, 10) || 3,
         max_concurrent_projects: parseInt(maxConcurrentProjects, 10) || 2,
@@ -255,6 +306,8 @@ export function SettingsPage({ section = "system" }: { section?: SettingsSection
         max_cycles: parseInt(maxCycles, 10) || 3,
         budget_degrade_threshold:
           !Number.isNaN(thrPct) && thrPct > 0 && thrPct < 100 ? thrPct / 100 : 0.8,
+        budget_degrade_backend: budgetDegradeBackend.trim(),
+        budget_degrade_model: budgetDegradeModel.trim(),
       }
 
       await Promise.all([updateConfig(cfg), updateSkillConfig(skillCfg)])
@@ -363,6 +416,16 @@ export function SettingsPage({ section = "system" }: { section?: SettingsSection
             </div>
             <CheckboxRow label="调试模式" checked={debug} onChange={setDebug} />
             <CheckboxRow label="审计日志" checked={auditLog} onChange={setAuditLog} />
+            <SettingRow
+              label="审计日志上限（字节）"
+              value={
+                <Input
+                  value={auditMaxBytes}
+                  onChange={(e) => setAuditMaxBytes(e.target.value)}
+                  className="max-w-[160px]"
+                />
+              }
+            />
             <CheckboxRow label="默认开启评审" checked={defaultReview} onChange={setDefaultReview} />
             {defaultBackend === "opencode" && (
               <div className="grid gap-2">
@@ -478,8 +541,11 @@ export function SettingsPage({ section = "system" }: { section?: SettingsSection
       {section === "exec" && (
         <SettingSection title="执行与超时">
           <SettingRow label="轮询间隔（秒）" value={<Input value={pollInterval} onChange={(e) => setPollInterval(e.target.value)} className="max-w-[120px]" />} />
+          <SettingRow label="ACK 超时（秒）" value={<Input value={ackTimeout} onChange={(e) => setAckTimeout(e.target.value)} className="max-w-[120px]" />} />
           <SettingRow label="任务超时（秒）" value={<Input value={taskTimeout} onChange={(e) => setTaskTimeout(e.target.value)} className="max-w-[120px]" />} />
           <SettingRow label="Agent 消息超时（秒）" value={<Input value={agentMsgTimeout} onChange={(e) => setAgentMsgTimeout(e.target.value)} className="max-w-[120px]" />} />
+          <SettingRow label="团队配置超时（秒）" value={<Input value={teamConfigTimeout} onChange={(e) => setTeamConfigTimeout(e.target.value)} className="max-w-[120px]" />} />
+          <SettingRow label="任务规划超时（秒）" value={<Input value={taskPlanTimeout} onChange={(e) => setTaskPlanTimeout(e.target.value)} className="max-w-[120px]" />} />
           <SettingRow label="最大重试" value={<Input value={maxRetries} onChange={(e) => setMaxRetries(e.target.value)} className="max-w-[120px]" />} />
         </SettingSection>
       )}
@@ -488,10 +554,50 @@ export function SettingsPage({ section = "system" }: { section?: SettingsSection
         <SettingSection title="项目运行默认">
           <SettingRow label="默认项目预算（tok）" value={<Input value={defaultBudget} onChange={(e) => setDefaultBudget(e.target.value)} className="max-w-[160px]" />} />
           <SettingRow label="Gate 最大重试" value={<Input value={maxGateRetries} onChange={(e) => setMaxGateRetries(e.target.value)} className="max-w-[120px]" />} />
+          <SettingRow label="软空闲告警（秒）" value={<Input value={softIdleSec} onChange={(e) => setSoftIdleSec(e.target.value)} className="max-w-[120px]" />} />
+          <SettingRow label="硬空闲中止（秒）" value={<Input value={hardIdleSec} onChange={(e) => setHardIdleSec(e.target.value)} className="max-w-[120px]" />} />
           <CheckboxRow label="波次并行" checked={parallelEnabled} onChange={setParallelEnabled} />
           <SettingRow label="最大并行数" value={<Input value={maxParallel} onChange={(e) => setMaxParallel(e.target.value)} className="max-w-[120px]" />} />
           <SettingRow label="最大并发项目" value={<Input value={maxConcurrentProjects} onChange={(e) => setMaxConcurrentProjects(e.target.value)} className="max-w-[120px]" />} />
           <SettingRow label="预算降级阈值（%）" value={<Input value={budgetDegradeThreshold} onChange={(e) => setBudgetDegradeThreshold(e.target.value)} className="max-w-[120px]" />} />
+          <div className="grid gap-2 py-2 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label>预算降级后端</Label>
+              <Select value={budgetDegradeBackend || "__none__"} onValueChange={(v) => void onDegradeBackendChange(v === "__none__" ? "" : v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="（不降级）" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">（不降级）</SelectItem>
+                  {backends.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>
+                      {b.name || b.id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>预算降级模型</Label>
+              <Select
+                value={budgetDegradeModel || "__none__"}
+                onValueChange={(v) => setBudgetDegradeModel(v === "__none__" ? "" : v)}
+                disabled={!budgetDegradeBackend}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="选择模型" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">（默认）</SelectItem>
+                  {degradeModels.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.name || m.id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           <CheckboxRow label="默认自动拆分子任务" checked={splitDefault} onChange={setSplitDefault} />
           <SettingRow
             label="最大周期数（recurring）"

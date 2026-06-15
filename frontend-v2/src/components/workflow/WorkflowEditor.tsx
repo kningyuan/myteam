@@ -86,10 +86,12 @@ export function WorkflowEditor({
   workflowId,
   onSaved,
   onDeleted,
+  onDirtyChange,
 }: {
   workflowId: string | null
   onSaved: (id: string) => void
   onDeleted: () => void
+  onDirtyChange?: (dirty: boolean) => void
 }) {
   const isNew = !workflowId || workflowId === "new"
   const [loading, setLoading] = useState(!isNew)
@@ -103,6 +105,17 @@ export function WorkflowEditor({
   const [agents, setAgents] = useState<AgentSummary[]>([])
   const [taskTypes, setTaskTypes] = useState<TaskTypeSummary[]>([])
   const [templates, setTemplates] = useState<DeliveryTemplateSummary[]>([])
+  const [dirty, setDirty] = useState(false)
+
+  const markDirty = useCallback(() => {
+    setDirty(true)
+    onDirtyChange?.(true)
+  }, [onDirtyChange])
+
+  const clearDirty = useCallback(() => {
+    setDirty(false)
+    onDirtyChange?.(false)
+  }, [onDirtyChange])
 
   const typeLabel = useMemo(() => typeLabelMap(taskTypes), [taskTypes])
 
@@ -123,7 +136,8 @@ export function WorkflowEditor({
     })
     setTasks(data.tasks?.length ? [...data.tasks] : [])
     setLoopSpecs(loopsToRecord(data.loops))
-  }, [])
+    clearDirty()
+  }, [clearDirty])
 
   useEffect(() => {
     Promise.all([listAgents(), listTaskTypes(), listDeliveryTemplates()])
@@ -149,10 +163,12 @@ export function WorkflowEditor({
   }, [workflowId, isNew, fillForm])
 
   function updateTask(index: number, patch: Partial<WfTask>) {
+    markDirty()
     setTasks((prev) => prev.map((t, i) => (i === index ? { ...t, ...patch } : t)))
   }
 
   function setTaskMode(index: number, mode: "normal" | "loop_ref") {
+    markDirty()
     const task = tasks[index]
     if (!task) return
     const tid = task.id
@@ -196,6 +212,7 @@ export function WorkflowEditor({
   }
 
   function moveTask(index: number, delta: number) {
+    markDirty()
     setTasks((prev) => {
       const next = index + delta
       if (next < 0 || next >= prev.length) return prev
@@ -206,6 +223,7 @@ export function WorkflowEditor({
   }
 
   function addTask() {
+    markDirty()
     setTasks((prev) => {
       const prevId = prev.length ? prev[prev.length - 1].id : null
       return [
@@ -223,6 +241,7 @@ export function WorkflowEditor({
   }
 
   function removeTask(index: number) {
+    markDirty()
     const task = tasks[index]
     if (task?.loop) {
       setLoopSpecs((specs) => {
@@ -284,6 +303,7 @@ export function WorkflowEditor({
     try {
       const savedId = await saveWorkflow(isNew ? null : workflowId, { workflow: data })
       toast.success("工作流已保存")
+      clearDirty()
       onSaved(savedId || data.id!)
     } catch (e) {
       toast.error("保存失败", { description: e instanceof Error ? e.message : "" })
@@ -330,7 +350,10 @@ export function WorkflowEditor({
     <div className="discord-main-scroll workspace-scroll">
       <header className="workspace-header-bar mb-5">
         <div className="min-w-0">
-          <h1>{isNew ? "新建工作流" : id || workflowId}</h1>
+          <h1>
+            {isNew ? "新建工作流" : id || workflowId}
+            {dirty && <span className="ml-2 text-xs font-normal text-amber-500">未保存</span>}
+          </h1>
           <p>表单编辑任务编排；保存前会自动校验。</p>
         </div>
         <div className="wf-toolbar">
@@ -356,14 +379,17 @@ export function WorkflowEditor({
               <Input
                 id="wf-id"
                 value={id}
-                onChange={(e) => setId(e.target.value)}
+                onChange={(e) => {
+                  markDirty()
+                  setId(e.target.value)
+                }}
                 disabled={!isNew}
                 placeholder="例如：GitHub项目调研"
               />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="wf-version">版本</Label>
-              <Input id="wf-version" value={version} onChange={(e) => setVersion(e.target.value)} />
+              <Input id="wf-version" value={version} onChange={(e) => { markDirty(); setVersion(e.target.value) }} />
             </div>
           </div>
           <div className="mt-4 grid gap-2">
@@ -372,7 +398,10 @@ export function WorkflowEditor({
               id="wf-desc"
               rows={3}
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => {
+                markDirty()
+                setDescription(e.target.value)
+              }}
               placeholder="描述项目类型与目标，可用于自动推导任务"
             />
           </div>
@@ -381,7 +410,10 @@ export function WorkflowEditor({
               <input
                 type="checkbox"
                 checked={!!options.review_enabled}
-                onChange={(e) => setOptions((o) => ({ ...o, review_enabled: e.target.checked }))}
+                onChange={(e) => {
+                  markDirty()
+                  setOptions((o) => ({ ...o, review_enabled: e.target.checked }))
+                }}
               />
               启用 Review
             </label>
@@ -389,7 +421,10 @@ export function WorkflowEditor({
               <input
                 type="checkbox"
                 checked={!!options.split_enabled}
-                onChange={(e) => setOptions((o) => ({ ...o, split_enabled: e.target.checked }))}
+                onChange={(e) => {
+                  markDirty()
+                  setOptions((o) => ({ ...o, split_enabled: e.target.checked }))
+                }}
               />
               启用拆分
             </label>
@@ -397,7 +432,10 @@ export function WorkflowEditor({
               <input
                 type="checkbox"
                 checked={!!options.parallel_enabled}
-                onChange={(e) => setOptions((o) => ({ ...o, parallel_enabled: e.target.checked }))}
+                onChange={(e) => {
+                  markDirty()
+                  setOptions((o) => ({ ...o, parallel_enabled: e.target.checked }))
+                }}
               />
               允许并行
             </label>
@@ -409,9 +447,10 @@ export function WorkflowEditor({
                 min={1}
                 max={20}
                 value={options.max_parallel ?? 3}
-                onChange={(e) =>
+                onChange={(e) => {
+                  markDirty()
                   setOptions((o) => ({ ...o, max_parallel: parseInt(e.target.value, 10) || 3 }))
-                }
+                }}
               />
             </label>
           </div>
@@ -595,9 +634,10 @@ export function WorkflowEditor({
                             <LoopEditorPanel
                               loopId={task.loop!}
                               spec={loopSpecs[task.loop!] || defaultLoopSpec(task.loop!)}
-                              onChange={(spec) =>
+                              onChange={(spec) => {
+                                markDirty()
                                 setLoopSpecs((prev) => ({ ...prev, [task.loop!]: spec }))
-                              }
+                              }}
                               agents={agents}
                               taskTypes={taskTypes}
                               templates={templates}

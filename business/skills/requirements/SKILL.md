@@ -1,9 +1,8 @@
 ---
-name: requirements
+name: "需求分析"
 task_type: requirements
 description: PRD 级需求 — 范围、用户故事、可验证验收标准。
 ---
-
 # requirements — 需求 / PRD
 
 **必须先读**：`business/skills/product-methodology/SKILL.md`（范围、验收、优先级框架）  

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
-import { updateAgentManage, type AgentSummary } from "@/lib/api/agents"
+import { getAgentDetail, suggestAgentTaskTypes, updateAgentManage, type AgentSummary } from "@/lib/api/agents"
 import { listBackends, listBackendModels, type BackendModel, type BackendSummary } from "@/lib/api/config"
-import { listTaskTypes, type TaskTypeSummary } from "@/lib/api/workflows"
+import { listSkillLibrary, listTaskTypes, type SkillLibraryItem, type TaskTypeSummary } from "@/lib/api/workflows"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -37,19 +37,38 @@ export function AgentEditDialog({
   const [model, setModel] = useState("")
   const [workspace, setWorkspace] = useState("")
   const [taskTypes, setTaskTypes] = useState<string[]>([])
+  const [skillIds, setSkillIds] = useState<string[]>([])
   const [allTaskTypes, setAllTaskTypes] = useState<TaskTypeSummary[]>([])
+  const [allSkills, setAllSkills] = useState<SkillLibraryItem[]>([])
   const [backends, setBackends] = useState<BackendSummary[]>([])
   const [models, setModels] = useState<BackendModel[]>([])
   const [busy, setBusy] = useState(false)
+  const [loadingDetail, setLoadingDetail] = useState(false)
 
   useEffect(() => {
-    if (!agent) return
+    if (!agent || !open) return
     setName(agent.name || agent.id)
     setBackend(agent.backend || "opencode")
     setModel(agent.model || "")
+    setWorkspace("")
+    setTaskTypes(agent.task_types ?? [])
+    setSkillIds(agent.skills ?? [])
     listTaskTypes().then(setAllTaskTypes).catch(() => setAllTaskTypes([]))
+    listSkillLibrary().then(setAllSkills).catch(() => setAllSkills([]))
     listBackends().then(setBackends).catch(() => setBackends([]))
-  }, [agent])
+    setLoadingDetail(true)
+    getAgentDetail(agent.id)
+      .then((d) => {
+        setTaskTypes(d.task_types ?? agent.task_types ?? [])
+        const ids = d.registry_skills ?? d.skills?.map((s) => s.skill_id) ?? []
+        setSkillIds(ids)
+        setWorkspace(d.workspace || "")
+        setBackend(d.backend || agent.backend || "opencode")
+        setModel(d.model || agent.model || "")
+      })
+      .catch(() => {})
+      .finally(() => setLoadingDetail(false))
+  }, [agent, open])
 
   useEffect(() => {
     if (!backend) return
@@ -61,6 +80,33 @@ export function AgentEditDialog({
       .catch(() => setModels([]))
   }, [backend])
 
+  async function handleSuggestTaskTypes() {
+    if (!agent) return
+    setBusy(true)
+    try {
+      const detail = await getAgentDetail(agent.id).catch(() => null)
+      const desc = detail?.files?.["AGENTS.md"] || agent.description || ""
+      const res = await suggestAgentTaskTypes({
+        description: desc,
+        name: name.trim() || agent.name || agent.id,
+        agent_id: agent.id,
+      })
+      const suggested = res.task_types ?? []
+      if (!suggested.length) {
+        toast.message("未推导出 task_type")
+        return
+      }
+      setTaskTypes((prev) => [...new Set([...prev, ...suggested])])
+      toast.success(`已勾选 ${suggested.length} 个 task_type`, {
+        description: res.pattern ? `来源：${res.pattern}` : undefined,
+      })
+    } catch (e) {
+      toast.error("推导失败", { description: e instanceof Error ? e.message : "" })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function handleSave() {
     if (!agent || !name.trim()) return
     setBusy(true)
@@ -71,6 +117,7 @@ export function AgentEditDialog({
         model,
         workspace: workspace.trim(),
         task_types: taskTypes,
+        skills: skillIds,
       })
       toast.success("Agent 已保存")
       onOpenChange(false)
@@ -84,7 +131,7 @@ export function AgentEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>编辑 Agent · {agent?.id}</DialogTitle>
         </DialogHeader>
@@ -130,8 +177,14 @@ export function AgentEditDialog({
             <Input value={workspace} onChange={(e) => setWorkspace(e.target.value)} placeholder="留空使用默认" />
           </div>
           <div className="grid gap-2">
-            <Label>绑定任务类型</Label>
-            <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-[var(--color-border)] p-2">
+            <div className="flex items-center justify-between gap-2">
+              <Label>交付物类型（task_type）</Label>
+              <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void handleSuggestTaskTypes()}>
+                按职责推导
+              </Button>
+            </div>
+            <p className="hint text-xs">决定 workflow 可派哪些交付任务与 Gate 格式，不是 Skill 列表。</p>
+            <div className="max-h-32 space-y-1 overflow-y-auto rounded-md border border-[var(--color-border)] p-2">
               {allTaskTypes.map((t) => (
                 <label key={t.task_type} className="flex items-center gap-2 text-sm">
                   <input
@@ -149,6 +202,45 @@ export function AgentEditDialog({
                 </label>
               ))}
             </div>
+          </div>
+          <div className="grid gap-2">
+            <Label>挂载 Skill</Label>
+            <p className="hint text-xs">
+              Agent 仅可使用勾选的 Skill（私聊 / 群聊 / workflow 统一生效）。在 Skill 页查看全部可用 Skill。
+            </p>
+            {loadingDetail ? (
+              <p className="text-xs text-[var(--color-muted-foreground)]">加载当前配置…</p>
+            ) : (
+              <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-[var(--color-border)] p-2">
+                {allSkills.filter((s) => s.is_mountable !== false).length ? (
+                  allSkills
+                    .filter((s) => s.is_mountable !== false)
+                    .map((s) => (
+                    <label key={s.id} className="flex items-start gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={skillIds.includes(s.id)}
+                        onChange={(e) => {
+                          setSkillIds((prev) =>
+                            e.target.checked ? [...prev, s.id] : prev.filter((x) => x !== s.id),
+                          )
+                        }}
+                      />
+                      <span>
+                        <span className="font-medium">{s.name || s.id}</span>
+                        <span className="ml-1 font-mono text-xs text-[var(--color-muted-foreground)]">{s.id}</span>
+                        {s.description ? (
+                          <span className="block text-xs text-[var(--color-muted-foreground)]">{s.description}</span>
+                        ) : null}
+                      </span>
+                    </label>
+                  ))
+                ) : (
+                  <p className="text-xs text-[var(--color-muted-foreground)]">Skill 库为空</p>
+                )}
+              </div>
+            )}
           </div>
         </div>
         <DialogFooter>

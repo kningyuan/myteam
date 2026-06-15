@@ -107,6 +107,14 @@ async def api_sync_agent_task_types():
     return sync_missing_agent_task_types(only_empty=True)
 
 
+@router.post("/api/agents/sync-skills")
+async def api_sync_agent_skills():
+    """为未配置 skills 的 Agent 从名册/PGD 补全挂载。"""
+    from hub.services.agent_registry import sync_missing_agent_skills
+
+    return sync_missing_agent_skills(only_empty=True)
+
+
 @router.post("/api/agents/suggest-task-types")
 async def api_suggest_agent_task_types(body: dict):
     from common.agent_task_type_suggest import suggest_task_types_for_agent

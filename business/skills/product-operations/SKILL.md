@@ -1,5 +1,5 @@
 ---
-name: product-operations
+name: "产品专家共享包"
 description: 产品专家共享包 — PRD、策略、验收、演示文稿；协作与独立交付。
 workflows:
   - 产品独立交付
@@ -9,7 +9,6 @@ workflows:
 agents:
   - product
 ---
-
 # product-operations — 产品专家共享 Skill
 
 **适用 agent**：`product`（产品专家）  

@@ -1,11 +1,10 @@
 ---
-name: test-plan
+name: "测试计划"
 task_type: test-plan
 description: 测试计划 — 范围、策略、用例与追溯矩阵。
 agents:
   - qa
 ---
-
 # test-plan — 测试计划
 
 **必须先读**：`business/skills/qa-methodology/SKILL.md`

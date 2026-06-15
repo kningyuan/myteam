@@ -87,15 +87,7 @@ class DeliveryContext:
 # Transport 协议：阻塞执行一次投递；通过 ctx.emit 回传事件；Agent 自行写 .response。
 Transport = Callable[[DeliveryContext], None]
 
-_agent_locks: dict[str, threading.Lock] = {}
-_agent_locks_guard = threading.Lock()
-
-
-def _lock_for(agent_id: str) -> threading.Lock:
-    with _agent_locks_guard:
-        if agent_id not in _agent_locks:
-            _agent_locks[agent_id] = threading.Lock()
-        return _agent_locks[agent_id]
+from common.agent_execution import lock_for as _lock_for
 
 
 class AgentPort:

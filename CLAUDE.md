@@ -9,7 +9,7 @@ Codebase comments, docstrings, and commit messages are in Chinese. Design ration
 ## Commands
 
 ```bash
-# Web Hub (UI + chat + observability) — http://localhost:8765, binds 0.0.0.0, uvicorn reload=True
+# Web Hub (UI + chat + observability) — http://localhost:8765 → /v2/, binds 0.0.0.0, uvicorn reload=True
 ./run.sh start
 ./run.sh stop
 

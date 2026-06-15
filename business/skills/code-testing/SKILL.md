@@ -1,9 +1,8 @@
 ---
-name: code-testing
+name: "代码测试"
 task_type: code-testing
 description: 运行 pytest 与配置贯通测试，输出可复现的通过/失败报告。
 ---
-
 # code-testing — 配置与回归验证
 
 **必须先读**：`business/skills/qa-methodology/SKILL.md`  

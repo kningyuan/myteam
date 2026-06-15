@@ -1,12 +1,11 @@
 ---
-name: section-review
+name: "章节评审"
 task_type: section-review
 description: 方案章节审计 — 评判内容质量与合理性，非字数统计
 agents:
   - arch
   - product
 ---
-
 # section-review — 章节/方案内容质量审计
 
 **产品向必须先读**：`business/skills/product-methodology/SKILL.md`  

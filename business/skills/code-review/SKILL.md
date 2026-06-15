@@ -1,9 +1,8 @@
 ---
-name: code-review
+name: "代码评审"
 task_type: code-review
 description: 代码评审 — 变更摘要、审查意见、优点、结论（带文件/行号引用）。
 ---
-
 # code-review — 代码评审
 
 **必须先读**（内核按 agent_id 注入）：

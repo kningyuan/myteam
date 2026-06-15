@@ -4,7 +4,8 @@
 职责：Agent 完成一次 Interaction 后，用本工具按契约**本地校验**结果，
 校验通过才**原子写**入 `.response` 文件；校验失败直接报错（拒绝，而非抢救）。
 
-这是消灭 JSON 抢救（F1）的关键：合法性在写回前就被保证。
+编排派发门：仅当 AgentPort 已注入 MYTEAM_DISPATCH_TOKEN 且存在匹配 .request 时才允许写入；
+私聊/群聊交互任务不得调用本工具（框架硬拒绝）。
 
 用法（函数）：
     from common.submit_result import submit
@@ -28,16 +29,52 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from common.contracts import validate_response_dict  # noqa: E402
 
+DISPATCH_TOKEN_ENV = "MYTEAM_DISPATCH_TOKEN"
+
 
 class SubmitError(ValueError):
     """契约校验失败：结果被拒绝，不写回。"""
 
 
-def submit(response: dict, response_path: str | os.PathLike) -> Path:
+def _verify_dispatch_gate(response: dict, response_path: Path) -> None:
+    """编排派发门：无有效 AgentPort 派发时拒绝写入 .response。"""
+    iid = str(response.get("interaction_id") or "").strip()
+    if not iid:
+        raise SubmitError("结果缺少 interaction_id，拒绝写入")
+
+    token = os.environ.get(DISPATCH_TOKEN_ENV, "").strip()
+    if not token or token != iid:
+        raise SubmitError(
+            "无有效编排派发令牌（MYTEAM_DISPATCH_TOKEN），拒绝写入。"
+            "私聊/群聊交互任务请用对话回复，勿调用 submit_result。"
+        )
+
+    resp_path = Path(response_path).resolve()
+    expected_name = f"{iid}.response"
+    if resp_path.name != expected_name:
+        raise SubmitError(
+            f"响应路径须为 .response/{expected_name}，当前为 {resp_path.name}"
+        )
+
+    trigger_parent = resp_path.parent.parent / ".trigger"
+    req_path = trigger_parent / f"{iid}.request"
+    if not req_path.is_file():
+        raise SubmitError(f"未找到编排派发请求文件：{req_path}")
+
+
+def submit(
+    response: dict,
+    response_path: str | os.PathLike,
+    *,
+    require_dispatch: bool = True,
+) -> Path:
     """校验 response 契约 → 通过则原子写入 response_path。
 
-    校验失败抛 SubmitError（拒绝，不抢救）。
+    require_dispatch=False：框架内代采纳（deliverable_guarantee 等），跳过派发门。
     """
+    if require_dispatch:
+        _verify_dispatch_gate(response, Path(response_path))
+
     ok, _model, errors = validate_response_dict(response)
     if not ok:
         raise SubmitError("结果未通过契约校验，已拒绝：\n- " + "\n- ".join(errors))
@@ -74,7 +111,7 @@ def _main(argv: list[str]) -> int:
         return 2
 
     try:
-        out = submit(data, args.out)
+        out = submit(data, args.out, require_dispatch=True)
     except SubmitError as e:
         print(f"[submit_result] {e}", file=sys.stderr)
         return 1

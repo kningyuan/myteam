@@ -1,9 +1,8 @@
 ---
-name: publish-post
+name: "内容发布"
 task_type: publish-post
 description: 动作型任务——真实发布内容到外部平台并产出动作证据（已发布URL+截图），而非纸面方案。
 ---
-
 # publish-post — 真实发布执行
 
 本技能用于 `task_type: publish-post` 的**动作型任务**。交付物是 **动作证据**：线上 URL + 截图；Gate 会 **HTTP 访问 URL** 并核对标题。

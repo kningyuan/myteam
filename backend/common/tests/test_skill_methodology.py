@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""skill_methodology — task_type + agent_id → 方法论 skill 路径。"""
+"""skill_methodology — 委托 agent_skills（registry 显式配置）。"""
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -14,72 +15,26 @@ from common.skill_methodology import (  # noqa: E402
 )
 
 
-def test_product_task_gets_product_methodology():
-    ids = resolve_methodology_skill_ids("requirements", "product")
-    assert "product-methodology" in ids
+@pytest.fixture
+def dev_skills():
+    with patch(
+        "common.agent_skills.get_agent_info",
+        return_value={"skills": ["backend-engineering-methodology"]},
+    ):
+        yield
 
 
-def test_developer_code_writing_gets_backend_methodology():
+def test_developer_gets_registry_methodology(dev_skills):
     ids = resolve_methodology_skill_ids("code-writing", "developer")
     assert ids == ["backend-engineering-methodology"]
 
 
-def test_frontend_code_writing_gets_frontend_engineering():
-    ids = resolve_methodology_skill_ids("code-writing", "frontend")
-    assert ids == ["frontend-engineering-methodology"]
+def test_methodology_paths_exist(dev_skills):
+    paths = methodology_skill_paths("code-writing", "developer")
+    assert any("backend-engineering-methodology" in str(p) for p in paths)
 
 
-def test_frontend_architecture_review_gets_both_fe_and_system():
-    ids = resolve_methodology_skill_ids("architecture-review", "frontend")
-    assert ids[0] == "frontend-architecture-methodology"
-    assert "system-architecture-methodology" in ids
-
-
-def test_arch_system_design_default_system_only():
-    ids = resolve_methodology_skill_ids("system-design", "arch")
-    assert ids == ["system-architecture-methodology"]
-
-
-def test_arch_section_review_gets_system_architecture_methodology():
-    ids = resolve_methodology_skill_ids("section-review", "arch")
-    assert ids == ["system-architecture-methodology"]
-
-
-def test_qa_code_testing():
-    paths = methodology_skill_paths("code-testing", "qa")
-    assert any(p.name == "SKILL.md" and "qa-methodology" in str(p) for p in paths)
-
-
-def test_qa_test_plan():
-    ids = resolve_methodology_skill_ids("test-plan", "qa")
-    assert ids == ["qa-methodology"]
-
-
-def test_qa_code_review_gets_qa_methodology():
-    ids = resolve_methodology_skill_ids("code-review", "qa")
-    assert ids == ["qa-methodology"]
-
-
-def test_qa_architecture_review_gets_qa_methodology():
-    ids = resolve_methodology_skill_ids("architecture-review", "qa")
-    assert ids == ["qa-methodology"]
-
-
-def test_all_registered_methodology_files_exist():
-    sample = [
-        ("requirements", "product"),
-        ("code-writing", "developer"),
-        ("code-writing", "frontend"),
-        ("code-testing", "qa"),
-        ("system-design", "arch"),
-        ("architecture-review", "frontend"),
-    ]
-    for task_type, agent_id in sample:
-        for sid in resolve_methodology_skill_ids(task_type, agent_id):
-            assert methodology_skill_path(sid) is not None, sid
-
-
-def test_prompt_injects_methodology_block():
+def test_prompt_injects_skill_block(dev_skills):
     from common.agent_transport import build_worker_prompt
     from common.contracts import parse_request
 
@@ -95,33 +50,22 @@ def test_prompt_injects_methodology_block():
         "response_schema": "execute.result@1.0",
     })
     prompt = build_worker_prompt(req, Path("/tmp/i1.response"), Path("/tmp/deliv"))
-    assert "【方法论】" in prompt
+    assert "【已挂载 Skill】" in prompt
     assert "backend-engineering-methodology" in prompt
-    assert "【任务类型执行指引】" in prompt
-    assert "code-writing" in prompt
 
 
-def test_main_decision_record_gets_coordination_methodology():
-    ids = resolve_methodology_skill_ids("decision-record", "main")
-    assert ids == ["coordination-methodology"]
-    assert methodology_skill_path("coordination-methodology") is not None
+def test_all_registered_methodology_files_exist():
+    from common.skill_catalog import list_skill_library
 
-
-def test_prompt_injects_task_skill_for_code_deliverable():
-    from common.agent_transport import build_worker_prompt
-    from common.contracts import parse_request
-
-    req = parse_request({
-        "interaction_id": "i2",
-        "kind": "execute",
-        "project_id": "pro_x",
-        "task_id": "task_002",
-        "agent_id": "developer",
-        "intent": "交付代码",
-        "input": {"deliverable_path": "task_002_deliverable.md"},
-        "constraints": {"task_type": "code-deliverable"},
-        "response_schema": "execute.result@1.0",
-    })
-    prompt = build_worker_prompt(req, Path("/tmp/i2.response"), Path("/tmp/deliv"))
-    assert "code-deliverable" in prompt
-    assert "backend-engineering-methodology" in prompt
+    ids = [
+        "product-methodology",
+        "backend-engineering-methodology",
+        "frontend-engineering-methodology",
+        "qa-methodology",
+        "coordination-methodology",
+        "system-architecture-methodology",
+    ]
+    lib_ids = {s["id"] for s in list_skill_library()}
+    for sid in ids:
+        assert sid in lib_ids, sid
+        assert methodology_skill_path(sid) is not None, sid

@@ -1,11 +1,10 @@
 ---
-name: zhihu-operations
+name: "知乎运营"
 description: 知乎运营 workflow 共享包 — 选题调研 → 专栏成稿 → 真实发布留痕。
 workflows:
   - 知乎运营
   - 内容运营
 ---
-
 # zhihu-operations — 知乎账号运营共享 Skill
 
 **适用 workflow**：`知乎运营`、`内容运营`（发布步为知乎专栏时）。

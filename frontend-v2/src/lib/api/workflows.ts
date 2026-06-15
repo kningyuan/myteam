@@ -38,11 +38,13 @@ export type DeliveryTemplateSummary = {
   display_name?: string
   task_types?: string[]
   description?: string
+  default_for?: string
+  sections?: Array<string | { name: string; description?: string }>
 }
 
 export type DeliveryTemplateDetail = DeliveryTemplateSummary & {
   yaml?: string
-  sections?: { name: string; description?: string }[]
+  template?: DeliveryTemplateSummary
 }
 
 export type OutcomeKind = {
@@ -62,7 +64,43 @@ export type TaskTypeSummary = {
   outcome_form_label?: string
   gate_algorithm?: string
   gate_checks?: string[]
+  required_sections?: string[]
   sections?: { name: string; description?: string }[]
+}
+
+export type SkillLibraryItem = {
+  id: string
+  name?: string
+  description?: string
+  path?: string
+  updated_at?: number
+  line_count?: number
+  content?: string
+  body?: string
+  task_type?: string
+  is_draft?: boolean
+  is_mountable?: boolean
+  sections?: SkillSection[]
+  files?: SkillFileRef[]
+}
+
+export type SkillSection = {
+  id: string
+  title: string
+  level?: number
+  content?: string
+}
+
+export type SkillFileRef = {
+  path: string
+  name?: string
+  kind?: string
+  size?: number
+}
+
+export type SkillFileContent = SkillFileRef & {
+  exists?: boolean
+  content?: string
 }
 
 export type SkillDraftSummary = {
@@ -194,6 +232,21 @@ export async function deleteTaskType(taskType: string): Promise<void> {
   invalidateResources("task-types")
 }
 
+export async function suggestTaskType(description: string): Promise<{
+  task_type?: string
+  display_name?: string
+  outcome_kind?: string
+  required_sections?: string[]
+  pattern?: string
+  outcome_catalog?: OutcomeKind[]
+}> {
+  return hubFetch("/api/task-types/suggest", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ description }),
+  })
+}
+
 export async function listDeliveryTemplates(): Promise<DeliveryTemplateSummary[]> {
   const data = await hubFetch<{ templates?: DeliveryTemplateSummary[] }>("/api/delivery-templates")
   return data.templates ?? []
@@ -229,6 +282,50 @@ export async function saveDeliveryTemplate(
 export async function deleteDeliveryTemplate(templateId: string): Promise<void> {
   await hubFetch(`/api/delivery-templates/${encodeURIComponent(templateId)}`, { method: "DELETE" })
   invalidateResources("delivery-templates")
+}
+
+export async function listSkillLibrary(): Promise<SkillLibraryItem[]> {
+  const data = await hubFetch<{ skills?: SkillLibraryItem[] }>("/api/skills/library")
+  return data.skills ?? []
+}
+
+export async function getSkillLibraryItem(skillId: string): Promise<SkillLibraryItem> {
+  return hubFetch(`/api/skills/library/${encodeURIComponent(skillId)}`)
+}
+
+export async function getSkillFile(skillId: string, path: string): Promise<SkillFileContent> {
+  const q = new URLSearchParams({ path })
+  return hubFetch(`/api/skills/library/${encodeURIComponent(skillId)}/file?${q}`)
+}
+
+export async function updateSkillName(skillId: string, name: string): Promise<{ success: boolean; skill?: SkillLibraryItem }> {
+  const data = await hubFetch<{ success: boolean; skill?: SkillLibraryItem }>(
+    `/api/skills/library/${encodeURIComponent(skillId)}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    },
+  )
+  invalidateResources("skill-library")
+  return data
+}
+
+export type DeleteSkillLibraryResult = {
+  success: boolean
+  skill_id: string
+  deleted_path?: string
+  unmounted_from?: string[]
+  unmounted_count?: number
+}
+
+export async function deleteSkillLibraryItem(skillId: string): Promise<DeleteSkillLibraryResult> {
+  const data = await hubFetch<DeleteSkillLibraryResult>(
+    `/api/skills/library/${encodeURIComponent(skillId)}`,
+    { method: "DELETE" },
+  )
+  invalidateResources("skill-library", "skill-matrix", "agents")
+  return data
 }
 
 export async function listSkillDrafts(): Promise<SkillDraftSummary[]> {

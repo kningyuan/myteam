@@ -62,6 +62,7 @@ async def list_agents():
             "description": info.get("description") or "",
             "capabilities": info.get("capabilities") or [],
             "task_types": info.get("task_types") or [],
+            "skills": info.get("skills") if isinstance(info.get("skills"), list) else [],
             "backend": scan.get("backend") or info.get("backend") or "",
             "model": scan.get("model") or info.get("model") or "",
             "model_override": scan.get("model_override") or "",

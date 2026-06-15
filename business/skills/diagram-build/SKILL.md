@@ -1,5 +1,5 @@
 ---
-name: diagram-build
+name: "架构图绘制"
 task_type: diagram-build
 description: Router — ALL + catalog 自选 means；执行见 business/means/diagram-build/
 workflows:
@@ -15,7 +15,6 @@ agents:
   - docs
   - main
 ---
-
 # diagram-build — task_type Router
 
 本文件是 **task_type 路由**（B 层入口），不是 means 本体。  

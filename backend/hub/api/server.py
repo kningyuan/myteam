@@ -17,7 +17,7 @@ if str(_ROOT) not in sys.path:
 
 try:
     from fastapi import FastAPI, HTTPException, Query, Request
-    from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+    from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.staticfiles import StaticFiles
     import uvicorn
@@ -33,7 +33,7 @@ from base.agent_chat import (
     set_agent_backend_config,
 )
 from base.agent_factory import generate_agent, suggest_agent_id
-from hub.paths import FRONTEND_V2_DIST, STATIC_DIR, resolve_workspace, to_relative_path
+from hub.paths import FRONTEND_V1_ENABLED, FRONTEND_V2_DIST, STATIC_DIR, resolve_workspace, to_relative_path
 from hub.services.project_launch import (
     resume_kernel_bg,
     run_kernel_bg,
@@ -212,14 +212,36 @@ async def api_get_agent_runtime(agent_id: str):
     return rt
 
 
-if STATIC_DIR.exists():
+_V2_UI_READY = FRONTEND_V2_DIST.is_dir() and (FRONTEND_V2_DIST / "index.html").is_file()
+
+if FRONTEND_V1_ENABLED and STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 @app.get("/")
 async def index():
+    if _V2_UI_READY:
+        return RedirectResponse(url="/v2/", status_code=302)
+    if FRONTEND_V1_ENABLED:
+        idx = STATIC_DIR / "index.html"
+        if idx.is_file():
+            return FileResponse(str(idx))
+    raise HTTPException(
+        status_code=503,
+        detail="Web UI 未就绪：请执行 cd frontend-v2 && npm install && npm run build",
+    )
+
+
+@app.get("/classic", include_in_schema=False)
+@app.get("/classic/", include_in_schema=False)
+async def classic_v1_ui():
+    """Legacy v1 UI — 仅当 MYTEAM_V1_UI=1 时可用。"""
+    if not FRONTEND_V1_ENABLED:
+        raise HTTPException(status_code=404, detail="经典版 UI 已关闭")
     idx = STATIC_DIR / "index.html"
-    return FileResponse(str(idx)) if idx.exists() else {"error": "no index"}
+    if not idx.is_file():
+        raise HTTPException(status_code=404, detail="经典版 UI 文件不存在")
+    return FileResponse(str(idx))
 
 
 @app.get("/api/agents/{agent_id}/detail")
@@ -245,12 +267,31 @@ async def agent_detail(agent_id: str):
         task_types = [task_types] if task_types else []
     task_types = [str(t).strip() for t in task_types if str(t).strip()]
 
+    from common.agent_registry import get_agent_info, get_agent_task_types
+    from common.agent_skills import get_agent_skill_ids, skill_file_path
+
+    reg_info = get_agent_info(agent_id)
+    if not task_types:
+        task_types = get_agent_task_types(agent_id)
+
+    skill_ids = get_agent_skill_ids(agent_id)
+    skills = []
+    for sid in skill_ids:
+        sp = skill_file_path(sid)
+        skills.append(
+            {
+                "skill_id": sid,
+                "available": sp is not None,
+                "path": to_relative_path(sp) if sp else None,
+            }
+        )
+
+    deliverable_skills = []
     from common.skill_extract import SKILLS_DIR
 
-    skills = []
     for tt in task_types:
         sp = SKILLS_DIR / tt / "SKILL.md"
-        skills.append(
+        deliverable_skills.append(
             {
                 "task_type": tt,
                 "available": sp.is_file(),
@@ -265,6 +306,8 @@ async def agent_detail(agent_id: str):
         "model": backend_cfg.model,
         "task_types": task_types,
         "skills": skills,
+        "deliverable_skills": deliverable_skills,
+        "registry_skills": list(reg_info.get("skills") or []),
         "files": files,
     }
 
@@ -311,7 +354,7 @@ async def api_delete_agent(agent_id: str):
 
 @app.put("/api/agents/{agent_id}/manage")
 async def manage_agent_config(agent_id: str, body: dict):
-    from hub.services.agent_registry import update_agent_task_types
+    from hub.services.agent_registry import update_agent_task_types, update_agent_skills
 
     backend = body.get("backend", "opencode")
     model = body.get("model", "")
@@ -325,6 +368,13 @@ async def manage_agent_config(agent_id: str, body: dict):
         result = update_agent_task_types(agent_id, [str(t).strip() for t in tts if str(t).strip()])
         if not result.get("success"):
             raise HTTPException(status_code=400, detail=result.get("error", "更新 task_types 失败"))
+    if "skills" in body:
+        sks = body.get("skills") or []
+        if not isinstance(sks, list):
+            raise HTTPException(status_code=400, detail="skills 须为数组")
+        result = update_agent_skills(agent_id, [str(s).strip() for s in sks if str(s).strip()])
+        if not result.get("success"):
+            raise HTTPException(status_code=400, detail=result.get("error", "更新 skills 失败"))
     from common.hub_operation_meta import touch
     touch("agent", agent_id)
     return {"success": True, "agent_id": agent_id, "backend": backend, "model": model}
@@ -818,7 +868,7 @@ async def api_suggest_id(description: str = Query("")):
 
 
 # SPA fallback for frontend-v2 — StaticFiles(html=True) does not serve index.html on deep links.
-if FRONTEND_V2_DIST.is_dir() and (FRONTEND_V2_DIST / "index.html").is_file():
+if _V2_UI_READY:
     _V2_INDEX = FRONTEND_V2_DIST / "index.html"
 
     @app.get("/v2", include_in_schema=False)
@@ -845,7 +895,8 @@ def main():
         format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
     )
     print("  Local Agent Chat v2")
-    print(f"  Local:   http://localhost:{port}")
+    print(f"  UI:      http://localhost:{port}/v2/")
+    print(f"  Local:   http://localhost:{port}/  → /v2/")
     print(f"  Network: http://0.0.0.0:{port}  (局域网设备通过本机 IP 访问)")
     print(f"  Agents:  http://localhost:{port}/api/agents")
     print(f"  Backends: http://localhost:{port}/api/backends")

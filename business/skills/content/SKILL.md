@@ -1,9 +1,8 @@
 ---
-name: content
+name: "内容成稿"
 task_type: content
 description: 内容成稿 — 按平台规范输出可发布的标题与正文。
 ---
-
 # content — 内容成稿
 
 ## 按 workflow 选共享包

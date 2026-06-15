@@ -268,12 +268,17 @@ def scan_agents() -> list[dict]:
 
 # ============ 系统提示和规则文件 ============
 
-def build_system_prompt(agent_id: str, workspace: str) -> str:
+def build_system_prompt(agent_id: str, workspace: str, *, profile: str = "interactive") -> str:
+    from common.agent_skills import build_skill_context
+
     builder = AgentIdentityBuilder(agent_id, workspace)
     sections = []
-    identity = builder.get_identity_context()
+    identity = builder.get_identity_context(rules_profile=profile)
     if identity:
         sections.append(f"<core_instructions>\n{identity}\n</core_instructions>")
+    skill_block = build_skill_context(agent_id)
+    if skill_block:
+        sections.append(skill_block)
     multi_context = multi_agent_manager.build_multi_agent_context(agent_id)
     if multi_context:
         sections.append(f"<multi_agent_context>\n{multi_context}\n</multi_agent_context>")
@@ -284,11 +289,12 @@ def create_merged_rules_file(
     agent_id: str,
     workspace: str,
     *,
-    profile: str = "conversation",
+    profile: str = "interactive",
 ) -> Optional[str]:
-    """动态合并规则文件（默认讨论模式；execute 传 profile='workflow_execute'）。"""
-    from common.rules_merge import RulesProfile, merge_rules_file
+    """动态合并规则文件（默认交互模式；圆桌 discussion；execute 传 workflow_execute）。"""
+    from common.rules_merge import RulesProfile, merge_rules_file, normalize_rules_profile
 
+    profile = normalize_rules_profile(profile)
     builder = AgentIdentityBuilder(agent_id, workspace)
     try:
         return merge_rules_file(
@@ -365,7 +371,7 @@ def stream_chat(
     cancel_event=None,
     *,
     use_memory: bool = False,
-    rules_profile: str = "conversation",
+    rules_profile: str = "interactive",
     discuss_only: bool | None = None,
     workspace_key: str | None = None,
     memory_scope=None,
@@ -376,7 +382,7 @@ def stream_chat(
     """与 Agent 对话 — 委托 hub.services.ChatService（Adapter 抽象层）。
 
     use_memory=True：DM 记忆路径（对话进 Store + Context Assembler）。群组/通知等保持默认 False。
-    rules_profile：conversation=讨论/私聊/圆桌；workflow_execute=项目任务 execute。
+    rules_profile：interactive=私聊/群聊交互；discussion=圆桌；workflow_execute=编排 execute。
     group_id/project_id：群或圆桌场景下用于 memory scope 隔离（与 workspace_key 二选一传入）。
     """
     from hub.services.chat_service import chat_service
@@ -386,10 +392,11 @@ def stream_chat(
         memory_scope_group,
         memory_scope_roundtable,
     )
+    from common.rules_merge import normalize_rules_profile
 
-    profile = rules_profile
+    profile = normalize_rules_profile(rules_profile)
     if discuss_only is True:
-        profile = "conversation"
+        profile = "discussion"
 
     scope = memory_scope
     if scope is None and group_id:

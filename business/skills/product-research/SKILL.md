@@ -1,5 +1,5 @@
 ---
-name: product-research
+name: "产品调研"
 task_type: product-research
 description: 产品向桌面调研 — delivery_profile light_v1
 workflows:
@@ -7,7 +7,6 @@ workflows:
 agents:
   - product
 ---
-
 # product-research — 产品调研（task_type Router）
 
 **必须先读**：`business/skills/product-methodology/SKILL.md`

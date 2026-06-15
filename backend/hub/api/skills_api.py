@@ -1,12 +1,21 @@
-"""Skill 草案只读 API — Hub 2.0 Skill 升级页。"""
+"""Skill API — Hub 2.0 Skill 页。"""
 from __future__ import annotations
 
 import re
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from common.paths import MYTEAM_ROOT
+from common.skill_catalog import (
+    delete_skill_library_entry,
+    get_skill_entry,
+    get_skill_file,
+    get_skill_library_entry,
+    list_all_skills,
+    update_skill_name,
+)
 from common.skill_extract import SKILLS_DIR, list_skill_drafts
 
 router = APIRouter(prefix="/api/skills", tags=["skills"])
@@ -55,6 +64,65 @@ def _summarize_draft(path: Path) -> dict:
         "has_production_skill": prod is not None,
         "production_skill_path": str(prod.relative_to(MYTEAM_ROOT)) if prod else None,
         "updated_at": path.stat().st_mtime,
+    }
+
+
+class SkillNameUpdate(BaseModel):
+    name: str
+
+
+@router.get("/library")
+async def list_skill_library_api():
+    """全部 Skill（生产 + auto-* 草案）。"""
+    items = list_all_skills()
+    return {"skills": items, "count": len(items)}
+
+
+@router.get("/library/{skill_id}")
+async def get_skill_library_item(skill_id: str):
+    entry = get_skill_entry(skill_id)
+    if not entry:
+        raise HTTPException(status_code=404, detail=f"Skill 不存在：{skill_id}")
+    return entry
+
+
+@router.get("/library/{skill_id}/file")
+async def get_skill_library_file(skill_id: str, path: str):
+    entry = get_skill_file(skill_id, path)
+    if not entry:
+        raise HTTPException(status_code=404, detail=f"Skill 或文件不存在：{skill_id}/{path}")
+    return entry
+
+
+@router.patch("/library/{skill_id}")
+async def patch_skill_library_item(skill_id: str, body: SkillNameUpdate):
+    result = update_skill_name(skill_id, body.name)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "更新失败"))
+    entry = get_skill_entry(skill_id)
+    return {"success": True, "skill": entry}
+
+
+@router.delete("/library/{skill_id}")
+async def delete_skill_library_item(skill_id: str):
+    """删除 Skill 目录；生产 Skill 会同时从所有 Agent 挂载列表中移除。"""
+    from hub.services.agent_registry import remove_skill_from_all_agents
+
+    entry = get_skill_entry(skill_id)
+    if not entry:
+        raise HTTPException(status_code=404, detail=f"Skill 不存在：{skill_id}")
+    unmounted: list[str] = []
+    if entry.get("is_mountable"):
+        unmounted = remove_skill_from_all_agents(skill_id)
+    result = delete_skill_library_entry(skill_id)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "删除失败"))
+    return {
+        "success": True,
+        "skill_id": skill_id,
+        "deleted_path": result.get("path"),
+        "unmounted_from": unmounted,
+        "unmounted_count": len(unmounted),
     }
 
 

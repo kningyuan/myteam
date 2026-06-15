@@ -1,12 +1,11 @@
 ---
-name: arch-research
+name: "架构调研"
 task_type: arch-research
 description: 架构向桌面调研 — delivery_profile light_v1
 agents:
   - arch
   - developer
 ---
-
 # arch-research — 架构调研（task_type Router）
 
 **delivery_profile**：`light_v1`  

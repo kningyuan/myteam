@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { toast } from "sonner"
 import {
@@ -7,6 +7,9 @@ import {
   getAgentDetail,
   listAgents,
   saveAgentWorkspaceFile,
+  suggestAgentId,
+  syncAgentSkills,
+  syncAgentTaskTypes,
   type AgentDetail,
   type AgentSkillRef,
   type AgentSummary,
@@ -21,6 +24,8 @@ import {
   listOutcomeKinds,
   listTaskTypes,
   saveDeliveryTemplate,
+  suggestTaskType,
+  updateTaskType,
   type DeliveryTemplateSummary,
   type OutcomeKind,
   type TaskTypeSummary,
@@ -250,8 +255,7 @@ function AgentDetailPanel({
   const model = detail?.model ?? agent.model
   const workspace = detail?.workspace
   const taskTypes = detail?.task_types ?? agent.task_types ?? []
-  const skills: AgentSkillRef[] =
-    detail?.skills ?? taskTypes.map((tt) => ({ task_type: tt, available: undefined }))
+  const skills: AgentSkillRef[] = detail?.skills ?? []
   const workspaceFiles = useMemo(() => detail?.files ?? {}, [detail])
 
   return (
@@ -310,19 +314,19 @@ function AgentDetailPanel({
               </dd>
             </div>
             <div className="agent-detail-span-full">
-              <dt>Skill</dt>
+              <dt>挂载 Skill</dt>
               <dd>
                 {skills.length ? (
                   <div className="flex flex-wrap gap-1.5">
                     {skills.map((s) => (
-                      <Badge key={s.task_type} variant={s.available === false ? "outline" : "default"}>
-                        {s.task_type}
-                        {s.available === false ? "（未安装）" : ""}
+                      <Badge key={s.skill_id} variant={s.available === false ? "outline" : "default"}>
+                        {s.skill_id}
+                        {s.available === false ? "（文件缺失）" : ""}
                       </Badge>
                     ))}
                   </div>
                 ) : (
-                  "未绑定"
+                  "未挂载（Agent 不可使用任何 Skill）"
                 )}
               </dd>
             </div>
@@ -338,10 +342,12 @@ function AgentDetailPanel({
 function TaskTypeDetailPanel({
   taskType,
   kindMap,
+  onEdit,
   onDelete,
 }: {
   taskType: TaskTypeSummary
   kindMap: Record<string, OutcomeKind>
+  onEdit: () => void
   onDelete: () => void
 }) {
   const meta = kindMap[taskType.outcome_kind]
@@ -352,9 +358,14 @@ function TaskTypeDetailPanel({
           <h2 className="text-lg font-semibold">{taskType.display_name || taskType.task_type}</h2>
           <p className="mt-1 font-mono text-xs text-[var(--color-muted-foreground)]">{taskType.task_type}</p>
         </div>
-        <Button size="sm" variant="outline" onClick={onDelete}>
-          删除
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" onClick={onEdit}>
+            编辑
+          </Button>
+          <Button size="sm" variant="outline" onClick={onDelete}>
+            删除
+          </Button>
+        </div>
       </div>
       <Separator className="my-5" />
       <dl className="detail-dl">
@@ -473,13 +484,26 @@ export function ManageSection() {
   const [newAgentName, setNewAgentName] = useState("")
   const [newAgentDesc, setNewAgentDesc] = useState("")
 
-  const [typeCreateOpen, setTypeCreateOpen] = useState(false)
-  const [newTypeId, setNewTypeId] = useState("")
-  const [newTypeName, setNewTypeName] = useState("")
-  const [newTypeKind, setNewTypeKind] = useState("artifact")
+  const [typeEditOpen, setTypeEditOpen] = useState(false)
+  const [typeEditMode, setTypeEditMode] = useState<"create" | "edit">("create")
+  const [typeEditDesc, setTypeEditDesc] = useState("")
+  const [typeEditId, setTypeEditId] = useState("")
+  const [typeEditName, setTypeEditName] = useState("")
+  const [typeEditKind, setTypeEditKind] = useState("artifact")
+  const [typeEditSections, setTypeEditSections] = useState("")
+  const [typeEditBusy, setTypeEditBusy] = useState(false)
 
-  const [templateYamlOpen, setTemplateYamlOpen] = useState(false)
-  const [templateYaml, setTemplateYaml] = useState("")
+  const [templateFormOpen, setTemplateFormOpen] = useState(false)
+  const [templateFormMode, setTemplateFormMode] = useState<"create" | "edit">("create")
+  const [templateFormId, setTemplateFormId] = useState("")
+  const [templateFormName, setTemplateFormName] = useState("")
+  const [templateFormDesc, setTemplateFormDesc] = useState("")
+  const [templateFormTaskTypes, setTemplateFormTaskTypes] = useState<string[]>([])
+  const [templateFormDefaultFor, setTemplateFormDefaultFor] = useState("")
+  const [templateFormSections, setTemplateFormSections] = useState("")
+  const [templateFormYaml, setTemplateFormYaml] = useState("")
+  const [syncBusy, setSyncBusy] = useState(false)
+  const templateImportRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!tab) navigate("/manage/agents", { replace: true })
@@ -493,7 +517,7 @@ export function ManageSection() {
     listOutcomeKinds()
       .then((k) => {
         setKinds(k)
-        if (k[0]) setNewTypeKind(k[0].id)
+        if (k[0]) setTypeEditKind(k[0].id)
       })
       .catch(() => {})
   }, [])
@@ -557,6 +581,181 @@ export function ManageSection() {
   const selectedEntry = entries.find((e) => String(e.id) === itemId) ?? null
   const kindMap = Object.fromEntries(kinds.map((k) => [k.id, k]))
 
+  useEffect(() => {
+    if (!agentCreateOpen) return
+    const desc = newAgentDesc.trim()
+    if (desc.length <= 5 || newAgentId.trim()) return
+    const timer = window.setTimeout(() => {
+      suggestAgentId(desc)
+        .then((id) => {
+          if (id) setNewAgentId((prev) => prev || id)
+        })
+        .catch(() => {})
+    }, 400)
+    return () => window.clearTimeout(timer)
+  }, [agentCreateOpen, newAgentDesc, newAgentId])
+
+  async function handleSyncTaskTypes() {
+    setSyncBusy(true)
+    try {
+      const res = await syncAgentTaskTypes()
+      const n = res.count ?? 0
+      toast.success(n ? `已为 ${n} 个 Agent 补全任务类型` : "所有 Agent 均已配置任务类型")
+    } catch (e) {
+      toast.error("补全失败", { description: e instanceof Error ? e.message : "" })
+    } finally {
+      setSyncBusy(false)
+    }
+  }
+
+  async function handleSyncSkills() {
+    setSyncBusy(true)
+    try {
+      const res = await syncAgentSkills()
+      const n = res.count ?? 0
+      toast.success(n ? `已为 ${n} 个 Agent 同步 Skill` : "Skill 已是最新")
+    } catch (e) {
+      toast.error("同步失败", { description: e instanceof Error ? e.message : "" })
+    } finally {
+      setSyncBusy(false)
+    }
+  }
+
+  function openTaskTypeEdit(row: TaskTypeSummary | null) {
+    const isNew = !row
+    setTypeEditMode(isNew ? "create" : "edit")
+    setTypeEditDesc(isNew ? "" : row?.display_name || row?.task_type || "")
+    setTypeEditId(row?.task_type || "")
+    setTypeEditName(row?.display_name || "")
+    setTypeEditKind(row?.outcome_kind || kinds[0]?.id || "artifact")
+    setTypeEditSections((row?.required_sections || row?.sections?.map((s) => s.name) || []).join(", "))
+    setTypeEditOpen(true)
+  }
+
+  async function handleSuggestTaskTypeFields() {
+    const desc = typeEditDesc.trim()
+    if (!desc) {
+      toast.error("请先填写任务描述")
+      return
+    }
+    setTypeEditBusy(true)
+    try {
+      const res = await suggestTaskType(desc)
+      if (typeEditMode === "create" && res.task_type) setTypeEditId(res.task_type)
+      if (res.display_name) setTypeEditName(res.display_name)
+      if (res.outcome_kind) setTypeEditKind(res.outcome_kind)
+      if (res.outcome_catalog?.length) setKinds(res.outcome_catalog)
+      if (res.required_sections?.length) setTypeEditSections(res.required_sections.join(", "))
+      toast.success(res.pattern ? `已推导（${res.pattern}）` : "已推导，可继续编辑")
+    } catch (e) {
+      toast.error("推导失败", { description: e instanceof Error ? e.message : "" })
+    } finally {
+      setTypeEditBusy(false)
+    }
+  }
+
+  async function handleSaveTaskType() {
+    const taskType = typeEditId.trim()
+    if (!taskType) {
+      toast.error("类型 ID 不能为空")
+      return
+    }
+    const sections = typeEditSections
+      .split(/[,，]/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+    const body = {
+      display_name: typeEditName.trim() || taskType,
+      outcome_kind: typeEditKind,
+      required_sections: sections.length ? sections : ["正文"],
+    }
+    try {
+      if (typeEditMode === "create") {
+        await createTaskType({ task_type: taskType, ...body })
+      } else {
+        await updateTaskType(taskType, body)
+      }
+      toast.success("任务类型已保存")
+      setTypeEditOpen(false)
+      navigate(`/manage/task-types/${encodeURIComponent(taskType)}`)
+    } catch (e) {
+      toast.error("保存失败", { description: e instanceof Error ? e.message : "" })
+    }
+  }
+
+  function openTemplateForm(row: DeliveryTemplateSummary | null) {
+    const isNew = !row
+    setTemplateFormMode(isNew ? "create" : "edit")
+    setTemplateFormId(row?.id || "")
+    setTemplateFormName(row?.display_name || "")
+    setTemplateFormDesc(row?.description || "")
+    setTemplateFormTaskTypes(row?.task_types || [])
+    setTemplateFormDefaultFor(row?.default_for || "")
+    setTemplateFormSections(
+      (row?.sections || [])
+        .map((s) => (typeof s === "string" ? s : (s as { name?: string }).name || ""))
+        .filter(Boolean)
+        .join(", "),
+    )
+    setTemplateFormYaml("")
+    setTemplateFormOpen(true)
+    if (!isNew && row?.id) {
+      getDeliveryTemplate(row.id)
+        .then((detail) => {
+          setTemplateFormYaml(detail.yaml || "")
+          if (detail.template) {
+            setTemplateFormTaskTypes(detail.template.task_types || row.task_types || [])
+            setTemplateFormDefaultFor(detail.template.default_for || row.default_for || "")
+          }
+        })
+        .catch(() => {})
+    }
+  }
+
+  async function handleSaveTemplateForm() {
+    const id = templateFormId.trim()
+    if (!id) {
+      toast.error("模板 ID 不能为空")
+      return
+    }
+    if (!templateFormTaskTypes.length) {
+      toast.error("请至少绑定一个任务类型")
+      return
+    }
+    const body = {
+      id,
+      display_name: templateFormName.trim() || id,
+      description: templateFormDesc.trim(),
+      task_types: templateFormTaskTypes,
+      default_for: templateFormDefaultFor.trim(),
+      required_sections: templateFormSections
+        .split(/[,，]/)
+        .map((s) => s.trim())
+        .filter(Boolean),
+      yaml: templateFormYaml.trim(),
+    }
+    try {
+      await saveDeliveryTemplate(templateFormMode === "edit" ? id : null, body)
+      toast.success("模板已保存")
+      setTemplateFormOpen(false)
+      navigate(`/manage/templates/${encodeURIComponent(id)}`)
+    } catch (e) {
+      toast.error("保存失败", { description: e instanceof Error ? e.message : "" })
+    }
+  }
+
+  async function handleTemplateYamlImport(file: File | null) {
+    if (!file) return
+    try {
+      const text = await file.text()
+      await saveDeliveryTemplate(null, { yaml: text })
+      toast.success("模板已导入")
+      if (templateImportRef.current) templateImportRef.current.value = ""
+    } catch (e) {
+      toast.error("导入失败", { description: e instanceof Error ? e.message : "" })
+    }
+  }
+
   async function handleCreateAgent() {
     if (!newAgentDesc.trim() || !newAgentId.trim() || !newAgentName.trim()) return
     try {
@@ -584,22 +783,6 @@ export function ManageSection() {
     }
   }
 
-  async function handleCreateType() {
-    if (!newTypeId.trim()) return
-    try {
-      await createTaskType({
-        task_type: newTypeId.trim(),
-        display_name: newTypeName.trim() || newTypeId.trim(),
-        outcome_kind: newTypeKind,
-      })
-      toast.success("任务类型已创建")
-      setTypeCreateOpen(false)
-      navigate(`/manage/task-types/${encodeURIComponent(newTypeId.trim())}`)
-    } catch (e) {
-      toast.error("创建失败", { description: e instanceof Error ? e.message : "" })
-    }
-  }
-
   async function handleDeleteType(id: string) {
     if (!window.confirm(`删除任务类型「${id}」？`)) return
     try {
@@ -608,27 +791,6 @@ export function ManageSection() {
       navigate("/manage/task-types")
     } catch (e) {
       toast.error("删除失败", { description: e instanceof Error ? e.message : "" })
-    }
-  }
-
-  async function openTemplateYaml(t: DeliveryTemplateSummary) {
-    try {
-      const detail = await getDeliveryTemplate(t.id)
-      setTemplateYaml(detail.yaml || "")
-    } catch {
-      setTemplateYaml("")
-    }
-    setTemplateYamlOpen(true)
-  }
-
-  async function saveTemplateYaml() {
-    if (!selectedTemplate) return
-    try {
-      await saveDeliveryTemplate(selectedTemplate.id, { yaml: templateYaml, id: selectedTemplate.id })
-      toast.success("模板已保存")
-      setTemplateYamlOpen(false)
-    } catch (e) {
-      toast.error("保存失败", { description: e instanceof Error ? e.message : "" })
     }
   }
 
@@ -649,9 +811,25 @@ export function ManageSection() {
         新建
       </Button>
     ) : activeTab === "task-types" ? (
-      <Button size="sm" onClick={() => setTypeCreateOpen(true)}>
+      <Button size="sm" onClick={() => openTaskTypeEdit(null)}>
         新建
       </Button>
+    ) : activeTab === "templates" ? (
+      <div className="flex gap-1">
+        <Button size="sm" variant="outline" onClick={() => templateImportRef.current?.click()}>
+          导入
+        </Button>
+        <Button size="sm" onClick={() => openTemplateForm(null)}>
+          新建
+        </Button>
+        <input
+          ref={templateImportRef}
+          type="file"
+          accept=".yaml,.yml,.txt"
+          className="hidden"
+          onChange={(e) => void handleTemplateYamlImport(e.target.files?.[0] ?? null)}
+        />
+      </div>
     ) : undefined
 
   const searchPlaceholder =
@@ -739,7 +917,20 @@ export function ManageSection() {
         <div className="discord-main-scroll workspace-scroll">
           {activeTab === "agents" && (
             <>
-              <WorkspaceHeader title="Agent" description="团队成员的后端、模型与任务类型绑定。" />
+              <WorkspaceHeader
+                title="Agent"
+                description="团队成员的后端、模型与任务类型绑定。"
+                action={
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" disabled={syncBusy} onClick={() => void handleSyncTaskTypes()}>
+                      补全任务类型
+                    </Button>
+                    <Button size="sm" variant="outline" disabled={syncBusy} onClick={() => void handleSyncSkills()}>
+                      同步 Skill
+                    </Button>
+                  </div>
+                }
+              />
               {selectedAgent ? (
                 <AgentDetailPanel
                   agent={selectedAgent}
@@ -768,6 +959,7 @@ export function ManageSection() {
                 <TaskTypeDetailPanel
                   taskType={selectedType}
                   kindMap={kindMap}
+                  onEdit={() => openTaskTypeEdit(selectedType)}
                   onDelete={() => handleDeleteType(selectedType.task_type)}
                 />
               ) : (
@@ -782,7 +974,7 @@ export function ManageSection() {
               {selectedTemplate ? (
                 <TemplateDetailPanel
                   template={selectedTemplate}
-                  onEdit={() => openTemplateYaml(selectedTemplate)}
+                  onEdit={() => openTemplateForm(selectedTemplate)}
                   onDelete={() => handleDeleteTemplate(selectedTemplate.id)}
                 />
               ) : (
@@ -839,26 +1031,51 @@ export function ManageSection() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={typeCreateOpen} onOpenChange={setTypeCreateOpen}>
-        <DialogContent>
+      <Dialog open={typeEditOpen} onOpenChange={setTypeEditOpen}>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>新建任务类型</DialogTitle>
+            <DialogTitle>{typeEditMode === "create" ? "新建任务类型" : "编辑任务类型"}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-3 py-2">
             <div className="grid gap-2">
+              <Label>任务描述（用于推导）</Label>
+              <div className="flex gap-2">
+                <Textarea
+                  rows={2}
+                  value={typeEditDesc}
+                  onChange={(e) => setTypeEditDesc(e.target.value)}
+                  placeholder="例如：撰写产品调研报告"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0"
+                  disabled={typeEditBusy}
+                  onClick={() => void handleSuggestTaskTypeFields()}
+                >
+                  推导
+                </Button>
+              </div>
+            </div>
+            <div className="grid gap-2">
               <Label>task_type ID</Label>
-              <Input value={newTypeId} onChange={(e) => setNewTypeId(e.target.value)} />
+              <Input
+                value={typeEditId}
+                readOnly={typeEditMode === "edit"}
+                onChange={(e) => setTypeEditId(e.target.value)}
+              />
             </div>
             <div className="grid gap-2">
               <Label>显示名称</Label>
-              <Input value={newTypeName} onChange={(e) => setNewTypeName(e.target.value)} />
+              <Input value={typeEditName} onChange={(e) => setTypeEditName(e.target.value)} />
             </div>
             <div className="grid gap-2">
               <Label>产出形态</Label>
               <select
                 className="h-9 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-sm"
-                value={newTypeKind}
-                onChange={(e) => setNewTypeKind(e.target.value)}
+                value={typeEditKind}
+                onChange={(e) => setTypeEditKind(e.target.value)}
               >
                 {kinds.map((k) => (
                   <option key={k.id} value={k.id}>
@@ -867,35 +1084,103 @@ export function ManageSection() {
                 ))}
               </select>
             </div>
+            <div className="grid gap-2">
+              <Label>章节（逗号分隔）</Label>
+              <Input value={typeEditSections} onChange={(e) => setTypeEditSections(e.target.value)} />
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setTypeCreateOpen(false)}>
+            <Button variant="outline" onClick={() => setTypeEditOpen(false)}>
               取消
             </Button>
-            <Button onClick={handleCreateType}>创建</Button>
+            <Button onClick={() => void handleSaveTaskType()}>保存</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={templateYamlOpen} onOpenChange={setTemplateYamlOpen}>
+      <Dialog open={templateFormOpen} onOpenChange={setTemplateFormOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>编辑模板 · {selectedTemplate?.id}</DialogTitle>
+            <DialogTitle>{templateFormMode === "create" ? "新建交付模板" : "编辑交付模板"}</DialogTitle>
           </DialogHeader>
-          <Textarea
-            rows={16}
-            value={templateYaml}
-            onChange={(e) => setTemplateYaml(e.target.value)}
-            className="font-mono text-xs"
-          />
+          <div className="grid gap-3 py-2">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label>模板 ID</Label>
+                <Input
+                  value={templateFormId}
+                  readOnly={templateFormMode === "edit"}
+                  onChange={(e) => setTemplateFormId(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>显示名称</Label>
+                <Input value={templateFormName} onChange={(e) => setTemplateFormName(e.target.value)} />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label>描述</Label>
+              <Textarea rows={2} value={templateFormDesc} onChange={(e) => setTemplateFormDesc(e.target.value)} />
+            </div>
+            <div className="grid gap-2">
+              <Label>绑定任务类型（多选）</Label>
+              <select
+                multiple
+                className="min-h-[88px] rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm"
+                value={templateFormTaskTypes}
+                onChange={(e) => {
+                  const picked = Array.from(e.target.selectedOptions).map((o) => o.value)
+                  setTemplateFormTaskTypes(picked)
+                  if (templateFormDefaultFor && !picked.includes(templateFormDefaultFor)) {
+                    setTemplateFormDefaultFor("")
+                  }
+                }}
+              >
+                {types.map((t) => (
+                  <option key={t.task_type} value={t.task_type}>
+                    {t.display_name || t.task_type}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid gap-2">
+              <Label>默认任务类型</Label>
+              <select
+                className="h-9 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-sm"
+                value={templateFormDefaultFor}
+                onChange={(e) => setTemplateFormDefaultFor(e.target.value)}
+              >
+                <option value="">（不设置）</option>
+                {templateFormTaskTypes.map((id) => (
+                  <option key={id} value={id}>
+                    {types.find((t) => t.task_type === id)?.display_name || id}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid gap-2">
+              <Label>章节（逗号分隔）</Label>
+              <Input value={templateFormSections} onChange={(e) => setTemplateFormSections(e.target.value)} />
+            </div>
+            <div className="grid gap-2">
+              <Label>YAML（可选）</Label>
+              <Textarea
+                rows={8}
+                value={templateFormYaml}
+                onChange={(e) => setTemplateFormYaml(e.target.value)}
+                className="font-mono text-xs"
+              />
+            </div>
+          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setTemplateYamlOpen(false)}>
+            <Button variant="outline" onClick={() => setTemplateFormOpen(false)}>
               取消
             </Button>
-            <Button onClick={saveTemplateYaml}>保存</Button>
+            <Button onClick={() => void handleSaveTemplateForm()}>保存</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
     </>
   )
 }

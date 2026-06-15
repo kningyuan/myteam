@@ -1,11 +1,10 @@
 ---
-name: frontend-engineering-methodology
+name: "前端工程方法论"
 task_type: frontend-engineering-methodology
 description: >-
   前端工程方法论：最小 diff→契约对齐→组件实现→自测→回归。
   frontend 执行 code-writing / code-deliverable / code-review 必须先读本 skill。
 ---
-
 # 前端工程方法论（myteam 适配版）
 
 > **来源合成**（已裁剪）：

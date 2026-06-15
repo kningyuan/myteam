@@ -1,11 +1,10 @@
 ---
-name: product-planning
+name: "产品规划"
 task_type: product-planning
 description: 产品说明/方案文档中的「产品整体规划」章节撰写与完善
 agents:
   - product
 ---
-
 # product-planning — 产品整体规划章节
 
 **必须先读**：`business/skills/product-methodology/SKILL.md`  

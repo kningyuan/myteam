@@ -1,9 +1,8 @@
 ---
-name: architecture-review
+name: "架构评审"
 task_type: architecture-review
 description: 架构/配置/贯通性评审 — 输出可执行的差距矩阵与最小修复方案。
 ---
-
 # architecture-review — 配置与架构评审
 
 **必须先读**（内核按 agent_id 注入）：

@@ -25,6 +25,19 @@ def client():
     return TestClient(app)
 
 
+def test_list_library(client):
+    r = client.get("/api/skills/library")
+    assert r.status_code == 200
+    body = r.json()
+    assert "skills" in body
+    assert "count" in body
+    assert body["count"] == len(body["skills"])
+    if body["skills"]:
+        assert "id" in body["skills"][0]
+        assert "name" in body["skills"][0]
+        assert "is_mountable" in body["skills"][0]
+
+
 def test_list_drafts(client):
     r = client.get("/api/skills/drafts")
     assert r.status_code == 200
@@ -42,3 +55,34 @@ def test_matrix_audit(client):
 
 def test_draft_404(client):
     assert client.get("/api/skills/drafts/auto-nonexistent-xyz/diff").status_code == 404
+
+
+def test_delete_library_skill(tmp_path, monkeypatch):
+    import shutil
+
+    skills_dir = tmp_path / "business" / "skills"
+    skill_id = "tmp-delete-me"
+    skill_dir = skills_dir / skill_id
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("---\nname: x\n---\n# x\n", encoding="utf-8")
+
+    monkeypatch.setattr("common.skill_catalog.SKILLS_DIR", skills_dir)
+    monkeypatch.setattr("common.skill_catalog.MYTEAM_ROOT", tmp_path)
+    monkeypatch.setattr("common.skill_extract.SKILLS_DIR", skills_dir)
+
+    app = FastAPI()
+    app.include_router(skills_api.router)
+    c = TestClient(app)
+
+    r = c.delete(f"/api/skills/library/{skill_id}")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["success"] is True
+    assert body["skill_id"] == skill_id
+    assert not skill_dir.exists()
+
+    assert c.delete(f"/api/skills/library/{skill_id}").status_code == 404
+
+
+def test_delete_library_rejects_missing(client):
+    assert client.delete("/api/skills/library/does-not-exist-xyz").status_code == 404

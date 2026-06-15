@@ -1,11 +1,10 @@
 ---
-name: section-authoring
+name: "章节撰写"
 task_type: section-authoring
 description: 方案/说明文档指定章节的撰写与完善 — Gate 章节与 Goal 对齐
 agents:
   - product
 ---
-
 # section-authoring — 方案编制
 
 **必须先读**：`business/skills/product-methodology/SKILL.md`  

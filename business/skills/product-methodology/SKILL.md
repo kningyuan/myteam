@@ -1,12 +1,11 @@
 ---
-name: product-methodology
+name: "产品方法论"
 task_type: product-methodology
 description: >-
   产品方法论：问题空间→用户与场景→范围边界→可验证验收→优先级。
   requirements / strategy / product-planning / product-research / acceptance-report /
   section-authoring / section-review（产品视角）必须先读本 skill。
 ---
-
 # 产品方法论（myteam 适配版）
 
 > **来源合成**（已裁剪）：

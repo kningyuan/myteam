@@ -1,5 +1,5 @@
 ---
-name: officecli
+name: "Office 文档工具"
 description: Office 文档创建、分析、修改 — .docx / .xlsx / .pptx 的 CLI 全流程操作。适用于 deck-build、content、code-writing 等需要生成或编辑 Office 文档的任务。
 workflows:
   - 产品独立交付
@@ -12,7 +12,6 @@ agents:
   - ops
   - docs
 ---
-
 # officecli — Office 文档 Skill
 
 **适用**：任何需要创建、读取、分析、修改 Office 文档（.docx / .xlsx / .pptx）的任务。

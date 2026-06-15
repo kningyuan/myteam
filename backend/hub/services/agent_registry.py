@@ -51,6 +51,7 @@ def get_agents_registry(*, merge_scan: bool = True) -> dict:
             "description": meta.get("description", ""),
             "capabilities": meta.get("capabilities") or [],
             "task_types": meta.get("task_types") or [],
+            "skills": meta.get("skills") or [],
             "available": aid in available_ids,
             "backend": scan_info.get("backend", ""),
             "model": scan_info.get("model", ""),
@@ -101,7 +102,9 @@ def validate_agent_ids(agent_ids: list[str]) -> tuple[bool, list[str]]:
 def register_agent(agent_id: str, *, name: str = "", role: str = "worker",
                    description: str = "",
                    capabilities: Optional[list[str]] = None,
-                   task_types: Optional[list[str]] = None) -> dict:
+                   task_types: Optional[list[str]] = None,
+                   skills: Optional[list[str]] = None,
+                   skills_explicit: bool = False) -> dict:
     """在 agents_registry.json 中注册/更新 agent 元信息。
 
     不创建 workspace 或 identity 文件——只维护注册表元数据。
@@ -116,15 +119,46 @@ def register_agent(agent_id: str, *, name: str = "", role: str = "worker",
     existing = raw["agents"].get(agent_id) or {}
     merged_caps = capabilities if capabilities is not None else (existing.get("capabilities") or [])
     merged_tts = task_types if task_types is not None else (existing.get("task_types") or [])
-    raw["agents"][agent_id] = {
+    merged_skills = skills if skills is not None else (existing.get("skills") or [])
+    entry = {
         "name": name or existing.get("name") or agent_id,
         "role": role or existing.get("role") or "worker",
         "description": description if description != "" else (existing.get("description") or ""),
         "capabilities": list(merged_caps),
         "task_types": sorted(set(merged_tts)),
     }
+    if skills is not None or skills_explicit or existing.get("skills") is not None:
+        entry["skills"] = sorted(set(str(s).strip() for s in merged_skills if str(s).strip()))
+    raw["agents"][agent_id] = entry
     _save_registry_file(raw)
+    if skills is not None or skills_explicit:
+        from common.agent_skills import sync_agents_md_skills_section
+
+        sync_agents_md_skills_section(agent_id)
     return {"success": True, "agent_id": agent_id}
+
+
+def update_agent_skills(agent_id: str, skills: list[str]) -> dict:
+    """更新 Agent 挂载的 skill id 列表（严格：仅列表内 Skill 对 Agent 可见）。"""
+    from common.skill_catalog import validate_skill_ids
+
+    valid, unknown = validate_skill_ids(skills)
+    if unknown:
+        return {
+            "success": False,
+            "error": f"以下 skill 无 SKILL.md：{', '.join(unknown)}",
+        }
+    reg = get_agents_registry()["agents"].get(agent_id) or {}
+    return register_agent(
+        agent_id,
+        name=reg.get("name", agent_id),
+        role=reg.get("role", "worker"),
+        description=reg.get("description", ""),
+        capabilities=reg.get("capabilities"),
+        task_types=reg.get("task_types"),
+        skills=valid,
+        skills_explicit=True,
+    )
 
 
 def update_agent_task_types(agent_id: str, task_types: list[str]) -> dict:
@@ -184,6 +218,7 @@ def sync_missing_agent_task_types(*, only_empty: bool = True) -> dict:
 
         meta = roster.get(aid) or pgd.get(aid) or existing
         tts = list(meta.get("task_types") or [])
+        sks = list(meta.get("skills") or existing.get("skills") or [])
         source = "roster" if aid in roster else ("pgd" if aid in pgd else "")
 
         if not tts:
@@ -211,10 +246,73 @@ def sync_missing_agent_task_types(*, only_empty: bool = True) -> dict:
             description=meta.get("description") or existing.get("description") or "",
             capabilities=meta.get("capabilities") or existing.get("capabilities"),
             task_types=merged,
+            skills=sks,
+            skills_explicit=bool(sks),
         )
         updated.append({"agent_id": aid, "task_types": merged, "source": source or "merge"})
 
     return {"success": True, "updated": updated, "count": len(updated)}
+
+
+def sync_missing_agent_skills(*, only_empty: bool = True) -> dict:
+    """为 registry 中未配置 skills 的 Agent 从名册/PGD 补全挂载。"""
+    roster = _load_business_roster()
+    pgd = _load_pgd_template()
+    raw = _load_registry_file()
+    raw.setdefault("agents", {})
+    updated: list[dict] = []
+
+    for aid in list_available_agent_ids():
+        existing = raw["agents"].get(aid) or {}
+        current = list(existing.get("skills") or [])
+        if only_empty and current:
+            continue
+
+        meta = roster.get(aid) or pgd.get(aid) or {}
+        sks = list(meta.get("skills") or [])
+        if not sks:
+            continue
+
+        register_agent(
+            aid,
+            name=meta.get("name") or existing.get("name") or aid,
+            role=meta.get("role") or existing.get("role") or "worker",
+            description=meta.get("description") or existing.get("description") or "",
+            capabilities=meta.get("capabilities") or existing.get("capabilities"),
+            task_types=existing.get("task_types"),
+            skills=sks,
+            skills_explicit=True,
+        )
+        updated.append({"agent_id": aid, "skills": sorted(set(sks))})
+
+    return {"success": True, "updated": updated, "count": len(updated)}
+
+
+def remove_skill_from_all_agents(skill_id: str) -> list[str]:
+    """从所有 Agent 的 skills 列表中移除指定 skill_id；返回被更新的 agent_id。"""
+    sid = (skill_id or "").strip()
+    if not sid:
+        return []
+    raw = _load_registry_file()
+    raw.setdefault("agents", {})
+    updated: list[str] = []
+    for aid, meta in list(raw["agents"].items()):
+        skills = list(meta.get("skills") or [])
+        if sid not in skills:
+            continue
+        new_skills = [s for s in skills if s != sid]
+        register_agent(
+            aid,
+            name=meta.get("name") or aid,
+            role=meta.get("role") or "worker",
+            description=meta.get("description") or "",
+            capabilities=meta.get("capabilities"),
+            task_types=meta.get("task_types"),
+            skills=new_skills,
+            skills_explicit=True,
+        )
+        updated.append(aid)
+    return updated
 
 
 def unregister_agent(agent_id: str) -> dict:

@@ -1,11 +1,10 @@
 ---
-name: backend-engineering-methodology
+name: "后端工程方法论"
 task_type: backend-engineering-methodology
 description: >-
   后端工程方法论：契约优先→分层改动→Store/Port 边界→测试→最小回归。
   developer 执行 code-writing / code-deliverable / code-review 必须先读本 skill。
 ---
-
 # 后端工程方法论（myteam 适配版）
 
 > **来源合成**（已裁剪）：

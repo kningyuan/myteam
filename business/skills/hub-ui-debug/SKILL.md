@@ -1,5 +1,5 @@
 ---
-name: hub-ui-debug
+name: "Hub UI 调试"
 description: Hub 前端故障排查与修复 — 页面一直加载、init 崩溃、总览空白等。
 workflows:
   - myteam系统升级
@@ -8,7 +8,6 @@ scenarios:
   - 设置页按钮无反应
   - 切 Tab 后页面恢复
 ---
-
 # hub-ui-debug — Hub 前端故障排查（共享 Skill）
 
 **适用**：myteam `frontend/` 相关 bug 修复、`code-writing` / `acceptance-report` 中涉及 UI 的验收。

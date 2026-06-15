@@ -1,9 +1,8 @@
 ---
-name: acceptance-report
+name: "验收报告"
 task_type: acceptance-report
 description: 升级验收 — 对照契约与测试结果，给出发布建议。
 ---
-
 # acceptance-report — 升级验收
 
 **必须先读**：`business/skills/product-methodology/SKILL.md`（验收证据链）  

@@ -187,7 +187,7 @@ def try_adopt_deliverable_response(
         title=title,
         adopted=True,
     )
-    submit(envelope, resp_path)
+    submit(envelope, resp_path, require_dispatch=False)
     return envelope
 
 

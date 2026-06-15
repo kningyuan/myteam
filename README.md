@@ -27,7 +27,7 @@ B) 编排内核（目标 → 任务 DAG 自动执行）
 
 | 层 | 路径 | 职责 |
 |----|------|------|
-| API/UI | `backend/hub/api/`、`frontend/` | FastAPI 薄路由 + Web UI |
+| API/UI | `backend/hub/api/`、`frontend-v2/` | FastAPI 薄路由 + React Web UI（`frontend/` 为已归档的经典版） |
 | 服务 | `backend/hub/services/`、`backend/base/` | 聊天/群组/项目编排 |
 | 适配器 | `backend/adapter/`、`backend/adapters/opencode/` | CLI 协议归一为 `AgentEvent` |
 | 存储 | `backend/store/` | 配置 JSON + 系统配置真相 |
@@ -63,7 +63,8 @@ venv/bin/pip install -r requirements.txt
 
 # 4) 启动 Hub（首次会自动生成 config/system_config.json）
 ./run.sh start
-#   打开 http://localhost:8765
+#   打开 http://localhost:8765  （自动进入 /v2/）
+#   若未 build 过 v2：cd frontend-v2 && npm install && npm run build
 ```
 
 > 系统配置 `config/*.json`、业务配置与运行态 `business/`（`business/config/*`、`business/workspaces/`、`business/tasks/state.db`）、`*.log` 均被 `.gitignore` 排除——它们是**每个环境自己的运行态/业务数据**，不入库，需在本机生成/配置。
@@ -75,9 +76,11 @@ venv/bin/pip install -r requirements.txt
 ### 入口 A — Web Hub（UI + 聊天 + 可观测）
 
 ```bash
-./run.sh start      # 监听 http://localhost:8765 (127.0.0.1:8765)
+./run.sh start      # 监听 http://localhost:8765 → 自动跳转 /v2/
 ./run.sh stop       # 停止
 ```
+
+生产 UI 需先构建：`cd frontend-v2 && npm install && npm run build`。
 
 `run.sh` 会自动定位 `venv/bin/python3`、设置 `PYTHONPATH=backend`、`MYTEAM_ROOT=仓库根`，缺依赖时自动 `pip install -r requirements.txt`，然后运行 `backend/hub/api/server.py`。
 

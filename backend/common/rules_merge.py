@@ -7,10 +7,18 @@ import tempfile
 from pathlib import Path
 from typing import Literal, Optional
 
-RulesProfile = Literal["conversation", "workflow_execute"]
+RulesProfile = Literal["interactive", "discussion", "workflow_execute", "conversation"]
 
-_CONVERSATION_RULE = "brainstorming-guide.md"
+_INTERACTIVE_RULE = "interactive-guide.md"
+_DISCUSSION_RULE = "brainstorming-guide.md"
 _EXECUTE_RULE = "worker-template.md"
+
+
+def normalize_rules_profile(profile: str) -> str:
+    """conversation 为 interactive 的兼容别名。"""
+    if profile == "conversation":
+        return "interactive"
+    return profile
 
 
 def merge_rules_file(
@@ -18,14 +26,17 @@ def merge_rules_file(
     workspace: str,
     rules_dir: Path,
     *,
-    profile: RulesProfile = "conversation",
+    profile: RulesProfile = "interactive",
     chinese_name: str | None = None,
 ) -> Optional[str]:
     """按 profile 合并规则。
 
-    conversation: universal + brainstorming-guide + AGENTS.md（私聊、群组讨论、圆桌）
-    workflow_execute: universal + worker-template + AGENTS.md（项目任务 execute，非 main）
+    interactive: universal + interactive-guide（私聊、群聊 @agent 交互任务；不含 AGENTS 执行段）
+    discussion: universal + brainstorming-guide（圆桌 / 纯讨论；不含 AGENTS 执行段）
+    workflow_execute: universal + worker-template + AGENTS.md（项目编排 execute）
+    conversation: 同 interactive（兼容旧调用）
     """
+    profile = normalize_rules_profile(profile)  # type: ignore[assignment]
     universal = rules_dir / "universal-rules.md"
     agents_md = Path(workspace) / "AGENTS.md"
     display = chinese_name or agent_id
@@ -38,8 +49,13 @@ def merge_rules_file(
             if universal.exists():
                 f.write(universal.read_text(encoding="utf-8"))
                 f.write("\n\n---\n\n")
-            if profile == "conversation":
-                fp = rules_dir / _CONVERSATION_RULE
+            if profile == "interactive":
+                fp = rules_dir / _INTERACTIVE_RULE
+                if fp.exists():
+                    f.write(fp.read_text(encoding="utf-8"))
+                    f.write("\n\n---\n\n")
+            elif profile == "discussion":
+                fp = rules_dir / _DISCUSSION_RULE
                 if fp.exists():
                     f.write(fp.read_text(encoding="utf-8"))
                     f.write("\n\n---\n\n")
@@ -48,8 +64,8 @@ def merge_rules_file(
                 if fp.exists():
                     f.write(fp.read_text(encoding="utf-8"))
                     f.write("\n\n---\n\n")
-            if agents_md.exists():
-                f.write(agents_md.read_text(encoding="utf-8"))
+                if agents_md.exists():
+                    f.write(agents_md.read_text(encoding="utf-8"))
         return temp_path
     except Exception:
         return None

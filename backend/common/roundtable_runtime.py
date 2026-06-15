@@ -175,7 +175,7 @@ def collect_roundtable_reply(
                 agent_id,
                 current_prompt,
                 cancel_event=turn_cancel,
-                rules_profile="conversation",
+                rules_profile="discussion",
                 group_id=group_id,
                 project_id=project_id,
                 memory_mode="roundtable",

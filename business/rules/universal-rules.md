@@ -9,9 +9,12 @@
 
 ## 规则加载说明
 
-| 场景 | 加载专规 |
-|------|----------|
-| 私聊、群组讨论、头脑风暴/圆桌、Workflow 设计 | `brainstorming-guide.md`（讨论模式） |
-| 项目 Workflow **任务执行**（trigger 派活） | `worker-template.md`（执行模式） |
+| 场景 | profile | 加载专规 |
+|------|---------|----------|
+| 私聊、群聊 @agent 做具体事 | `interactive` | `interactive-guide.md` |
+| 群组圆桌 / 纯方案讨论 | `discussion` | `brainstorming-guide.md` |
+| 项目 Workflow **编排 execute** | `workflow_execute` | `worker-template.md` + `AGENTS.md` |
 
-讨论模式下 **不** 加载 `worker-template.md`；执行模式下 **不** 加载 `brainstorming-guide.md`。
+`interactive` 与 `discussion` **不**加载 `worker-template.md` / `AGENTS.md` 执行段；`workflow_execute` **不**加载交互/讨论专规。
+
+`conversation` 为 `interactive` 的兼容别名。

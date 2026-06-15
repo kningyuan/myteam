@@ -1,9 +1,8 @@
 ---
-name: research
+name: "调研"
 task_type: research
 description: 调研与全景盘点 — 输出可验证的来源表与结构化发现。
 ---
-
 # research — 调研
 
 ## 按 workflow 选共享包

@@ -1,9 +1,8 @@
 ---
-name: code-deliverable
+name: "代码交付"
 task_type: code-deliverable
 description: 代码工程交付 — deliverables/<task_id>/ 可运行脚本 + output/ + README。
 ---
-
 # code-deliverable — 代码工程交付
 
 **必须先读**（内核按 agent_id 注入）：

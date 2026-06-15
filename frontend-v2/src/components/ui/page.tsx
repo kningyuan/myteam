@@ -63,11 +63,20 @@ export function StatusBadge({
   return <Badge variant={statusBadgeVariant(s)}>{label || s}</Badge>
 }
 
-export function EmptyState({ title, description }: { title: string; description?: string }) {
+export function EmptyState({
+  title,
+  description,
+  action,
+}: {
+  title: string
+  description?: string
+  action?: React.ReactNode
+}) {
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-card)] px-6 py-16 text-center shadow-[var(--shadow-xs)]">
       <p className="text-sm font-medium text-[var(--color-foreground)]">{title}</p>
       {description && <p className="mt-2 max-w-sm text-sm text-[var(--color-muted-foreground)]">{description}</p>}
+      {action && <div className="mt-6">{action}</div>}
     </div>
   )
 }

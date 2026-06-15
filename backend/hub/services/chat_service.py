@@ -17,11 +17,13 @@ from adapter.events import EventKind
 from adapter.protocol import RunRequest
 from adapter.registry import registry
 from adapter.sse import encode_done, encode_error, encode_event
-from common.rules_merge import RulesProfile, merge_rules_file
+from common.agent_execution import agent_execution_lock
+from common.rules_merge import RulesProfile, merge_rules_file, normalize_rules_profile
 from hub.paths import RULES_DIR, resolve_workspace
 from store.sessions import session_store
 from base.agent_identity import AgentIdentityBuilder, multi_agent_manager
 from base.agent_chat import get_agent_backend_config, _load_agents_config
+from common.agent_skills import build_skill_context
 
 
 class ChatService:
@@ -34,7 +36,7 @@ class ChatService:
         cancel_event: Optional[Event] = None,
         *,
         use_memory: bool = False,
-        rules_profile: RulesProfile = "conversation",
+        rules_profile: RulesProfile = "interactive",
         workspace_key: Optional[str] = None,
         memory_scope=None,
     ) -> Generator[str, None, None]:
@@ -42,13 +44,20 @@ class ChatService:
 
         use_memory=True（DM 路径，P0）：对话历史进 Store、由 Context Assembler 组装上下文，
         own-history、不依赖 opencode -s。其余调用方（群组/通知/工厂）保持 use_memory=False 旧路径。
-        rules_profile：conversation=讨论/私聊/圆桌；workflow_execute=项目任务 execute。
+        rules_profile：interactive=私聊/群聊交互任务；discussion=圆桌；workflow_execute=编排 execute。
         workspace_key：Adapter session 映射键；默认 workspace-{agent_id}，群/圆桌由 agent_memory 提供。
         memory_scope：外挂记忆作用域；若提供则 before/after_turn 由 provider 处理。
         """
-        if use_memory:
-            yield from self._stream_memory(agent_id, message, cancel_event)
-            return
+        profile = normalize_rules_profile(rules_profile)  # type: ignore[arg-type]
+        with agent_execution_lock(agent_id, blocking=False) as acquired:
+            if not acquired:
+                yield encode_error("Agent 正在执行编排任务，请稍后再试")
+                return
+            if use_memory:
+                yield from self._stream_memory(
+                    agent_id, message, cancel_event, rules_profile=profile,
+                )
+                return
         from common.agent_memory import (
             MemoryScope,
             get_agent_memory_provider,
@@ -73,8 +82,8 @@ class ChatService:
             return
 
         model = backend_cfg.model
-        rules_file = self._merge_rules(agent_id, str(workspace), profile=rules_profile)
-        system_prompt = self._build_system_prompt(agent_id, str(workspace))
+        rules_file = self._merge_rules(agent_id, str(workspace), profile=profile)
+        system_prompt = self._build_system_prompt(agent_id, str(workspace), profile=profile)
         full_message = (
             f"【系统指令】\n{system_prompt}\n\n【用户消息】\n{effective_message}"
             if system_prompt else effective_message
@@ -146,6 +155,8 @@ class ChatService:
         agent_id: str,
         message: str,
         cancel_event: Optional[Event] = None,
+        *,
+        rules_profile: str = "interactive",
     ) -> Generator[str, None, None]:
         """DM 记忆路径：消息落库 + Context Assembler 组装上下文 + own-history（无 -s）。"""
         from common.store import Store
@@ -162,8 +173,8 @@ class ChatService:
             yield encode_error(f"Adapter '{backend_cfg.backend_id}' 未注册")
             return
         model = backend_cfg.model
-        rules_file = self._merge_rules(agent_id, str(workspace))
-        system_prompt = self._build_system_prompt(agent_id, str(workspace))
+        rules_file = self._merge_rules(agent_id, str(workspace), profile=rules_profile)
+        system_prompt = self._build_system_prompt(agent_id, str(workspace), profile=rules_profile)
 
         store = Store()
         try:
@@ -280,12 +291,17 @@ class ChatService:
             return "".join(out).strip()
         return _summarize
 
-    def _build_system_prompt(self, agent_id: str, workspace: str) -> str:
+    def _build_system_prompt(
+        self, agent_id: str, workspace: str, *, profile: str = "interactive",
+    ) -> str:
         builder = AgentIdentityBuilder(agent_id, workspace)
         sections = []
-        identity = builder.get_identity_context()
+        identity = builder.get_identity_context(rules_profile=profile)
         if identity:
             sections.append(f"<core_instructions>\n{identity}\n</core_instructions>")
+        skill_block = build_skill_context(agent_id)
+        if skill_block:
+            sections.append(skill_block)
         multi = multi_agent_manager.build_multi_agent_context(agent_id)
         if multi:
             sections.append(f"<multi_agent_context>\n{multi}\n</multi_agent_context>")
@@ -296,7 +312,7 @@ class ChatService:
         agent_id: str,
         workspace: str,
         *,
-        profile: RulesProfile = "conversation",
+        profile: RulesProfile = "interactive",
     ) -> Optional[str]:
         builder = AgentIdentityBuilder(agent_id, workspace)
         return merge_rules_file(

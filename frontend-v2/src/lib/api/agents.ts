@@ -11,12 +11,13 @@ export type AgentSummary = {
   backend?: string
   model?: string
   task_types?: string[]
+  skills?: string[]
   last_message_at?: number
   last_message_preview?: string
 }
 
 export type AgentSkillRef = {
-  task_type: string
+  skill_id: string
   available?: boolean
   path?: string | null
 }
@@ -28,6 +29,8 @@ export type AgentDetail = {
   model?: string
   task_types?: string[]
   skills?: AgentSkillRef[]
+  registry_skills?: string[]
+  deliverable_skills?: AgentSkillRef[]
   files?: Record<string, string>
 }
 
@@ -117,4 +120,51 @@ export async function applyModelToAllAgents(model: string): Promise<void> {
     body: JSON.stringify({ model }),
   })
   invalidateResources("agents")
+}
+
+export async function suggestAgentId(description: string): Promise<string> {
+  const data = await hubFetch<{ suggested_id?: string }>(
+    `/api/agents/suggest-id?description=${encodeURIComponent(description)}`,
+  )
+  return data.suggested_id ?? ""
+}
+
+export async function suggestAgentTaskTypes(body: {
+  description: string
+  name?: string
+  agent_id?: string
+}): Promise<{ task_types?: string[]; pattern?: string }> {
+  return hubFetch("/api/agents/suggest-task-types", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function syncAgentTaskTypes(): Promise<{
+  success?: boolean
+  count?: number
+  updated?: { agent_id: string; task_types: string[] }[]
+}> {
+  const data = await hubFetch<{
+    success?: boolean
+    count?: number
+    updated?: { agent_id: string; task_types: string[] }[]
+  }>("/api/agents/sync-task-types", { method: "POST" })
+  invalidateResources("agents")
+  return data
+}
+
+export async function syncAgentSkills(): Promise<{
+  success?: boolean
+  count?: number
+  updated?: { agent_id: string; skills: string[] }[]
+}> {
+  const data = await hubFetch<{
+    success?: boolean
+    count?: number
+    updated?: { agent_id: string; skills: string[] }[]
+  }>("/api/agents/sync-skills", { method: "POST" })
+  invalidateResources("agents")
+  return data
 }

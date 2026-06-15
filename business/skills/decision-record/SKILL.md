@@ -1,9 +1,8 @@
 ---
-name: decision-record
+name: "决策记录"
 task_type: decision-record
 description: 阶段决策记录 — 评审汇总、采纳决策、阻塞项与结论。
 ---
-
 # decision-record — 决策记录
 
 **main 必须先读**：`business/skills/coordination-methodology/SKILL.md`（阶段汇总纪律）  

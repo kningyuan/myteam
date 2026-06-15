@@ -1,5 +1,5 @@
-import { useState } from "react"
-import { MoreVertical, Settings } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { Copy, MoreVertical, Settings } from "lucide-react"
 import { toast } from "sonner"
 import {
   getAgentBackendConfig,
@@ -18,8 +18,11 @@ import {
 } from "@/lib/api/config"
 import {
   cancelAgentChatStream,
+  getContextTokenBudget,
+  resetAgentContextTokens,
   sendAgentChatMessage,
   syncAgentChatFromServer,
+  type CitationPart,
 } from "@/lib/agentChatStream"
 import { useImeCompositionGuard } from "@/lib/ime"
 import { useAgentChat, useRestoreDraft } from "@/hooks/useAgentChat"
@@ -41,7 +44,47 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { useEffect, useRef } from "react"
+
+function ContextIndicator({ used }: { used: number }) {
+  const budget = getContextTokenBudget()
+  if (!used) return null
+  const pct = Math.min(100, (used / budget) * 100)
+  const warn = pct >= 75 && pct < 90
+  const over = pct >= 90
+  return (
+    <div className={`context-indicator${warn ? " ctx-warn" : ""}${over ? " ctx-over" : ""}`}>
+      <div className="ctx-bar">
+        <div className="ctx-fill" style={{ width: `${pct}%` }} />
+      </div>
+      <span className="ctx-label">
+        {used.toLocaleString()} / {Math.round(budget / 1000)}k tokens
+      </span>
+    </div>
+  )
+}
+
+function CitationsList({ parts }: { parts: CitationPart[] }) {
+  if (!parts.length) return null
+  return (
+    <div className="chat-citations">
+      <p className="chat-citations-title">引用来源</p>
+      <ul>
+        {parts.map((c, i) => (
+          <li key={i}>
+            {c.url ? (
+              <a href={c.url} target="_blank" rel="noreferrer">
+                {c.title || c.url}
+              </a>
+            ) : (
+              <span>{c.title || c.source || "来源"}</span>
+            )}
+            {c.snippet ? <span className="chat-citation-snippet"> — {c.snippet}</span> : null}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
 
 function MoreMenu({
   onClear,
@@ -94,7 +137,7 @@ export function AgentChatPanel({
   agent: AgentSummary
   onArchived?: () => void
 }) {
-  const { messages, busy, error } = useAgentChat(agent.id)
+  const { messages, busy, error, contextTokens } = useAgentChat(agent.id)
   const [draft, setDraft] = useState("")
   useRestoreDraft(agent.id, setDraft)
 
@@ -156,6 +199,7 @@ export function AgentChatPanel({
     if (busy) cancelAgentChatStream(agent.id)
     try {
       await clearAgentChat(agent.id)
+      resetAgentContextTokens(agent.id)
       await syncAgentChatFromServer(agent.id)
       toast.success("对话已清空")
     } catch (e) {
@@ -205,6 +249,7 @@ export function AgentChatPanel({
         </div>
         <MoreMenu onClear={handleClear} onArchive={handleArchive} onConfig={() => setConfigOpen(true)} />
       </header>
+      <ContextIndicator used={contextTokens} />
       <div className="chat-messages">
         {error && (
           <div className="mb-3 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-400">
@@ -214,7 +259,7 @@ export function AgentChatPanel({
         {messages.map((m) => (
           <div key={m.id} className={`mb-3 flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
             <div
-              className={`agent-bubble max-w-[min(85%,640px)] rounded-2xl px-4 py-2.5 text-sm ${
+              className={`agent-bubble group max-w-[min(85%,640px)] rounded-2xl px-4 py-2.5 text-sm ${
                 m.role === "user"
                   ? "rounded-br-md bg-[var(--color-chat-own)] text-[var(--color-chat-own-fg)]"
                   : "rounded-bl-md border border-[var(--color-border)] bg-[var(--color-chat-other)] text-[var(--color-foreground)]"
@@ -238,6 +283,21 @@ export function AgentChatPanel({
               ) : m.streaming && !(m.thinking?.length) ? (
                 <span className="thinking-wait text-[var(--color-muted-foreground)]">等待 CLI 响应…</span>
               ) : null}
+              {m.role === "agent" && m.citations?.length ? (
+                <CitationsList parts={m.citations} />
+              ) : null}
+              <div className="msg-meta mt-1 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  className="msg-copy opacity-0 transition group-hover:opacity-70"
+                  title="复制"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(m.text || "").then(() => toast.success("已复制"))
+                  }}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
           </div>
         ))}

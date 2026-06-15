@@ -1,11 +1,10 @@
 ---
-name: frontend-architecture-methodology
+name: "前端架构方法论"
 task_type: frontend-architecture-methodology
 description: >-
   前端架构方法论：信息架构→组件边界→状态与数据流→性能与可访问性→trade-off。
   frontend 执行 system-design / architecture-review 时必须与本 skill 及 system-architecture-methodology 联读。
 ---
-
 # 前端架构方法论（myteam 适配版）
 
 > **来源合成**（已裁剪）：

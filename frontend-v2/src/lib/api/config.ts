@@ -63,3 +63,15 @@ export async function listBackendModels(backendId: string): Promise<BackendModel
   )
   return data.models ?? []
 }
+
+export async function initHub(): Promise<{ message?: string }> {
+  const data = await hubFetch<{ message?: string }>("/api/init", { method: "POST" })
+  invalidateResources("dashboard", "agents", "projects")
+  return data
+}
+
+export async function runDemo(): Promise<{ project_id?: string }> {
+  const data = await hubFetch<{ project_id?: string }>("/api/demo", { method: "POST" })
+  invalidateResources("dashboard", "projects")
+  return data
+}

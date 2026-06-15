@@ -1,10 +1,9 @@
 ---
-name: myteam-config-linkage
+name: "配置贯通"
 description: myteam 系统升级 workflow 共享包 — Web 设置页 ↔ /api/config ↔ /api/skill-config ↔ 内核 runtime 贯通。
 workflows:
   - myteam系统升级
 ---
-
 # myteam-config-linkage — 配置贯通共享 Skill
 
 **适用 workflow**：`myteam系统升级` 及一切「设置 Tab ↔ 双 API ↔ 内核」类任务。

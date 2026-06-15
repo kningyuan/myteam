@@ -1,9 +1,8 @@
 ---
-name: deck-build
+name: "演示文稿制作"
 task_type: deck-build
 description: 生成演示文稿 deck.pptx — WPS 增强或 python-pptx 兜底。
 ---
-
 # deck-build — 演示文稿
 
 **先读**：`business/skills/product-operations/SKILL.md`  

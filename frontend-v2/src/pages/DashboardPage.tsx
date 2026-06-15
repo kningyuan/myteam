@@ -1,7 +1,9 @@
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { ArrowRight, Bot, FolderKanban, Users, Workflow } from "lucide-react"
+import { useState } from "react"
+import { toast } from "sonner"
 import { listAgents } from "@/lib/api/agents"
-import { getObsSummary, type ObsSummary } from "@/lib/api/config"
+import { getObsSummary, initHub, runDemo, type ObsSummary } from "@/lib/api/config"
 import { listGroups } from "@/lib/api/groups"
 import { listProjects } from "@/lib/api/projects"
 import { listWorkflows } from "@/lib/api/workflows"
@@ -52,7 +54,9 @@ async function loadDashboard(): Promise<DashboardSnapshot> {
 }
 
 export function DashboardPage() {
-  const { data, loading, error } = useResourceQuery("dashboard", loadDashboard, {
+  const navigate = useNavigate()
+  const [bootBusy, setBootBusy] = useState(false)
+  const { data, loading, error, reload } = useResourceQuery("dashboard", loadDashboard, {
     summary: null,
     counts: { projects: 0, groups: 0, agents: 0, workflows: 0 },
   })
@@ -66,6 +70,33 @@ export function DashboardPage() {
   const totals = summary?.totals
   const running = totals?.running ?? 0
   const tokens = totals?.tokens ?? 0
+
+  async function handleInit() {
+    setBootBusy(true)
+    try {
+      const res = await initHub()
+      toast.success(res.message || "Agent 已初始化")
+      reload()
+    } catch (e) {
+      toast.error("初始化失败", { description: e instanceof Error ? e.message : "" })
+    } finally {
+      setBootBusy(false)
+    }
+  }
+
+  async function handleDemo() {
+    setBootBusy(true)
+    try {
+      const res = await runDemo()
+      toast.success("Demo 已启动")
+      reload()
+      if (res.project_id) navigate(`/projects/${encodeURIComponent(res.project_id)}`)
+    } catch (e) {
+      toast.error("Demo 失败", { description: e instanceof Error ? e.message : "" })
+    } finally {
+      setBootBusy(false)
+    }
+  }
 
   const quickLinks = [
     { to: "/projects", label: "项目", desc: "查看进度与交付物", icon: FolderKanban },
@@ -152,7 +183,23 @@ export function DashboardPage() {
             ))}
           </div>
         ) : (
-          <EmptyState title="还没有项目" description="点击「项目 → 新建」发起第一个项目。" />
+          <EmptyState
+            title="欢迎使用 myteam Agent Team Workspace"
+            description="编排、协作、交付 — 一切尽在浏览器。"
+            action={
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button disabled={bootBusy} onClick={() => void handleInit()}>
+                  初始化 Agent
+                </Button>
+                <Button variant="outline" disabled={bootBusy} onClick={() => void handleDemo()}>
+                  运行 Demo
+                </Button>
+                <Button variant="outline" asChild>
+                  <Link to="/projects">创建项目</Link>
+                </Button>
+              </div>
+            }
+          />
         )}
       </section>
     </div>

@@ -7,6 +7,7 @@ from typing import Generator
 
 from adapter.events import AgentEvent, EventKind
 from adapter.protocol import AdapterCapabilities, ModelInfo, RunRequest
+from common.submit_result import DISPATCH_TOKEN_ENV
 from adapter.subprocess_cli import SubprocessCLIAdapter
 
 from adapters.claude.parser import parse_line
@@ -120,6 +121,9 @@ class ClaudeCodeAdapter(SubprocessCLIAdapter):
         env = os.environ.copy()
         if request.agent_id:
             env["OPENCLAW_WORKER_AGENT_ID"] = request.agent_id
+        token = (request.extra or {}).get("dispatch_token")
+        if token:
+            env[DISPATCH_TOKEN_ENV] = str(token)
 
         try:
             proc = subprocess.Popen(

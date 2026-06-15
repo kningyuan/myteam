@@ -1,11 +1,10 @@
 ---
-name: system-architecture-methodology
+name: "系统架构方法论"
 task_type: system-architecture-methodology
 description: >-
   系统架构方法论：约束→质量属性→候选模式→trade-off→ADR→C4 边界图。
   system-design / architecture-review 必须先读本 skill。
 ---
-
 # 系统架构方法论（myteam 适配版）
 
 > **来源合成**（可复用、已裁剪）：

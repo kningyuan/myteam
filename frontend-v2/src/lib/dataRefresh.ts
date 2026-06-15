@@ -7,6 +7,8 @@ export type ResourceKey =
   | "workflows"
   | "task-types"
   | "delivery-templates"
+  | "skill-library"
+  | "skill-matrix"
   | "skill-drafts"
   | "dashboard"
   | "config"

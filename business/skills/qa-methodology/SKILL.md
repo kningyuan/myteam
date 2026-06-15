@@ -1,11 +1,10 @@
 ---
-name: qa-methodology
+name: "QA 方法论"
 task_type: qa-methodology
 description: >-
   测试方法论：风险驱动范围→可复现命令→证据链→Gate 对齐。
   code-testing / test-plan 必须先读本 skill。
 ---
-
 # 测试方法论（myteam 适配版）
 
 > **来源合成**（已裁剪）：

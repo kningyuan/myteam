@@ -65,10 +65,14 @@ def validate_agent_ids(agent_ids: list[str]) -> tuple[bool, list[str]]:
     return len(bad) == 0, bad
 
 
+def get_agent_info(agent_id: str) -> dict:
+    """注册表中该 agent 的原始元数据。"""
+    return dict((_load_registry().get("agents") or {}).get(agent_id) or {})
+
+
 def get_agent_task_types(agent_id: str) -> list[str]:
-    """注册表中声明的 task_type 列表；未配置或未知 agent 返回空列表。"""
-    info = (_load_registry().get("agents") or {}).get(agent_id) or {}
-    return list(info.get("task_types") or [])
+    """注册表中声明的交付物 task_type 列表（可接哪些交付类型）。"""
+    return list(get_agent_info(agent_id).get("task_types") or [])
 
 
 def agent_task_type_map() -> dict[str, list[str]]:

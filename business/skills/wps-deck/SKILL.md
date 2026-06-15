@@ -1,12 +1,11 @@
 ---
-name: wps-deck
+name: "WPS 演示文稿"
 description: WPS 演示文稿增强 — 加载项 + RPC 套模板/图表；不可用时 fallback python-pptx。
 workflows:
   - 产品独立交付
 agents:
   - product
 ---
-
 # wps-deck — WPS 演示文稿 Skill
 
 **适用**：`deck-build` 任务；需 **真实 .pptx** 且优先 WPS 模板/绘图能力时。

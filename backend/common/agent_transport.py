@@ -143,15 +143,7 @@ def _load_agents_config() -> dict:
         return {}
 
 
-def _task_type_skill_path(task_type: str) -> Optional[Path]:
-    """business/skills/<task_type>/SKILL.md，若存在则注入 execute 提示词。"""
-    if not task_type:
-        return None
-    p = MYTEAM_ROOT / "business" / "skills" / task_type / "SKILL.md"
-    return p if p.is_file() else None
-
-
-def _append_acceptance_criteria(lines: list[str], req, spec) -> None:
+def _append_acceptance_criteria(lines: list, req, spec) -> None:
     criteria = (req.input or {}).get("acceptance_criteria") or (
         spec.acceptance_criteria if spec else []
     )
@@ -194,17 +186,9 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
         template_id = str((req.constraints or {}).get("template_id") or "").strip() or None
         from common.registry import resolve_format_spec
         spec = resolve_format_spec(task_type, template_id) if task_type else None
-        skill_path = _task_type_skill_path(task_type) if task_type else None
-        if skill_path:
-            lines.append(f"【任务类型执行指引】请先阅读并按其中流程执行：{skill_path}")
-            lines.append("")
-        from common.skill_methodology import methodology_skill_paths
+        from common.agent_skills import append_skill_instructions
 
-        meth_paths = methodology_skill_paths(task_type, req.agent_id)
-        for meth_path in meth_paths:
-            lines.append(f"【方法论】请先阅读并按其中框架思考与交付：{meth_path}")
-        if meth_paths:
-            lines.append("")
+        append_skill_instructions(lines, req.agent_id, task_type=task_type or None)
         if spec and spec.template_id:
             lines.append(
                 f"【交付模板】{spec.template_display_name or spec.template_id}（id={spec.template_id}）"
@@ -548,6 +532,7 @@ class AdapterTransport:
             workspace=ws, message=prompt, model=self._model(req.agent_id),
             session_id=session_id, rules_file=rules_file,
             agent_id=req.agent_id, cancel_event=ctx.cancel_event,
+            extra={"dispatch_token": req.interaction_id},
         )
 
         for ev in self._adapter_obj(req.agent_id).run(run_req):
