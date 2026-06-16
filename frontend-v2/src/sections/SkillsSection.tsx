@@ -1,16 +1,18 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useCallback } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import {
   getSkillLibraryItem,
   listSkillLibrary,
   type SkillLibraryItem,
 } from "@/lib/api/workflows"
-import { useResourceQuery } from "@/hooks/useResourceQuery"
+import { useResourceQuery, useOnResourceInvalidate } from "@/hooks/useResourceQuery"
+import { sortByModifiedDesc } from "@/lib/sortByModified"
 import { SkillDetailPanel } from "@/components/skills/SkillDetailPanel"
 import { DiscordShell, ListColumn, WelcomePane } from "@/components/layout/DiscordShell"
 import { ListItemRow } from "@/components/layout/ListItemRow"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { cn } from "@/lib/utils"
 
 function SkillHome({
   items,
@@ -44,7 +46,7 @@ function SkillHome({
     <div className="skill-home">
       <header className="skill-home-head">
         <div>
-          <h1 className="text-lg font-semibold">全部 Skill</h1>
+          <h1 className="text-lg font-semibold">全部 Skill 概览</h1>
           <p className="text-sm text-[var(--color-muted-foreground)]">
             共 {items.length} 个 · 名称用于展示，ID 为英文目录名
           </p>
@@ -53,7 +55,7 @@ function SkillHome({
       <p className="skill-home-hint hint text-xs">
         简介帮助 Agent 快速了解能力范围；进入详情可查看分章目录与附属文件，无需一次性加载全文。
       </p>
-      <ScrollArea className="skill-home-scroll" style={{ maxHeight: "72vh" }}>
+      <ScrollArea className="skill-home-scroll">
         <div className="skill-home-grid">
           {items.map((s) => (
             <button
@@ -94,7 +96,7 @@ export function SkillsSection() {
   const [detail, setDetail] = useState<SkillLibraryItem | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
 
-  useEffect(() => {
+  const reloadDetail = useCallback(() => {
     if (!skillId) {
       setDetail(null)
       return
@@ -106,16 +108,20 @@ export function SkillsSection() {
       .finally(() => setLoadingDetail(false))
   }, [skillId])
 
-  const sorted = useMemo(
-    () =>
-      [...library].sort((a, b) => {
-        const da = a.is_draft ? 1 : 0
-        const db = b.is_draft ? 1 : 0
-        if (da !== db) return da - db
-        return (a.name || a.id).localeCompare(b.name || b.id, "zh-CN")
-      }),
-    [library],
-  )
+  useEffect(() => {
+    reloadDetail()
+  }, [reloadDetail])
+
+  useOnResourceInvalidate("skill-library", reloadDetail)
+
+  const sorted = useMemo(() => {
+    const withBump = library.map((s) =>
+      detail?.id === s.id && detail.updated_at
+        ? { ...s, updated_at: Math.max(s.updated_at ?? 0, detail.updated_at) }
+        : s,
+    )
+    return sortByModifiedDesc(withBump)
+  }, [library, detail?.id, detail?.updated_at])
 
   return (
     <DiscordShell
@@ -128,7 +134,7 @@ export function SkillsSection() {
               className="w-full"
               onClick={() => navigate("/skills")}
             >
-              全部 Skill 首页
+              全部 Skill 概览
             </Button>
           </div>
           {loadingLibrary ? (
@@ -152,7 +158,12 @@ export function SkillsSection() {
         </ListColumn>
       }
     >
-      <div className="discord-main-scroll workspace-scroll">
+      <div
+        className={cn(
+          "discord-main-scroll workspace-scroll",
+          !skillId && "skill-home-main",
+        )}
+      >
         {skillId ? (
           <SkillDetailPanel
             item={detail}

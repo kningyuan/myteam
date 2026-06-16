@@ -83,8 +83,10 @@ _RESULT_SKELETON = {
                  '"description": "做什么", "reviewer": "", "dependencies": []}]}'),
     "review": '{"passed": true, "feedback": "评审意见", "checklist": []}',
     "triage": (
-        '{"decision": "retry|reassign|drop", "target_agent": "", "notes": "理由"}'
-        " — 参考 input.fail_reason / fail_detail 决策，勿忽略具体失败原因"
+        '{"decision": "retry|reassign|drop|abort|split", "target_agent": "", "notes": "理由", '
+        '"sub_tasks": [{"id": "s1", "name": "子任务名", "agent": "", "task_type": "", '
+        '"description": "做什么", "reviewer": "", "dependencies": []}]}'
+        " — 参考 input.fail_reason / fail_detail 决策；任务过大无法一次完成时用 split 并给出 sub_tasks"
     ),
 }
 
@@ -189,6 +191,9 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
         from common.agent_skills import append_skill_instructions
 
         append_skill_instructions(lines, req.agent_id, task_type=task_type or None)
+        from common.agent_mcp import append_mcp_instructions
+
+        append_mcp_instructions(lines, req.agent_id)
         if spec and spec.template_id:
             lines.append(
                 f"【交付模板】{spec.template_display_name or spec.template_id}（id={spec.template_id}）"
@@ -348,6 +353,9 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
         if kind == "evaluate":
             lines.append("如需拆分：每个子任务必须给出 agent 与 task_type（留空则继承父任务），"
                          "子任务依赖只能引用同组其它子任务 id；无需拆分则 should_split=false、sub_tasks 留空。")
+        if kind == "triage":
+            lines.append("若任务过大或失败因范围过宽：可用 decision=split 并给出 sub_tasks（格式同 evaluate）；"
+                         "子任务依赖只能引用同组其它子任务 id。")
         result_hint = '"result": %s' % _RESULT_SKELETON.get(kind, "{ ... }")
 
     if req.retry_feedback:

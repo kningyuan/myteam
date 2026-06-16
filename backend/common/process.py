@@ -39,6 +39,7 @@ from common.process_types import (
     BudgetExceededError,
     ProcessConfig,
     ProjectOutcome,
+    TaskExecuteResult,
     TaskOutcome,
 )
 from common.task_pipeline import TaskPipeline
@@ -235,6 +236,8 @@ class Process:
                 meta["description"] = desc
             if t.get("loop"):
                 meta["loop"] = t["loop"]
+            if t.get("split_depth") is not None:
+                meta["split_depth"] = t["split_depth"]
             self.store.upsert_task(
                 project_id, t["id"], name=t.get("name", ""), agent=t.get("agent", ""),
                 reviewer=t.get("reviewer", ""), task_type=t.get("task_type", ""),
@@ -309,27 +312,37 @@ class Process:
 
     # ── DAG 调度（波次；L2 可选真并行）────────────────────────
 
-    def _execute_task(self, project_id: str, task: dict) -> tuple[TaskOutcome, Optional[str]]:
-        """跑单任务；失败时 triage。返回 (outcome, triage_decision)。"""
+    def _agents_from_tasks(self, by_id: dict[str, dict]) -> list[str]:
+        return sorted({t.get("agent", "") for t in by_id.values() if t.get("agent")})
+
+    def _execute_task(self, project_id: str, task: dict) -> TaskExecuteResult:
+        """跑单任务；失败时 triage。返回 outcome + triage 决策 + 可选拆分子任务。"""
         outcome = self._pipeline.run_task(project_id, task)
         if outcome.status != "failed":
             self._notify_task_done(project_id, task, outcome)
-            return outcome, None
+            return TaskExecuteResult(outcome)
         meta = (self.store.get_task(project_id, task["id"]) or {}).get("meta") or {}
-        decision = self._decisions.triage(project_id, task, outcome.reason)
+        triage = self._decisions.triage(project_id, task, outcome.reason)
+        decision = triage.decision
+        if decision == "split" and triage.sub_tasks:
+            self.store.append_run_event(
+                f"{project_id}:{task['id']}:triage", "triage_split",
+                {"children": [s["id"] for s in triage.sub_tasks]},
+            )
+            return TaskExecuteResult(outcome, decision, triage.sub_tasks)
         if decision == "retry" and meta.get("fail_reason") == "gate_exhausted":
             self._notify_task_done(project_id, task, outcome)
-            return outcome, decision
+            return TaskExecuteResult(outcome, decision)
         if decision == "retry":
             outcome = self._pipeline.run_task(project_id, task)
             self._notify_task_done(project_id, task, outcome)
-            return outcome, None
+            return TaskExecuteResult(outcome)
         if decision == "reassign":
             outcome = self._pipeline.run_task(project_id, task)
             self._notify_task_done(project_id, task, outcome)
-            return outcome, None
+            return TaskExecuteResult(outcome)
         self._notify_task_done(project_id, task, outcome)
-        return outcome, decision
+        return TaskExecuteResult(outcome, decision)
 
     def _execute_loop(self, project_id: str, placeholder: dict) -> TaskOutcome:
         """运行 workflow loop 占位 task（委托 loop_runtime.run_loop）。"""
@@ -406,6 +419,15 @@ class Process:
                         outcomes[tid] = self._block(project_id, tid, reason)
                 break
 
+            if self.config.split_enabled:
+                agents = self._agents_from_tasks(by_id)
+                while self._expander.expand_ready(
+                    project_id, by_id, order, outcomes, agents,
+                ):
+                    if self._over_budget(project_id):
+                        paused = True
+                        break
+
             wave = ready_tasks(order, by_id, outcomes,
                                needs_review_blocks=self.config.needs_review_blocks)
             if not wave:
@@ -448,9 +470,15 @@ class Process:
                         if tid in loop_tids:
                             outcomes[tid] = fut.result()
                         else:
-                            outcome, decision = fut.result()
-                            outcomes[tid] = outcome
-                            if decision == "abort":
+                            result = fut.result()
+                            if result.split_subtasks:
+                                self._expander.apply_split(
+                                    project_id, by_id, order, tid, result.split_subtasks,
+                                    source="triage_split",
+                                )
+                                continue
+                            outcomes[tid] = result.outcome
+                            if result.triage_decision == "abort":
                                 aborted = True
                         self._print_progress(project_id, outcomes, len(order))
             else:
@@ -458,12 +486,18 @@ class Process:
                     task = by_id[tid]
                     if task.get("loop") and task["loop"] in self._loops_by_id:
                         outcome = self._execute_loop(project_id, task)
-                        decision = None
+                        outcomes[tid] = outcome
                     else:
-                        outcome, decision = self._execute_task(project_id, task)
-                    outcomes[tid] = outcome
-                    if decision == "abort":
-                        aborted = True
+                        result = self._execute_task(project_id, task)
+                        if result.split_subtasks:
+                            self._expander.apply_split(
+                                project_id, by_id, order, tid, result.split_subtasks,
+                                source="triage_split",
+                            )
+                            continue
+                        outcomes[tid] = result.outcome
+                        if result.triage_decision == "abort":
+                            aborted = True
                     self._print_progress(project_id, outcomes, len(order))
                     if aborted:
                         break

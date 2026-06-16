@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { toast } from "sonner"
 import {
@@ -9,12 +9,14 @@ import {
   saveAgentWorkspaceFile,
   suggestAgentId,
   syncAgentSkills,
+  syncAgentMcp,
   syncAgentTaskTypes,
   type AgentDetail,
   type AgentSkillRef,
   type AgentSummary,
 } from "@/lib/api/agents"
 import { listMemory, type MemoryEntry } from "@/lib/api/projects"
+import { listMcpLibrary } from "@/lib/api/mcp"
 import {
   createTaskType,
   deleteDeliveryTemplate,
@@ -22,6 +24,7 @@ import {
   getDeliveryTemplate,
   listDeliveryTemplates,
   listOutcomeKinds,
+  listSkillLibrary,
   listTaskTypes,
   saveDeliveryTemplate,
   suggestTaskType,
@@ -30,10 +33,11 @@ import {
   type OutcomeKind,
   type TaskTypeSummary,
 } from "@/lib/api/workflows"
-import { useResourceQuery } from "@/hooks/useResourceQuery"
+import { useResourceQuery, useOnResourceInvalidate } from "@/hooks/useResourceQuery"
 import { AgentEditDialog } from "@/components/manage/AgentEditDialog"
 import { ManageSegmentNav } from "@/components/manage/ManageSegmentNav"
 import { matchQuery } from "@/components/manage/ManageSearchBar"
+import { sortByModifiedDesc } from "@/lib/sortByModified"
 import { DiscordShell, ListColumn, WelcomePane } from "@/components/layout/DiscordShell"
 import { ListItemRow } from "@/components/layout/ListItemRow"
 import { Badge } from "@/components/ui/badge"
@@ -228,34 +232,60 @@ function AgentDetailPanel({
   const [detail, setDetail] = useState<AgentDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState("")
+  const [taskTypeNameById, setTaskTypeNameById] = useState<Record<string, string>>({})
+  const [skillNameById, setSkillNameById] = useState<Record<string, string>>({})
+  const [mcpNameById, setMcpNameById] = useState<Record<string, string>>({})
 
   useEffect(() => {
-    let cancelled = false
+    Promise.all([listTaskTypes(), listSkillLibrary(), listMcpLibrary(true)])
+      .then(([types, skills, mcps]) => {
+        setTaskTypeNameById(
+          Object.fromEntries(types.map((t) => [t.task_type, t.display_name || t.task_type])),
+        )
+        setSkillNameById(Object.fromEntries(skills.map((s) => [s.id, s.name || s.id])))
+        setMcpNameById(Object.fromEntries(mcps.map((m) => [m.id, m.name || m.id])))
+      })
+      .catch(() => {})
+  }, [])
+
+  const reloadDetail = useCallback(() => {
     setLoading(true)
     setLoadError("")
     getAgentDetail(agent.id)
-      .then((d) => {
-        if (!cancelled) setDetail(d)
-      })
+      .then((d) => setDetail(d))
       .catch((e: Error) => {
-        if (!cancelled) {
-          setDetail(null)
-          setLoadError(e.message)
-        }
+        setDetail(null)
+        setLoadError(e.message)
       })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
+      .finally(() => setLoading(false))
   }, [agent.id])
+
+  useEffect(() => {
+    reloadDetail()
+  }, [reloadDetail])
+
+  useOnResourceInvalidate("agents", reloadDetail)
 
   const backend = detail?.backend ?? agent.backend
   const model = detail?.model ?? agent.model
   const workspace = detail?.workspace
   const taskTypes = detail?.task_types ?? agent.task_types ?? []
+  const taskTypeLabels = detail?.task_type_labels ?? {}
   const skills: AgentSkillRef[] = detail?.skills ?? []
+  const mcps = detail?.mcp_servers ?? []
+
+  function taskTypeLabel(taskTypeId: string): string {
+    return taskTypeLabels[taskTypeId] || taskTypeNameById[taskTypeId] || taskTypeId
+  }
+
+  function skillLabel(skill: AgentSkillRef): string {
+    return skill.name || skillNameById[skill.skill_id] || skill.skill_id
+  }
+
+  function mcpLabel(serverId: string, name?: string): string {
+    return name || mcpNameById[serverId] || serverId
+  }
+
   const workspaceFiles = useMemo(() => detail?.files ?? {}, [detail])
 
   return (
@@ -303,8 +333,8 @@ function AgentDetailPanel({
                 {taskTypes.length ? (
                   <div className="flex flex-wrap gap-1.5">
                     {taskTypes.map((tt) => (
-                      <Badge key={tt} variant="secondary">
-                        {tt}
+                      <Badge key={tt} variant="secondary" title={tt}>
+                        {taskTypeLabel(tt)}
                       </Badge>
                     ))}
                   </div>
@@ -319,14 +349,39 @@ function AgentDetailPanel({
                 {skills.length ? (
                   <div className="flex flex-wrap gap-1.5">
                     {skills.map((s) => (
-                      <Badge key={s.skill_id} variant={s.available === false ? "outline" : "default"}>
-                        {s.skill_id}
+                      <Badge
+                        key={s.skill_id}
+                        variant={s.available === false ? "outline" : "default"}
+                        title={s.skill_id}
+                      >
+                        {skillLabel(s)}
                         {s.available === false ? "（文件缺失）" : ""}
                       </Badge>
                     ))}
                   </div>
                 ) : (
                   "未挂载（Agent 不可使用任何 Skill）"
+                )}
+              </dd>
+            </div>
+            <div className="agent-detail-span-full">
+              <dt>挂载 MCP</dt>
+              <dd>
+                {mcps.length ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {mcps.map((m) => (
+                      <Badge
+                        key={m.server_id}
+                        variant={m.enabled === false ? "outline" : "default"}
+                        title={m.server_id}
+                      >
+                        {mcpLabel(m.server_id, m.name)}
+                        {m.enabled === false ? "（已停用）" : ""}
+                      </Badge>
+                    ))}
+                  </div>
+                ) : (
+                  "未挂载（点击「编辑」勾选 MCP；须先在 MCP 页启用服务）"
                 )}
               </dd>
             </div>
@@ -545,32 +600,44 @@ export function ManageSection() {
   }, [activeTab, search])
 
   const filteredAgents = useMemo(
-    () => agents.filter((a) => matchQuery(search, a.id, a.name, a.backend, a.model, a.role, a.description)),
+    () =>
+      sortByModifiedDesc(
+        agents.filter((a) => matchQuery(search, a.id, a.name, a.backend, a.model, a.role, a.description)),
+      ),
     [agents, search],
   )
   const filteredTemplates = useMemo(
-    () => templates.filter((t) => matchQuery(search, t.id, t.display_name, t.description, ...(t.task_types || []))),
+    () =>
+      sortByModifiedDesc(
+        templates.filter((t) =>
+          matchQuery(search, t.id, t.display_name, t.description, ...(t.task_types || [])),
+        ),
+      ),
     [templates, search],
   )
   const filteredTypes = useMemo(
     () =>
-      types.filter((t) =>
-        matchQuery(
-          search,
-          t.task_type,
-          t.display_name,
-          t.outcome_kind,
-          t.outcome_form_label,
-          t.gate_algorithm,
-          ...(t.gate_checks || []),
+      sortByModifiedDesc(
+        types.filter((t) =>
+          matchQuery(
+            search,
+            t.task_type,
+            t.display_name,
+            t.outcome_kind,
+            t.outcome_form_label,
+            t.gate_algorithm,
+            ...(t.gate_checks || []),
+          ),
         ),
       ),
     [types, search],
   )
   const filteredEntries = useMemo(
     () =>
-      entries.filter((e) =>
-        matchQuery(search, e.title, e.project_id, e.task_id, e.preview, ...(e.tags || [])),
+      sortByModifiedDesc(
+        entries.filter((e) =>
+          matchQuery(search, e.title, e.project_id, e.task_id, e.preview, ...(e.tags || [])),
+        ),
       ),
     [entries, search],
   )
@@ -616,6 +683,19 @@ export function ManageSection() {
       toast.success(n ? `已为 ${n} 个 Agent 同步 Skill` : "Skill 已是最新")
     } catch (e) {
       toast.error("同步失败", { description: e instanceof Error ? e.message : "" })
+    } finally {
+      setSyncBusy(false)
+    }
+  }
+
+  async function handleSyncMcp() {
+    setSyncBusy(true)
+    try {
+      const res = await syncAgentMcp()
+      const n = res.cli?.count ?? 0
+      toast.success(res.success ? `已同步 ${n} 个 Agent 的 MCP 挂载` : "MCP 同步完成（部分失败见日志）")
+    } catch (e) {
+      toast.error("MCP 同步失败", { description: e instanceof Error ? e.message : "" })
     } finally {
       setSyncBusy(false)
     }
@@ -927,6 +1007,9 @@ export function ManageSection() {
                     </Button>
                     <Button size="sm" variant="outline" disabled={syncBusy} onClick={() => void handleSyncSkills()}>
                       同步 Skill
+                    </Button>
+                    <Button size="sm" variant="outline" disabled={syncBusy} onClick={() => void handleSyncMcp()}>
+                      同步 MCP
                     </Button>
                   </div>
                 }

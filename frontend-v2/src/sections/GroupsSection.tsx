@@ -39,6 +39,7 @@ import {
   GroupReadReceiptRow,
 } from "@/components/chat/GroupMessageBubble"
 import { formatRelativeTime } from "@/lib/thinking"
+import { sortByModifiedDesc } from "@/lib/sortByModified"
 import {
   DEFAULT_GROUP_DISCUSSION_SETTINGS,
   effectiveGroupMaxRounds,
@@ -49,6 +50,7 @@ import {
 } from "@/lib/groupDiscussionSettings"
 import {
   applyThinkingChunk,
+  buildInflightGroupState,
   liveReplyKey,
   mergeGroupMessages,
   mergeReadReceipt,
@@ -170,10 +172,21 @@ function GroupChatPanel({ groupId }: { groupId: string }) {
     getGroup(groupId)
       .then((g) => {
         setGroup(g)
-        setMessages((prev) => mergeGroupMessages(prev, g.messages ?? []))
+        const server = g.messages ?? []
+        setMessages((prev) => (server.length ? mergeGroupMessages(prev, server) : []))
+        return g
       })
       .catch((e: Error) => setError(e.message))
   }, [groupId])
+
+  const restoreInflightIfActive = useCallback((msgs: GroupMessage[]) => {
+    const inflight = buildInflightGroupState(msgs)
+    if (!inflight) return
+    activeTurnRef.current = inflight.activeTurn
+    setLiveReplies(inflight.liveReplies)
+    setReadReceipt(inflight.readReceipt)
+    if (inflight.activeAgent) setActiveAgent(inflight.activeAgent)
+  }, [])
 
   useOnResourceInvalidate("groups", reload)
 
@@ -188,17 +201,19 @@ function GroupChatPanel({ groupId }: { groupId: string }) {
       .catch(() => setAgentRegistry({}))
     getGroupChatStatus(groupId)
       .then((s) => {
-        if (s.active) {
-          roundtableActiveRef.current = true
-          setRoundtableBackground(true)
-          setSending(true)
-        }
+        if (!s.active) return
+        roundtableActiveRef.current = true
+        setRoundtableBackground(true)
+        setSending(true)
+        getGroup(groupId)
+          .then((g) => restoreInflightIfActive(g.messages ?? []))
+          .catch(() => {})
       })
       .catch(() => {})
     getSkillConfig()
       .then((skill) => setGdSettings(parseGroupDiscussionSettings(skill)))
       .catch(() => {})
-  }, [reload, groupId])
+  }, [reload, groupId, restoreInflightIfActive])
 
   const SCROLL_STICK_THRESHOLD = 80
 
@@ -674,6 +689,9 @@ function GroupChatPanel({ groupId }: { groupId: string }) {
     try {
       await clearGroupChat(groupId)
       setMessages([])
+      setLiveReplies({})
+      setReadReceipt(null)
+      setRoundtableProgress(null)
       toast.success("消息已清空")
     } catch (e) {
       toast.error("清空失败", { description: e instanceof Error ? e.message : "" })
@@ -1075,11 +1093,13 @@ export function GroupsSection() {
     }
   }
 
-  const active = groups
-    .filter((g) => g.status !== "dissolved")
-    .sort((a, b) => (b.last_message_at || 0) - (a.last_message_at || 0))
-  const listSource = (query.trim() ? searchHits : active).slice().sort(
-    (a, b) => (b.last_message_at || 0) - (a.last_message_at || 0),
+  const active = useMemo(
+    () => sortByModifiedDesc(groups.filter((g) => g.status !== "dissolved")),
+    [groups],
+  )
+  const listSource = useMemo(
+    () => sortByModifiedDesc(query.trim() ? searchHits : active),
+    [query, searchHits, active],
   )
 
   return (

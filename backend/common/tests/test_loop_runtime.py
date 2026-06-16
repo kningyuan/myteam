@@ -153,17 +153,17 @@ def test_write_workflow_with_loops(monkeypatch, tmp_path):
     assert len(profile.loops) == 1
 
 
-def test_load_product_planning_workflow_v2_with_loops():
-    profile = load_workflow("产品规划方案")
-    assert profile.version == "2.3"
+def test_load_plan_improve_workflow_v2_with_loops():
+    profile = load_workflow("方案完善")
+    assert profile.version == "1.0"
     assert len(profile.loops) == 1
-    assert profile.loops[0].id == "ch3_quality_round"
+    assert profile.loops[0].id == "plan_improve_round"
     assert profile.loops[0].is_v2 is True
     assert profile.loops[0].assess is not None
-    assert profile.loops[0].assess.ref == "review"
+    assert profile.loops[0].assess.ref == "step-3"
     loop_task = next(t for t in profile.tasks if t.get("loop"))
-    assert loop_task["id"] == "t-ch3-plan"
-    assert loop_task.get("loop") == "ch3_quality_round"
+    assert loop_task["id"] == "task-1"
+    assert loop_task.get("loop") == "plan_improve_round"
 
 
 def test_parse_loop_specs_v2_fixture():
@@ -581,12 +581,12 @@ def test_evaluate_transition_continue_when_no_match(tmp_path, monkeypatch):
     store.close()
 
 
-def test_load_discuss_regression_workflow():
-    profile = load_workflow("第三章-讨论链路测试")
-    assert profile.options.get("group_discussion_enabled") is True
-    assert profile.options.get("loop_discussion_profile") == "work-review-alignment"
+def test_load_plan_improve_workflow_collaboration():
+    profile = load_workflow("方案完善")
+    assert profile.options.get("collaboration", {}).get("group_discussion", {}).get("enabled") is True
+    assert profile.options.get("collaboration", {}).get("group_discussion", {}).get("profile") == "work-review-alignment"
     assert len(profile.loops) == 1
-    assert profile.loops[0].id == "discuss_test_round"
+    assert profile.loops[0].id == "plan_improve_round"
 
 
 def test_resolve_assess_inputs_goal_and_phase(tmp_path, monkeypatch):
@@ -735,13 +735,3 @@ def test_evaluate_transition_branch_next_body(tmp_path, monkeypatch):
     assert result.next_body == "patch"
     store.close()
 
-
-def test_load_geo_iteration_workflow():
-    path = workflows_dir() / "GEO持续优化-迭代.yaml"
-    assert path.is_file()
-    profile = load_workflow("GEO持续优化-迭代", path=path)
-    spec = profile.loops[0]
-    assert spec.id == "geo_wave"
-    assert "audit" in spec.bodies
-    assert "patch" in spec.bodies
-    validate_loop_specs(profile.loops, profile.tasks, set(profile.roster))

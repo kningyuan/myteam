@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Callable, Optional
 from common.project_artifacts import artifact_rel_path, task_deliverable_base
 
 if TYPE_CHECKING:
-    from common.process_types import TaskOutcome
+    from common.process_types import TaskExecuteResult, TaskOutcome
     from common.store import Store
 
 _TERMINAL_OK = frozenset({"completed", "needs_review"})
@@ -54,7 +54,7 @@ class LoopRoundState:
 
 @dataclass
 class RunLoopDeps:
-    execute_task: Callable[[str, dict], tuple["TaskOutcome", Optional[str]]]
+    execute_task: Callable[[str, dict], "TaskExecuteResult"]
     persist_tasks: Callable[[str, list[dict]], None]
     append_run_event: Callable[[str, str, dict], None]
     update_task_meta: Callable[..., None]
@@ -844,9 +844,9 @@ def run_loop(
         body_types = {t["id"]: t.get("task_type", "") for t in round_tasks}
 
         for body_tid in order:
-            outcome, decision = deps.execute_task(project_id, by_id[body_tid])
-            round_outcomes[body_tid] = outcome
-            if decision == "abort":
+            result = deps.execute_task(project_id, by_id[body_tid])
+            round_outcomes[body_tid] = result.outcome
+            if result.triage_decision == "abort":
                 return TaskOutcome(placeholder_id, "failed", "loop 内任务中止", round_num)
 
         if use_transition:

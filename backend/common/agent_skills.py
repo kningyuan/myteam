@@ -18,9 +18,6 @@ from common.skill_catalog import get_skill_library_entry
 SKILLS_DIR = MYTEAM_ROOT / "business" / "skills"
 
 _SKILLS_MD_HEADER = "## 已挂载 Skill"
-_SKILLS_MD_NOTE = (
-    "> 本节由系统根据 `agents_registry.json` 自动同步，请勿手工编辑列表。"
-)
 _SKILLS_MD_SECTION_RE = re.compile(
     rf"^{re.escape(_SKILLS_MD_HEADER)}\s*\n.*?(?=^## |\Z)",
     re.MULTILINE | re.DOTALL,
@@ -89,15 +86,34 @@ def build_skill_context(
 
     lines: list[str] = [
         "【已挂载 Skill】仅允许使用下列 Skill（禁止查阅未列出的其他 skill 目录）：",
+        "",
     ]
-    for sid, p in zip(ids, [skill_file_path(s) for s in ids]):
+    ws = workspace_dir(agent_id)
+    for sid in ids:
+        entry = get_skill_library_entry(sid) or {}
+        name = (entry.get("name") or sid).strip()
+        desc = (entry.get("description") or "").strip()
+        p = skill_file_path(sid)
         if p:
-            lines.append(f"  - {sid} → {p}")
+            oc = ws / ".opencode" / "skills" / sid / "SKILL.md"
+            cc = ws / ".claude" / "skills" / sid / "SKILL.md"
+            head = f"- {sid}（{name}）"
+            if desc:
+                head += f"：{desc}"
+            else:
+                head += "（无 frontmatter description；执行前须 Read SKILL.md 了解用途）"
+            lines.append(head)
+            lines.append(f"    SKILL.md：{p}")
+            lines.append(f"    OpenCode：{oc}")
+            lines.append(f"    Claude Code：{cc}")
     if missing:
-        lines.append(f"  （配置中存在但文件缺失：{', '.join(missing)}）")
-    lines.append("")
-    lines.append(
-        "执行任务时必须先 Read 上述 SKILL.md，且不得使用未在上述列表中的 Skill 或臆造流程。"
+        lines.append(f"（配置中存在但文件缺失：{', '.join(missing)}）")
+    lines.extend(
+        [
+            "",
+            "先根据上表 description 判断是否需要某 Skill；若需要，须 Read 对应 SKILL.md 并按其流程执行。",
+            "禁止把 ~/.claude/skills 或全局 skill 当作本 Agent 可用 skill。",
+        ]
     )
     return "\n".join(lines)
 
@@ -113,47 +129,27 @@ def append_skill_instructions(
         lines.append(block)
 
 
-def render_agents_md_skills_section(agent_id: str) -> str:
-    """生成 AGENTS.md 中「已挂载 Skill」段落（与 registry 一致）。"""
-    ids = get_agent_skill_ids(agent_id)
-    lines = [_SKILLS_MD_HEADER, "", _SKILLS_MD_NOTE, ""]
-    if not ids:
-        lines.append("本 Agent 未挂载任何 Skill。")
-        return "\n".join(lines)
+def _normalize_agents_md_after_strip(text: str) -> str:
+    """去掉多余空行，保持文件末尾单个换行。"""
+    import re as _re
 
-    for sid in ids:
-        entry = get_skill_library_entry(sid)
-        rel = entry["path"] if entry else f"business/skills/{sid}/SKILL.md"
-        lines.append(f"- `{sid}` → {rel}")
-    lines.append("")
-    lines.append("执行任务时须 Read 上述 SKILL.md；禁止使用未列出的 Skill。")
-    return "\n".join(lines)
+    cleaned = _re.sub(r"\n{3,}", "\n\n", text.strip())
+    return cleaned + "\n" if cleaned else ""
 
 
-def sync_agents_md_skills_section(agent_id: str) -> bool:
-    """将 registry 中的 skills 写入 workspace AGENTS.md（幂等）。"""
+def strip_agents_md_skills_section(agent_id: str) -> bool:
+    """从 workspace AGENTS.md 移除历史自动同步的「已挂载 Skill」节（幂等）。"""
     aid = (agent_id or "").strip()
     if not aid:
         return False
-    ws = workspace_dir(aid)
-    if not ws.is_dir():
+    agents_md = workspace_dir(aid) / "AGENTS.md"
+    if not agents_md.is_file():
         return False
-
-    section = render_agents_md_skills_section(aid) + "\n"
-    agents_md = ws / "AGENTS.md"
-
-    if agents_md.is_file():
-        text = agents_md.read_text(encoding="utf-8")
-        if _SKILLS_MD_SECTION_RE.search(text):
-            text = _SKILLS_MD_SECTION_RE.sub(section, text)
-        else:
-            text = text.rstrip() + "\n\n" + section
-    else:
-        info = get_agent_info(aid) or {}
-        name = info.get("name") or aid
-        text = f"# {name} - Agent 配置\n\n{section}"
-
-    agents_md.write_text(text if text.endswith("\n") else text + "\n", encoding="utf-8")
+    text = agents_md.read_text(encoding="utf-8")
+    if not _SKILLS_MD_SECTION_RE.search(text):
+        return False
+    text = _SKILLS_MD_SECTION_RE.sub("", text)
+    agents_md.write_text(_normalize_agents_md_after_strip(text), encoding="utf-8")
     return True
 
 

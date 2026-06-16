@@ -2,7 +2,7 @@
 name: "协作方法论"
 task_type: coordination-methodology
 description: >-
-  编排纪律：范围→封板→并行委派→回归验证→集成汇报。
+  协作编排方法论：范围→封板→并行委派→回归验证→集成汇报。
   main / Cursor 编排者、decision-record / code-deployment 必须先读本 skill。
 ---
 # 编排纪律（Coordination Methodology）

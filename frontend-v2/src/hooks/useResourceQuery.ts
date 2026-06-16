@@ -12,23 +12,29 @@ export function useResourceQuery<T>(
   const fetcherRef = useRef(fetcher)
   fetcherRef.current = fetcher
 
-  const reload = useCallback(() => {
-    setLoading(true)
-    setError("")
+  const reload = useCallback((opts?: { silent?: boolean }) => {
+    if (!opts?.silent) {
+      setLoading(true)
+      setError("")
+    }
     fetcherRef
       .current()
       .then((next) => {
         setData(next)
       })
       .catch((e: unknown) => {
-        setError(e instanceof Error ? e.message : "加载失败")
+        if (!opts?.silent) {
+          setError(e instanceof Error ? e.message : "加载失败")
+        }
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (!opts?.silent) setLoading(false)
+      })
   }, [])
 
   useEffect(() => {
     reload()
-    return subscribeResource(resourceKey, reload)
+    return subscribeResource(resourceKey, () => reload({ silent: true }))
   }, [resourceKey, reload])
 
   return { data, loading, error, reload }

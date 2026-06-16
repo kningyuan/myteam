@@ -828,6 +828,73 @@ def test_split_expands_one_task_into_two(env):
     assert out.status == "completed"
 
 
+def test_split_during_dispatch_after_dependency(env):
+    """执行中 evaluate：前置任务完成后，对待调度任务当场拆分（非仅派发前）。"""
+    store, wcfg = env
+    eval_ids: list[str] = []
+
+    def transport(ctx):
+        ctx.emit("step_start")
+        req = ctx.request
+        rp = paths.response_dir(req.agent_id) / f"{req.interaction_id}.response"
+        if req.kind == "evaluate":
+            eval_ids.append(req.task_id)
+            split = req.task_id == "t2"
+            subs = [_sub("a"), _sub("b", deps=["a"])] if split else []
+            submit({"interaction_id": req.interaction_id, "kind": "evaluate", "status": "ok",
+                    "result": {"should_split": split, "reason": "执行中发现过大",
+                               "sub_tasks": subs}}, rp)
+        elif req.kind == "execute":
+            _write_exec(ctx, valid_content("research"), GOOD_Q)
+
+    tasks = [
+        {"id": "t1", "name": "先跑", "agent": "research", "task_type": "research",
+         "description": "t1", "dependencies": []},
+        {"id": "t2", "name": "后拆", "agent": "research", "task_type": "research",
+         "description": "t2", "dependencies": ["t1"]},
+    ]
+    proc = Process(store, _port(store, wcfg, transport), ProcessConfig(split_enabled=True))
+    out = proc.run("pro_x", agents=["research"], tasks=tasks, goal="g")
+    assert out.tasks["t1"].status == "completed"
+    assert "t2" not in out.tasks
+    assert out.tasks["t2.a"].status == "completed"
+    assert out.tasks["t2.b"].status == "completed"
+    assert "t2" in eval_ids
+    assert eval_ids.index("t2") < eval_ids.index("t2.a")
+
+
+def test_triage_split_replaces_failed_task(env):
+    """失败 triage decision=split：父任务折回为子任务并继续执行。"""
+    store, wcfg = env
+    triage_n = {"n": 0}
+
+    def transport(ctx):
+        ctx.emit("step_start")
+        req = ctx.request
+        rp = paths.response_dir(req.agent_id) / f"{req.interaction_id}.response"
+        if req.kind == "triage":
+            triage_n["n"] += 1
+            submit({"interaction_id": req.interaction_id, "kind": "triage", "status": "ok",
+                    "result": {"decision": "split", "notes": "范围过大",
+                               "sub_tasks": [_sub("a"), _sub("b", deps=["a"])]}}, rp)
+        elif req.kind == "execute":
+            if req.task_id == "t1" and triage_n["n"] == 0:
+                _write_exec(ctx, bad_content("research"), GOOD_Q)
+            else:
+                _write_exec(ctx, valid_content("research"), GOOD_Q)
+
+    tasks = [{"id": "t1", "name": "大任务", "agent": "research", "task_type": "research",
+              "description": "x", "dependencies": []}]
+    proc = Process(store, _port(store, wcfg, transport),
+                   ProcessConfig(split_enabled=False, max_gate_retries=1))
+    out = proc.run("pro_x", agents=["research"], tasks=tasks, goal="g")
+    assert triage_n["n"] == 1
+    assert "t1" not in out.tasks
+    assert out.tasks["t1.a"].status == "completed"
+    assert out.tasks["t1.b"].status == "completed"
+    assert out.status == "completed"
+
+
 def test_split_rejects_out_of_team_subtask_then_retry(env):
     store, wcfg = env
     ev = {"n": 0}

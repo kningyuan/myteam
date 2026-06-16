@@ -515,6 +515,15 @@ a {
   font-size: 11px;
 }
 
+.wf-deps-checkboxes {
+  min-width: 120px;
+  max-width: 200px;
+}
+
+.wf-deps-checkboxes label {
+  cursor: pointer;
+}
+
 .wf-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -3598,20 +3607,35 @@ body.col-resizing * {
 }
 
 /* Skill home + detail */
+.skill-home-main {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .skill-home {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  flex: 1;
   min-height: 0;
+  height: 100%;
 }
 
 .skill-home-head {
+  flex-shrink: 0;
   padding: 4px 2px 0;
 }
 
 .skill-home-hint {
+  flex-shrink: 0;
   margin: 0;
   padding: 0 2px;
+}
+
+.skill-home-scroll {
+  flex: 1;
+  min-height: 0;
 }
 
 .skill-home-grid {

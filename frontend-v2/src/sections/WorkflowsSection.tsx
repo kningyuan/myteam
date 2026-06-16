@@ -1,7 +1,8 @@
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { useNavigate, useParams } from "react-router-dom"
-import { listWorkflows } from "@/lib/api/workflows"
+import { listWorkflows, workflowDisplayName } from "@/lib/api/workflows"
 import { useResourceQuery } from "@/hooks/useResourceQuery"
+import { sortByModifiedDesc } from "@/lib/sortByModified"
 import { WorkflowEditor } from "@/components/workflow/WorkflowEditor"
 import { DiscordShell, ListColumn, WelcomePane } from "@/components/layout/DiscordShell"
 import { ListItemRow } from "@/components/layout/ListItemRow"
@@ -12,6 +13,8 @@ export function WorkflowsSection() {
   const navigate = useNavigate()
   const { data: workflows } = useResourceQuery("workflows", listWorkflows, [])
   const [editorDirty, setEditorDirty] = useState(false)
+
+  const sortedWorkflows = useMemo(() => sortByModifiedDesc(workflows), [workflows])
 
   const showEditor = workflowId === "new" || !!workflowId
 
@@ -31,12 +34,12 @@ export function WorkflowsSection() {
             </Button>
           }
         >
-          {workflows.map((w) => (
+          {sortedWorkflows.map((w) => (
             <ListItemRow
               key={w.id}
-              name={w.id}
+              name={workflowDisplayName(w)}
               sub={`${w.task_count ?? "—"} 任务`}
-              avatar={w.id}
+              avatar={workflowDisplayName(w)}
               active={w.id === workflowId}
               onClick={() => navigateWorkflow(`/workflows/${encodeURIComponent(w.id)}`)}
             />

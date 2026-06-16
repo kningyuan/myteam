@@ -1,0 +1,59 @@
+id: blockchain-product-planning
+task_types:
+  - section-authoring
+  - deck-build
+default_for: section-authoring
+version: "1.0"
+display_name: 迪诺链 · 区块链产品规划
+description: |
+  《产品规划-模版.docx》全目录；产品架构、系统架构两节须 PPT 分层架构图（一功能一方块）。
+  产品架构四层：基础设施 → 组件 → 通用系统 → 业务平台；系统架构与部署视图一致。
+
+deliverable_template:
+  required_heading_level: 2
+  sections:
+    - name: 章节对象
+      description: 文档名、模版路径、参考稿路径、本轮范围
+      required: true
+    - name: 正文
+      description: 按模版章节扩写的完整正文（概述至演进计划）
+      required: true
+    - name: 依据与引用
+      description: 参考稿、竞品、政策材料路径与对齐说明
+      required: true
+    - name: 变更说明
+      description: 相对参考稿/模版的主要补齐与修订
+      required: true
+    - name: 自检清单
+      description: 架构分层、两图一致、章节无占位
+      required: true
+    - name: 产出文件
+      description: Word/PPT/PNG 路径列表
+      required: true
+  structure:
+    - H1 迪诺链区块链产品规划
+    - 正文覆盖模版全部一级/二级标题
+    - 产品架构、系统架构节嵌入架构图说明或 PNG
+
+check_rules:
+  required_sections:
+    - 章节对象
+    - 正文
+    - 依据与引用
+    - 变更说明
+    - 自检清单
+    - 产出文件
+  file_exists:
+    - 产品架构图.pptx
+    - 系统架构图.pptx
+  must_include:
+    - 产品架构
+    - 系统架构
+    - 迪诺链
+  min_length: 2000
+
+acceptance_criteria:
+  - 产品架构图四层齐全，组件层尽量展开，每方块单一功能
+  - 系统架构图含网关、开放服务、链/节点等，与正文「系统架构」描述一致
+  - Word 成品基于模版，无空占位章节
+  - 产品架构与系统架构术语、层次可一一对应

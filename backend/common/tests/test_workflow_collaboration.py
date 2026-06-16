@@ -38,9 +38,10 @@ def test_collaboration_nested_overrides_legacy():
     assert cfg.loop_discussion_profile == "other"
 
 
-def test_product_planning_workflow_collaboration():
-    wf = load_workflow("产品规划方案")
+def test_plan_improve_workflow_collaboration():
+    wf = load_workflow("方案完善")
     cfg = collaboration_from_options(wf.options)
+    assert cfg.project_group_enabled is True
     assert cfg.group_discussion_enabled is True
     assert cfg.loop_discussion_profile == "work-review-alignment"
 
@@ -50,6 +51,8 @@ def test_project_fallback_without_store(monkeypatch):
         "common.workflow_collaboration.collaboration_for_project",
         lambda pid: collaboration_from_options({}),
     )
+    monkeypatch.setattr("common.skill_settings.is_auto_group_enabled", lambda: True)
+    monkeypatch.setattr("common.skill_settings.is_project_group_enabled", lambda: True)
     assert project_group_enabled("pro_test") is True
     assert notifications_enabled("pro_test") is True
 
@@ -57,13 +60,13 @@ def test_project_fallback_without_store(monkeypatch):
 def test_collaboration_for_project_reads_meta(monkeypatch):
     class FakeStore:
         def get_project(self, project_id: str):
-            return {"meta": {"workflow": "产品规划方案"}}
+            return {"meta": {"workflow": "方案完善"}}
 
         def close(self):
             pass
 
     monkeypatch.setattr("common.store.Store", FakeStore)
     cfg = collaboration_for_project("pro_discuss")
-    assert cfg.group_discussion_enabled is True
+    assert cfg.project_group_enabled is True
     assert loop_discussion_profile_id("pro_discuss") == "work-review-alignment"
     assert group_discussion_enabled("pro_discuss") is True

@@ -12,12 +12,15 @@ export type AgentSummary = {
   model?: string
   task_types?: string[]
   skills?: string[]
+  mcp_servers?: string[]
   last_message_at?: number
   last_message_preview?: string
+  operated_at?: string
 }
 
 export type AgentSkillRef = {
   skill_id: string
+  name?: string
   available?: boolean
   path?: string | null
 }
@@ -28,9 +31,12 @@ export type AgentDetail = {
   backend?: string
   model?: string
   task_types?: string[]
+  task_type_labels?: Record<string, string>
   skills?: AgentSkillRef[]
   registry_skills?: string[]
+  registry_mcp_servers?: string[]
   deliverable_skills?: AgentSkillRef[]
+  mcp_servers?: { server_id: string; name?: string; enabled?: boolean; type?: string }[]
   files?: Record<string, string>
 }
 
@@ -61,11 +67,16 @@ export async function saveAgentWorkspaceFile(
   filename: string,
   content: string,
 ): Promise<{ success?: boolean }> {
-  return hubFetch(`/api/agents/${encodeURIComponent(agentId)}/files/${encodeURIComponent(filename)}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content }),
-  })
+  const res = await hubFetch<{ success?: boolean }>(
+    `/api/agents/${encodeURIComponent(agentId)}/files/${encodeURIComponent(filename)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content }),
+    },
+  )
+  invalidateResources("agents")
+  return res
 }
 
 export async function updateAgentManage(
@@ -165,6 +176,20 @@ export async function syncAgentSkills(): Promise<{
     count?: number
     updated?: { agent_id: string; skills: string[] }[]
   }>("/api/agents/sync-skills", { method: "POST" })
+  invalidateResources("agents")
+  return data
+}
+
+export async function syncAgentMcp(): Promise<{
+  success?: boolean
+  agents_md_stripped?: string[]
+  cli?: { success?: boolean; count?: number }
+}> {
+  const data = await hubFetch<{
+    success?: boolean
+    agents_md_stripped?: string[]
+    cli?: { success?: boolean; count?: number }
+  }>("/api/agents/sync-mcp", { method: "POST" })
   invalidateResources("agents")
   return data
 }

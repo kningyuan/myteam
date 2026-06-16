@@ -125,9 +125,16 @@ class ReviewResult(BaseModel):
 class TriageResult(BaseModel):
     """重试耗尽后委托 Main 的决策（D18）。"""
 
-    decision: Literal["retry", "reassign", "drop", "abort"]
+    decision: Literal["retry", "reassign", "drop", "abort", "split"]
     target_agent: str = ""
     notes: str = ""
+    sub_tasks: list[PlannedTask] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _check_split(self):
+        if self.decision == "split" and not self.sub_tasks:
+            raise ValueError("decision=split 时 sub_tasks 不能为空")
+        return self
 
 
 # ── Response 信封（辨识联合）─────────────────────────────────

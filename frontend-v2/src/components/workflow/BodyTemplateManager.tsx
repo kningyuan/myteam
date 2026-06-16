@@ -4,12 +4,15 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import {
   nextBodyStepId,
+  renumberBodySteps,
+  remapLoopSpecStepRefs,
   taskTypesForAgent,
   templatesForTaskType,
   type LoopBodyTask,
   type LoopSpec,
   type NodeRef,
 } from "./loopHelpers"
+import { DependencyCheckboxPicker } from "./DependencyCheckboxPicker"
 
 export function BodyTemplateManager({
   spec,
@@ -76,6 +79,22 @@ export function BodyTemplateManager({
       spec.default_body === key ? Object.keys(next)[0] : spec.default_body || "default"
     onChange({ ...spec, bodies: next, default_body: nextDefault, body: next[nextDefault] || [] })
     onActiveBodyChange(nextDefault)
+  }
+
+  function removeStep(index: number) {
+    const filtered = body.filter((_, j) => j !== index)
+    const { steps, idMap } = renumberBodySteps(filtered)
+    const newBodies = { ...bodies, [activeBodyKey]: steps }
+    onChange(
+      remapLoopSpecStepRefs(
+        {
+          ...spec,
+          bodies: newBodies,
+          body: newBodies[spec.default_body || "default"] || [],
+        },
+        idMap,
+      ),
+    )
   }
 
   function addStep() {
@@ -155,7 +174,9 @@ export function BodyTemplateManager({
               return (
                 <tr key={step.id}>
                   <td>
-                    <code className="wf-id-badge">{step.id}</code>
+                    <code className="wf-id-badge" title="按创建顺序自动生成">
+                      {step.id}
+                    </code>
                   </td>
                   <td>
                     <input
@@ -219,39 +240,25 @@ export function BodyTemplateManager({
                     </select>
                   </td>
                   <td>
-                    <select
-                      multiple
-                      className="wf-deps-multi wf-input-sm h-[72px]"
-                      value={step.dependencies || []}
-                      onChange={(e) => {
-                        const deps = Array.from(e.target.selectedOptions).map((o) => o.value)
-                        updateBody(i, { dependencies: deps })
-                      }}
-                    >
-                      {depNodes
-                        .filter((n) => n.id !== step.id)
-                        .concat(body.filter((b) => b.id !== step.id).map((b) => ({
+                    <DependencyCheckboxPicker
+                      currentId={step.id}
+                      candidates={depNodes}
+                      extraCandidates={body
+                        .filter((b) => b.id !== step.id)
+                        .map((b) => ({
                           id: b.id,
-                          label: b.id,
-                        })))
-                        .map((n) => (
-                          <option key={n.id} value={n.id}>
-                            {n.label}
-                          </option>
-                        ))}
-                    </select>
+                          label: b.name ? `${b.id} · ${b.name}` : b.id,
+                        }))}
+                      value={step.dependencies || []}
+                      onChange={(deps) => updateBody(i, { dependencies: deps })}
+                    />
                   </td>
                   <td>
                     <Button
                       type="button"
                       size="sm"
                       variant="ghost"
-                      onClick={() =>
-                        patchBodies({
-                          ...bodies,
-                          [activeBodyKey]: body.filter((_, j) => j !== i),
-                        })
-                      }
+                      onClick={() => removeStep(i)}
                     >
                       删
                     </Button>

@@ -176,3 +176,41 @@ export function shouldShowLiveReply(
   if (hasPersisted) return false
   return live.streaming || live.thinking.length > 0 || live.text.trim().length > 0
 }
+
+/** 刷新后根据已落库消息 + Hub active 状态，恢复进行中的群聊回复 UI。 */
+export function buildInflightGroupState(messages: GroupMessage[]): {
+  activeTurn: { userMsgId: string; targets: string[] }
+  liveReplies: Record<string, LiveAgentReply>
+  readReceipt: GroupReadReceipt
+  activeAgent?: string
+} | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (m.sender !== "user" || !m.mentions?.length) continue
+    const replied = seenAgentsForMessage(m.id, messages)
+    const pending = m.mentions.filter((id) => !replied.includes(id))
+    if (!pending.length) return null
+    const liveReplies: Record<string, LiveAgentReply> = {}
+    for (const agentId of pending) {
+      liveReplies[liveReplyKey(m.id, agentId)] = {
+        agentId,
+        replyTo: m.id,
+        thinking: [],
+        text: "",
+        streaming: true,
+      }
+    }
+    return {
+      activeTurn: { userMsgId: m.id, targets: m.mentions },
+      liveReplies,
+      readReceipt: {
+        msgId: m.id,
+        targets: m.mentions,
+        seen: replied,
+        active: pending[0],
+      },
+      activeAgent: pending[0],
+    }
+  }
+  return null
+}

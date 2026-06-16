@@ -47,15 +47,21 @@ async def api_get_workflow(workflow_id: str):
 
 @router.post("/api/workflows")
 async def api_create_workflow(body: dict):
-    from common.workflow_loader import list_workflows, write_workflow_raw
+    from common.workflow_loader import allocate_workflow_id, list_workflows, write_workflow_raw
     from common.workflow_validate import validate_workflow_payload
 
     data = body.get("workflow") if isinstance(body.get("workflow"), dict) else body
     if not isinstance(data, dict):
         raise APIError("INVALID_BODY", "需要 workflow 对象")
+    name = str(data.get("name") or data.get("display_name") or "").strip()
+    if not name:
+        raise APIError("INVALID_WORKFLOW", "workflow.name 不能为空")
+    data = dict(data)
+    data["name"] = name
     wid = (data.get("id") or "").strip()
     if not wid:
-        raise APIError("INVALID_WORKFLOW", "workflow.id 不能为空")
+        wid = allocate_workflow_id()
+        data["id"] = wid
     if wid in list_workflows():
         raise APIError("WORKFLOW_EXISTS", f"workflow「{wid}」已存在", hint="换 id 或使用 PUT 更新")
     errors = validate_workflow_payload(data)
@@ -79,6 +85,10 @@ async def api_update_workflow(workflow_id: str, body: dict):
     data = body.get("workflow") if isinstance(body.get("workflow"), dict) else body
     if not isinstance(data, dict):
         raise APIError("INVALID_BODY", "需要 workflow 对象")
+    name = str(data.get("name") or data.get("display_name") or "").strip()
+    if name:
+        data = dict(data)
+        data["name"] = name
     new_id = (data.get("id") or workflow_id).strip()
     errors = validate_workflow_payload(data)
     if errors:

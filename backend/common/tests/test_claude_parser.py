@@ -91,6 +91,36 @@ def test_result_without_total_tokens_uses_input_plus_output():
     assert _extract_tokens(evs[0].data) == 580
 
 
+def test_assistant_thinking_emits_reasoning():
+    line = json.dumps({
+        "type": "assistant",
+        "message": {
+            "content": [{
+                "type": "thinking",
+                "thinking": "Let me plan the answer.",
+                "signature": "",
+            }],
+        },
+    })
+    reasoning = [e for e in parse_line(line) if e.kind.value == "reasoning"]
+    assert len(reasoning) == 1
+    assert reasoning[0].data["content"] == "Let me plan the answer."
+
+
+def test_assistant_thinking_and_text_emit_both():
+    line = json.dumps({
+        "type": "assistant",
+        "message": {
+            "content": [
+                {"type": "thinking", "thinking": "brief thought"},
+                {"type": "text", "text": "final"},
+            ],
+        },
+    })
+    kinds = [e.kind.value for e in parse_line(line)]
+    assert kinds == ["reasoning", "text"]
+
+
 def test_cumulative_max_wins_over_incremental():
     acc = {"running": 0}
     _apply_step_finish_tokens({

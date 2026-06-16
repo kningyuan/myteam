@@ -3,6 +3,7 @@
 行格式（--output-format stream-json --verbose）：
   - {"type":"system","subtype":"init","session_id":"...","model":"..."}
   - {"type":"assistant","message":{"content":[{"type":"text","text":"..."}]}}
+  - {"type":"assistant","message":{"content":[{"type":"thinking","thinking":"..."}]}}
   - {"type":"assistant","message":{"content":[{"type":"tool_use","name":"...","input":{...}}]}}
   - {"type":"result","subtype":"success","result":"...","usage":{...}}
   - {"type":"result","subtype":"error","is_error":true,...}
@@ -18,6 +19,15 @@ def _num(v) -> int:
     if isinstance(v, (int, float)):
         return int(v)
     return 0
+
+
+def _thinking_text(block: dict) -> str:
+    """从 assistant content 块提取可读思考文本（兼容 thinking / redacted_thinking）。"""
+    for key in ("thinking", "text", "summary"):
+        val = block.get(key)
+        if isinstance(val, str) and val.strip():
+            return val.strip()
+    return ""
 
 
 def _extract_usage_tokens(raw: dict) -> dict:
@@ -75,6 +85,10 @@ def parse_line(line: str) -> list[AgentEvent]:
                 text = c.get("text", "")
                 if text:
                     events.append(AgentEvent(EventKind.TEXT, {"content": text}))
+            elif ctype in ("thinking", "redacted_thinking"):
+                text = _thinking_text(c)
+                if text:
+                    events.append(AgentEvent(EventKind.REASONING, {"content": text}))
             elif ctype == "tool_use":
                 name = c.get("name", "")
                 tool_input = c.get("input", {})

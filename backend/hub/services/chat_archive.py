@@ -73,9 +73,13 @@ def restore_chat(agent_id: str) -> tuple[bool, str, Optional[dict]]:
     return True, "已恢复", snapshot
 
 
+def _sort_by_hidden_at(rows: list[dict]) -> list[dict]:
+    return sorted(rows, key=lambda r: float(r.get("hidden_at") or 0), reverse=True)
+
+
 def list_hidden() -> list[dict]:
     idx = _load_index()
-    return list(idx.get("hidden", {}).values())
+    return _sort_by_hidden_at(list(idx.get("hidden", {}).values()))
 
 
 def search_archives(query: str) -> list[dict]:
@@ -101,7 +105,7 @@ def search_archives(query: str) -> list[dict]:
                         break
             except Exception:
                 pass
-    return results
+    return _sort_by_hidden_at(results)
 
 
 def is_hidden(agent_id: str) -> bool:

@@ -270,6 +270,7 @@ def scan_agents() -> list[dict]:
 
 def build_system_prompt(agent_id: str, workspace: str, *, profile: str = "interactive") -> str:
     from common.agent_skills import build_skill_context
+    from common.agent_mcp import build_mcp_context
 
     builder = AgentIdentityBuilder(agent_id, workspace)
     sections = []
@@ -279,6 +280,9 @@ def build_system_prompt(agent_id: str, workspace: str, *, profile: str = "intera
     skill_block = build_skill_context(agent_id)
     if skill_block:
         sections.append(skill_block)
+    mcp_block = build_mcp_context(agent_id)
+    if mcp_block:
+        sections.append(mcp_block)
     multi_context = multi_agent_manager.build_multi_agent_context(agent_id)
     if multi_context:
         sections.append(f"<multi_agent_context>\n{multi_context}\n</multi_agent_context>")

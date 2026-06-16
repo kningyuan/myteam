@@ -22,6 +22,12 @@ from common.store import Store
 
 
 @dataclass
+class TriageOutcome:
+    decision: str
+    sub_tasks: list[dict] | None = None
+
+
+@dataclass
 class DecisionPipeline:
     store: Store
     port: AgentPort
@@ -142,7 +148,7 @@ class DecisionPipeline:
             self.release_files(agent, iid)
         return None
 
-    def triage(self, project_id: str, task: dict, reason: str) -> str:
+    def triage(self, project_id: str, task: dict, reason: str) -> TriageOutcome:
         tid = task["id"]
         row = self.store.get_task(project_id, tid) or {}
         meta = row.get("meta") or {}
@@ -161,7 +167,7 @@ class DecisionPipeline:
         res = self.port.run(req)
         if res.status != "done":
             self.release_files("main", req["interaction_id"])
-            return "drop"
+            return TriageOutcome("drop")
         result = res.response["result"]
         decision = result.get("decision", "drop")
         self.release_files("main", req["interaction_id"])
@@ -172,4 +178,21 @@ class DecisionPipeline:
                                    task_type=task.get("task_type", ""),
                                    dependencies=task.get("dependencies", []))
             task["agent"] = target
-        return decision
+            return TriageOutcome("reassign")
+        if decision == "split":
+            team = {
+                normalize_agent_id(r.get("agent") or "")
+                for r in self.store.list_tasks(project_id)
+                if r.get("agent")
+            }
+            if task.get("agent"):
+                team.add(normalize_agent_id(task["agent"]))
+            subs = normalize_subtasks(result.get("sub_tasks") or [], task)
+            bad = validate_subtasks(subs, team, max_fanout=self.config.max_subtasks)
+            if bad:
+                self.store.append_run_event(
+                    req["interaction_id"], "triage_split_rejected", {"reason": bad},
+                )
+                return TriageOutcome("drop")
+            return TriageOutcome("split", subs)
+        return TriageOutcome(decision)

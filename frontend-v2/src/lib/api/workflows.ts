@@ -3,6 +3,8 @@ import { hubFetch } from "./client"
 
 export type WorkflowDetail = {
   id?: string
+  name?: string
+  display_name?: string
   description?: string
   version?: string
   tasks?: {
@@ -27,10 +29,22 @@ export type WorkflowDetail = {
 
 export type WorkflowSummary = {
   id: string
+  name?: string
+  display_name?: string
   description?: string
   version?: string
   task_count?: number
   roster?: string[]
+  operated_at?: string
+}
+
+/** 工作流 UI 展示名（优先 name，回退 id）。 */
+export function workflowDisplayName(w: {
+  name?: string
+  display_name?: string
+  id: string
+}): string {
+  return (w.name || w.display_name || w.id).trim()
 }
 
 export type DeliveryTemplateSummary = {
@@ -40,6 +54,7 @@ export type DeliveryTemplateSummary = {
   description?: string
   default_for?: string
   sections?: Array<string | { name: string; description?: string }>
+  operated_at?: string
 }
 
 export type DeliveryTemplateDetail = DeliveryTemplateSummary & {
@@ -66,6 +81,7 @@ export type TaskTypeSummary = {
   gate_checks?: string[]
   required_sections?: string[]
   sections?: { name: string; description?: string }[]
+  operated_at?: string
 }
 
 export type SkillLibraryItem = {

@@ -1,0 +1,13 @@
+{
+  "version": "1.0",
+  "servers": {
+    "example-local": {
+      "name": "示例 Local MCP",
+      "description": "本地 stdio MCP 示例；可在 MCP 页关闭 enabled 或从 Agent 取消挂载。",
+      "enabled": false,
+      "type": "local",
+      "command": ["npx", "-y", "example-mcp-server"],
+      "environment": {}
+    }
+  }
+}

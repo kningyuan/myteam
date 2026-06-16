@@ -4,8 +4,9 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { AssessStepEditor } from "./AssessStepEditor"
+import { DependencyCheckboxPicker } from "./DependencyCheckboxPicker"
 import { BodyTemplateManager, bodyStepsForSpec } from "./BodyTemplateManager"
+import { AssessStepEditor } from "./AssessStepEditor"
 import { TransitionEditor } from "./TransitionEditor"
 import {
   WF_LOOP_OUTCOMES,
@@ -15,6 +16,8 @@ import {
   defaultLoopSpec,
   nextBodyStepId,
   normalizeLoopUntil,
+  renumberBodySteps,
+  remapLoopSpecStepRefs,
   taskTypesForAgent,
   templatesForTaskType,
   type LoopBodyTask,
@@ -184,7 +187,10 @@ export function LoopEditorPanel({
   }
 
   function removeBody(index: number) {
-    patch({ body: body.filter((_, i) => i !== index) })
+    const filtered = body.filter((_, i) => i !== index)
+    const { steps, idMap } = renumberBodySteps(filtered)
+    const nextUntil = normalizeLoopUntil({ body: steps, until: spec.until })
+    patch(remapLoopSpecStepRefs({ ...spec, body: steps, until: nextUntil }, idMap))
   }
 
   function updateUntil(index: number, cond: LoopUntilCond) {
@@ -324,7 +330,9 @@ export function LoopEditorPanel({
                     </div>
                   </td>
                   <td>
-                    <code className="wf-id-badge">{step.id}</code>
+                    <code className="wf-id-badge" title={`运行时：${loopId}-r{轮次}-${step.id}`}>
+                      {step.id}
+                    </code>
                   </td>
                   <td>
                     <input
@@ -388,23 +396,12 @@ export function LoopEditorPanel({
                     </select>
                   </td>
                   <td>
-                    <select
-                      multiple
-                      className="wf-deps-multi wf-input-sm h-[72px]"
+                    <DependencyCheckboxPicker
+                      currentId={step.id}
+                      candidates={depNodes}
                       value={step.dependencies || []}
-                      onChange={(e) => {
-                        const deps = Array.from(e.target.selectedOptions).map((o) => o.value)
-                        updateBody(i, { dependencies: deps })
-                      }}
-                    >
-                      {depNodes
-                        .filter((n) => n.id !== step.id)
-                        .map((n) => (
-                          <option key={n.id} value={n.id}>
-                            {n.label}
-                          </option>
-                        ))}
-                    </select>
+                      onChange={(deps) => updateBody(i, { dependencies: deps })}
+                    />
                   </td>
                   <td>
                     <Button type="button" size="sm" variant="ghost" onClick={() => removeBody(i)}>
@@ -544,13 +541,13 @@ export function serializeLoopSpec(spec: LoopSpec): LoopSpec {
       }))
     }
     const defaultKey = spec.default_body || "default"
+    const { body: _body, until: _until, ...rest } = spec
     return {
-      ...spec,
+      ...rest,
       max_rounds: Math.max(1, spec.max_rounds ?? 5),
       min_rounds: Math.max(1, spec.min_rounds ?? 1),
       default_body: defaultKey,
       bodies,
-      body: bodies[defaultKey] || [],
       on_pass: spec.on_pass || "complete",
       on_exhaust: spec.on_exhaust || "needs_review",
       assess: spec.assess,

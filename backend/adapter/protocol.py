@@ -22,6 +22,8 @@ class AdapterCapabilities:
     tool_use: bool = True
     multi_turn: bool = True
     custom_rules: bool = True
+    native_skill_registry: bool = False
+    native_mcp_registry: bool = False
 
 
 @dataclass
@@ -68,3 +70,26 @@ class CLIAdapter(ABC):
     def run(self, request: RunRequest) -> Generator[AgentEvent, None, None]:
         """执行一次对话，yield 统一 AgentEvent 流。"""
         ...
+
+    def sync_agent_skills(
+        self,
+        agent_id: str,
+        workspace: str,
+        skill_ids: list[str],
+    ) -> dict:
+        """将 registry 中的 Skill 同步到 CLI 原生 skill 注册表（按 Agent 作用域）。
+
+        默认无操作；支持 native_skill_registry 的适配器应覆盖此方法。
+        """
+        _ = (agent_id, workspace, skill_ids)
+        return {"success": True, "skipped": True, "reason": "adapter does not support native skills"}
+
+    def sync_agent_mcp(
+        self,
+        agent_id: str,
+        workspace: str,
+        server_ids: list[str],
+    ) -> dict:
+        """将 registry 中的 MCP 同步到 CLI 原生 MCP 配置（按 Agent 作用域）。"""
+        _ = (agent_id, workspace, server_ids)
+        return {"success": True, "skipped": True, "reason": "adapter does not support native mcp"}

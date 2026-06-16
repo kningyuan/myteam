@@ -10,6 +10,7 @@ export type ResourceKey =
   | "skill-library"
   | "skill-matrix"
   | "skill-drafts"
+  | "mcp-library"
   | "dashboard"
   | "config"
 

@@ -11,6 +11,7 @@ import {
   Users,
   Workflow,
   Sparkles,
+  Plug,
 } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ResizableColumn } from "@/components/ui/ResizableColumn"
@@ -31,6 +32,7 @@ const mainNav: {
   { to: "/manage", label: "管理", icon: Layers },
   { to: "/workflows", label: "流程", icon: Workflow },
   { to: "/skills", label: "Skill", icon: Sparkles },
+  { to: "/mcp", label: "MCP", icon: Plug },
 ]
 
 function railClass({ isActive }: { isActive: boolean }) {

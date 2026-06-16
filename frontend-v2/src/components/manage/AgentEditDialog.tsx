@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { getAgentDetail, suggestAgentTaskTypes, updateAgentManage, type AgentSummary } from "@/lib/api/agents"
 import { listBackends, listBackendModels, type BackendModel, type BackendSummary } from "@/lib/api/config"
+import { listMcpLibrary, type McpServerSummary } from "@/lib/api/mcp"
 import { listSkillLibrary, listTaskTypes, type SkillLibraryItem, type TaskTypeSummary } from "@/lib/api/workflows"
 import { Button } from "@/components/ui/button"
 import {
@@ -38,8 +39,10 @@ export function AgentEditDialog({
   const [workspace, setWorkspace] = useState("")
   const [taskTypes, setTaskTypes] = useState<string[]>([])
   const [skillIds, setSkillIds] = useState<string[]>([])
+  const [mcpIds, setMcpIds] = useState<string[]>([])
   const [allTaskTypes, setAllTaskTypes] = useState<TaskTypeSummary[]>([])
   const [allSkills, setAllSkills] = useState<SkillLibraryItem[]>([])
+  const [allMcps, setAllMcps] = useState<McpServerSummary[]>([])
   const [backends, setBackends] = useState<BackendSummary[]>([])
   const [models, setModels] = useState<BackendModel[]>([])
   const [busy, setBusy] = useState(false)
@@ -53,8 +56,10 @@ export function AgentEditDialog({
     setWorkspace("")
     setTaskTypes(agent.task_types ?? [])
     setSkillIds(agent.skills ?? [])
+    setMcpIds(agent.mcp_servers ?? [])
     listTaskTypes().then(setAllTaskTypes).catch(() => setAllTaskTypes([]))
     listSkillLibrary().then(setAllSkills).catch(() => setAllSkills([]))
+    listMcpLibrary(false).then(setAllMcps).catch(() => setAllMcps([]))
     listBackends().then(setBackends).catch(() => setBackends([]))
     setLoadingDetail(true)
     getAgentDetail(agent.id)
@@ -62,6 +67,7 @@ export function AgentEditDialog({
         setTaskTypes(d.task_types ?? agent.task_types ?? [])
         const ids = d.registry_skills ?? d.skills?.map((s) => s.skill_id) ?? []
         setSkillIds(ids)
+        setMcpIds(d.registry_mcp_servers ?? d.mcp_servers?.map((m) => m.server_id) ?? agent.mcp_servers ?? [])
         setWorkspace(d.workspace || "")
         setBackend(d.backend || agent.backend || "opencode")
         setModel(d.model || agent.model || "")
@@ -75,7 +81,7 @@ export function AgentEditDialog({
     listBackendModels(backend)
       .then((ms) => {
         setModels(ms)
-        if (model && !ms.some((m) => m.id === model) && ms[0]) setModel(ms[0].id)
+        if (!model && ms[0]) setModel(ms[0].id)
       })
       .catch(() => setModels([]))
   }, [backend])
@@ -118,6 +124,7 @@ export function AgentEditDialog({
         workspace: workspace.trim(),
         task_types: taskTypes,
         skills: skillIds,
+        mcp_servers: mcpIds,
       })
       toast.success("Agent 已保存")
       onOpenChange(false)
@@ -163,6 +170,9 @@ export function AgentEditDialog({
                   <SelectValue placeholder="选择模型" />
                 </SelectTrigger>
                 <SelectContent>
+                  {model && !models.some((m) => m.id === model) ? (
+                    <SelectItem value={model}>{model}（当前）</SelectItem>
+                  ) : null}
                   {models.map((m) => (
                     <SelectItem key={m.id} value={m.id}>
                       {m.name || m.id}
@@ -198,7 +208,7 @@ export function AgentEditDialog({
                       )
                     }}
                   />
-                  {t.display_name || t.task_type}
+                  <span title={t.task_type}>{t.display_name || t.task_type}</span>
                 </label>
               ))}
             </div>
@@ -227,9 +237,8 @@ export function AgentEditDialog({
                           )
                         }}
                       />
-                      <span>
+                      <span title={s.id}>
                         <span className="font-medium">{s.name || s.id}</span>
-                        <span className="ml-1 font-mono text-xs text-[var(--color-muted-foreground)]">{s.id}</span>
                         {s.description ? (
                           <span className="block text-xs text-[var(--color-muted-foreground)]">{s.description}</span>
                         ) : null}
@@ -238,6 +247,46 @@ export function AgentEditDialog({
                   ))
                 ) : (
                   <p className="text-xs text-[var(--color-muted-foreground)]">Skill 库为空</p>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="grid gap-2">
+            <Label>挂载 MCP</Label>
+            <p className="hint text-xs">
+              仅显示全局已启用的 MCP；勾选后由 Agent 所用 CLI 后端同步到工作区配置。
+            </p>
+            {loadingDetail ? (
+              <p className="text-xs text-[var(--color-muted-foreground)]">加载当前配置…</p>
+            ) : (
+              <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-[var(--color-border)] p-2">
+                {allMcps.filter((s) => s.is_mountable !== false).length ? (
+                  allMcps
+                    .filter((s) => s.is_mountable !== false)
+                    .map((s) => (
+                      <label key={s.id} className="flex items-start gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5"
+                          checked={mcpIds.includes(s.id)}
+                          onChange={(e) => {
+                            setMcpIds((prev) =>
+                              e.target.checked ? [...prev, s.id] : prev.filter((x) => x !== s.id),
+                            )
+                          }}
+                        />
+                        <span title={s.id}>
+                          <span className="font-medium">{s.name || s.id}</span>
+                          {s.description ? (
+                            <span className="block text-xs text-[var(--color-muted-foreground)]">{s.description}</span>
+                          ) : null}
+                        </span>
+                      </label>
+                    ))
+                ) : (
+                  <p className="text-xs text-[var(--color-muted-foreground)]">
+                    无可用 MCP，请先在 MCP 页启用服务
+                  </p>
                 )}
               </div>
             )}

@@ -1,0 +1,8 @@
+完善产品规划 Word 文档，补齐缺失章节、修复编号混乱，并创建 PPT 产品架构图（分层展示：应用层、服务层、平台层、基础设施层）。
+
+# 可选：指定交付模板（项目创建时配置，workflow 不写死）
+# template_id: tds-ch3-product-planning
+# template_id: prd-lite
+
+# 示例输入路径（按实际项目替换）
+# 主文档：business/inputs/your-project/产品规划.docx

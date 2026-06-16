@@ -52,6 +52,8 @@ def test_prompt_injects_skill_block(dev_skills):
     prompt = build_worker_prompt(req, Path("/tmp/i1.response"), Path("/tmp/deliv"))
     assert "【已挂载 Skill】" in prompt
     assert "backend-engineering-methodology" in prompt
+    assert "后端工程方法论" in prompt
+    assert ">- " not in prompt
 
 
 def test_all_registered_methodology_files_exist():
@@ -61,6 +63,7 @@ def test_all_registered_methodology_files_exist():
         "product-methodology",
         "backend-engineering-methodology",
         "frontend-engineering-methodology",
+        "frontend-architecture-methodology",
         "qa-methodology",
         "coordination-methodology",
         "system-architecture-methodology",

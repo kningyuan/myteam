@@ -101,6 +101,26 @@ class TestTaskTypes:
         errors = validate_workflow_payload(payload, available_agents=available_agents)
         assert any("t1" in e and "task_type" in e for e in errors)
 
+    def test_loop_anchor_task_skips_task_type(self, available_agents):
+        payload = {
+            "id": "test",
+            "tasks": [
+                {"id": "t-loop", "name": "循环", "loop": "loop1", "dependencies": []},
+            ],
+            "loops": [
+                {
+                    "id": "loop1",
+                    "body": [
+                        {"id": "s1", "agent": "research", "task_type": "research", "dependencies": []},
+                    ],
+                    "until": [{"type": "gate_passed", "task": "s1"}],
+                },
+            ],
+        }
+        errors = validate_workflow_payload(payload, available_agents=available_agents)
+        task_type_errors = [e for e in errors if "t-loop" in e and "task_type" in e]
+        assert len(task_type_errors) == 0
+
 
 # ---- Agent 合法性校验 ----
 
@@ -194,6 +214,32 @@ class TestErrorAccumulation:
 
 
 # ---- Loop body agent 校验 ----
+
+
+class TestLoopParseErrors:
+    def test_bodies_and_body_mutual_exclusion_returns_error(self, available_agents):
+        payload = {
+            "id": "test",
+            "tasks": [
+                {"id": "t1", "agent": "research", "task_type": "research", "dependencies": []},
+            ],
+            "loops": [
+                {
+                    "id": "loop1",
+                    "bodies": {
+                        "default": [
+                            {"id": "s1", "agent": "research", "task_type": "research", "dependencies": []},
+                        ],
+                    },
+                    "default_body": "default",
+                    "body": [
+                        {"id": "s1", "agent": "research", "task_type": "research", "dependencies": []},
+                    ],
+                },
+            ],
+        }
+        errors = validate_workflow_payload(payload, available_agents=available_agents)
+        assert any("bodies 与 body 互斥" in e for e in errors)
 
 
 class TestLoopAgents:

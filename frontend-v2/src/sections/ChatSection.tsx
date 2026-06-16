@@ -7,8 +7,9 @@ import {
   type ChatArchiveEntry,
 } from "@/lib/api/chat"
 import { useResourceQuery } from "@/hooks/useResourceQuery"
-import { isAgentStreamBusy, subscribeAgentChatGlobal } from "@/lib/agentChatStream"
+import { isAgentStreamBusy, resetAgentChatSession, subscribeAgentChatGlobal } from "@/lib/agentChatStream"
 import { formatRelativeTime } from "@/lib/thinking"
+import { sortByModifiedDesc } from "@/lib/sortByModified"
 import { AgentChatPanel } from "@/components/chat/AgentChatPanel"
 import { DiscordShell, ListColumn, WelcomePane } from "@/components/layout/DiscordShell"
 import { ListItemRow } from "@/components/layout/ListItemRow"
@@ -55,16 +56,17 @@ export function ChatSection() {
           (a) => a.name?.toLowerCase().includes(q) || a.id.toLowerCase().includes(q),
         )
       : visible
-    return [...base].sort(
-      (a, b) => (b.last_message_at || 0) - (a.last_message_at || 0),
-    )
+    return sortByModifiedDesc(base)
   }, [visible, query])
+
+  const sortedArchives = useMemo(() => sortByModifiedDesc(archiveHits), [archiveHits])
 
   const current = agents.find((a) => a.id === agentId)
 
   async function restoreArchived(id: string) {
     try {
       await restoreAgentChat(id)
+      resetAgentChatSession(id)
       setHiddenIds((prev) => {
         const next = new Set(prev)
         next.delete(id)
@@ -91,9 +93,9 @@ export function ChatSection() {
             />
           }
         >
-          {archiveHits.length > 0 && (
+          {sortedArchives.length > 0 && (
             <div className="search-results">
-              {archiveHits.map((hit) => (
+              {sortedArchives.map((hit) => (
                 <div
                   key={hit.agent_id}
                   className="search-result-item"

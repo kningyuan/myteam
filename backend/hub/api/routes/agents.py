@@ -7,6 +7,7 @@ from datetime import datetime
 from fastapi import APIRouter
 
 from base.agent_chat import scan_agents
+from common.hub_operation_meta import attach_operated_at
 from hub.api.deps import we_store
 from hub.services.agent_registry import get_agents_registry
 
@@ -63,6 +64,7 @@ async def list_agents():
             "capabilities": info.get("capabilities") or [],
             "task_types": info.get("task_types") or [],
             "skills": info.get("skills") if isinstance(info.get("skills"), list) else [],
+            "mcp_servers": info.get("mcp_servers") if isinstance(info.get("mcp_servers"), list) else [],
             "backend": scan.get("backend") or info.get("backend") or "",
             "model": scan.get("model") or info.get("model") or "",
             "model_override": scan.get("model_override") or "",
@@ -71,5 +73,12 @@ async def list_agents():
             "last_message_at": act.get("last_message_at", 0),
             "last_message_preview": act.get("last_message_preview", ""),
         })
-    agents.sort(key=lambda a: float(a.get("last_message_at") or 0), reverse=True)
+    agents = attach_operated_at(agents, "agent", id_key="id")
+    agents.sort(
+        key=lambda a: max(
+            _activity_unix_ts(a.get("operated_at")),
+            float(a.get("last_message_at") or 0),
+        ),
+        reverse=True,
+    )
     return {"agents": agents}

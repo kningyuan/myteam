@@ -130,6 +130,14 @@ def test_reject_split_without_subtasks():
     assert not ok and errs
 
 
+def test_reject_triage_split_without_subtasks():
+    ok, _m, errs = validate_response_dict({
+        "interaction_id": "x", "kind": "triage", "status": "ok",
+        "result": {"decision": "split", "sub_tasks": []},
+    })
+    assert not ok and errs
+
+
 # ── submit_result：合法原子写 / 非法拒绝 ─────────────────────
 
 

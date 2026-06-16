@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { listWorkflows, type WorkflowSummary } from "@/lib/api/workflows"
+import { listWorkflows, workflowDisplayName, type WorkflowSummary } from "@/lib/api/workflows"
 import { EmptyState, PageHeader, Pill } from "@/components/ui/page"
 
 export function WorkflowsPage() {
@@ -33,7 +33,7 @@ export function WorkflowsPage() {
               className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-5"
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
-                <h2 className="font-semibold">{w.id}</h2>
+                <h2 className="font-semibold">{workflowDisplayName(w)}</h2>
                 <Pill>v{w.version || "?"}</Pill>
               </div>
               <p className="mt-2 text-sm leading-relaxed text-[var(--color-muted-foreground)]">

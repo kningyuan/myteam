@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom"
 import { ArrowRight, Bot, FolderKanban, Users, Workflow } from "lucide-react"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { toast } from "sonner"
 import { listAgents } from "@/lib/api/agents"
 import { getObsSummary, initHub, runDemo, type ObsSummary } from "@/lib/api/config"
@@ -8,6 +8,7 @@ import { listGroups } from "@/lib/api/groups"
 import { listProjects } from "@/lib/api/projects"
 import { listWorkflows } from "@/lib/api/workflows"
 import { useResourceQuery } from "@/hooks/useResourceQuery"
+import { sortByModifiedDesc } from "@/lib/sortByModified"
 import { Button } from "@/components/ui/button"
 import { EmptyState, formatNumber, PageHeader, statusLabel, StatusBadge } from "@/components/ui/page"
 
@@ -61,12 +62,18 @@ export function DashboardPage() {
     counts: { projects: 0, groups: 0, agents: 0, workflows: 0 },
   })
 
-  if (loading && !data.summary && data.counts.projects === 0) {
+  const summary = data.summary
+  const counts = data.counts
+  const recentProjects = useMemo(
+    () => sortByModifiedDesc(summary?.projects ?? []).slice(0, 4),
+    [summary?.projects],
+  )
+  const showInitialLoading = loading && !summary && counts.projects === 0
+
+  if (showInitialLoading) {
     return <p className="text-sm text-[var(--color-muted-foreground)]">加载工作台…</p>
   }
 
-  const summary = data.summary
-  const counts = data.counts
   const totals = summary?.totals
   const running = totals?.running ?? 0
   const tokens = totals?.tokens ?? 0
@@ -157,9 +164,9 @@ export function DashboardPage() {
             全部项目
           </Link>
         </div>
-        {summary?.projects?.length ? (
+        {recentProjects.length ? (
           <div className="grid gap-3 md:grid-cols-2">
-            {summary.projects.slice(0, 4).map((p) => (
+            {recentProjects.map((p) => (
               <Link key={p.id} to={`/projects/${encodeURIComponent(p.id)}`}>
                 <div className="project-summary-card">
                   <div className="flex items-start justify-between gap-2">

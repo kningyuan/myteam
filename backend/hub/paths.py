@@ -34,6 +34,7 @@ SYSTEM_CONFIG_FILE = CONFIG_DIR / "system_config.json"
 # 业务配置 + 业务运行态（随业务领域变化，落 business/config/，已 gitignore）
 AGENTS_CONFIG_FILE = BUSINESS_CONFIG_DIR / "agents_config.json"
 AGENTS_REGISTRY_FILE = BUSINESS_CONFIG_DIR / "agents_registry.json"
+MCP_REGISTRY_FILE = BUSINESS_CONFIG_DIR / "mcp_registry.json"
 GROUPS_FILE = BUSINESS_CONFIG_DIR / "groups.json"
 SESSION_MAP_FILE = BUSINESS_CONFIG_DIR / "session_map.json"
 CHAT_ARCHIVES_DIR = BUSINESS_CONFIG_DIR / "chat_archives"

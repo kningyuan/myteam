@@ -18,10 +18,15 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { LoopEditorPanel, serializeLoopSpec } from "./LoopEditorPanel"
+import { DependencyCheckboxPicker } from "./DependencyCheckboxPicker"
 import {
   collectAllNodeIds,
   defaultLoopSpec,
   loopsToRecord,
+  nextTaskId,
+  normalizeWorkflowSequentialIds,
+  renumberLoopSpecKeys,
+  renumberWorkflowTasks,
   taskTypesForAgent,
   templatesForTaskType,
   type LoopSpec,
@@ -29,7 +34,7 @@ import {
 } from "./loopHelpers"
 
 const WF_TEMPLATE: WorkflowDetail = {
-  id: "GitHub项目调研",
+  name: "GitHub 项目调研",
   version: "1.0",
   description:
     "对任意 GitHub 开源项目做产品/架构/工程化三视角调研并汇总；具体仓库在发起项目时填写 goal",
@@ -61,13 +66,6 @@ const WF_TEMPLATE: WorkflowDetail = {
 
 type WfTask = NonNullable<WorkflowDetail["tasks"]>[number]
 
-function nextTaskId(tasks: WfTask[]): string {
-  const used = new Set(tasks.map((t) => t.id))
-  let n = tasks.length + 1
-  while (used.has(`task-${n}`)) n += 1
-  return `task-${n}`
-}
-
 function autoDescription(task: WfTask, isLoop: boolean): string {
   if (task.description?.trim()) return task.description
   const lines: string[] = []
@@ -97,6 +95,7 @@ export function WorkflowEditor({
   const [loading, setLoading] = useState(!isNew)
   const [saving, setSaving] = useState(false)
   const [id, setId] = useState("")
+  const [name, setName] = useState("")
   const [version, setVersion] = useState("1.0")
   const [description, setDescription] = useState("")
   const [options, setOptions] = useState(WF_TEMPLATE.options!)
@@ -126,6 +125,7 @@ export function WorkflowEditor({
 
   const fillForm = useCallback((data: WorkflowDetail) => {
     setId(data.id || "")
+    setName((data.name || data.display_name || data.id || "").trim())
     setVersion(data.version || "1.0")
     setDescription(data.description || "")
     setOptions({
@@ -134,8 +134,9 @@ export function WorkflowEditor({
       parallel_enabled: !!data.options?.parallel_enabled,
       max_parallel: data.options?.max_parallel ?? 3,
     })
-    setTasks(data.tasks?.length ? [...data.tasks] : [])
-    setLoopSpecs(loopsToRecord(data.loops))
+    const normalized = normalizeWorkflowSequentialIds(data)
+    setTasks(normalized.tasks?.length ? [...normalized.tasks] : [])
+    setLoopSpecs(loopsToRecord(normalized.loops))
     clearDirty()
   }, [clearDirty])
 
@@ -242,15 +243,22 @@ export function WorkflowEditor({
 
   function removeTask(index: number) {
     markDirty()
-    const task = tasks[index]
-    if (task?.loop) {
-      setLoopSpecs((specs) => {
-        const next = { ...specs }
-        delete next[task.loop!]
-        return next
-      })
-    }
-    setTasks((prev) => prev.filter((_, i) => i !== index))
+    const removed = tasks[index]
+    const filtered = tasks.filter((_, i) => i !== index)
+    const idMap: Record<string, string> = {}
+    filtered.forEach((t, i) => {
+      idMap[t.id] = `task-${i + 1}`
+    })
+    const renumbered = renumberWorkflowTasks(filtered)
+    setTasks(renumbered)
+    setLoopSpecs((specs) => {
+      let next = renumberLoopSpecKeys(specs, idMap)
+      const loopKey = removed?.loop
+      if (loopKey && !renumbered.some((t) => t.loop === loopKey)) {
+        delete next[loopKey]
+      }
+      return next
+    })
   }
 
   function buildPayload(): WorkflowDetail {
@@ -279,11 +287,14 @@ export function WorkflowEditor({
     })
 
     const payload: WorkflowDetail = {
-      id: id.trim(),
+      name: name.trim(),
       version: version.trim() || "1.0",
       description: description.trim(),
       options: { ...options },
       tasks: payloadTasks,
+    }
+    if (!isNew && (id.trim() || workflowId)) {
+      payload.id = (id.trim() || workflowId)!
     }
     if (loops.length) payload.loops = loops
     return payload
@@ -291,8 +302,8 @@ export function WorkflowEditor({
 
   async function handleSave() {
     const data = buildPayload()
-    if (!data.id) {
-      toast.error("请填写 workflow ID")
+    if (!data.name?.trim()) {
+      toast.error("请填写工作流名称")
       return
     }
     if (!data.tasks?.length) {
@@ -304,7 +315,7 @@ export function WorkflowEditor({
       const savedId = await saveWorkflow(isNew ? null : workflowId, { workflow: data })
       toast.success("工作流已保存")
       clearDirty()
-      onSaved(savedId || data.id!)
+      onSaved(savedId || data.id || workflowId || "")
     } catch (e) {
       toast.error("保存失败", { description: e instanceof Error ? e.message : "" })
     } finally {
@@ -315,7 +326,8 @@ export function WorkflowEditor({
   async function handleDelete() {
     const wid = workflowId && workflowId !== "new" ? workflowId : id.trim()
     if (!wid) return
-    if (!window.confirm(`删除工作流「${wid}」？此操作不可恢复。`)) return
+    const label = name.trim() || wid
+    if (!window.confirm(`删除工作流「${label}」？此操作不可恢复。`)) return
     try {
       await deleteWorkflow(wid)
       toast.success("已删除")
@@ -351,10 +363,10 @@ export function WorkflowEditor({
       <header className="workspace-header-bar mb-5">
         <div className="min-w-0">
           <h1>
-            {isNew ? "新建工作流" : id || workflowId}
+            {isNew ? "新建工作流" : name.trim() || id || workflowId}
             {dirty && <span className="ml-2 text-xs font-normal text-amber-500">未保存</span>}
           </h1>
-          <p>表单编辑任务编排；保存前会自动校验。</p>
+          <p>表单编辑任务编排；名称对外展示，内部 ID 自动生成。保存前会自动校验。</p>
         </div>
         <div className="wf-toolbar">
           <Button size="sm" variant="outline" onClick={handleSuggest}>
@@ -375,16 +387,15 @@ export function WorkflowEditor({
         <div className="workspace-panel">
           <div className="wf-meta-grid">
             <div className="grid gap-2">
-              <Label htmlFor="wf-id">Workflow ID</Label>
+              <Label htmlFor="wf-name">工作流名称</Label>
               <Input
-                id="wf-id"
-                value={id}
+                id="wf-name"
+                value={name}
                 onChange={(e) => {
                   markDirty()
-                  setId(e.target.value)
+                  setName(e.target.value)
                 }}
-                disabled={!isNew}
-                placeholder="例如：GitHub项目调研"
+                placeholder="例如：方案完善、产品规划"
               />
             </div>
             <div className="grid gap-2">
@@ -392,6 +403,9 @@ export function WorkflowEditor({
               <Input id="wf-version" value={version} onChange={(e) => { markDirty(); setVersion(e.target.value) }} />
             </div>
           </div>
+          {!isNew && id && (
+            <p className="mt-2 text-xs text-[var(--color-muted-foreground)]">内部 ID：{id}</p>
+          )}
           <div className="mt-4 grid gap-2">
             <Label htmlFor="wf-desc">描述</Label>
             <Textarea
@@ -511,7 +525,9 @@ export function WorkflowEditor({
                           </div>
                         </td>
                         <td>
-                          <code className="wf-id-badge">{task.id}</code>
+                          <code className="wf-id-badge" title="按创建顺序自动生成">
+                            {task.id}
+                          </code>
                           {isLoop && (
                             <Badge variant="secondary" className="ml-1 text-[10px]">
                               循环
@@ -604,23 +620,12 @@ export function WorkflowEditor({
                           )}
                         </td>
                         <td>
-                          <select
-                            multiple
-                            className="wf-deps-multi wf-input-sm h-[72px]"
+                          <DependencyCheckboxPicker
+                            currentId={task.id}
+                            candidates={allNodeIds}
                             value={task.dependencies || []}
-                            onChange={(e) => {
-                              const deps = Array.from(e.target.selectedOptions).map((o) => o.value)
-                              updateTask(i, { dependencies: deps })
-                            }}
-                          >
-                            {allNodeIds
-                              .filter((n) => n.id !== task.id)
-                              .map((n) => (
-                                <option key={n.id} value={n.id}>
-                                  {n.label}
-                                </option>
-                              ))}
-                          </select>
+                            onChange={(deps) => updateTask(i, { dependencies: deps })}
+                          />
                         </td>
                         <td>
                           <Button type="button" size="sm" variant="ghost" onClick={() => removeTask(i)}>

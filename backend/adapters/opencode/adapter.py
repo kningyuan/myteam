@@ -12,6 +12,8 @@ from common.submit_result import DISPATCH_TOKEN_ENV
 from adapter.subprocess_cli import SubprocessCLIAdapter
 from adapter.registry import registry
 from adapters.opencode.parser import parse_line
+from adapters.opencode.skill_sync import sync_workspace_skills
+from adapters.opencode.mcp_sync import sync_workspace_mcp
 
 
 class OpenCodeAdapter(SubprocessCLIAdapter):
@@ -30,7 +32,28 @@ class OpenCodeAdapter(SubprocessCLIAdapter):
             tool_use=True,
             multi_turn=True,
             custom_rules=True,
+            native_skill_registry=True,
+            native_mcp_registry=True,
         )
+
+    def sync_agent_skills(
+        self,
+        agent_id: str,
+        workspace: str,
+        skill_ids: list[str],
+    ) -> dict:
+        """将 Skill 注册到 workspace/.opencode/skills/（OpenCode 项目级 skill 目录）。"""
+        _ = agent_id
+        return sync_workspace_skills(workspace, skill_ids)
+
+    def sync_agent_mcp(
+        self,
+        agent_id: str,
+        workspace: str,
+        server_ids: list[str],
+    ) -> dict:
+        _ = agent_id
+        return sync_workspace_mcp(workspace, server_ids)
 
     def _cli_path(self) -> str:
         try:
@@ -144,6 +167,12 @@ class OpenCodeAdapter(SubprocessCLIAdapter):
         env = os.environ.copy()
         if request.agent_id:
             env["OPENCLAW_WORKER_AGENT_ID"] = request.agent_id
+            from common.agent_skills import get_agent_skill_ids
+
+            if get_agent_skill_ids(request.agent_id):
+                # 严格模式：仅使用工作区 .opencode/skills 中已挂载的 Skill，不加载全局 ~/.claude|~/.agents
+                env["OPENCODE_DISABLE_EXTERNAL_SKILLS"] = "1"
+                env["OPENCODE_DISABLE_CLAUDE_CODE_SKILLS"] = "1"
         token = (request.extra or {}).get("dispatch_token")
         if token:
             env[DISPATCH_TOKEN_ENV] = str(token)

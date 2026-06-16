@@ -48,7 +48,11 @@ def validate_workflow_payload(
 
     # 归一化
     tasks = normalize_plan_tasks(data["tasks"])
-    loops = parse_loop_specs(data.get("loops"))
+    try:
+        loops = parse_loop_specs(data.get("loops"))
+    except ValueError as e:
+        errors.append(str(e))
+        return errors
     roster = normalize_agent_ids(roster_from_tasks(tasks, loops))
 
     # Step 2: task_type 存在性校验
@@ -89,6 +93,8 @@ def _validate_task_types(tasks: list[dict]) -> list[str]:
     """校验每个任务的 task_type 是否已注册。"""
     errors: list[str] = []
     for t in tasks:
+        if t.get("loop"):
+            continue
         tt = str(t.get("task_type") or "").strip()
         tid = str(t.get("id") or "").strip()
         if not tt:

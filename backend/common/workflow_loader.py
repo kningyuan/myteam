@@ -23,6 +23,7 @@ class WorkflowProfile:
     description: str
     roster: list[str]
     tasks: list[dict]
+    name: str = ""
     options: dict[str, Any] = field(default_factory=dict)
     phases: list[dict] = field(default_factory=list)
     loops: list[LoopSpec] = field(default_factory=list)
@@ -70,6 +71,35 @@ def list_workflows() -> list[str]:
     return sorted(p.stem for p in d.glob("*.yaml"))
 
 
+def workflow_name_from_raw(raw: dict, *, fallback_id: str = "") -> str:
+    """UI 展示名：name > display_name > id。"""
+    wid = fallback_id or str(raw.get("id") or "").strip()
+    name = str(raw.get("name") or raw.get("display_name") or "").strip()
+    return name or wid
+
+
+def allocate_workflow_id() -> str:
+    """分配 workflow-1 … workflow-n，供新建 workflow 使用。"""
+    existing = set(list_workflows())
+    n = 1
+    while True:
+        cand = f"workflow-{n}"
+        if cand not in existing:
+            return cand
+        n += 1
+
+
+def resolve_workflow_display_name(workflow_id: str) -> str:
+    """按 workflow id 解析人类可读名称（项目概览、下拉列表等）。"""
+    wid = (workflow_id or "").strip()
+    if not wid:
+        return ""
+    try:
+        return workflow_name_from_raw(read_workflow_raw(wid), fallback_id=wid)
+    except FileNotFoundError:
+        return wid
+
+
 def load_workflow(workflow_id: str, *, path: Optional[Path] = None) -> WorkflowProfile:
     """按 id（文件名不含扩展名）或绝对路径加载 workflow。"""
     if path is not None:
@@ -91,9 +121,11 @@ def load_workflow(workflow_id: str, *, path: Optional[Path] = None) -> WorkflowP
         raise ValueError(f"workflow「{wid}」未定义 tasks")
     loops = parse_loop_specs(raw.get("loops"))
     roster = normalize_agent_ids(roster_from_tasks(tasks, loops))
+    wname = workflow_name_from_raw(raw, fallback_id=str(wid))
 
     profile = WorkflowProfile(
         id=wid,
+        name=wname,
         version=str(raw.get("version", "1.0")),
         description=str(raw.get("description", "")).strip(),
         roster=roster,
@@ -217,16 +249,22 @@ def write_workflow_raw(data: dict, *, workflow_id: Optional[str] = None) -> str:
         raise ValueError("workflow 必须是对象")
     wid = (data.get("id") or workflow_id or "").strip()
     if not wid:
-        raise ValueError("workflow 缺少 id")
+        wid = allocate_workflow_id()
     if "/" in wid or ".." in wid or wid.startswith("."):
         raise ValueError("workflow id 非法")
     data = dict(data)
     data["id"] = wid
+    wname = workflow_name_from_raw(data, fallback_id=wid)
+    if not wname:
+        raise ValueError("workflow 缺少 name（展示名称）")
+    data["name"] = wname
+    data.pop("display_name", None)
     tasks = list(data.get("tasks") or [])
     loops = parse_loop_specs(data.get("loops"))
     roster = roster_from_tasks(tasks, loops)
     profile = WorkflowProfile(
         id=wid,
+        name=wname,
         version=str(data.get("version", "1.0")),
         description=str(data.get("description", "")).strip(),
         roster=roster,

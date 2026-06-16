@@ -30,7 +30,7 @@ def pgd_env(tmp_path, monkeypatch):
 
 def test_pgd_agent_template_covers_workflow_rosters():
     template = load_pgd_agent_template()
-    for wid in ("GEO优化", "内容运营", "数据分析"):
+    for wid in ("方案完善",):
         profile = load_workflow(wid)
         for aid in profile.roster:
             assert aid in template, f"{wid} roster {aid} missing in pgd-agents.json"
@@ -40,15 +40,15 @@ def test_pgd_agent_template_covers_workflow_rosters():
 
 
 def test_ensure_workflow_ready_creates_registry(pgd_env):
-    for aid in ("main", "research", "content", "social_zhihu"):
+    for aid in ("main", "product"):
         paths.workspace_dir(aid).mkdir(parents=True, exist_ok=True)
-    profile = ensure_workflow_ready("内容运营", backend="claude")
-    assert profile.id == "内容运营"
+    profile = ensure_workflow_ready("方案完善", backend="claude")
+    assert profile.id == "方案完善"
     reg = json.loads(paths.AGENTS_REGISTRY_FILE.read_text(encoding="utf-8"))
     for aid in profile.roster:
         assert aid in reg["agents"]
         assert reg["agents"][aid].get("task_types")
-    tasks = profile.instantiate_tasks(goal="测试内容运营目标")
+    tasks = profile.instantiate_tasks(goal="测试方案完善目标")
     assert check_plan(tasks, set(profile.roster), check_capabilities=True).passed
 
 

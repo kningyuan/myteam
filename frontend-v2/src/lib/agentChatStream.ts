@@ -7,6 +7,7 @@ import { isAbortError } from "@/lib/api/client"
 import {
   cancelAgentChat,
   getAgentChatMessages,
+  getAgentChatStatus,
   sendAgentChat,
   type ChatMessage,
 } from "@/lib/api/chat"
@@ -86,6 +87,18 @@ function toUiMessages(msgs: ChatMessage[]): AgentUiMessage[] {
   }))
 }
 
+function needsInflightAgentReply(msgs: AgentUiMessage[]): boolean {
+  return msgs[msgs.length - 1]?.role === "user"
+}
+
+function findStreamingAgentMsgId(messages: AgentUiMessage[]): string | undefined {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (m.role === "agent" && m.streaming) return m.id
+  }
+  return undefined
+}
+
 function attachInflight(serverMsgs: AgentUiMessage[], localMsgs: AgentUiMessage[]): AgentUiMessage[] {
   if (!serverMsgs.length) return localMsgs
   const out = serverMsgs.slice()
@@ -106,9 +119,27 @@ function attachInflight(serverMsgs: AgentUiMessage[], localMsgs: AgentUiMessage[
 export async function syncAgentChatFromServer(agentId: string): Promise<void> {
   const s = ensureSession(agentId)
   try {
-    const msgs = await getAgentChatMessages(agentId)
+    const [msgs, status] = await Promise.all([
+      getAgentChatMessages(agentId),
+      getAgentChatStatus(agentId).catch(() => ({ active: false })),
+    ])
     const mapped = toUiMessages(msgs)
-    s.messages = s.busy ? attachInflight(mapped, s.messages) : mapped
+    if (s.busy) {
+      s.messages = attachInflight(mapped, s.messages)
+    } else if (status.active && needsInflightAgentReply(mapped)) {
+      const lastUser = mapped[mapped.length - 1]
+      const agentMsgId = `a_recover_${Date.now()}`
+      s.activeTurn = { userId: lastUser.id, agentMsgId }
+      s.busy = true
+      s.messages = [
+        ...mapped,
+        { id: agentMsgId, role: "agent", text: "", thinking: [], streaming: true },
+      ]
+    } else {
+      s.messages = mapped
+      s.busy = false
+      s.activeTurn = null
+    }
     s.loaded = true
     s.error = ""
     notify(agentId)
@@ -195,6 +226,20 @@ export function resetAgentContextTokens(agentId: string) {
   notify(agentId)
 }
 
+/** 立即清空本地会话 UI（清空/归档后无需整页刷新）。 */
+export function resetAgentChatSession(agentId: string): void {
+  const s = ensureSession(agentId)
+  s.messages = []
+  s.error = ""
+  s.contextTokens = 0
+  s.activeTurn = null
+  s.pendingText = ""
+  s.restoreDraft = ""
+  s.userCancelled = false
+  s.loaded = true
+  notify(agentId)
+}
+
 function connectAgentBackgroundEvents(agentId: string) {
   if (!agentId || agentEventSources.has(agentId)) return
   const es = new EventSource(`/api/agents/${encodeURIComponent(agentId)}/events`)
@@ -203,22 +248,51 @@ function connectAgentBackgroundEvents(agentId: string) {
     if (!e.data || e.data === "[DONE]") return
     try {
       const ev = JSON.parse(e.data) as { event?: string; data?: Record<string, unknown> }
+      const s = ensureSession(agentId)
+      if (s.abortCtrl) return
       if (ev.event === "agent_thinking" && ev.data) {
-        const s = ensureSession(agentId)
-        const blockId = `bg_${Date.now()}`
-        s.messages = [
-          ...s.messages,
-          {
-            id: blockId,
-            role: "agent",
-            text: String(ev.data.preview || ev.data.message || "[后台任务进行中]"),
-            thinking: [],
-            streaming: true,
-          },
-        ]
+        let agentMsgId =
+          s.activeTurn?.agentMsgId ?? findStreamingAgentMsgId(s.messages)
+        if (!agentMsgId && needsInflightAgentReply(s.messages)) {
+          agentMsgId = `a_recover_${Date.now()}`
+          s.activeTurn = {
+            userId: s.messages[s.messages.length - 1]?.id ?? "",
+            agentMsgId,
+          }
+          s.busy = true
+          s.messages = [
+            ...s.messages,
+            {
+              id: agentMsgId,
+              role: "agent",
+              text: "",
+              thinking: [],
+              streaming: true,
+            },
+          ]
+        }
+        if (!agentMsgId) return
+        const cur = s.messages.find((m) => m.id === agentMsgId)
+        let content = cur?.text ?? ""
+        let thinkingEvents = cur?.thinking ? [...cur.thinking] : []
+        const next = applyThinkingEvent(thinkingEvents, content, ev.data)
+        content = next.text
+        thinkingEvents = next.thinking
+        s.messages = s.messages.map((m) =>
+          m.id === agentMsgId
+            ? {
+                ...m,
+                text: content,
+                thinking: [...thinkingEvents],
+                streaming: true,
+              }
+            : m,
+        )
         notify(agentId)
       } else if (ev.event === "agent_done") {
-        notify(agentId)
+        s.busy = false
+        s.activeTurn = null
+        void syncAgentChatFromServer(agentId).then(() => emitSettled(agentId))
       }
     } catch {
       /* ignore */

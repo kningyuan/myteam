@@ -30,7 +30,7 @@ class ProcessConfig:
     budget_degrade_model: str = ""         # L3：降级目标 model（空=不改）
     skill_extract_enabled: bool = False    # L3：项目完成后是否触发 skill 抽提
     max_cycles: int = 3                    # recurring 模式的周期上限（防空转，D10）
-    split_enabled: bool = False            # 派发前静态递归展开（evaluate）；默认关，opt-in
+    split_enabled: bool = False            # evaluate 拆分：派发前 + 执行中待调度任务；默认关，opt-in
     max_split_depth: int = 2               # 递归拆分深度上限 → 终止性硬底（无论 agent 怎么判都收敛）
     max_subtasks: int = 8                  # 单次拆分子任务数上限（防扇出爆炸）
     auto_create_agents: bool = True        # team_config 时自动创建未就绪 agent
@@ -47,6 +47,15 @@ class TaskOutcome:
     reason: str = ""
     attempts: int = 0
     response: Optional[dict] = None
+
+
+@dataclass
+class TaskExecuteResult:
+    """单任务执行结果（含 triage 与失败时拆分）。"""
+
+    outcome: TaskOutcome
+    triage_decision: Optional[str] = None
+    split_subtasks: Optional[list[dict]] = None
 
 
 @dataclass

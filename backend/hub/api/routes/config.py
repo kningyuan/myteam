@@ -109,10 +109,25 @@ async def api_sync_agent_task_types():
 
 @router.post("/api/agents/sync-skills")
 async def api_sync_agent_skills():
-    """为未配置 skills 的 Agent 从名册/PGD 补全挂载。"""
+    """为未配置 skills 的 Agent 从名册/PGD 补全挂载，并同步到 CLI skill 注册表。"""
     from hub.services.agent_registry import sync_missing_agent_skills
+    from common.adapter_skill_registry import sync_all_agent_skill_mounts
 
-    return sync_missing_agent_skills(only_empty=True)
+    roster_result = sync_missing_agent_skills(only_empty=True)
+    mount_result = sync_all_agent_skill_mounts()
+    return {
+        "success": roster_result.get("success") and mount_result.get("success"),
+        "roster": roster_result,
+        "mount": mount_result,
+    }
+
+
+@router.post("/api/agents/sync-mcp")
+async def api_sync_agent_mcp():
+    """同步所有 Agent 的 MCP 挂载到各 CLI 后端，并清理 AGENTS.md 历史 MCP 节。"""
+    from common.adapter_mcp_registry import sync_all_agent_mcp_mounts
+
+    return sync_all_agent_mcp_mounts()
 
 
 @router.post("/api/agents/suggest-task-types")

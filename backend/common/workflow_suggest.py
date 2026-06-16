@@ -367,6 +367,7 @@ def suggest_workflow_from_description(description: str) -> dict[str, Any]:
         "pattern_label": WF_PATTERN_LABEL.get(pattern, pattern),
         "warnings": warnings,
         "workflow": {
+            "name": WF_PATTERN_LABEL.get(pattern, pattern),
             "tasks": tasks,
             "options": options,
         },

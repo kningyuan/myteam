@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import re
+import time
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
+
+import yaml
 
 from common.paths import MYTEAM_ROOT
 
@@ -22,10 +25,29 @@ _FILE_KIND = {
 }
 
 
+def _stringify_frontmatter_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value).strip()
+
+
 def _parse_frontmatter(text: str) -> dict[str, str]:
     m = _FRONTMATTER_RE.match(text)
     if not m:
         return {}
+    try:
+        raw = yaml.safe_load(m.group(1))
+    except yaml.YAMLError:
+        raw = None
+    if isinstance(raw, dict):
+        return {
+            str(k): _stringify_frontmatter_value(v)
+            for k, v in raw.items()
+            if v is not None and str(k).strip()
+        }
+    # 退化：仅解析单行 key: value（兼容极简 frontmatter）
     out: dict[str, str] = {}
     for line in m.group(1).splitlines():
         if ":" not in line:
@@ -141,6 +163,58 @@ def _list_skill_files(skill_dir: Path) -> list[dict]:
     return files
 
 
+def _parse_meta_timestamp(meta: dict[str, str]) -> float | None:
+    raw = (meta.get("updated_at") or meta.get("modified_at") or "").strip()
+    if not raw:
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
+
+def _skill_dir_max_mtime(skill_dir: Path) -> float:
+    mtimes: list[float] = []
+    for p in skill_dir.rglob("*"):
+        if not p.is_file() or p.name.startswith("."):
+            continue
+        try:
+            mtimes.append(p.stat().st_mtime)
+        except OSError:
+            continue
+    return max(mtimes) if mtimes else 0.0
+
+
+def _resolve_updated_at(skill_dir: Path, meta: dict[str, str]) -> float:
+    """frontmatter updated_at 与目录内最新文件 mtime 取较大值。"""
+    meta_ts = _parse_meta_timestamp(meta)
+    dir_ts = _skill_dir_max_mtime(skill_dir)
+    if meta_ts is not None:
+        return max(meta_ts, dir_ts)
+    return dir_ts
+
+
+def _frontmatter_line(key: str, value: str) -> str:
+    if key in {"name", "description"}:
+        return f'{key}: "{value}"'
+    return f"{key}: {value}"
+
+
+def _upsert_frontmatter_lines(lines: list[str], updates: dict[str, str]) -> list[str]:
+    result = list(lines)
+    for key, val in updates.items():
+        line_val = _frontmatter_line(key, val)
+        found = False
+        for i, line in enumerate(result):
+            if line.startswith(f"{key}:"):
+                result[i] = line_val
+                found = True
+                break
+        if not found:
+            result.append(line_val)
+    return result
+
+
 def _read_skill_meta(skill_dir: Path, text: str) -> dict:
     meta = _parse_frontmatter(text)
     sid = skill_dir.name
@@ -151,7 +225,7 @@ def _read_skill_meta(skill_dir: Path, text: str) -> dict:
         "description": meta.get("description", ""),
         "task_type": meta.get("task_type", ""),
         "path": str((skill_dir / "SKILL.md").relative_to(MYTEAM_ROOT)),
-        "updated_at": (skill_dir / "SKILL.md").stat().st_mtime,
+        "updated_at": _resolve_updated_at(skill_dir, meta),
         "line_count": len(text.splitlines()),
         "is_draft": is_draft,
         "is_mountable": not is_draft,
@@ -171,6 +245,7 @@ def list_all_skills() -> list[dict]:
             continue
         text = skill_md.read_text(encoding="utf-8", errors="replace")
         items.append(_read_skill_meta(p, text))
+    items.sort(key=lambda i: i.get("updated_at") or 0, reverse=True)
     return items
 
 
@@ -192,9 +267,10 @@ def list_skill_library() -> list[dict]:
             "name": meta.get("name") or p.name,
             "description": meta.get("description", ""),
             "path": str(skill_md.relative_to(MYTEAM_ROOT)),
-            "updated_at": skill_md.stat().st_mtime,
+            "updated_at": _resolve_updated_at(p, meta),
             "line_count": len(text.splitlines()),
         })
+    items.sort(key=lambda i: i.get("updated_at") or 0, reverse=True)
     return items
 
 
@@ -259,20 +335,15 @@ def update_skill_name(skill_id: str, name: str) -> dict:
     text = skill_md.read_text(encoding="utf-8", errors="replace")
     m = _FRONTMATTER_RE.match(text)
     body = text[m.end() :] if m else text
-    lines: list[str] = []
+    now = str(time.time())
     if m:
-        replaced = False
-        for line in m.group(1).splitlines():
-            if line.startswith("name:"):
-                lines.append(f'name: "{new_name}"')
-                replaced = True
-            else:
-                lines.append(line)
-        if not replaced:
-            lines.insert(0, f'name: "{new_name}"')
+        lines = _upsert_frontmatter_lines(
+            m.group(1).splitlines(),
+            {"name": new_name, "updated_at": now},
+        )
         new_text = "---\n" + "\n".join(lines) + "\n---\n" + body
     else:
-        new_text = f'---\nname: "{new_name}"\n---\n' + text
+        new_text = f'---\nname: "{new_name}"\nupdated_at: {now}\n---\n' + text
     skill_md.write_text(new_text, encoding="utf-8")
     return {"success": True, "skill_id": skill_dir.name, "name": new_name}
 

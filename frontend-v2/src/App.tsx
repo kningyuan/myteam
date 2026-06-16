@@ -7,6 +7,7 @@ import { ManageSection } from "@/sections/ManageSection"
 import { ProjectsSection } from "@/sections/ProjectsSection"
 import { WorkflowsSection } from "@/sections/WorkflowsSection"
 import { SkillsSection } from "@/sections/SkillsSection"
+import { McpSection } from "@/sections/McpSection"
 import { DiscordShell } from "@/components/layout/DiscordShell"
 
 function DashboardRoute() {
@@ -41,6 +42,8 @@ export default function App() {
         <Route path="workflows/:workflowId" element={<WorkflowsSection />} />
         <Route path="skills" element={<SkillsSection />} />
         <Route path="skills/:draftId" element={<SkillsSection />} />
+        <Route path="mcp" element={<McpSection />} />
+        <Route path="mcp/:serverId" element={<McpSection />} />
         <Route path="settings" element={<SettingsRoute />} />
         <Route path="settings/:section" element={<SettingsRoute />} />
         <Route path="*" element={<Navigate to="/" replace />} />

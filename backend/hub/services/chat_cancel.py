@@ -166,3 +166,19 @@ def wrap_producer(
             unregister_chat(session_key, reg_ev)
 
     return produce
+
+
+def wrap_producer_background(
+    session_key: str,
+    inner: Callable[[threading.Event], Generator[T, None, None]],
+) -> Callable[[threading.Event], Generator[T, None, None]]:
+    """客户端断开 SSE 不取消底层 CLI；仅显式 /cancel 或新会话抢占会取消。"""
+
+    def produce(_disconnect_cancel: threading.Event) -> Generator[T, None, None]:
+        reg_ev = register_chat(session_key)
+        try:
+            yield from inner(reg_ev)
+        finally:
+            unregister_chat(session_key, reg_ev)
+
+    return produce

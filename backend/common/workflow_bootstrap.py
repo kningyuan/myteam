@@ -205,6 +205,8 @@ def list_workflow_summaries() -> list[dict]:
             p = load_workflow(wid)
             out.append({
                 "id": p.id,
+                "name": p.name,
+                "display_name": p.name,
                 "version": p.version,
                 "description": p.description,
                 "roster": p.roster,

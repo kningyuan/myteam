@@ -53,3 +53,42 @@ async def stream_with_cancel(
 
     if errors:
         raise errors[0]
+
+
+async def stream_background_on_disconnect(
+    request: Request,
+    producer: Callable[[threading.Event], Generator[T, None, None]],
+) -> AsyncIterator[T]:
+    """桥接同步 generator；客户端断开时仅结束 HTTP，不取消 producer（后台继续）。"""
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue[Optional[T]] = asyncio.Queue()
+    errors: list[BaseException] = []
+
+    def worker() -> None:
+        try:
+            for item in producer(threading.Event()):
+                asyncio.run_coroutine_threadsafe(queue.put(item), loop).result()
+        except BaseException as exc:
+            errors.append(exc)
+        finally:
+            asyncio.run_coroutine_threadsafe(queue.put(None), loop)
+
+    thread = threading.Thread(target=worker, daemon=True)
+    thread.start()
+
+    try:
+        while True:
+            if await request.is_disconnected():
+                break
+            try:
+                item = await asyncio.wait_for(queue.get(), timeout=0.25)
+            except asyncio.TimeoutError:
+                continue
+            if item is None:
+                break
+            yield item
+    finally:
+        thread.join(timeout=2.0)
+
+    if errors:
+        raise errors[0]

@@ -52,6 +52,7 @@ def get_agents_registry(*, merge_scan: bool = True) -> dict:
             "capabilities": meta.get("capabilities") or [],
             "task_types": meta.get("task_types") or [],
             "skills": meta.get("skills") or [],
+            "mcp_servers": meta.get("mcp_servers") or [],
             "available": aid in available_ids,
             "backend": scan_info.get("backend", ""),
             "model": scan_info.get("model", ""),
@@ -104,7 +105,9 @@ def register_agent(agent_id: str, *, name: str = "", role: str = "worker",
                    capabilities: Optional[list[str]] = None,
                    task_types: Optional[list[str]] = None,
                    skills: Optional[list[str]] = None,
-                   skills_explicit: bool = False) -> dict:
+                   skills_explicit: bool = False,
+                   mcp_servers: Optional[list[str]] = None,
+                   mcp_explicit: bool = False) -> dict:
     """在 agents_registry.json 中注册/更新 agent 元信息。
 
     不创建 workspace 或 identity 文件——只维护注册表元数据。
@@ -120,6 +123,7 @@ def register_agent(agent_id: str, *, name: str = "", role: str = "worker",
     merged_caps = capabilities if capabilities is not None else (existing.get("capabilities") or [])
     merged_tts = task_types if task_types is not None else (existing.get("task_types") or [])
     merged_skills = skills if skills is not None else (existing.get("skills") or [])
+    merged_mcp = mcp_servers if mcp_servers is not None else (existing.get("mcp_servers") or [])
     entry = {
         "name": name or existing.get("name") or agent_id,
         "role": role or existing.get("role") or "worker",
@@ -129,12 +133,24 @@ def register_agent(agent_id: str, *, name: str = "", role: str = "worker",
     }
     if skills is not None or skills_explicit or existing.get("skills") is not None:
         entry["skills"] = sorted(set(str(s).strip() for s in merged_skills if str(s).strip()))
+    if mcp_servers is not None or mcp_explicit or existing.get("mcp_servers") is not None:
+        entry["mcp_servers"] = sorted(set(str(s).strip() for s in merged_mcp if str(s).strip()))
     raw["agents"][agent_id] = entry
     _save_registry_file(raw)
     if skills is not None or skills_explicit:
-        from common.agent_skills import sync_agents_md_skills_section
+        from common.agent_skills import strip_agents_md_skills_section
 
-        sync_agents_md_skills_section(agent_id)
+        strip_agents_md_skills_section(agent_id)
+        from common.adapter_skill_registry import sync_agent_skills_to_cli
+
+        sync_agent_skills_to_cli(agent_id)
+    if mcp_servers is not None or mcp_explicit:
+        from common.agent_mcp import strip_agents_md_mcp_section
+
+        strip_agents_md_mcp_section(agent_id)
+        from common.adapter_mcp_registry import sync_agent_mcp_to_cli
+
+        sync_agent_mcp_to_cli(agent_id)
     return {"success": True, "agent_id": agent_id}
 
 
@@ -158,6 +174,30 @@ def update_agent_skills(agent_id: str, skills: list[str]) -> dict:
         task_types=reg.get("task_types"),
         skills=valid,
         skills_explicit=True,
+    )
+
+
+def update_agent_mcp_servers(agent_id: str, mcp_servers: list[str]) -> dict:
+    """更新 Agent 挂载的 MCP id 列表（须全局 enabled）。"""
+    from common.mcp_catalog import validate_mcp_ids
+
+    valid, unknown = validate_mcp_ids(mcp_servers)
+    if unknown:
+        return {
+            "success": False,
+            "error": f"以下 MCP 不存在或未启用：{', '.join(unknown)}",
+        }
+    reg = get_agents_registry()["agents"].get(agent_id) or {}
+    return register_agent(
+        agent_id,
+        name=reg.get("name", agent_id),
+        role=reg.get("role", "worker"),
+        description=reg.get("description", ""),
+        capabilities=reg.get("capabilities"),
+        task_types=reg.get("task_types"),
+        skills=reg.get("skills"),
+        mcp_servers=valid,
+        mcp_explicit=True,
     )
 
 
@@ -310,6 +350,34 @@ def remove_skill_from_all_agents(skill_id: str) -> list[str]:
             task_types=meta.get("task_types"),
             skills=new_skills,
             skills_explicit=True,
+        )
+        updated.append(aid)
+    return updated
+
+
+def remove_mcp_from_all_agents(server_id: str) -> list[str]:
+    """从所有 Agent 的 mcp_servers 列表中移除指定 server_id。"""
+    sid = (server_id or "").strip()
+    if not sid:
+        return []
+    raw = _load_registry_file()
+    raw.setdefault("agents", {})
+    updated: list[str] = []
+    for aid, meta in list(raw["agents"].items()):
+        servers = list(meta.get("mcp_servers") or [])
+        if sid not in servers:
+            continue
+        new_servers = [s for s in servers if s != sid]
+        register_agent(
+            aid,
+            name=meta.get("name") or aid,
+            role=meta.get("role") or "worker",
+            description=meta.get("description") or "",
+            capabilities=meta.get("capabilities"),
+            task_types=meta.get("task_types"),
+            skills=meta.get("skills"),
+            mcp_servers=new_servers,
+            mcp_explicit=True,
         )
         updated.append(aid)
     return updated

@@ -70,10 +70,16 @@ def _launch_config(proj: dict, meta: dict) -> dict:
         "one_shot": "one_shot（跑一次）",
         "recurring": "recurring（持续）",
     }
+    if workflow:
+        from common.workflow_loader import resolve_workflow_display_name
+
+        workflow_label = resolve_workflow_display_name(workflow)
+    else:
+        workflow_label = "自由规划（main 即兴 task_plan）"
     return {
         "goal": goal or None,
         "workflow": workflow,
-        "workflow_label": workflow or "自由规划（main 即兴 task_plan）",
+        "workflow_label": workflow_label,
         "mode": mode,
         "mode_label": mode_labels.get(mode, mode),
         "token_budget": meta.get("token_budget"),

@@ -3,9 +3,10 @@ import { useNavigate, useParams } from "react-router-dom"
 import { toast } from "sonner"
 import { getConfig, getSkillConfig } from "@/lib/api/config"
 import { deleteProject, listProjects, runProject } from "@/lib/api/projects"
-import { listWorkflows, type WorkflowSummary } from "@/lib/api/workflows"
+import { listWorkflows, type WorkflowSummary, workflowDisplayName } from "@/lib/api/workflows"
 import { useResourceQuery } from "@/hooks/useResourceQuery"
 import { matchQuery } from "@/components/manage/ManageSearchBar"
+import { sortByModifiedDesc } from "@/lib/sortByModified"
 import { ProjectDetailPanel } from "@/components/project/ProjectDetailPanel"
 import { ProjectListItem } from "@/components/project/ProjectListItem"
 import { DiscordShell, ListColumn, WelcomePane } from "@/components/layout/DiscordShell"
@@ -136,7 +137,7 @@ function NewProjectDialog({
                     <SelectItem value="__auto__">自动 / 无</SelectItem>
                     {workflows.map((w) => (
                       <SelectItem key={w.id} value={w.id}>
-                        {w.id}
+                        {workflowDisplayName(w)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -225,8 +226,10 @@ export function ProjectsSection() {
 
   const filtered = useMemo(
     () =>
-      projects.filter((p) =>
-        matchQuery(search, p.id, p.name, p.status, p.mode, p.meta?.workflow),
+      sortByModifiedDesc(
+        projects.filter((p) =>
+          matchQuery(search, p.id, p.name, p.status, p.mode, p.meta?.workflow),
+        ),
       ),
     [projects, search],
   )

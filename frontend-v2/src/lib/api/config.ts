@@ -17,6 +17,7 @@ export type ObsSummary = {
     status?: string
     progress?: number
     task_count?: number
+    updated_at?: string
   }[]
 }
 

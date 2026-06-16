@@ -24,6 +24,7 @@ from store.sessions import session_store
 from base.agent_identity import AgentIdentityBuilder, multi_agent_manager
 from base.agent_chat import get_agent_backend_config, _load_agents_config
 from common.agent_skills import build_skill_context
+from common.agent_mcp import build_mcp_context
 
 
 class ChatService:
@@ -245,6 +246,9 @@ class ChatService:
                         buf.append(content)
                 encoded = encode_event(event)
                 if encoded:
+                    from hub.services.stream_fanout import fanout_stream_event
+
+                    fanout_stream_event(agent_id, encoded)
                     yield encoded
 
             reply = "".join(buf).strip()
@@ -261,7 +265,11 @@ class ChatService:
                     store, conv_id,
                     summarize_fn=self._make_summarizer(adapter, str(workspace), model,
                                                        rules_file, agent_id))
-            yield encode_done("")
+            done_sse = encode_done("")
+            from hub.services.stream_fanout import fanout_stream_event
+
+            fanout_stream_event(agent_id, done_sse)
+            yield done_sse
         finally:
             store.close()
             if rules_file and os.path.exists(rules_file):
@@ -302,6 +310,9 @@ class ChatService:
         skill_block = build_skill_context(agent_id)
         if skill_block:
             sections.append(skill_block)
+        mcp_block = build_mcp_context(agent_id)
+        if mcp_block:
+            sections.append(mcp_block)
         multi = multi_agent_manager.build_multi_agent_context(agent_id)
         if multi:
             sections.append(f"<multi_agent_context>\n{multi}\n</multi_agent_context>")

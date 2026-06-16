@@ -128,8 +128,153 @@ export function nextSeqId(prefix: string, used: string[]): string {
   return `${prefix}-${n}`
 }
 
+export function nextTaskId(tasks: { id: string }[]): string {
+  return nextSeqId("task", tasks.map((t) => t.id))
+}
+
 export function nextBodyStepId(body: LoopBodyTask[]): string {
   return nextSeqId("step", body.map((t) => t.id))
+}
+
+/** 按列表顺序重编号为 step-1…step-n，并返回旧→新映射。 */
+export function renumberBodySteps(body: LoopBodyTask[]): {
+  steps: LoopBodyTask[]
+  idMap: Record<string, string>
+} {
+  const idMap: Record<string, string> = {}
+  body.forEach((b, i) => {
+    idMap[b.id] = `step-${i + 1}`
+  })
+  const steps = body.map((b, i) => {
+    const newId = `step-${i + 1}`
+    return {
+      ...b,
+      id: newId,
+      dependencies: (b.dependencies || [])
+        .map((d) => idMap[d])
+        .filter((d): d is string => !!d && d !== newId),
+    }
+  })
+  return { steps, idMap }
+}
+
+export function remapLoopSpecStepRefs(
+  spec: LoopSpec,
+  idMap: Record<string, string>,
+): LoopSpec {
+  const remap = (v?: string) => {
+    if (!v) return v
+    return idMap[v] ?? v
+  }
+  return {
+    ...spec,
+    until: (spec.until || []).map((u) => ({ ...u, task: remap(u.task) })),
+    fallback_until: (spec.fallback_until || []).map((u) => ({ ...u, task: remap(u.task) })),
+    assess: spec.assess
+      ? { ...spec.assess, ref: remap(spec.assess.ref) || spec.assess.ref }
+      : undefined,
+    transition: (spec.transition || []).map((r) => ({ ...r, task: remap(r.task) })),
+  }
+}
+
+/** 将 loop 内所有 body 步骤重编号为 step-1…step-n，并同步 until/assess/transition。 */
+export function renumberLoopSpecAllBodies(spec: LoopSpec): LoopSpec {
+  let mergedMap: Record<string, string> = {}
+  let next: LoopSpec = { ...spec }
+
+  if (next.bodies && Object.keys(next.bodies).length > 0) {
+    const bodies: Record<string, LoopBodyTask[]> = {}
+    for (const [key, rows] of Object.entries(next.bodies)) {
+      const { steps, idMap } = renumberBodySteps(rows)
+      bodies[key] = steps
+      mergedMap = { ...mergedMap, ...idMap }
+    }
+    const defaultKey = next.default_body || "default"
+    next = {
+      ...next,
+      bodies,
+      body: bodies[defaultKey] || next.body,
+    }
+  } else if (next.body?.length) {
+    const { steps, idMap } = renumberBodySteps(next.body)
+    next = { ...next, body: steps }
+    mergedMap = idMap
+  }
+
+  return remapLoopSpecStepRefs(next, mergedMap)
+}
+
+type WfTaskLike = {
+  id: string
+  name?: string
+  dependencies?: string[]
+  loop?: string
+  agent?: string
+  task_type?: string
+  template_id?: string
+  description?: string
+}
+
+/** 顶层任务按顺序重编号为 task-1…task-n。 */
+export function renumberWorkflowTasks<T extends WfTaskLike>(tasks: T[]): T[] {
+  const idMap: Record<string, string> = {}
+  tasks.forEach((t, i) => {
+    idMap[t.id] = `task-${i + 1}`
+  })
+  return tasks.map((t, i) => {
+    const newId = `task-${i + 1}`
+    return {
+      ...t,
+      id: newId,
+      dependencies: (t.dependencies || [])
+        .map((d) => idMap[d])
+        .filter((d): d is string => !!d && d !== newId),
+      loop: t.loop ? idMap[t.loop] || t.loop : t.loop,
+    }
+  })
+}
+
+/** 删除/移动任务后同步 loopSpecs 的 key（仅当 key 等于旧 task id 时）。 */
+export function renumberLoopSpecKeys(
+  loopSpecs: Record<string, LoopSpec>,
+  taskIdMap: Record<string, string>,
+): Record<string, LoopSpec> {
+  const out: Record<string, LoopSpec> = {}
+  for (const [lid, spec] of Object.entries(loopSpecs)) {
+    const newLid = taskIdMap[lid] || lid
+    out[newLid] = { ...spec, id: newLid }
+  }
+  return out
+}
+
+export function buildTaskIdMap(tasks: WfTaskLike[]): Record<string, string> {
+  const idMap: Record<string, string> = {}
+  tasks.forEach((t, i) => {
+    idMap[t.id] = `task-${i + 1}`
+  })
+  return idMap
+}
+
+/** 加载/保存前：顶层 task-N，loop body step-N。loop 独立 id（如 blockchain_improve_round）保持不变。 */
+export function normalizeWorkflowSequentialIds(data: {
+  tasks?: WfTaskLike[]
+  loops?: Record<string, unknown>[]
+}): { tasks: WfTaskLike[]; loops?: Record<string, unknown>[] } {
+  const rawTasks = data.tasks || []
+  const taskIdMap = buildTaskIdMap(rawTasks)
+  const tasks = renumberWorkflowTasks(rawTasks)
+
+  const loopSpecs = loopsToRecord(data.loops)
+  const loops: LoopSpec[] = []
+  for (const [loopId, spec] of Object.entries(loopSpecs)) {
+    const newLoopId = taskIdMap[loopId] || loopId
+    loops.push(renumberLoopSpecAllBodies({ ...spec, id: newLoopId }))
+  }
+
+  return {
+    tasks,
+    loops: loops.length ? loops : data.loops,
+  }
 }
 
 function lastBodyStepId(body: LoopBodyTask[]): string {

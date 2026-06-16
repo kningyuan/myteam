@@ -1,3 +1,4 @@
+import { invalidateResources } from "@/lib/dataRefresh"
 import {
   hubFetch,
   parseSseLineBuffer,
@@ -18,10 +19,15 @@ export type ChatMessage = {
 export type ChatArchiveEntry = {
   agent_id: string
   label?: string
+  hidden_at?: number
 }
 
 export async function cancelAgentChat(agentId: string): Promise<void> {
   await hubFetch(`/api/chat/${encodeURIComponent(agentId)}/cancel`, { method: "POST" })
+}
+
+export async function getAgentChatStatus(agentId: string): Promise<{ active: boolean }> {
+  return hubFetch(`/api/chat/${encodeURIComponent(agentId)}/status`)
 }
 
 export async function getAgentChatMessages(agentId: string): Promise<ChatMessage[]> {
@@ -57,6 +63,7 @@ export async function sendAgentChat(
 
 export async function clearAgentChat(agentId: string): Promise<void> {
   await hubFetch(`/api/chat/${encodeURIComponent(agentId)}/clear`, { method: "POST" })
+  invalidateResources("agents")
 }
 
 export async function archiveAgentChat(
@@ -68,12 +75,18 @@ export async function archiveAgentChat(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ snapshot }),
   })
+  invalidateResources("agents")
 }
 
 export async function restoreAgentChat(agentId: string): Promise<{
   snapshot?: { messages?: ChatMessage[] }
 }> {
-  return hubFetch(`/api/chat/${encodeURIComponent(agentId)}/restore`, { method: "POST" })
+  const data = await hubFetch<{ snapshot?: { messages?: ChatMessage[] } }>(
+    `/api/chat/${encodeURIComponent(agentId)}/restore`,
+    { method: "POST" },
+  )
+  invalidateResources("agents")
+  return data
 }
 
 export async function searchChatArchives(q: string): Promise<ChatArchiveEntry[]> {

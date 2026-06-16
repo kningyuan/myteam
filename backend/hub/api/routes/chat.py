@@ -17,8 +17,8 @@ async def chat(request: Request, agent_id: str, message: str = Query(..., descri
     if not message or not message.strip():
         raise HTTPException(status_code=400, detail="消息不能为空")
 
-    from hub.services.sse_bridge import stream_with_cancel
-    from hub.services.chat_cancel import agent_session_key, wrap_producer
+    from hub.services.sse_bridge import stream_background_on_disconnect
+    from hub.services.chat_cancel import agent_session_key, wrap_producer_background
 
     def produce_inner(cancel):
         try:
@@ -31,8 +31,9 @@ async def chat(request: Request, agent_id: str, message: str = Query(..., descri
 
     async def event_stream():
         try:
-            async for event_json in stream_with_cancel(
-                request, wrap_producer(agent_session_key(agent_id), produce_inner)
+            async for event_json in stream_background_on_disconnect(
+                request,
+                wrap_producer_background(agent_session_key(agent_id), produce_inner),
             ):
                 yield f"data: {event_json}\n\n"
         finally:
@@ -54,6 +55,14 @@ async def cancel_agent_chat(agent_id: str):
     from hub.services.chat_cancel import agent_session_key, cancel_chat
 
     return {"success": cancel_chat(agent_session_key(agent_id))}
+
+
+@router.get("/{agent_id}/status")
+async def api_chat_status(agent_id: str):
+    """私聊流是否仍在运行（刷新后恢复「思考中」UI）。"""
+    from hub.services.chat_cancel import agent_session_key, is_chat_active
+
+    return {"active": is_chat_active(agent_session_key(agent_id))}
 
 
 @router.get("/{agent_id}/messages")

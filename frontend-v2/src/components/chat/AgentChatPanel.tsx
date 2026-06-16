@@ -19,7 +19,7 @@ import {
 import {
   cancelAgentChatStream,
   getContextTokenBudget,
-  resetAgentContextTokens,
+  resetAgentChatSession,
   sendAgentChatMessage,
   syncAgentChatFromServer,
   type CitationPart,
@@ -197,9 +197,9 @@ export function AgentChatPanel({
       return
     }
     if (busy) cancelAgentChatStream(agent.id)
+    resetAgentChatSession(agent.id)
     try {
       await clearAgentChat(agent.id)
-      resetAgentContextTokens(agent.id)
       await syncAgentChatFromServer(agent.id)
       toast.success("对话已清空")
     } catch (e) {
@@ -220,6 +220,7 @@ export function AgentChatPanel({
         label: agent.name || agent.id,
         messages: messages.map((m) => ({ role: m.role, text: m.text })),
       })
+      resetAgentChatSession(agent.id)
       toast.success("对话已归档")
       onArchived?.()
     } catch (e) {

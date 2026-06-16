@@ -301,7 +301,11 @@ export function ProjectDetailPanel({
 
         <div className="project-workspace-stats">
           <StatusBadge status={status} label={statusLabel(status)} />
-          {ov.workflow && <Badge variant="outline">流程 {ov.workflow}</Badge>}
+          {(ov.launch?.workflow_label || ov.workflow) && (
+            <Badge variant="outline">
+              流程 {ov.launch?.workflow_label || ov.workflow}
+            </Badge>
+          )}
           <span className="stat-pill">{tasks.length} 任务</span>
           <span className="stat-pill">{formatNumber(totalTok)} tok</span>
           {ov.budget && <span className="stat-pill">预算 {formatNumber(ov.budget)}</span>}

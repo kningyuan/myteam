@@ -246,16 +246,35 @@ def test_resume_unblocks_when_upstream_recovers(env, monkeypatch):
     assert store.get_task(pid, "t2")["status"] in ("completed", "needs_review")
 
 
-def test_resume_merges_workflow_description(env):
+def test_resume_merges_workflow_description(env, monkeypatch, tmp_path):
     """resume 应从 workflow 补全 store 中缺失的 task description（intent 来源）。"""
     store, wcfg = env
-    pid = "GitHub项目调研"
-    store.upsert_project(pid, status="in_progress", meta={"workflow": "GitHub项目调研"})
+    wf_dir = tmp_path / "workflows"
+    wf_dir.mkdir()
+    (wf_dir / "merge-desc.yaml").write_text(
+        """id: merge-desc
+version: "1.0"
+description: test
+tasks:
+  - id: t-arch
+    name: 架构调研
+    agent: arch
+    task_type: architecture-review
+    dependencies: []
+    description: |
+      【对象】目标系统架构
+      【任务】架构调研，禁止全仓扫源码
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("common.workflow_loader.workflows_dir", lambda: wf_dir)
+    pid = "merge-desc-proj"
+    store.upsert_project(pid, status="in_progress", meta={"workflow": "merge-desc"})
     store.upsert_task(pid, "t-arch", name="架构调研", agent="arch",
                       task_type="architecture-review", status="failed")
     port = AgentPort(lambda ctx: None, store=store, config=wcfg)
     proc = Process(store, port, ProcessConfig())
-    tasks = proc._merge_workflow_descriptions("GitHub项目调研", proc._tasks_from_store(pid))
+    tasks = proc._merge_workflow_descriptions("merge-desc", proc._tasks_from_store(pid))
     t = next(t for t in tasks if t["id"] == "t-arch")
     assert "架构" in t["description"]
     assert "禁止全仓扫源码" in t["description"]
