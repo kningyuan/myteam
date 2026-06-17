@@ -209,7 +209,7 @@ common/           编排内核 + 共享领域（Process、AgentPort、Gate、Sto
 | `mcp_catalog.py` | 读写 `business/config/mcp_registry.json` |
 | `adapter_skill_registry.py` | 批量 sync Skill 到 CLI |
 | `adapter_mcp_registry.py` | 批量 sync MCP 到 CLI |
-| `skill_extract.py` / `skill_methodology.py` | Skill 草案抽取与方法论 |
+| `skill_extract.py` / `skill_groups.py` | Skill 草案抽取与 vendor 分组 |
 | `agent_model.py` | agents_config 与 registry 对齐 |
 | `agent_bootstrap.py` | 创建 Agent workspace |
 | `agent_execution.py` | Agent 执行锁（chat vs kernel 互斥） |

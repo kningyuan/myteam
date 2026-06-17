@@ -89,6 +89,7 @@ export type MemoryEntry = {
   tags?: string[]
   created_at?: string
   preview?: string
+  content?: string
 }
 
 export type ProjectSummary = {
@@ -373,4 +374,12 @@ export async function listMemory(opts?: {
   if (opts?.projectId?.trim()) params.set("project_id", opts.projectId.trim())
   const data = await hubFetch<{ memory?: MemoryEntry[] }>(`/api/obs/memory?${params}`)
   return data.memory ?? []
+}
+
+export async function getMemory(memoryId: number): Promise<MemoryEntry> {
+  return hubFetch<MemoryEntry>(`/api/obs/memory/${memoryId}`)
+}
+
+export async function deleteMemory(memoryId: number): Promise<void> {
+  await hubFetch(`/api/obs/memory/${memoryId}`, { method: "DELETE" })
 }

@@ -17,6 +17,7 @@ from common.skill_catalog import (
     update_skill_name,
 )
 from common.skill_extract import SKILLS_DIR, list_skill_drafts
+from common.skill_link import iter_business_skill_dir_names
 
 router = APIRouter(prefix="/api/skills", tags=["skills"])
 
@@ -71,6 +72,62 @@ class SkillNameUpdate(BaseModel):
     name: str
 
 
+class SkillCategoryCreate(BaseModel):
+    id: str
+    name: str
+    description: str = ""
+
+
+class SkillCategoryUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+
+
+class SkillCategoryMove(BaseModel):
+    category_id: str | None = None
+
+
+@router.get("/categories")
+async def list_skill_categories_api():
+    from common.skill_categories import list_skill_categories
+
+    cats = list_skill_categories()
+    return {"categories": cats, "count": len(cats)}
+
+
+@router.post("/categories")
+async def create_skill_category_api(body: SkillCategoryCreate):
+    from common.skill_categories import create_skill_category
+
+    result = create_skill_category(body.id, name=body.name, description=body.description)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "创建失败"))
+    return result
+
+
+@router.patch("/categories/{category_id}")
+async def patch_skill_category_api(category_id: str, body: SkillCategoryUpdate):
+    from common.skill_categories import update_skill_category
+
+    result = update_skill_category(
+        category_id,
+        name=body.name,
+        description=body.description,
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "更新失败"))
+    return result
+
+
+@router.get("/groups")
+async def list_skill_groups_api():
+    """Skill 组（vendor 套件），Agent 可挂整组或组内单个 skill。"""
+    from common.skill_groups import list_skill_groups
+
+    groups = list_skill_groups()
+    return {"groups": groups, "count": len(groups)}
+
+
 @router.get("/library")
 async def list_skill_library_api():
     """全部 Skill（生产 + auto-* 草案）。"""
@@ -80,7 +137,9 @@ async def list_skill_library_api():
 
 @router.get("/library/{skill_id}")
 async def get_skill_library_item(skill_id: str):
-    entry = get_skill_entry(skill_id)
+    from common.skill_categories import resolve_library_entry
+
+    entry = resolve_library_entry(skill_id)
     if not entry:
         raise HTTPException(status_code=404, detail=f"Skill 不存在：{skill_id}")
     return entry
@@ -88,10 +147,25 @@ async def get_skill_library_item(skill_id: str):
 
 @router.get("/library/{skill_id}/file")
 async def get_skill_library_file(skill_id: str, path: str):
-    entry = get_skill_file(skill_id, path)
+    from common.skill_categories import get_category_file, is_skill_category_dir
+
+    if is_skill_category_dir(skill_id):
+        entry = get_category_file(skill_id, path)
+    else:
+        entry = get_skill_file(skill_id, path)
     if not entry:
         raise HTTPException(status_code=404, detail=f"Skill 或文件不存在：{skill_id}/{path}")
     return entry
+
+
+@router.patch("/library/{skill_id}/category")
+async def patch_skill_category_assignment(skill_id: str, body: SkillCategoryMove):
+    from common.skill_categories import move_skill_to_category
+
+    result = move_skill_to_category(skill_id, body.category_id)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "移动失败"))
+    return result
 
 
 @router.patch("/library/{skill_id}")
@@ -183,11 +257,7 @@ async def skill_matrix_audit():
                 catalog_types.add(tt)
 
     registered = {t["task_type"] for t in list_task_types_for_api()}
-    skill_dirs = {
-        p.name
-        for p in SKILLS_DIR.iterdir()
-        if p.is_dir() and (p / "SKILL.md").is_file() and not p.name.startswith("auto-")
-    }
+    skill_dirs = set(iter_business_skill_dir_names(SKILLS_DIR))
 
     missing_router = sorted(registered - skill_dirs - catalog_types)
     missing_catalog = sorted(skill_dirs - catalog_types)

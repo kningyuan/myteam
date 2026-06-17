@@ -735,3 +735,55 @@ def test_evaluate_transition_branch_next_body(tmp_path, monkeypatch):
     assert result.next_body == "patch"
     store.close()
 
+
+def test_hydrate_loop_round_from_store_rehydrates_split_children(tmp_path, monkeypatch):
+    import common.paths as paths
+    from common.loop_runtime import _hydrate_loop_round_from_store
+    from common.store import Store
+
+    monkeypatch.setattr(paths, "PROJECTS_DIR", tmp_path / "project")
+    store = Store(tmp_path / "s.db")
+    pid = "pro_x"
+    parent_id = "loop-r1-step-2"
+    ch1 = f"{parent_id}.ch1"
+    ch2 = f"{parent_id}.ch2"
+    store.upsert_task(
+        pid, parent_id, name="正文", agent="product", task_type="section-authoring",
+        status="cancelled", dependencies=["loop-r1-step-1"],
+        meta={"split_children": [ch1, ch2]},
+    )
+    store.upsert_task(
+        pid, ch1, name="ch1", agent="product", task_type="section-authoring",
+        status="completed", dependencies=["loop-r1-step-1"],
+        meta={"description": "d1"},
+    )
+    store.upsert_task(
+        pid, ch2, name="ch2", agent="product", task_type="section-authoring",
+        status="pending", dependencies=[ch1],
+        meta={"description": "d2"},
+    )
+    by_id = {
+        "loop-r1-step-1": {
+            "id": "loop-r1-step-1", "agent": "product", "task_type": "deck-build",
+            "dependencies": [],
+        },
+        parent_id: {
+            "id": parent_id, "agent": "product", "task_type": "section-authoring",
+            "dependencies": ["loop-r1-step-1"],
+        },
+        "loop-r1-step-3": {
+            "id": "loop-r1-step-3", "agent": "main", "task_type": "section-review",
+            "dependencies": [parent_id],
+        },
+    }
+    order = list(by_id.keys())
+    outcomes, done = _hydrate_loop_round_from_store(pid, by_id, order, store)
+    assert parent_id not in by_id
+    assert ch1 in by_id and ch2 in by_id
+    assert "loop-r1-step-3" in by_id
+    assert ch1 in (by_id["loop-r1-step-3"].get("dependencies") or [])
+    assert ch2 in (by_id["loop-r1-step-3"].get("dependencies") or [])
+    assert outcomes[ch1].status == "completed"
+    assert ch1 in done and ch2 not in done
+    store.close()
+

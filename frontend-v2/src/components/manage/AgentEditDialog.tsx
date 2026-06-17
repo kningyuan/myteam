@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
-import { getAgentDetail, suggestAgentTaskTypes, updateAgentManage, type AgentSummary } from "@/lib/api/agents"
+import { getAgentDetail, updateAgentManage, type AgentSummary } from "@/lib/api/agents"
 import { listBackends, listBackendModels, type BackendModel, type BackendSummary } from "@/lib/api/config"
 import { listMcpLibrary, type McpServerSummary } from "@/lib/api/mcp"
-import { listSkillLibrary, listTaskTypes, type SkillLibraryItem, type TaskTypeSummary } from "@/lib/api/workflows"
+import { listSkillGroups, listSkillLibrary, type SkillGroup, type SkillLibraryItem } from "@/lib/api/workflows"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -37,16 +37,15 @@ export function AgentEditDialog({
   const [backend, setBackend] = useState("")
   const [model, setModel] = useState("")
   const [workspace, setWorkspace] = useState("")
-  const [taskTypes, setTaskTypes] = useState<string[]>([])
   const [skillIds, setSkillIds] = useState<string[]>([])
   const [mcpIds, setMcpIds] = useState<string[]>([])
-  const [allTaskTypes, setAllTaskTypes] = useState<TaskTypeSummary[]>([])
   const [allSkills, setAllSkills] = useState<SkillLibraryItem[]>([])
+  const [skillGroups, setSkillGroups] = useState<SkillGroup[]>([])
   const [allMcps, setAllMcps] = useState<McpServerSummary[]>([])
   const [backends, setBackends] = useState<BackendSummary[]>([])
   const [models, setModels] = useState<BackendModel[]>([])
-  const [busy, setBusy] = useState(false)
   const [loadingDetail, setLoadingDetail] = useState(false)
+  const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     if (!agent || !open) return
@@ -54,17 +53,15 @@ export function AgentEditDialog({
     setBackend(agent.backend || "opencode")
     setModel(agent.model || "")
     setWorkspace("")
-    setTaskTypes(agent.task_types ?? [])
     setSkillIds(agent.skills ?? [])
     setMcpIds(agent.mcp_servers ?? [])
-    listTaskTypes().then(setAllTaskTypes).catch(() => setAllTaskTypes([]))
     listSkillLibrary().then(setAllSkills).catch(() => setAllSkills([]))
+    listSkillGroups().then(setSkillGroups).catch(() => setSkillGroups([]))
     listMcpLibrary(false).then(setAllMcps).catch(() => setAllMcps([]))
     listBackends().then(setBackends).catch(() => setBackends([]))
     setLoadingDetail(true)
     getAgentDetail(agent.id)
       .then((d) => {
-        setTaskTypes(d.task_types ?? agent.task_types ?? [])
         const ids = d.registry_skills ?? d.skills?.map((s) => s.skill_id) ?? []
         setSkillIds(ids)
         setMcpIds(d.registry_mcp_servers ?? d.mcp_servers?.map((m) => m.server_id) ?? agent.mcp_servers ?? [])
@@ -86,31 +83,38 @@ export function AgentEditDialog({
       .catch(() => setModels([]))
   }, [backend])
 
-  async function handleSuggestTaskTypes() {
-    if (!agent) return
-    setBusy(true)
-    try {
-      const detail = await getAgentDetail(agent.id).catch(() => null)
-      const desc = detail?.files?.["AGENTS.md"] || agent.description || ""
-      const res = await suggestAgentTaskTypes({
-        description: desc,
-        name: name.trim() || agent.name || agent.id,
-        agent_id: agent.id,
-      })
-      const suggested = res.task_types ?? []
-      if (!suggested.length) {
-        toast.message("未推导出 task_type")
-        return
+  const groupedMemberIds = new Set(
+    skillGroups.flatMap((g) => (g.members ?? []).map((m) => m.id)),
+  )
+  const standaloneSkills = allSkills.filter(
+    (s) => s.is_mountable !== false && !groupedMemberIds.has(s.id),
+  )
+
+  function toggleSkillId(id: string, checked: boolean) {
+    setSkillIds((prev) => {
+      if (checked) return prev.includes(id) ? prev : [...prev, id]
+      return prev.filter((x) => x !== id)
+    })
+  }
+
+  function toggleGroup(group: SkillGroup, checked: boolean) {
+    const memberIds = (group.members ?? []).map((m) => m.id)
+    setSkillIds((prev) => {
+      const without = prev.filter((x) => x !== group.id && !memberIds.includes(x))
+      return checked ? [...without, group.id] : without
+    })
+  }
+
+  function toggleGroupMember(group: SkillGroup, memberId: string, checked: boolean) {
+    setSkillIds((prev) => {
+      let next = prev.filter((x) => x !== group.id)
+      if (checked) {
+        if (!next.includes(memberId)) next = [...next, memberId]
+      } else {
+        next = next.filter((x) => x !== memberId)
       }
-      setTaskTypes((prev) => [...new Set([...prev, ...suggested])])
-      toast.success(`已勾选 ${suggested.length} 个 task_type`, {
-        description: res.pattern ? `来源：${res.pattern}` : undefined,
-      })
-    } catch (e) {
-      toast.error("推导失败", { description: e instanceof Error ? e.message : "" })
-    } finally {
-      setBusy(false)
-    }
+      return next
+    })
   }
 
   async function handleSave() {
@@ -122,7 +126,6 @@ export function AgentEditDialog({
         backend,
         model,
         workspace: workspace.trim(),
-        task_types: taskTypes,
         skills: skillIds,
         mcp_servers: mcpIds,
       })
@@ -187,67 +190,77 @@ export function AgentEditDialog({
             <Input value={workspace} onChange={(e) => setWorkspace(e.target.value)} placeholder="留空使用默认" />
           </div>
           <div className="grid gap-2">
-            <div className="flex items-center justify-between gap-2">
-              <Label>交付物类型（task_type）</Label>
-              <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void handleSuggestTaskTypes()}>
-                按职责推导
-              </Button>
-            </div>
-            <p className="hint text-xs">决定 workflow 可派哪些交付任务与 Gate 格式，不是 Skill 列表。</p>
-            <div className="max-h-32 space-y-1 overflow-y-auto rounded-md border border-[var(--color-border)] p-2">
-              {allTaskTypes.map((t) => (
-                <label key={t.task_type} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={taskTypes.includes(t.task_type)}
-                    onChange={(e) => {
-                      setTaskTypes((prev) =>
-                        e.target.checked
-                          ? [...prev, t.task_type]
-                          : prev.filter((x) => x !== t.task_type),
-                      )
-                    }}
-                  />
-                  <span title={t.task_type}>{t.display_name || t.task_type}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-          <div className="grid gap-2">
             <Label>挂载 Skill</Label>
             <p className="hint text-xs">
-              Agent 仅可使用勾选的 Skill（私聊 / 群聊 / workflow 统一生效）。在 Skill 页查看全部可用 Skill。
+              可勾选整组（如 OfficeCLI）或组内单项；组与成员互斥。Agent 须 Read 完整 SKILL.md 才能执行。
             </p>
             {loadingDetail ? (
               <p className="text-xs text-[var(--color-muted-foreground)]">加载当前配置…</p>
             ) : (
-              <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-[var(--color-border)] p-2">
-                {allSkills.filter((s) => s.is_mountable !== false).length ? (
-                  allSkills
-                    .filter((s) => s.is_mountable !== false)
-                    .map((s) => (
-                    <label key={s.id} className="flex items-start gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        className="mt-0.5"
-                        checked={skillIds.includes(s.id)}
-                        onChange={(e) => {
-                          setSkillIds((prev) =>
-                            e.target.checked ? [...prev, s.id] : prev.filter((x) => x !== s.id),
-                          )
-                        }}
-                      />
-                      <span title={s.id}>
-                        <span className="font-medium">{s.name || s.id}</span>
-                        {s.description ? (
-                          <span className="block text-xs text-[var(--color-muted-foreground)]">{s.description}</span>
-                        ) : null}
-                      </span>
-                    </label>
-                  ))
-                ) : (
+              <div className="max-h-48 space-y-2 overflow-y-auto rounded-md border border-[var(--color-border)] p-2">
+                {skillGroups.map((group) => {
+                  const groupChecked = skillIds.includes(group.id)
+                  return (
+                    <div key={group.id} className="space-y-1">
+                      <label className="flex items-start gap-2 text-sm font-medium">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5"
+                          checked={groupChecked}
+                          onChange={(e) => toggleGroup(group, e.target.checked)}
+                        />
+                        <span title={group.id}>
+                          {group.name || group.id}
+                          {group.description ? (
+                            <span className="block text-xs font-normal text-[var(--color-muted-foreground)]">
+                              {group.description}
+                            </span>
+                          ) : null}
+                        </span>
+                      </label>
+                      <div className="ml-5 space-y-1 border-l border-[var(--color-border)] pl-3">
+                        {(group.members ?? []).map((m) => (
+                          <label key={m.id} className="flex items-start gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              className="mt-0.5"
+                              disabled={groupChecked}
+                              checked={groupChecked || skillIds.includes(m.id)}
+                              onChange={(e) => toggleGroupMember(group, m.id, e.target.checked)}
+                            />
+                            <span title={m.id} className={groupChecked ? "opacity-60" : undefined}>
+                              <span>{m.name || m.id}</span>
+                              {m.description ? (
+                                <span className="block text-xs text-[var(--color-muted-foreground)]">
+                                  {m.description}
+                                </span>
+                              ) : null}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+                {standaloneSkills.map((s) => (
+                  <label key={s.id} className="flex items-start gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={skillIds.includes(s.id)}
+                      onChange={(e) => toggleSkillId(s.id, e.target.checked)}
+                    />
+                    <span title={s.id}>
+                      <span className="font-medium">{s.name || s.id}</span>
+                      {s.description ? (
+                        <span className="block text-xs text-[var(--color-muted-foreground)]">{s.description}</span>
+                      ) : null}
+                    </span>
+                  </label>
+                ))}
+                {!skillGroups.length && !standaloneSkills.length ? (
                   <p className="text-xs text-[var(--color-muted-foreground)]">Skill 库为空</p>
-                )}
+                ) : null}
               </div>
             )}
           </div>

@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from common.agent_skills import (  # noqa: E402
     build_skill_context,
+    get_agent_mounted_skill_ids,
     get_agent_skill_ids,
     resolve_skill_ids,
     skill_file_path,
@@ -64,3 +65,31 @@ def test_worker_prompt_uses_registry_skills_only():
     assert "【已挂载 Skill】" in prompt
     assert "backend-engineering-methodology" in prompt
     assert "code-writing/SKILL" not in prompt
+    assert "【用法】" in prompt
+    assert "Read 工具" in prompt
+
+
+def test_all_methodology_skill_files_exist():
+    from common.skill_catalog import list_skill_library
+
+    ids = [
+        "product-methodology",
+        "backend-engineering-methodology",
+        "frontend-engineering-methodology",
+        "frontend-architecture-methodology",
+        "qa-methodology",
+        "coordination-methodology",
+        "system-architecture-methodology",
+    ]
+    lib_ids = {s["id"] for s in list_skill_library()}
+    for sid in ids:
+        assert sid in lib_ids, sid
+        assert skill_file_path(sid) is not None, sid
+
+
+def test_product_officecli_group_expands():
+    ids = get_agent_skill_ids("product")
+    assert "officecli" in ids
+    mounted = get_agent_mounted_skill_ids("product")
+    assert "officecli-pptx" in mounted
+    assert "product-methodology" in mounted

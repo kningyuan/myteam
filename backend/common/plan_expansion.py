@@ -18,6 +18,11 @@ if TYPE_CHECKING:
     from common.process_types import TaskOutcome
 
 
+def _is_loop_placeholder(task: dict) -> bool:
+    """Loop 锚点任务由 loop_runtime 展开，不参与 evaluate 静态/动态拆分。"""
+    return bool(str(task.get("loop") or "").strip())
+
+
 @dataclass
 class PlanExpander:
     decision: DecisionPipeline
@@ -107,6 +112,8 @@ class PlanExpander:
             task = result.get(tid)
             if task is None:
                 continue
+            if _is_loop_placeholder(task):
+                continue
             subs = self.decision.evaluate(project_id, task, agents, depth, cycle=cycle)
             if not subs:
                 continue
@@ -142,6 +149,8 @@ class PlanExpander:
             for tid in wave:
                 task = by_id.get(tid)
                 if task is None:
+                    continue
+                if _is_loop_placeholder(task):
                     continue
                 depth = self._split_depth(project_id, tid, task)
                 if depth >= self.config.max_split_depth:

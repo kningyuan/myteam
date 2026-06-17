@@ -7,15 +7,15 @@ import {
   getAgentDetail,
   listAgents,
   saveAgentWorkspaceFile,
+  saveSharedRuleFile,
   suggestAgentId,
   syncAgentSkills,
   syncAgentMcp,
-  syncAgentTaskTypes,
   type AgentDetail,
   type AgentSkillRef,
   type AgentSummary,
 } from "@/lib/api/agents"
-import { listMemory, type MemoryEntry } from "@/lib/api/projects"
+import { listMemory, getMemory, deleteMemory, type MemoryEntry } from "@/lib/api/projects"
 import { listMcpLibrary } from "@/lib/api/mcp"
 import {
   createTaskType,
@@ -62,7 +62,6 @@ type ManageTab = "agents" | "task-types" | "templates" | "knowledge"
 
 const AGENT_WORKSPACE_FILES = [
   "IDENTITY.md",
-  "AGENTS.md",
   "SOUL.md",
   "USER.md",
 ] as const
@@ -71,41 +70,47 @@ type AgentWorkspaceFileName = (typeof AGENT_WORKSPACE_FILES)[number]
 
 const AGENT_FILE_LABELS: Record<AgentWorkspaceFileName, string> = {
   "IDENTITY.md": "身份定义",
-  "AGENTS.md": "能力配置",
   "SOUL.md": "人格风格",
   "USER.md": "用户偏好",
 }
 
-function WorkspaceHeader({
-  title,
-  description,
-  action,
-}: {
-  title: string
-  description?: string
-  action?: React.ReactNode
-}) {
-  return (
-    <header className="workspace-header-bar">
-      <div className="min-w-0">
-        <h1>{title}</h1>
-        {description && <p>{description}</p>}
-      </div>
-      {action}
-    </header>
-  )
+type ConfigFileKey =
+  | { scope: "shared"; filename: string }
+  | { scope: "workspace"; filename: AgentWorkspaceFileName }
+
+function configFileId(key: ConfigFileKey): string {
+  return key.scope === "shared" ? `shared:${key.filename}` : `ws:${key.filename}`
 }
 
-function AgentWorkspaceFilesEditor({
+function AgentConfigFilesEditor({
   agentId,
-  files,
+  workspaceFiles,
+  sharedRules,
+  sharedRuleMeta,
   loading,
 }: {
   agentId: string
-  files: Record<string, string>
+  workspaceFiles: Record<string, string>
+  sharedRules: Record<string, string>
+  sharedRuleMeta: { filename: string; label: string }[]
   loading: boolean
 }) {
-  const [selected, setSelected] = useState<AgentWorkspaceFileName>("AGENTS.md")
+  const fileKeys = useMemo<ConfigFileKey[]>(() => {
+    const shared: ConfigFileKey[] = sharedRuleMeta.map((f) => ({
+      scope: "shared",
+      filename: f.filename,
+    }))
+    const ws: ConfigFileKey[] = AGENT_WORKSPACE_FILES.map((filename) => ({
+      scope: "workspace",
+      filename,
+    }))
+    return [...shared, ...ws]
+  }, [sharedRuleMeta])
+
+  const [selected, setSelected] = useState<ConfigFileKey>(() => ({
+    scope: "shared",
+    filename: sharedRuleMeta[0]?.filename || "ethos.md",
+  }))
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [saved, setSaved] = useState<Record<string, string>>({})
   const [view, setView] = useState<"edit" | "preview">("edit")
@@ -113,31 +118,50 @@ function AgentWorkspaceFilesEditor({
 
   useEffect(() => {
     const next: Record<string, string> = {}
-    for (const fname of AGENT_WORKSPACE_FILES) {
-      next[fname] = files[fname] ?? ""
+    for (const key of fileKeys) {
+      const id = configFileId(key)
+      if (key.scope === "shared") {
+        next[id] = sharedRules[key.filename] ?? ""
+      } else {
+        next[id] = workspaceFiles[key.filename] ?? ""
+      }
     }
     setDrafts(next)
     setSaved(next)
-    setSelected("AGENTS.md")
+    const first = fileKeys[0]
+    if (first) setSelected(first)
     setView("edit")
-  }, [agentId, files])
+  }, [agentId, workspaceFiles, sharedRules, fileKeys])
 
-  const currentDraft = drafts[selected] ?? ""
-  const isDirty = currentDraft !== (saved[selected] ?? "")
+  const selectedId = configFileId(selected)
+  const currentDraft = drafts[selectedId] ?? ""
+  const isDirty = currentDraft !== (saved[selectedId] ?? "")
 
-  function selectFile(fname: AgentWorkspaceFileName) {
-    if (fname === selected) return
-    if (isDirty && !window.confirm(`${selected} 有未保存的修改，确定切换文件？`)) return
-    setSelected(fname)
+  function labelFor(key: ConfigFileKey): string {
+    if (key.scope === "shared") {
+      return sharedRuleMeta.find((f) => f.filename === key.filename)?.label || key.filename
+    }
+    return AGENT_FILE_LABELS[key.filename]
+  }
+
+  function selectFile(key: ConfigFileKey) {
+    if (configFileId(key) === selectedId) return
+    if (isDirty && !window.confirm(`${labelFor(selected)} 有未保存的修改，确定切换文件？`)) return
+    setSelected(key)
     setView("edit")
   }
 
   async function handleSave() {
     setSaving(true)
     try {
-      await saveAgentWorkspaceFile(agentId, selected, currentDraft)
-      setSaved((prev) => ({ ...prev, [selected]: currentDraft }))
-      toast.success(`${selected} 已保存`)
+      if (selected.scope === "shared") {
+        await saveSharedRuleFile(selected.filename, currentDraft)
+        toast.success(`${labelFor(selected)} 已保存（全员生效）`)
+      } else {
+        await saveAgentWorkspaceFile(agentId, selected.filename, currentDraft)
+        toast.success(`${labelFor(selected)} 已保存`)
+      }
+      setSaved((prev) => ({ ...prev, [selectedId]: currentDraft }))
     } catch (e) {
       toast.error("保存失败", { description: e instanceof Error ? e.message : "" })
     } finally {
@@ -149,24 +173,28 @@ function AgentWorkspaceFilesEditor({
     <div className="workspace-panel agent-config-files-panel">
       <header className="agent-detail-capability-head">
         <div>
-          <h3 className="text-sm font-semibold">工作区配置文件</h3>
-          <p className="hint text-xs">左侧选择文件，右侧编辑 Markdown 内容</p>
+          <h3 className="text-sm font-semibold">Markdown 配置</h3>
+          <p className="hint text-xs">团队通用规则改一处全员更新；下方为当前 Agent 工作区专属文件</p>
         </div>
       </header>
       <div className="agent-config-files">
         <nav className="agent-config-file-list" aria-label="配置文件">
-          {AGENT_WORKSPACE_FILES.map((fname) => {
-            const dirty = (drafts[fname] ?? "") !== (saved[fname] ?? "")
-            const empty = !(saved[fname] ?? "").trim()
+          {fileKeys.map((key) => {
+            const id = configFileId(key)
+            const dirty = (drafts[id] ?? "") !== (saved[id] ?? "")
+            const empty = !(saved[id] ?? "").trim()
+            const label = labelFor(key)
             return (
               <button
-                key={fname}
+                key={id}
                 type="button"
-                className={cn("agent-config-file-item", selected === fname && "active")}
-                onClick={() => selectFile(fname)}
+                className={cn("agent-config-file-item", selectedId === id && "active")}
+                onClick={() => selectFile(key)}
               >
-                <span className="agent-config-file-name">{fname}</span>
-                <span className="agent-config-file-label">{AGENT_FILE_LABELS[fname]}</span>
+                <span className="agent-config-file-name">{label}</span>
+                <span className="agent-config-file-label">
+                  {key.scope === "shared" ? "团队通用" : key.filename}
+                </span>
                 {(dirty || empty) && (
                   <span className="agent-config-file-badge">{dirty ? "未保存" : "空"}</span>
                 )}
@@ -177,8 +205,10 @@ function AgentWorkspaceFilesEditor({
         <div className="agent-config-file-main">
           <div className="agent-config-file-toolbar">
             <div className="min-w-0">
-              <p className="font-mono text-xs font-semibold">{selected}</p>
-              <p className="hint text-xs">{AGENT_FILE_LABELS[selected]}</p>
+              <p className="text-sm font-semibold">{labelFor(selected)}</p>
+              <p className="hint font-mono text-xs">
+                {selected.scope === "shared" ? `business/rules/${selected.filename}` : selected.filename}
+              </p>
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
               <Button
@@ -207,7 +237,7 @@ function AgentWorkspaceFilesEditor({
               className="agent-config-file-textarea"
               value={currentDraft}
               spellCheck={false}
-              onChange={(e) => setDrafts((prev) => ({ ...prev, [selected]: e.target.value }))}
+              onChange={(e) => setDrafts((prev) => ({ ...prev, [selectedId]: e.target.value }))}
             />
           ) : (
             <ScrollArea className="agent-config-file-preview">
@@ -217,6 +247,26 @@ function AgentWorkspaceFilesEditor({
         </div>
       </div>
     </div>
+  )
+}
+
+function WorkspaceHeader({
+  title,
+  description,
+  action,
+}: {
+  title: string
+  description?: string
+  action?: React.ReactNode
+}) {
+  return (
+    <header className="workspace-header-bar">
+      <div className="min-w-0">
+        <h1>{title}</h1>
+        {description && <p>{description}</p>}
+      </div>
+      {action}
+    </header>
   )
 }
 
@@ -232,16 +282,12 @@ function AgentDetailPanel({
   const [detail, setDetail] = useState<AgentDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState("")
-  const [taskTypeNameById, setTaskTypeNameById] = useState<Record<string, string>>({})
   const [skillNameById, setSkillNameById] = useState<Record<string, string>>({})
   const [mcpNameById, setMcpNameById] = useState<Record<string, string>>({})
 
   useEffect(() => {
-    Promise.all([listTaskTypes(), listSkillLibrary(), listMcpLibrary(true)])
-      .then(([types, skills, mcps]) => {
-        setTaskTypeNameById(
-          Object.fromEntries(types.map((t) => [t.task_type, t.display_name || t.task_type])),
-        )
+    Promise.all([listSkillLibrary(), listMcpLibrary(true)])
+      .then(([skills, mcps]) => {
         setSkillNameById(Object.fromEntries(skills.map((s) => [s.id, s.name || s.id])))
         setMcpNameById(Object.fromEntries(mcps.map((m) => [m.id, m.name || m.id])))
       })
@@ -269,14 +315,8 @@ function AgentDetailPanel({
   const backend = detail?.backend ?? agent.backend
   const model = detail?.model ?? agent.model
   const workspace = detail?.workspace
-  const taskTypes = detail?.task_types ?? agent.task_types ?? []
-  const taskTypeLabels = detail?.task_type_labels ?? {}
   const skills: AgentSkillRef[] = detail?.skills ?? []
   const mcps = detail?.mcp_servers ?? []
-
-  function taskTypeLabel(taskTypeId: string): string {
-    return taskTypeLabels[taskTypeId] || taskTypeNameById[taskTypeId] || taskTypeId
-  }
 
   function skillLabel(skill: AgentSkillRef): string {
     return skill.name || skillNameById[skill.skill_id] || skill.skill_id
@@ -287,6 +327,11 @@ function AgentDetailPanel({
   }
 
   const workspaceFiles = useMemo(() => detail?.files ?? {}, [detail])
+  const sharedRules = useMemo(() => detail?.shared_rules ?? {}, [detail])
+  const sharedRuleMeta = useMemo(
+    () => detail?.shared_rule_files ?? [],
+    [detail],
+  )
 
   return (
     <div className="agent-detail-layout">
@@ -326,22 +371,6 @@ function AgentDetailPanel({
             <div className="agent-detail-span-full">
               <dt>工作目录</dt>
               <dd className="font-mono text-xs break-all">{workspace || "—"}</dd>
-            </div>
-            <div className="agent-detail-span-full">
-              <dt>任务类型</dt>
-              <dd>
-                {taskTypes.length ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    {taskTypes.map((tt) => (
-                      <Badge key={tt} variant="secondary" title={tt}>
-                        {taskTypeLabel(tt)}
-                      </Badge>
-                    ))}
-                  </div>
-                ) : (
-                  "未配置"
-                )}
-              </dd>
             </div>
             <div className="agent-detail-span-full">
               <dt>挂载 Skill</dt>
@@ -389,7 +418,13 @@ function AgentDetailPanel({
         )}
       </div>
 
-      <AgentWorkspaceFilesEditor agentId={agent.id} files={workspaceFiles} loading={loading} />
+      <AgentConfigFilesEditor
+        agentId={agent.id}
+        workspaceFiles={workspaceFiles}
+        sharedRules={sharedRules}
+        sharedRuleMeta={sharedRuleMeta}
+        loading={loading}
+      />
     </div>
   )
 }
@@ -489,33 +524,102 @@ function TemplateDetailPanel({
   )
 }
 
-function KnowledgeDetailPanel({ entry }: { entry: MemoryEntry }) {
+function KnowledgeDetailPanel({
+  entry,
+  onDelete,
+}: {
+  entry: MemoryEntry
+  onDelete: () => void
+}) {
+  const [detail, setDetail] = useState<MemoryEntry | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [deleting, setDeleting] = useState(false)
+
+  useEffect(() => {
+    if (!entry.id) {
+      setDetail(entry)
+      setLoading(false)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    getMemory(entry.id)
+      .then((row) => {
+        if (!cancelled) setDetail(row)
+      })
+      .catch(() => {
+        if (!cancelled) setDetail(entry)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [entry.id, entry])
+
+  const shown = detail ?? entry
+  const body = shown.content ?? shown.preview ?? ""
+
+  async function handleDelete() {
+    if (!entry.id) return
+    if (!window.confirm(`删除知识条目「${shown.title || entry.id}」？\n\n此操作不可恢复。`)) return
+    setDeleting(true)
+    try {
+      await deleteMemory(entry.id)
+      toast.success("已删除")
+      onDelete()
+    } catch (e) {
+      toast.error("删除失败", { description: e instanceof Error ? e.message : "" })
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   return (
     <div className="workspace-panel">
-      <h2 className="text-lg font-semibold">{entry.title || "（无标题）"}</h2>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">{shown.title || "（无标题）"}</h2>
+          <p className="mt-1 font-mono text-xs text-[var(--color-muted-foreground)]">#{shown.id}</p>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="border-[var(--color-destructive)] text-[var(--color-destructive)] hover:bg-[var(--color-destructive)]/10"
+          disabled={!entry.id || deleting}
+          onClick={() => void handleDelete()}
+        >
+          {deleting ? "删除中…" : "删除"}
+        </Button>
+      </div>
       <Separator className="my-5" />
       <dl className="detail-dl">
         <div>
           <dt>项目</dt>
-          <dd className="font-mono text-xs">{entry.project_id || "—"}</dd>
+          <dd className="font-mono text-xs">{shown.project_id || "—"}</dd>
         </div>
         <div>
           <dt>任务</dt>
-          <dd className="font-mono text-xs">{entry.task_id || "—"}</dd>
+          <dd className="font-mono text-xs">{shown.task_id || "—"}</dd>
         </div>
         <div>
           <dt>时间</dt>
-          <dd>{entry.created_at || "—"}</dd>
+          <dd>{shown.created_at || "—"}</dd>
         </div>
         <div>
           <dt>标签</dt>
-          <dd>{(entry.tags || []).join("、 ") || "—"}</dd>
+          <dd>{(shown.tags || []).join("、 ") || "—"}</dd>
         </div>
       </dl>
       <Separator className="my-5" />
-      <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-muted-foreground)]">
-        {entry.preview || "（无内容预览）"}
-      </p>
+      {loading ? (
+        <p className="text-sm text-[var(--color-muted-foreground)]">加载正文…</p>
+      ) : (
+        <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-muted-foreground)]">
+          {body || "（无内容）"}
+        </p>
+      )}
     </div>
   )
 }
@@ -662,17 +766,10 @@ export function ManageSection() {
     return () => window.clearTimeout(timer)
   }, [agentCreateOpen, newAgentDesc, newAgentId])
 
-  async function handleSyncTaskTypes() {
-    setSyncBusy(true)
-    try {
-      const res = await syncAgentTaskTypes()
-      const n = res.count ?? 0
-      toast.success(n ? `已为 ${n} 个 Agent 补全任务类型` : "所有 Agent 均已配置任务类型")
-    } catch (e) {
-      toast.error("补全失败", { description: e instanceof Error ? e.message : "" })
-    } finally {
-      setSyncBusy(false)
-    }
+  async function handleDeleteKnowledge(entry: MemoryEntry) {
+    if (!entry.id) return
+    setEntries((prev) => prev.filter((e) => e.id !== entry.id))
+    navigate("/manage/knowledge")
   }
 
   async function handleSyncSkills() {
@@ -999,12 +1096,9 @@ export function ManageSection() {
             <>
               <WorkspaceHeader
                 title="Agent"
-                description="团队成员的后端、模型与任务类型绑定。"
+                description="团队成员的后端、模型、Skill/MCP 与 Markdown 配置。"
                 action={
                   <div className="flex flex-wrap gap-2">
-                    <Button size="sm" variant="outline" disabled={syncBusy} onClick={() => void handleSyncTaskTypes()}>
-                      补全任务类型
-                    </Button>
                     <Button size="sm" variant="outline" disabled={syncBusy} onClick={() => void handleSyncSkills()}>
                       同步 Skill
                     </Button>
@@ -1068,9 +1162,9 @@ export function ManageSection() {
 
           {activeTab === "knowledge" && (
             <>
-              <WorkspaceHeader title="知识库" description="团队记忆条目（只读）。" />
+              <WorkspaceHeader title="知识库" description="项目运行沉淀的长期记忆，可查看全文或删除条目。" />
               {selectedEntry ? (
-                <KnowledgeDetailPanel entry={selectedEntry} />
+                <KnowledgeDetailPanel entry={selectedEntry} onDelete={() => void handleDeleteKnowledge(selectedEntry)} />
               ) : (
                 <WelcomePane title="选择知识条目" description="左侧已列出全部条目，点选一项查看详情。" />
               )}

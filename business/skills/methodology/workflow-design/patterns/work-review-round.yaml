@@ -1,0 +1,79 @@
+# Archetype: work-review-round — 单交付物多轮迭代
+
+id: "{workflow_id}"
+name: "{display_name}"
+version: "1.0"
+description: |
+  Work → Review 循环。材料路径在 Goal 与 business/inputs/{input_bundle}/。
+options:
+  review_enabled: false
+  split_enabled: false
+  collaboration:
+    project_group:
+      enabled: true
+    notifications:
+      enabled: true
+    group_discussion:
+      enabled: false
+tasks:
+  - id: task-1
+    name: "{display_name}循环"
+    loop: "{loop_id}"
+    dependencies: []
+    description: |
+      每轮：{work_step_id} → {review_step_id}。
+loops:
+  - id: "{loop_id}"
+    max_rounds: 5
+    min_rounds: 1
+    default_body: default
+    on_pass: complete
+    on_exhaust: needs_review
+    bodies:
+      default:
+        - id: "{work_step_id}"
+          name: "{work_step_name}"
+          agent: "{work_agent}"
+          task_type: "{work_task_type}"
+          template_id: "{work_template_id}"
+          dependencies: []
+          description: |
+            【范围】<Done；不做什么>
+            【输入】Goal；business/inputs/{input_bundle}/（若有）
+            【交付】deliverables/<主文件名>
+            【质量】<评审可判定的完成标准>
+        - id: "{review_step_id}"
+          name: "{review_step_name}"
+          agent: main
+          task_type: section-review
+          dependencies:
+            - "{work_step_id}"
+          description: |
+            【范围】评审，不修改交付物
+            【输入】{work_step_id} 交付物 + Goal
+            【交付】评审报告
+            【质量】末行 REVIEW: PASS 或 REVIEW: FAIL
+    assess:
+      ref: "{review_step_id}"
+      inputs:
+        - kind: goal
+        - kind: phase.deliverable
+          phase: "{work_step_id}"
+    transition:
+      - when: deliverable_marker
+        task: "{review_step_id}"
+        marker: "REVIEW: PASS"
+        action: exit
+        outcome: complete
+      - when: deliverable_marker
+        task: "{review_step_id}"
+        marker: "REVIEW: FAIL"
+        action: continue
+        next_body: default
+      - when: exhausted
+        action: exit
+        outcome: needs_review
+    fallback_until:
+      - type: deliverable_marker
+        task: "{review_step_id}"
+        marker: "REVIEW: PASS"

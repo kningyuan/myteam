@@ -6,40 +6,82 @@
       "name": "项目经理",
       "role": "coordinator",
       "description": "项目协调与阶段仲裁；内容质量评审（section-review）与 decision-record",
-      "capabilities": ["协调", "决策", "阶段闸门", "内容评审", "部署记录"],
-      "task_types": ["strategy", "decision-record", "section-review", "code-deployment", "iteration-assess"],
-      "skills": ["coordination-methodology"]
+      "capabilities": [
+        "协调",
+        "决策",
+        "阶段闸门",
+        "内容评审",
+        "部署记录"
+      ],
+      "task_types": [
+        "decision-record",
+        "section-review",
+        "strategy"
+      ],
+      "skills": [
+        "coordination-methodology",
+        "workflow-design"
+      ]
     },
     "product": {
       "name": "产品专家",
       "role": "worker",
       "description": "需求、策略、验收；问题优先，明确范围与验收标准",
-      "capabilities": ["需求", "策略", "验收", "优先级"],
-      "task_types": ["strategy", "research", "requirements", "acceptance-report", "architecture-review", "section-authoring", "section-review", "deck-build", "diagram-build", "decision-record"],
-      "skills": ["product-methodology"]
+      "capabilities": [
+        "需求",
+        "策略",
+        "验收",
+        "优先级"
+      ],
+      "task_types": [],
+      "skills": [
+        "product-methodology"
+      ]
     },
     "arch": {
       "name": "架构师",
       "role": "worker",
       "description": "系统方案与架构评审；可承担架构视角调研；不主责完整工程实现",
-      "capabilities": ["系统设计", "内核", "API", "代码审查", "架构调研"],
-      "task_types": ["system-design", "architecture-review", "section-review", "code-review", "research"],
-      "skills": ["system-architecture-methodology"]
+      "capabilities": [
+        "系统设计",
+        "内核",
+        "API",
+        "代码审查",
+        "架构调研"
+      ],
+      "task_types": [
+        "architecture-review",
+        "arch-research"
+      ],
+      "skills": [
+        "system-architecture-methodology"
+      ]
     },
     "developer": {
       "name": "研发专家",
       "role": "worker",
       "description": "核心实现、代码交付与工程化调研",
-      "capabilities": ["实现", "代码评审", "工程化"],
-      "task_types": ["system-design", "architecture-review", "code-writing", "code-deliverable", "code-review", "research"],
-      "skills": ["backend-engineering-methodology"]
+      "capabilities": [
+        "实现",
+        "代码评审",
+        "工程化"
+      ],
+      "task_types": [],
+      "skills": [
+        "backend-engineering-methodology"
+      ]
     },
     "frontend": {
       "name": "前端架构师",
       "role": "worker",
       "description": "前端/UI 方案与实现；交互与数据流评审",
-      "capabilities": ["前端架构", "UI", "交互", "代码实现"],
-      "task_types": ["system-design", "architecture-review", "code-writing", "code-review"],
+      "capabilities": [
+        "前端架构",
+        "UI",
+        "交互",
+        "代码实现"
+      ],
+      "task_types": [],
       "skills": [
         "frontend-engineering-methodology",
         "frontend-architecture-methodology",
@@ -50,79 +92,121 @@
       "name": "测试专家",
       "role": "worker",
       "description": "测试计划、回归测试、质量评审",
-      "capabilities": ["测试计划", "回归", "质量评审", "验收支持"],
-      "task_types": ["test-plan", "architecture-review", "code-review", "code-testing"],
-      "skills": ["qa-methodology"]
+      "capabilities": [
+        "测试计划",
+        "回归",
+        "质量评审",
+        "验收支持"
+      ],
+      "task_types": [],
+      "skills": [
+        "qa-methodology"
+      ]
     },
     "research": {
       "name": "研究员",
       "role": "worker",
       "description": "行业/竞品/受众调研",
-      "capabilities": ["调研", "竞品分析", "证据整理"],
-      "task_types": ["research", "architecture-review"]
+      "capabilities": [
+        "调研",
+        "竞品分析",
+        "证据整理"
+      ],
+      "task_types": []
     },
     "content": {
       "name": "内容专家",
       "role": "worker",
       "description": "长文内容生产与发布",
-      "capabilities": ["内容写作", "发布", "读者体验"],
-      "task_types": ["content", "architecture-review"]
+      "capabilities": [
+        "内容写作",
+        "发布",
+        "读者体验"
+      ],
+      "task_types": []
     },
     "analyst": {
       "name": "数据分析师",
       "role": "worker",
       "description": "指标口径、数据分析报告与可复用分析脚本",
-      "capabilities": ["指标口径", "数据分析", "分析脚本"],
-      "task_types": ["data-analysis", "research", "strategy", "code-writing"]
+      "capabilities": [
+        "指标口径",
+        "数据分析",
+        "分析脚本"
+      ],
+      "task_types": []
     },
     "geo": {
       "name": "GEO专家",
       "role": "worker",
       "description": "生成式引擎优化：策略、审计、效果验证",
-      "capabilities": ["GEO策略", "内容可引用性", "AI搜索可见性"],
-      "task_types": ["geo-plan", "geo-audit", "geo-verification", "research", "content"]
+      "capabilities": [
+        "GEO策略",
+        "内容可引用性",
+        "AI搜索可见性"
+      ],
+      "task_types": []
     },
     "seo": {
       "name": "SEO专家",
       "role": "worker",
       "description": "关键词、技术 SEO 与传统搜索策略",
-      "capabilities": ["关键词研究", "技术SEO"],
-      "task_types": ["seo-plan", "research"]
+      "capabilities": [
+        "关键词研究",
+        "技术SEO"
+      ],
+      "task_types": []
     },
     "social": {
       "name": "社媒运营",
       "role": "worker",
       "description": "内容发布与平台动作证据（通用）",
-      "capabilities": ["平台发布", "发布证据"],
-      "task_types": ["publish-post"]
+      "capabilities": [
+        "平台发布",
+        "发布证据"
+      ],
+      "task_types": []
     },
     "social_zhihu": {
       "name": "知乎运营",
       "role": "worker",
       "description": "知乎专栏真实发布与留痕",
-      "capabilities": ["知乎专栏发布", "发布留痕"],
-      "task_types": ["publish-post"]
+      "capabilities": [
+        "知乎专栏发布",
+        "发布留痕"
+      ],
+      "task_types": []
     },
     "social_xhs": {
       "name": "小红书运营",
       "role": "worker",
       "description": "小红书笔记发布与留痕",
-      "capabilities": ["小红书发布", "发布留痕"],
-      "task_types": ["publish-post"]
+      "capabilities": [
+        "小红书发布",
+        "发布留痕"
+      ],
+      "task_types": []
     },
     "docs": {
       "name": "文档专家",
       "role": "worker",
       "description": "方案汇总与文档定稿",
-      "capabilities": ["文档结构化", "交付物汇总"],
-      "task_types": ["content", "architecture-review"]
+      "capabilities": [
+        "文档结构化",
+        "交付物汇总"
+      ],
+      "task_types": []
     },
     "ops": {
       "name": "运维专家",
       "role": "worker",
       "description": "部署执行与上线验证",
-      "capabilities": ["部署", "健康检查", "回滚"],
-      "task_types": ["code-deployment"]
+      "capabilities": [
+        "部署",
+        "健康检查",
+        "回滚"
+      ],
+      "task_types": []
     }
   }
 }

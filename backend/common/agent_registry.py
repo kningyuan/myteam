@@ -65,6 +65,30 @@ def validate_agent_ids(agent_ids: list[str]) -> tuple[bool, list[str]]:
     return len(bad) == 0, bad
 
 
+def build_registry_capability_context(agent_id: str) -> str:
+    """从 agents_registry 生成「我是谁、能做什么」块（替代 AGENTS.md 能力段）。"""
+    info = get_agent_info(agent_id)
+    if not info:
+        return ""
+    lines: list[str] = ["<registry_capabilities>"]
+    name = (info.get("name") or agent_id).strip()
+    lines.append(f"注册名：{name}")
+    desc = (info.get("description") or "").strip()
+    if desc:
+        lines.append(f"角色说明：{desc}")
+    tts = [str(t).strip() for t in (info.get("task_types") or []) if str(t).strip()]
+    if tts:
+        lines.append(f"可接 task_type（workflow 硬边界）：{', '.join(tts)}")
+    caps = [str(c).strip() for c in (info.get("capabilities") or []) if str(c).strip()]
+    if caps:
+        lines.append(f"能力标签：{'、'.join(caps)}")
+    bound = (info.get("boundaries") or "").strip()
+    if bound:
+        lines.append(f"边界：{bound}")
+    lines.append("</registry_capabilities>")
+    return "\n".join(lines)
+
+
 def get_agent_info(agent_id: str) -> dict:
     """注册表中该 agent 的原始元数据。"""
     return dict((_load_registry().get("agents") or {}).get(agent_id) or {})

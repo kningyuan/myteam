@@ -8,6 +8,8 @@ export type ResourceKey =
   | "task-types"
   | "delivery-templates"
   | "skill-library"
+  | "skill-groups"
+  | "skill-categories"
   | "skill-matrix"
   | "skill-drafts"
   | "mcp-library"

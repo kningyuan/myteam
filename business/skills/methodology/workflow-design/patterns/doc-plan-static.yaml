@@ -1,0 +1,106 @@
+# Archetype: doc-plan-static
+# 图 → 静态 ch*（在 YAML 展开，勿靠 split_enabled）→ merge → review
+# 参考：business/workflows/区块链产品规划-完善.yaml
+
+id: "{workflow_id}"
+name: "{display_name}"
+version: "1.0"
+description: |
+  静态章节：deck → ch* → merge → review。split_enabled: false。
+options:
+  review_enabled: false
+  split_enabled: false
+  collaboration:
+    project_group:
+      enabled: true
+    notifications:
+      enabled: true
+    group_discussion:
+      enabled: false
+tasks:
+  - id: task-1
+    name: "{display_name}循环"
+    loop: "{loop_id}"
+    dependencies: []
+    description: |
+      Loop 锚点：step-deck → ch* → step-merge → step-review。
+loops:
+  - id: "{loop_id}"
+    max_rounds: 5
+    min_rounds: 1
+    default_body: default
+    on_pass: complete
+    on_exhaust: needs_review
+    bodies:
+      default:
+        - id: step-deck
+          name: 架构图（PPT/PNG）
+          agent: product
+          task_type: deck-build
+          template_id: "{deck_template_id}"
+          dependencies: []
+          description: |
+            【范围】仅图文件；禁止写 Word/整篇正文
+            【输入】business/inputs/{input_bundle}/（术语/架构说明，若有）
+            【交付】deliverables/（本项目约定的 pptx/png 文件名）
+            【质量】分层清晰；图块术语可供后续章节引用
+        # --- 展开各章：复制下列块，改 id / name / dependencies / 【质量】
+        - id: ch1
+          name: 第1章 {chapter_title}
+          agent: product
+          task_type: section-authoring
+          template_id: "{doc_template_id}"
+          dependencies:
+            - step-deck
+          description: |
+            【范围】只写本章
+            【输入】Goal；business/inputs/{input_bundle}/outline.md（若有）→ ch1；上游 step-deck
+            【交付】deliverables/ch1-{slug}.md
+            【质量】<本章 Done；与模版对应节一致>
+        - id: step-merge
+          name: 合并定稿
+          agent: product
+          task_type: section-authoring
+          template_id: "{doc_template_id}"
+          dependencies:
+            - "{last_chapter_id}"
+          description: |
+            【范围】合并各章为最终文档；不改正文内容
+            【输入】deliverables/ch*.md
+            【交付】deliverables/{final_docx_name}.docx
+            【质量】章节齐全、顺序与 workflow 一致
+        - id: step-review
+          name: 质量评审
+          agent: main
+          task_type: section-review
+          dependencies:
+            - step-merge
+          description: |
+            【范围】评审，不修改交付物
+            【输入】step-merge 成品 + step-deck 图 + Goal
+            【交付】评审报告
+            【质量】末行 REVIEW: PASS 或 REVIEW: FAIL
+    assess:
+      ref: step-review
+      inputs:
+        - kind: goal
+        - kind: phase.deliverable
+          phase: step-merge
+    transition:
+      - when: deliverable_marker
+        task: step-review
+        marker: "REVIEW: PASS"
+        action: exit
+        outcome: complete
+      - when: deliverable_marker
+        task: step-review
+        marker: "REVIEW: FAIL"
+        action: continue
+        next_body: default
+      - when: exhausted
+        action: exit
+        outcome: needs_review
+    fallback_until:
+      - type: deliverable_marker
+        task: step-review
+        marker: "REVIEW: PASS"

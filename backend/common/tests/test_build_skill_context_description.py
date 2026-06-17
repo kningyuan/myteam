@@ -34,4 +34,7 @@ def test_build_skill_context_includes_name_and_description():
     ):
         ctx = build_skill_context("demo-agent")
         assert "demo-skill（演示 Skill）：用于单元测试的示例能力说明。" in ctx
-        assert "先根据上表 description 判断是否需要某 Skill" in ctx
+        assert "【用法】" in ctx
+        assert "Read 工具" in ctx
+        assert "Skill 自选纪律" in ctx
+        assert "chosen_skills" in ctx

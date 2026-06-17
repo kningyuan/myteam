@@ -20,7 +20,7 @@ from adapters.claude.skill_sync import (  # noqa: E402
 @pytest.fixture()
 def skill_env(tmp_path, monkeypatch):
     skills_dir = tmp_path / "business" / "skills"
-    monkeypatch.setattr("adapters.claude.skill_sync.SKILLS_DIR", skills_dir)
+    monkeypatch.setattr("common.skill_link.SKILLS_DIR", skills_dir)
     for sid in ("alpha", "beta"):
         d = skills_dir / sid
         d.mkdir(parents=True)

@@ -69,7 +69,8 @@ class TaskPipeline:
 
     def run_task(self, project_id: str, task: dict) -> TaskOutcome:
         tid = task["id"]
-        agent = self.store.get_task(project_id, tid).get("agent") or task.get("agent", "")
+        row = self.store.get_task(project_id, tid) or {}
+        agent = row.get("agent") or task.get("agent", "")
         task_type = task.get("task_type", "")
         base_dir = task_deliverable_base(project_id, tid, task_type)
         if is_code_project_task(task_type):

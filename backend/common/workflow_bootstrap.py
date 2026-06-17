@@ -69,15 +69,25 @@ def _save_registry(reg: dict) -> None:
 
 
 def _merge_agent_meta(existing: dict, incoming: dict) -> dict:
+    """Workflow 启动时合并「执行元数据」，不碰 skills/mcp（仅管理页配置）。
+
+    incoming 来自 PGD 模板或 registry；只 union task_types/capabilities 供 check_plan，
+    绝不从 incoming 写入 skills/mcp_servers/boundaries。
+    """
     caps = sorted(set(existing.get("capabilities") or []) | set(incoming.get("capabilities") or []))
     tts = sorted(set(existing.get("task_types") or []) | set(incoming.get("task_types") or []))
-    return {
+    merged: dict = {
         "name": incoming.get("name") or existing.get("name") or "",
         "role": incoming.get("role") or existing.get("role") or "worker",
         "description": incoming.get("description") or existing.get("description") or "",
         "capabilities": caps,
         "task_types": tts,
     }
+    # skills/mcp/boundaries：workflow 不参与；原样保留 registry 已有配置
+    for key in ("skills", "mcp_servers", "boundaries"):
+        if key in existing:
+            merged[key] = existing[key]
+    return merged
 
 
 def _ensure_agents_config(agent_id: str, meta: dict, *, backend: str, model: str) -> None:

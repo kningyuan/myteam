@@ -353,6 +353,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         epilog=textwrap.dedent("""\
             示例：
               python run_kernel.py my-project --goal "调研..." --mode one_shot
+              python run_kernel.py my-project --resume --backend claude
               python run_kernel.py --demo
               python run_kernel.py --init
         """),
@@ -376,6 +377,8 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                    help="开启派发前递归展开（evaluate；agent 按复杂度拆子任务）")
     p.add_argument("--backend", default="opencode", choices=["opencode", "claude"],
                    help="驱动 agent 的 CLI 后端（默认 opencode）")
+    p.add_argument("--resume", action="store_true",
+                   help="断点续跑 in_progress/paused 项目（不重跑 task_plan）")
     p.add_argument("--demo-dir", default=None,
                    help="demo 目录路径（默认 business/demo/）")
     return p
@@ -415,10 +418,13 @@ def main(argv: Optional[list[str]] = None) -> int:
     logger.info("▶ 启动项目：%s", a.project_id)
 
     try:
-        out = run_project(a.project_id, goal=a.goal, title=a.title,
-                          mode=a.mode, token_budget=a.budget, max_cycles=a.max_cycles,
-                          review=a.review, split=a.split, workflow=a.workflow,
-                          backend=a.backend)
+        if a.resume:
+            out = resume_project(a.project_id, backend=a.backend)
+        else:
+            out = run_project(a.project_id, goal=a.goal, title=a.title,
+                              mode=a.mode, token_budget=a.budget, max_cycles=a.max_cycles,
+                              review=a.review, split=a.split, workflow=a.workflow,
+                              backend=a.backend)
     except FileNotFoundError as e:
         print(f"\n❌ {_friendly_traceback(e)}", file=sys.stderr)
         return 1

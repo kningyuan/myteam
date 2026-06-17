@@ -1,0 +1,83 @@
+id: 发版-round
+name: 发版（Ship）
+version: "1.0"
+description: |
+  gstack 映射：/ship — 评审 diff → VERSION/CHANGELOG → PR（需 git/gh 权限或人工闸门）。
+  task_type 后续可拆 ship-review、version-bump 等专用工种。
+options:
+  review_enabled: false
+  split_enabled: false
+  collaboration:
+    project_group:
+      enabled: true
+    notifications:
+      enabled: true
+    group_discussion:
+      enabled: false
+tasks:
+  - id: task-1
+    name: 发版循环
+    loop: ship_round
+    dependencies: []
+    description: |
+      每轮：预检评审 → 版本与变更日志 → 部署签发（PR/合并策略见 Goal）。
+loops:
+  - id: ship_round
+    max_rounds: 2
+    min_rounds: 1
+    default_body: default
+    on_pass: complete
+    on_exhaust: needs_review
+    bodies:
+      default:
+        - id: step-review
+          name: 发版前评审
+          agent: arch
+          task_type: code-review
+          dependencies: []
+          description: |
+            【gstack】/review 子集
+            【范围】相对 main 的 diff；SQL/安全/LLM 边界；不直接 merge
+            【交付】deliverables/ship-pre-review.md
+            【质量】阻塞项清单；末行 SHIP-REVIEW: PASS 或 SHIP-REVIEW: FAIL
+        - id: step-version
+          name: 版本与变更日志
+          agent: main
+          task_type: strategy
+          dependencies:
+            - step-review
+          description: |
+            【范围】bump VERSION、更新 CHANGELOG（voice 与事实一致）
+            【交付】VERSION、CHANGELOG.md 变更说明写入 deliverables/ship-version.md
+            【质量】版本号与变更条目可追溯到 step-review 结论
+        - id: step-ship
+          name: 签发与 PR
+          agent: main
+          task_type: code-deployment
+          dependencies:
+            - step-version
+          description: |
+            【gstack】/ship
+            【范围】创建分支/commit/push/PR（无权限则输出待执行命令清单）
+            【交付】deliverables/ship-pr.md（PR URL 或操作步骤）
+            【质量】末行 SHIP: DONE 或 SHIP: BLOCKED（原因）
+    assess:
+      ref: step-ship
+      inputs:
+        - kind: goal
+        - kind: phase.deliverable
+          phase: step-version
+    transition:
+      - when: deliverable_marker
+        task: step-ship
+        marker: "SHIP: DONE"
+        action: exit
+        outcome: complete
+      - when: deliverable_marker
+        task: step-review
+        marker: "SHIP-REVIEW: FAIL"
+        action: continue
+        next_body: default
+      - when: exhausted
+        action: exit
+        outcome: needs_review

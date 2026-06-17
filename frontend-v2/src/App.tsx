@@ -41,7 +41,7 @@ export default function App() {
         <Route path="workflows" element={<WorkflowsSection />} />
         <Route path="workflows/:workflowId" element={<WorkflowsSection />} />
         <Route path="skills" element={<SkillsSection />} />
-        <Route path="skills/:draftId" element={<SkillsSection />} />
+        <Route path="skills/:skillId" element={<SkillsSection />} />
         <Route path="mcp" element={<McpSection />} />
         <Route path="mcp/:serverId" element={<McpSection />} />
         <Route path="settings" element={<SettingsRoute />} />

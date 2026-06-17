@@ -710,6 +710,11 @@ class Store:
             out.append(d)
         return out
 
+    def memory_delete(self, mem_id: int) -> bool:
+        with self._conn:
+            cur = self._conn.execute("DELETE FROM memory WHERE id=?", (mem_id,))
+        return cur.rowcount > 0
+
     # ── conversation / message（对话记忆一等公民，P0）──────────
 
     def create_conversation(self, conversation_id: str, *, kind: str = "dm",

@@ -1,0 +1,53 @@
+# Content（长文/图文）质量探针
+
+L1_structure:
+  - id: title-exists
+    type: grep
+    pattern: "^# "
+    label: "有一级标题"
+  - id: sections-exist
+    type: grep
+    pattern: "^## "
+    label: "有二级章节"
+  - id: no-stub
+    type: grep_negate
+    pattern: "TODO|请替换|这里填写|示例"
+    label: "无模板残留词"
+  - id: image-cited
+    type: grep
+    pattern: "!\\[.*\\]\\(.*\\)"
+    label: "有图片引用（如适用）"
+
+L2_logic:
+  - id: structure-logical
+    type: llm_yesno
+    prompt: "文章结构是否符合『总-分-总』或『问题-分析-结论』的叙事逻辑？不应该出现前一个章节的结论被后一个章节推翻的情况。"
+    label: "叙事逻辑自洽"
+  - id: term-consistency
+    type: llm_yesno
+    prompt: "全文同一概念是否使用同一术语？专业名词没有混用。"
+    label: "术语统一"
+  - id: viewpoint-consistent
+    type: llm_yesno
+    prompt: "文章核心观点前后是否一致？没有在中间章节改变立场或自相矛盾。"
+    label: "核心观点一致"
+
+L3_evidence:
+  - id: example-concrete
+    type: llm_yesno
+    prompt: "文中的抽象论述是否有具体例子支撑？如纯讲道理没有举例，则为不充分。"
+    label: "抽象论述有具体例子"
+  - id: data-origin
+    type: llm_yesno
+    prompt: "如果有引用数据、研究、事实性陈述，是否有来源标注或出处？"
+    label: "事实性陈述有出处"
+
+L4_actionable:
+  - id: key-message-clear
+    type: llm_yesno
+    prompt: "读完全文，你能用一两句话说清楚这篇文章的核心观点/结论是什么吗？"
+    label: "核心观点清晰可提炼"
+  - id: audience-fit
+    type: llm_yesno
+    prompt: "文章的语言风格和内容深度是否匹配目标读者？不过于浅显也不过于晦涩。"
+    label: "风格匹配目标读者"

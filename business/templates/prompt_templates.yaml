@@ -25,7 +25,12 @@ kinds:
 
   evaluate: |
     【决策】评估是否拆分子任务（evaluate）
-    【约束】仅在任务明显过大时拆分；子任务须继承父任务 task_type 或显式指定合法 task_type
+    【约束】
+    - 仅在任务明显过大时拆分；子任务须继承父 task_type（或显式合法 task_type）
+    - section-authoring 且描述含多章/完整 Word/模版全目录 → should_split=true，每章一子任务
+    - deck-build 且仅 1–2 个 PPT/PNG → should_split=false
+    - 任务 description 写明「不拆分」或「evaluate 应 should_split=false」→ 遵守
+    - 子任务 id 用父 id 后缀（如 step-2.ch1）；dependencies 仅引用同组子任务或已完成上游
 
 task_types:
   research:
@@ -98,6 +103,17 @@ task_types:
       - 与第一章四大组件、第二章客户需求保持一致
       - 若模板要求架构图：同目录交付 product-architecture.* 与 functional-architecture.*（.drawio + .png），Markdown 内嵌 ![](*.png)
       【交卷】先 align → 作图/写 deliverable → verify.log → submit_result
+
+  deck-build:
+    execute: |
+      【任务类型】deck-build 演示/架构 PPT（delivery_profile all_v1）
+      【本任务】
+      {task_description}
+      【通用约束】
+      - 优先 Read deck-build/SKILL.md；迪诺链材料用 build_deliverables.py
+      - 交付物以 PPT/PNG 为主；勿扩写完整产品规划 Word 正文
+      - deliverable Markdown 仅记录：章节对象、自检清单、产出文件路径
+      【交卷】先作图 → 写 deliverable → verify.log → submit_result
 
   section-authoring:
     execute: |

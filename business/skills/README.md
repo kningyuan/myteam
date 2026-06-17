@@ -2,6 +2,30 @@
 
 `business/skills/` contains agent capability packs. A Skill teaches an agent how to perform a concrete task; it is not part of the runtime kernel.
 
+## External / vendor skills
+
+Third-party skill packs are **symlinks** under `business/skills/<category>/<id>/` (OfficeCLI 套件在 `business/skills/officecli/<id>/`) pointing at the real upstream directory. Do not copy only `SKILL.md`. Register upstream paths in `backend/common/skill_link.py` (`VENDOR_SKILL_SOURCES`). Run skill sync so `.cursor/skills/` and agent workspaces link through the same anchor.
+
+## SKILL.md frontmatter（Agent 选型必填）
+
+每个 `SKILL.md` **文件最顶部**必须有 YAML frontmatter，`description` 用于 Agent 判断何时挂载/读取该 skill：
+
+```yaml
+---
+name: 展示名（可选，UI 用）
+description: 一句话说明做什么、何时用（必填；Agent 选型依据）
+---
+```
+
+- 系统读取链：`SKILL.md` frontmatter → `skill_catalog` → `build_skill_context` 注入 system prompt 简介列表。
+- 完整用法不在 prompt 里；Agent 须 `Read` 完整 `SKILL.md` 再执行。
+- vendor skill 可在 `backend/common/skill_display_names.py` 覆盖中文展示名/简介。
+
+| Vendor | Local clone | Example ids |
+|--------|-------------|-------------|
+| gstack | `~/.claude/skills/gstack/` | `browse` |
+| [OfficeCLI](https://github.com/iOfficeAI/OfficeCLI/tree/main/skills) | `~/skill/OfficeCLI/skills/` | `officecli`, `officecli-pptx`, `morph-ppt`, … |
+
 ## What Belongs in a Skill
 
 - Domain execution steps, such as publishing a post, running a platform-specific script, or gathering evidence.
@@ -47,7 +71,7 @@ business/playbooks/          # ALL.md + 通用过程模板 + scaffold_process.sh
 business/means/              # 可插拔小工具（diagram-build …）
 business/skills/catalog.yaml # Agent 自选 means / router
 business/experience/         # ledger schema
-business/workspaces/         # AGENTS.md / SOUL.md 身份
+business/workspaces/         # IDENTITY.md / SOUL.md 身份；能力与 task_type 见 agents_registry.json
 ```
 
 Workflow **不得**写 `【Skill】`；自选记录在 `plan.md`。lint：`scripts/lint_workflows_no_skill.sh`。

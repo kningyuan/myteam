@@ -231,7 +231,8 @@ class Process:
     def _persist_tasks(self, project_id: str, tasks: list[dict]) -> None:
         for t in tasks:
             desc = t.get("description", "")
-            meta: dict = {}
+            existing = self.store.get_task(project_id, t["id"]) or {}
+            meta: dict = dict(existing.get("meta") or {})
             if desc:
                 meta["description"] = desc
             if t.get("loop"):
@@ -371,6 +372,13 @@ class Process:
             set_task_status=self.store.set_task_status,
             store=self.store,
             on_loop_round_done=on_round,
+            needs_review_blocks=self.config.needs_review_blocks,
+            expand_ready=(
+                (lambda pid, by_id, order, outcomes, agents, cycle=0: self._expander.expand_ready(
+                    pid, by_id, order, outcomes, agents, cycle=cycle,
+                ))
+                if self.config.split_enabled else None
+            ),
         )
         return run_loop(
             project_id, placeholder, spec, deps=deps,

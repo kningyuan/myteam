@@ -1,0 +1,75 @@
+# Product Planning 质量探针
+
+L1_structure:
+  - id: in-scope
+    type: grep
+    pattern: "## In Scope"
+    label: "In Scope 章节存在"
+  - id: out-of-scope
+    type: grep
+    pattern: "## Out of Scope"
+    label: "Out of Scope 章节存在"
+  - id: out-of-scope-count
+    type: grep_section_count
+    section: "## Out of Scope"
+    pattern: "^- "
+    min: 3
+    label: "Out of Scope 至少 3 条"
+  - id: acceptance-criteria
+    type: grep
+    pattern: "## 验收标准|## Acceptance Criteria"
+    label: "验收标准章节存在"
+  - id: no-stub
+    type: grep_negate
+    pattern: "TODO|请替换|这里填写|示例内容|待补充"
+    label: "无模板残留词"
+  - id: trade-off
+    type: grep
+    pattern: "## (取舍|Trade-off|风险|方案对比)"
+    label: "有取舍/风险章节"
+
+L2_logic:
+  - id: scope-no-contradiction
+    type: llm_yesno
+    prompt: "In Scope 和 Out of Scope 有没有互相矛盾的条目？比如 In Scope 列了某功能但 Out of Scope 也排除了同一个功能。"
+    label: "范围边界不自相矛盾"
+  - id: term-consistency
+    type: llm_yesno
+    prompt: "全文同一概念是否使用同一术语？比如不应该混用『用户』和『使用者』、『功能』和『特性』。"
+    label: "术语统一"
+  - id: conclusion-supported
+    type: llm_yesno
+    prompt: "推荐方案是否得到了前文分析的支撑？即：前文列出的问题和约束，在推荐方案中都有回应。"
+    label: "结论有论证支撑"
+  - id: priority-consistent
+    type: llm_yesno
+    prompt: "验收标准的优先级（P0/P1）是否与 In Scope 中功能的重要程度一致？P0 功能都有对应的验收标准吗？"
+    label: "优先级与验收标准一致"
+
+L3_evidence:
+  - id: data-source
+    type: llm_yesno
+    prompt: "文中每个带数字的陈述（市场份额、用户数、时间周期等）是否有来源标注（如 [1]、[来源]）或不确定性声明（如预计、假设、约）？"
+    label: "数据有来源或不确定性声明"
+  - id: upstream-cited
+    type: llm_yesno
+    prompt: "如果引用了上游任务（调研、分析等）的结论，这些引用在原文中是否存在对应依据？不要自己脑补上游内容。"
+    label: "上游引用可追溯"
+  - id: assumption-stated
+    type: llm_yesno
+    prompt: "方案中是否有明确的假设/不确定性章节或陈述？尤其是在策略类方案中，『不知道』和『待验证』应该被说清楚。"
+    label: "假设与不确定性已声明"
+
+L4_actionable:
+  - id: next-step
+    type: llm_yesno
+    prompt: "假设你是一个刚加入团队的新人，什么都不知道。读了这份方案后，你能否回答：我要做什么？做到什么程度算完成？先做哪个后做哪个？"
+    label: "新人能明确下一步行动"
+  - id: acceptance-testable
+    type: llm_yesno
+    prompt: "验收标准是否可以测试？即每条标准是否包含『验证方式』、『通过条件』或『给定-当-则』结构。禁止模糊描述如『体验良好』『性能足够』。"
+    label: "验收标准可测试"
+  - id: who-does-what
+    type: llm_yesno
+    prompt: "方案中是否明确了各任务的负责人或角色？如果不是唯一角色（如『开发团队』），是否足够清晰？"
+    label: "责任人或角色明确"

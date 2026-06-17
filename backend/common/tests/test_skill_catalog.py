@@ -20,6 +20,14 @@ def test_library_lists_production_skills():
     assert not any(i.startswith("auto-") for i in ids)
 
 
+def test_vendor_skill_display_name_in_library():
+    items = {i["id"]: i for i in list_skill_library()}
+    if "officecli" in items:
+        assert items["officecli"]["name"] == "Office 文档工具"
+    if "browse" in items:
+        assert items["browse"]["name"] == "浏览器操作"
+
+
 def test_get_library_entry():
     entry = get_skill_library_entry("product-methodology")
     assert entry is not None
@@ -27,7 +35,33 @@ def test_get_library_entry():
     assert "content" in entry or entry.get("path")
     desc = (entry.get("description") or "").strip()
     assert desc and desc != ">-"
-    assert "产品方法论" in desc
+    assert "方法论" in desc
+    tree = entry.get("tree") or []
+    assert isinstance(tree, list)
+    assert any(n.get("name") == "SKILL.md" and n.get("type") == "file" for n in tree)
+
+
+def test_skill_tree_structure(tmp_path, monkeypatch):
+    from common.skill_catalog import get_skill_entry
+
+    skills_dir = tmp_path / "business" / "skills"
+    skill_dir = skills_dir / "tree-demo"
+    (skill_dir / "bin").mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("# root\n", encoding="utf-8")
+    (skill_dir / "bin" / "run.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+    monkeypatch.setattr("common.skill_catalog.SKILLS_DIR", skills_dir)
+    monkeypatch.setattr("common.skill_link.SKILLS_DIR", skills_dir)
+    monkeypatch.setattr("common.skill_catalog.MYTEAM_ROOT", tmp_path)
+
+    entry = get_skill_entry("tree-demo")
+    assert entry is not None
+    tree = entry["tree"]
+    names = {n["name"] for n in tree}
+    assert names == {"SKILL.md", "bin"}
+    bin_node = next(n for n in tree if n["name"] == "bin")
+    assert bin_node["type"] == "dir"
+    assert len(bin_node["children"]) == 1
+    assert bin_node["children"][0]["path"] == "bin/run.sh"
 
 
 def test_methodology_descriptions_are_parsed_not_yaml_markers():
@@ -67,6 +101,7 @@ def test_update_skill_name_bumps_updated_at(tmp_path, monkeypatch):
     )
 
     monkeypatch.setattr("common.skill_catalog.SKILLS_DIR", skills_dir)
+    monkeypatch.setattr("common.skill_link.SKILLS_DIR", skills_dir)
     monkeypatch.setattr("common.skill_catalog.MYTEAM_ROOT", tmp_path)
 
     before_top = list_all_skills()[0]["id"]

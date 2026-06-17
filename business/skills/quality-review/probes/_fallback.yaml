@@ -1,0 +1,37 @@
+# 通用质量探针（无专用探针时的兜底）
+
+L1_structure:
+  - id: has-heading
+    type: grep
+    pattern: "^#|^##"
+    label: "有章节标题"
+  - id: no-stub
+    type: grep_negate
+    pattern: "TODO|请替换|这里填写|示例内容|待补充"
+    label: "无模板残留词"
+  - id: file-nonempty
+    type: file_min_size
+    min: 100
+    label: "文件大小 ≥ 100 字节"
+
+L2_logic:
+  - id: self-consistent
+    type: llm_yesno
+    prompt: "交付物内容前后是否自洽？没有互相矛盾的说法。"
+    label: "内容自洽"
+  - id: no-hallucination
+    type: llm_yesno
+    prompt: "交付物中是否有看起来像是编造的细节（虚构的引用、不存在的标准、可疑的数字）？如有，标记出来。"
+    label: "无虚构内容"
+
+L3_evidence:
+  - id: claims-supported
+    type: llm_yesno
+    prompt: "交付物中的关键断言是否有依据或解释？不要求正式引用，但不应是凭空下结论。"
+    label: "关键断言有依据"
+
+L4_actionable:
+  - id: purpose-clear
+    type: llm_yesno
+    prompt: "读了交付物后，你是否清楚它的用途和下一步该做什么？"
+    label: "交付物用途清晰"

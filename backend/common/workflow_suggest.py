@@ -218,6 +218,47 @@ def _geo_pipeline_tasks() -> list[dict]:
     ]
 
 
+def _product_plan_improve_tasks() -> list[dict]:
+    """产品规划/方案完善：架构图 → 正文 → 评审（与 方案完善 workflow 对齐的线性任务）。"""
+    return [
+        {
+            "id": "t-deck",
+            "name": "分层架构图（PPT）",
+            "agent": "product",
+            "task_type": "deck-build",
+            "dependencies": [],
+            "description": (
+                f"{_OBJ_PLACEHOLDER}\n"
+                "【交付】deliverables/产品架构图.pptx、系统架构图.pptx 及 PNG\n"
+                "【质量】四层/分层、一功能一方块，禁止合并成大块"
+            ),
+        },
+        {
+            "id": "t-author",
+            "name": "方案正文编制",
+            "agent": "product",
+            "task_type": "section-authoring",
+            "dependencies": ["t-deck"],
+            "description": (
+                "【输入】只读 t-deck 架构图；Goal 指定模版与参考稿路径\n"
+                "【交付】完整 Word/Markdown 方案；按章节拆分执行\n"
+                "【一致性】正文与架构图术语层次一致"
+            ),
+        },
+        {
+            "id": "t-review",
+            "name": "质量评审",
+            "agent": "main",
+            "task_type": "section-review",
+            "dependencies": ["t-author"],
+            "description": (
+                "【输入】t-author 交付物 + Goal\n"
+                "【输出】评审报告；末行 REVIEW: PASS 或 REVIEW: FAIL"
+            ),
+        },
+    ]
+
+
 def _delivery_lite_tasks() -> list[dict]:
     return [
         {
@@ -284,6 +325,7 @@ WF_PATTERN_LABEL = {
     "data-analysis-pipeline": "数据分析流水线",
     "geo-pipeline": "GEO 优化流水线",
     "delivery-lite": "轻量软件交付",
+    "product-plan-improve": "产品规划方案完善",
     "linear-research": "调研+汇总",
 }
 
@@ -297,7 +339,7 @@ def suggest_workflow_from_description(description: str) -> dict[str, Any]:
     pattern = "linear-research"
     options: dict[str, Any] = {
         "review_enabled": False,
-        "split_enabled": False,
+        "split_enabled": True,
         "parallel_enabled": False,
         "max_parallel": 3,
     }
@@ -333,6 +375,21 @@ def suggest_workflow_from_description(description: str) -> dict[str, Any]:
     elif _match_any(desc, "软件", "交付", "开发", "实现", "delivery", "hotfix"):
         pattern = "delivery-lite"
         tasks = _delivery_lite_tasks()
+    elif _match_any(
+        desc,
+        "产品规划",
+        "方案完善",
+        "区块链",
+        "架构图",
+        "产品架构",
+        "系统架构",
+        "word 文档",
+        "ppt",
+        "deck",
+    ):
+        pattern = "product-plan-improve"
+        tasks = _product_plan_improve_tasks()
+        options["split_enabled"] = True
     elif _match_any(desc, "并行", "parallel"):
         pattern = "github-parallel-research"
         tasks = _github_parallel_tasks()

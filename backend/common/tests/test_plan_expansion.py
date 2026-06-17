@@ -15,6 +15,36 @@ def _parent(pid="root"):
     }
 
 
+from common.plan_expansion import PlanExpander, _is_loop_placeholder  # noqa: E402
+from common.process_types import ProcessConfig  # noqa: E402
+from common.store import Store  # noqa: E402
+
+
+def test_is_loop_placeholder():
+    assert _is_loop_placeholder({"id": "t1", "loop": "round1"})
+    assert not _is_loop_placeholder({"id": "t1"})
+    assert not _is_loop_placeholder({"id": "t1", "loop": ""})
+
+
+def test_expand_skips_loop_placeholder(monkeypatch, tmp_path):
+    store = Store(db_path=tmp_path / "s.db")
+    evaluated: list[str] = []
+
+    class FakeDecision:
+        def evaluate(self, project_id, task, agents, depth, *, cycle=0):
+            evaluated.append(task["id"])
+            return None
+
+    expander = PlanExpander(FakeDecision(), store, ProcessConfig(split_enabled=True))
+    tasks = [
+        {"id": "loop-anchor", "name": "L", "loop": "r1", "dependencies": []},
+        {"id": "plain", "name": "P", "agent": "research", "task_type": "research", "dependencies": []},
+    ]
+    out = expander.expand("pro_x", tasks, ["research"])
+    assert evaluated == ["plain"]
+    assert any(t["id"] == "loop-anchor" for t in out)
+
+
 def test_normalize_subtasks_prefixes_ids_and_deps():
     parent = _parent("p1")
     subs = [{"id": "a", "name": "A", "dependencies": ["b"]}]

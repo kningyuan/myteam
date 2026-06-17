@@ -12,6 +12,7 @@ RulesProfile = Literal["interactive", "discussion", "workflow_execute", "convers
 _INTERACTIVE_RULE = "interactive-guide.md"
 _DISCUSSION_RULE = "brainstorming-guide.md"
 _EXECUTE_RULE = "worker-template.md"
+_ETHOS_RULE = "ethos.md"
 
 
 def normalize_rules_profile(profile: str) -> str:
@@ -31,14 +32,14 @@ def merge_rules_file(
 ) -> Optional[str]:
     """按 profile 合并规则。
 
-    interactive: universal + interactive-guide（私聊、群聊 @agent 交互任务；不含 AGENTS 执行段）
-    discussion: universal + brainstorming-guide（圆桌 / 纯讨论；不含 AGENTS 执行段）
-    workflow_execute: universal + worker-template + AGENTS.md（项目编排 execute）
+    所有 profile：universal + ethos（团队哲学，全员默认）
+    interactive: + interactive-guide（私聊、群聊 @agent；不含 AGENTS 执行段）
+    discussion: + brainstorming-guide（圆桌 / 纯讨论；不含 AGENTS 执行段）
+    workflow_execute: + worker-template（项目编排 execute；能力来自 agents_registry + IDENTITY）
     conversation: 同 interactive（兼容旧调用）
     """
     profile = normalize_rules_profile(profile)  # type: ignore[assignment]
     universal = rules_dir / "universal-rules.md"
-    agents_md = Path(workspace) / "AGENTS.md"
     display = chinese_name or agent_id
     try:
         fd, temp_path = tempfile.mkstemp(
@@ -48,6 +49,10 @@ def merge_rules_file(
             f.write(f"# {display} - 完整规则\n\n")
             if universal.exists():
                 f.write(universal.read_text(encoding="utf-8"))
+                f.write("\n\n---\n\n")
+            ethos = rules_dir / _ETHOS_RULE
+            if ethos.exists():
+                f.write(ethos.read_text(encoding="utf-8"))
                 f.write("\n\n---\n\n")
             if profile == "interactive":
                 fp = rules_dir / _INTERACTIVE_RULE
@@ -64,8 +69,6 @@ def merge_rules_file(
                 if fp.exists():
                     f.write(fp.read_text(encoding="utf-8"))
                     f.write("\n\n---\n\n")
-                if agents_md.exists():
-                    f.write(agents_md.read_text(encoding="utf-8"))
         return temp_path
     except Exception:
         return None

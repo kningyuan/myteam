@@ -82,6 +82,25 @@ def test_memory_route(client):
     assert "结构化数据" in hit["preview"] and hit["tags"] == ["geo"]
 
 
+def test_memory_get_and_delete(client):
+    listed = client.get("/api/obs/memory").json()["memory"]
+    hit = next(m for m in listed if m["title"] == "GEO 要点")
+    mid = hit["id"]
+
+    r = client.get(f"/api/obs/memory/{mid}")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["content"] == "结构化数据 + 引用策略是核心"
+    assert "结构化数据" in body["preview"]
+
+    r2 = client.delete(f"/api/obs/memory/{mid}")
+    assert r2.status_code == 200
+    assert r2.json()["success"] is True
+
+    assert client.get(f"/api/obs/memory/{mid}").status_code == 404
+    assert client.delete(f"/api/obs/memory/{mid}").status_code == 404
+
+
 def test_cost(client):
     r = client.get("/api/obs/projects/p1/cost")
     assert r.status_code == 200

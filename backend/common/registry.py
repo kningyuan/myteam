@@ -92,7 +92,13 @@ def _spec_from_delivery_template(task_type: str, base: "FormatSpec", tpl) -> For
 
     assert isinstance(tpl, DeliveryTemplate)
     dt = tpl.deliverable_template or {}
-    check_rules = tpl.check_rules or {}
+    check_rules = dict(tpl.check_rules or {})
+    by_tt = check_rules.pop("check_rules_by_task_type", None) or check_rules.pop(
+        "by_task_type", None,
+    )
+    if isinstance(by_tt, dict) and task_type in by_tt and isinstance(by_tt[task_type], dict):
+        overrides = dict(by_tt[task_type])
+        check_rules = {**check_rules, **overrides}
     required_sections = list(check_rules.get("required_sections") or [])
     if not required_sections and dt.get("sections"):
         required_sections = [

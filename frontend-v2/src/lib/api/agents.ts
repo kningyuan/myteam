@@ -38,6 +38,8 @@ export type AgentDetail = {
   deliverable_skills?: AgentSkillRef[]
   mcp_servers?: { server_id: string; name?: string; enabled?: boolean; type?: string }[]
   files?: Record<string, string>
+  shared_rules?: Record<string, string>
+  shared_rule_files?: { filename: string; label: string; path?: string; size?: number }[]
 }
 
 export async function listAgents(): Promise<AgentSummary[]> {
@@ -69,6 +71,22 @@ export async function saveAgentWorkspaceFile(
 ): Promise<{ success?: boolean }> {
   const res = await hubFetch<{ success?: boolean }>(
     `/api/agents/${encodeURIComponent(agentId)}/files/${encodeURIComponent(filename)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content }),
+    },
+  )
+  invalidateResources("agents")
+  return res
+}
+
+export async function saveSharedRuleFile(
+  filename: string,
+  content: string,
+): Promise<{ success?: boolean }> {
+  const res = await hubFetch<{ success?: boolean }>(
+    `/api/rules/shared/${encodeURIComponent(filename)}`,
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },

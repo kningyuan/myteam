@@ -111,3 +111,36 @@ tasks:
     paths.AGENTS_REGISTRY_FILE.write_text(json.dumps(reg, ensure_ascii=False), encoding="utf-8")
     profile = ensure_workflow_ready("arch-research", backend="claude")
     assert profile.id == "arch-research"
+
+def test_merge_agent_meta_preserves_skills():
+    from common.workflow_bootstrap import _merge_agent_meta
+
+    existing = {
+        "name": "产品专家",
+        "skills": ["deck-build", "section-authoring"],
+        "mcp_servers": ["officecli"],
+        "task_types": ["deck-build"],
+    }
+    incoming = {
+        "name": "产品专家",
+        "capabilities": ["需求"],
+        "task_types": ["section-authoring"],
+    }
+    merged = _merge_agent_meta(existing, incoming)
+    assert merged["skills"] == ["deck-build", "section-authoring"]
+    assert merged["mcp_servers"] == ["officecli"]
+    assert "section-authoring" in merged["task_types"]
+
+def test_merge_agent_meta_ignores_incoming_skills():
+    from common.workflow_bootstrap import _merge_agent_meta
+
+    existing = {"name": "产品专家", "task_types": ["deck-build"]}
+    incoming = {
+        "name": "产品专家",
+        "skills": ["product-methodology"],
+        "task_types": ["section-authoring"],
+    }
+    merged = _merge_agent_meta(existing, incoming)
+    assert "skills" not in merged
+    assert "section-authoring" in merged["task_types"]
+

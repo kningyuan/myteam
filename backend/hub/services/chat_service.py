@@ -307,6 +307,11 @@ class ChatService:
         identity = builder.get_identity_context(rules_profile=profile)
         if identity:
             sections.append(f"<core_instructions>\n{identity}\n</core_instructions>")
+        from common.agent_registry import build_registry_capability_context
+
+        registry_block = build_registry_capability_context(agent_id)
+        if registry_block:
+            sections.append(registry_block)
         skill_block = build_skill_context(agent_id)
         if skill_block:
             sections.append(skill_block)

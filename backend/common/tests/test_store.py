@@ -126,6 +126,14 @@ def test_memory_write_search(store):
     assert not store.memory_search(tags=["nope"])
 
 
+def test_memory_delete(store):
+    mid = store.memory_write("pro_x", "待删", "正文", tags=["tmp"])
+    assert store.memory_get(mid) is not None
+    assert store.memory_delete(mid) is True
+    assert store.memory_get(mid) is None
+    assert store.memory_delete(mid) is False
+
+
 def test_list_all_conversations(store):
     store.create_conversation("channel/project-a", kind="project", project_id="pro_a", title="A")
     store.create_conversation("dm:research", kind="dm", title="Research DM")

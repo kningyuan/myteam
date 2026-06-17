@@ -166,11 +166,13 @@ app.add_middleware(
 from hub.api.observability_api import router as observability_router
 from hub.api.skills_api import router as skills_router
 from hub.api.mcp_api import router as mcp_router
+from hub.api.rules_api import router as rules_router
 from hub.api.routes import api_router
 
 app.include_router(observability_router)
 app.include_router(skills_router)
 app.include_router(mcp_router)
+app.include_router(rules_router)
 app.include_router(api_router)
 
 
@@ -291,10 +293,13 @@ async def agent_detail(agent_id: str):
 
     from common.agent_registry import get_agent_info, get_agent_task_types
     from common.agent_skills import get_agent_skill_ids, skill_file_path
+    from common.skill_groups import get_skill_group, is_skill_group
     from common.agent_mcp import get_agent_mcp_ids
     from common.mcp_catalog import get_mcp_server
     from common.registry import get_spec
     from common.skill_catalog import get_skill_library_entry
+
+    from common.shared_rules import list_shared_rule_files, read_all_shared_rules
 
     reg_info = get_agent_info(agent_id)
     if not task_types:
@@ -308,6 +313,20 @@ async def agent_detail(agent_id: str):
     skill_ids = get_agent_skill_ids(agent_id)
     skills = []
     for sid in skill_ids:
+        if is_skill_group(sid):
+            g = get_skill_group(sid) or {}
+            members = g.get("members") or []
+            skills.append(
+                {
+                    "skill_id": sid,
+                    "name": g.get("name_zh") or g.get("name") or sid,
+                    "available": True,
+                    "is_group": True,
+                    "member_ids": list(members),
+                    "path": g.get("vendor_skills_root"),
+                }
+            )
+            continue
         sp = skill_file_path(sid)
         entry = get_skill_library_entry(sid) or {}
         skills.append(
@@ -358,6 +377,8 @@ async def agent_detail(agent_id: str):
         "mcp_servers": mcp_servers,
         "registry_mcp_servers": list(reg_info.get("mcp_servers") or []),
         "files": files,
+        "shared_rules": read_all_shared_rules(),
+        "shared_rule_files": list_shared_rule_files(),
     }
 
 

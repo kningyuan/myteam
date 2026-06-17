@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from common.agent_skills import get_agent_skill_ids
+from common.agent_skills import get_agent_mounted_skill_ids
 from common.paths import workspace_dir
 
 
@@ -26,7 +26,7 @@ def sync_agent_skills_to_cli(agent_id: str, *, workspace: str | None = None) -> 
         }
 
     ws = workspace or str(workspace_dir(aid))
-    skill_ids = get_agent_skill_ids(aid)
+    skill_ids = get_agent_mounted_skill_ids(aid)
     result = adapter.sync_agent_skills(aid, ws, skill_ids)
     result.setdefault("agent_id", aid)
     result.setdefault("backend_id", backend_cfg.backend_id)
@@ -48,15 +48,25 @@ def sync_all_agent_skills_to_cli() -> dict:
 def sync_all_agent_skill_mounts() -> dict:
     """将 registry skills 同步到 CLI，并清理 AGENTS.md 中历史 Skill 挂载节。"""
     from common.agent_skills import strip_agents_md_skills_section
+    from common.skill_link import ensure_all_vendor_skill_links, sync_cursor_skill_links
     from hub.services.agent_registry import list_available_agent_ids
 
+    vendor = ensure_all_vendor_skill_links()
+    cursor = sync_cursor_skill_links()
     agents_md_stripped: list[str] = []
     cli = sync_all_agent_skills_to_cli()
     for aid in list_available_agent_ids():
         if strip_agents_md_skills_section(aid):
             agents_md_stripped.append(aid)
+    ok = (
+        cli.get("success", False)
+        and vendor.get("success", False)
+        and cursor.get("success", False)
+    )
     return {
-        "success": cli.get("success", False),
+        "success": ok,
+        "vendor": vendor,
+        "cursor": cursor,
         "agents_md_stripped": agents_md_stripped,
         "cli": cli,
     }

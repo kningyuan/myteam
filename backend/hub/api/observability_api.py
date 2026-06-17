@@ -110,6 +110,45 @@ async def list_memory(project_id: str | None = None, text: str = "", limit: int 
         store.close()
 
 
+def _memory_api_row(row: dict) -> dict:
+    content = row.get("content") or ""
+    return {
+        "id": row.get("id"),
+        "project_id": row.get("project_id"),
+        "task_id": row.get("task_id"),
+        "title": row.get("title"),
+        "tags": row.get("tags") or [],
+        "created_at": row.get("created_at"),
+        "content": content,
+        "preview": content[:200],
+    }
+
+
+@router.get("/memory/{memory_id}")
+async def get_memory(memory_id: int):
+    """单条知识库条目（含全文）。"""
+    store = _store()
+    try:
+        row = store.memory_get(memory_id)
+        if not row:
+            raise HTTPException(status_code=404, detail=f"知识条目不存在：{memory_id}")
+        return _memory_api_row(row)
+    finally:
+        store.close()
+
+
+@router.delete("/memory/{memory_id}")
+async def delete_memory(memory_id: int):
+    """删除单条知识库条目。"""
+    store = _store()
+    try:
+        if not store.memory_delete(memory_id):
+            raise HTTPException(status_code=404, detail=f"知识条目不存在：{memory_id}")
+        return {"success": True, "id": memory_id}
+    finally:
+        store.close()
+
+
 @router.get("/projects/{project_id}/overview")
 async def project_overview(project_id: str):
     store = _store()

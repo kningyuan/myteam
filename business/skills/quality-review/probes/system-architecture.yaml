@@ -1,0 +1,73 @@
+# System Architecture / Architecture Review 质量探针
+
+L1_structure:
+  - id: diagram-exists
+    type: file_exists
+    pattern: "diagram.drawio"
+    label: "架构图 drawio 文件存在"
+  - id: diagram-png-exists
+    type: file_exists
+    pattern: "diagram.png"
+    label: "架构图 PNG 存在"
+  - id: components-section
+    type: grep
+    pattern: "## (组件|模块|Components|Modules)"
+    label: "组件/模块章节存在"
+  - id: data-flow-section
+    type: grep
+    pattern: "## (数据流|Data Flow|交互流程)"
+    label: "数据流章节存在"
+  - id: trade-off-section
+    type: grep
+    pattern: "## (取舍|Trade-off|方案对比|决策)"
+    label: "有取舍/决策章节"
+  - id: adr-reference
+    type: grep
+    pattern: "ADR-\d|决策记录"
+    label: "有 ADR 编号引用"
+  - id: no-stub
+    type: grep_negate
+    pattern: "TODO|请替换|这里填写|示例"
+    label: "无模板残留词"
+
+L2_logic:
+  - id: component-count
+    type: llm_yesno
+    prompt: "架构方案中的组件/模块数量是否在 3-15 个之间？太少可能遗漏，太多可能粒度过细。"
+    label: "组件数量合理（3-15 个）"
+  - id: diagram-text-consistent
+    type: llm_yesno
+    prompt: "架构图的组件和文中描述的组件是否一致？图里有的组件文章里应该提到，文章里提到的关键组件图里应该有。"
+    label: "架构图与文字描述一致"
+  - id: data-flow-complete
+    type: llm_yesno
+    prompt: "数据流是否完整？从入口到存储的全链路都有描述，没有『然后走标准流程』这种跳过。"
+    label: "数据流链路完整"
+  - id: nfr-covered
+    type: llm_yesno
+    prompt: "是否覆盖了非功能性需求？至少提及性能、安全、可维护性中的两项。"
+    label: "非功能性需求有覆盖"
+
+L3_evidence:
+  - id: decision-rationale
+    type: llm_yesno
+    prompt: "每个技术选型/架构决策是否有选择理由？即『选 A 不选 B』是有依据的，不只是『A 更好』。"
+    label: "决策有选择理由"
+  - id: risk-stated
+    type: llm_yesno
+    prompt: "是否明确列出了技术风险或不确定性？没有『完美方案』，有风险说明是成熟的表现。"
+    label: "风险或不确定性已声明"
+  - id: interface-defined
+    type: llm_yesno
+    prompt: "关键接口（API、事件、数据库等）是否有明确的契约或描述？不要求完整 OpenAPI，但输入输出应该说清楚。"
+    label: "关键接口有契约/描述"
+
+L4_actionable:
+  - id: implementable
+    type: llm_yesno
+    prompt: "假设你是一个后端开发者，按照这份架构方案，你能直接开始实现吗？是否需要等额外决策？"
+    label: "开发者能直接开始实现"
+  - id: milestone-defined
+    type: llm_yesno
+    prompt: "是否有明确的实现阶段/里程碑划分？哪怕只是『第一步做什么、第二步做什么』。"
+    label: "实现阶段清晰"

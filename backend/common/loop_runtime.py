@@ -61,6 +61,10 @@ class RunLoopDeps:
     set_task_status: Callable[[str, str, str], None]
     store: "Store"
     on_loop_round_done: Optional[Callable[..., None]] = None
+    needs_review_blocks: bool = False
+    expand_ready: Optional[
+        Callable[..., bool]
+    ] = None
 
 
 @dataclass
@@ -606,6 +610,74 @@ def evaluate_transition(
     )
 
 
+def _hydrate_loop_round_from_store(
+    project_id: str,
+    by_id: dict[str, dict],
+    order: list[str],
+    store: "Store",
+) -> tuple[dict[str, "TaskOutcome"], set[str]]:
+    """Resume：从 store 恢复已拆分子任务，并 seed 已完成任务的 outcome（避免重跑 step-1 等）。"""
+    from common.process_types import TaskOutcome
+
+    terminal = _TERMINAL_OK | _TERMINAL_BAD
+
+    for tid in list(by_id.keys()):
+        row = store.get_task(project_id, tid) or {}
+        meta = row.get("meta") or {}
+        children = list(meta.get("split_children") or [])
+        if not children and row.get("status") == "cancelled":
+            children = [
+                str(r["task_id"])
+                for r in store.list_tasks(project_id)
+                if str(r.get("parent_id") or "") == tid
+            ]
+        if row.get("status") != "cancelled" or not children:
+            continue
+        parent = by_id.pop(tid, None)
+        if parent is None:
+            continue
+        parent_deps = list(parent.get("dependencies") or [])
+        loaded: list[str] = []
+        for cid in children:
+            if cid in by_id:
+                loaded.append(cid)
+                continue
+            crow = store.get_task(project_id, cid)
+            if not crow:
+                continue
+            cmeta = crow.get("meta") or {}
+            child: dict = {
+                "id": cid,
+                "name": crow.get("name", ""),
+                "agent": crow.get("agent", ""),
+                "reviewer": crow.get("reviewer", ""),
+                "task_type": crow.get("task_type", ""),
+                "dependencies": crow.get("dependencies") or list(parent_deps),
+                "description": cmeta.get("description", ""),
+            }
+            tpl = cmeta.get("template_id") or parent.get("template_id")
+            if tpl:
+                child["template_id"] = tpl
+            by_id[cid] = child
+            loaded.append(cid)
+        for t in by_id.values():
+            deps = t.get("dependencies") or []
+            if tid in deps:
+                t["dependencies"] = [d for d in deps if d != tid] + loaded
+
+    order[:] = topological_order(list(by_id.values()))
+
+    outcomes: dict[str, TaskOutcome] = {}
+    done: set[str] = set()
+    for tid in by_id:
+        row = store.get_task(project_id, tid) or {}
+        st = str(row.get("status") or "pending")
+        if st in terminal:
+            outcomes[tid] = TaskOutcome(tid, st)
+            done.add(tid)
+    return outcomes, done
+
+
 def instantiate_round_body_tasks(
     spec: LoopSpec,
     round_num: int,
@@ -840,14 +912,43 @@ def run_loop(
 
         by_id = {t["id"]: t for t in round_tasks}
         order = topological_order(round_tasks)
-        round_outcomes: dict[str, TaskOutcome] = {}
-        body_types = {t["id"]: t.get("task_type", "") for t in round_tasks}
+        round_outcomes, done = _hydrate_loop_round_from_store(
+            project_id, by_id, order, deps.store,
+        )
+        body_types = {t["id"]: t.get("task_type", "") for t in by_id.values()}
 
-        for body_tid in order:
+        agents = sorted({
+            str(t.get("agent") or "").strip()
+            for t in by_id.values() if str(t.get("agent") or "").strip()
+        })
+        while len(done) < len(by_id):
+            if deps.expand_ready:
+                while deps.expand_ready(
+                    project_id, by_id, order, round_outcomes, agents, cycle=round_num,
+                ):
+                    order[:] = topological_order(list(by_id.values()))
+                    body_types = {t["id"]: t.get("task_type", "") for t in by_id.values()}
+
+            from common.dag_dispatch import ready_tasks
+
+            wave = ready_tasks(
+                order, by_id, round_outcomes,
+                needs_review_blocks=deps.needs_review_blocks,
+            )
+            wave = [tid for tid in wave if tid not in done]
+            if not wave:
+                break
+            body_tid = wave[0]
             result = deps.execute_task(project_id, by_id[body_tid])
             round_outcomes[body_tid] = result.outcome
+            done.add(body_tid)
             if result.triage_decision == "abort":
                 return TaskOutcome(placeholder_id, "failed", "loop 内任务中止", round_num)
+            if result.split_subtasks:
+                for sub in result.split_subtasks:
+                    by_id[sub["id"]] = sub
+                order[:] = topological_order(list(by_id.values()))
+                body_types = {t["id"]: t.get("task_type", "") for t in by_id.values()}
 
         if use_transition:
             result = evaluate_transition(

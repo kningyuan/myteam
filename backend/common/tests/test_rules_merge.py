@@ -18,6 +18,7 @@ def rules_env(tmp_path, monkeypatch):
     (rules_dir / "interactive-guide.md").write_text("# interactive\n", encoding="utf-8")
     (rules_dir / "brainstorming-guide.md").write_text("# brainstorm\n", encoding="utf-8")
     (rules_dir / "worker-template.md").write_text("# worker\n", encoding="utf-8")
+    (rules_dir / "ethos.md").write_text("# ethos-marker\n", encoding="utf-8")
     ws = tmp_path / "workspaces" / "arch"
     ws.mkdir(parents=True)
     (ws / "AGENTS.md").write_text("# role\n", encoding="utf-8")
@@ -30,6 +31,7 @@ def test_interactive_profile(rules_env):
     assert path
     text = Path(path).read_text(encoding="utf-8")
     assert "interactive" in text
+    assert "ethos-marker" in text
     assert "brainstorm" not in text
     assert "worker" not in text
     assert "role" not in text
@@ -50,6 +52,7 @@ def test_discussion_profile(rules_env):
     assert path
     text = Path(path).read_text(encoding="utf-8")
     assert "brainstorm" in text
+    assert "ethos-marker" in text
     assert "interactive" not in text
     assert "worker" not in text
     assert "role" not in text
@@ -61,7 +64,8 @@ def test_workflow_execute_profile(rules_env):
     assert path
     text = Path(path).read_text(encoding="utf-8")
     assert "worker" in text
-    assert "role" in text
+    assert "ethos-marker" in text
+    assert "role" not in text
     assert "brainstorm" not in text
     assert "interactive" not in text
 

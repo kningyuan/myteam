@@ -86,18 +86,42 @@ export type TaskTypeSummary = {
 
 export type SkillLibraryItem = {
   id: string
+  kind?: "skill" | "category"
   name?: string
   description?: string
   path?: string
   updated_at?: number
   line_count?: number
+  group_id?: string
+  category_dir?: string
+  member_count?: number
+  members?: SkillGroupMember[]
   content?: string
   body?: string
   task_type?: string
   is_draft?: boolean
   is_mountable?: boolean
+  is_symlink?: boolean
+  link_target?: string
   sections?: SkillSection[]
+  tree?: SkillTreeNode[]
   files?: SkillFileRef[]
+}
+
+export type SkillGroupMember = {
+  id: string
+  name?: string
+  description?: string
+}
+
+export type SkillGroup = {
+  id: string
+  name?: string
+  description?: string
+  vendor_skills_root?: string
+  storage_dir?: string
+  members: SkillGroupMember[]
+  is_group?: boolean
 }
 
 export type SkillSection = {
@@ -112,6 +136,15 @@ export type SkillFileRef = {
   name?: string
   kind?: string
   size?: number
+}
+
+export type SkillTreeNode = {
+  name: string
+  path: string
+  type: "file" | "dir"
+  kind?: string
+  size?: number
+  children?: SkillTreeNode[]
 }
 
 export type SkillFileContent = SkillFileRef & {
@@ -269,10 +302,10 @@ export async function listDeliveryTemplates(): Promise<DeliveryTemplateSummary[]
 }
 
 export async function getDeliveryTemplate(templateId: string): Promise<DeliveryTemplateDetail> {
-  const data = await hubFetch<{ template?: DeliveryTemplateDetail }>(
+  const data = await hubFetch<{ template?: DeliveryTemplateSummary; yaml?: string }>(
     `/api/delivery-templates/${encodeURIComponent(templateId)}`,
   )
-  return data.template ?? { id: templateId }
+  return { ...(data.template ?? { id: templateId }), yaml: data.yaml || "" }
 }
 
 export async function saveDeliveryTemplate(
@@ -300,9 +333,68 @@ export async function deleteDeliveryTemplate(templateId: string): Promise<void> 
   invalidateResources("delivery-templates")
 }
 
+export async function listSkillCategories(): Promise<SkillLibraryItem[]> {
+  const data = await hubFetch<{ categories?: SkillLibraryItem[] }>("/api/skills/categories")
+  return data.categories ?? []
+}
+
+export async function createSkillCategory(payload: {
+  id: string
+  name: string
+  description?: string
+}): Promise<SkillLibraryItem> {
+  const data = await hubFetch<{ category?: SkillLibraryItem }>("/api/skills/categories", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
+  invalidateResources("skill-library", "skill-groups", "skill-categories")
+  if (!data.category) throw new Error("创建分类失败")
+  return data.category
+}
+
+export async function updateSkillCategory(
+  categoryId: string,
+  payload: { name?: string; description?: string },
+): Promise<SkillLibraryItem> {
+  const data = await hubFetch<{ category?: SkillLibraryItem }>(
+    `/api/skills/categories/${encodeURIComponent(categoryId)}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  )
+  invalidateResources("skill-library", "skill-groups", "skill-categories")
+  if (!data.category) throw new Error("更新分类失败")
+  return data.category
+}
+
+export async function moveSkillToCategory(
+  skillId: string,
+  categoryId: string | null,
+): Promise<SkillLibraryItem> {
+  const data = await hubFetch<{ skill?: SkillLibraryItem }>(
+    `/api/skills/library/${encodeURIComponent(skillId)}/category`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ category_id: categoryId }),
+    },
+  )
+  invalidateResources("skill-library", "skill-groups", "skill-categories")
+  if (!data.skill) throw new Error("移动 Skill 失败")
+  return data.skill
+}
+
 export async function listSkillLibrary(): Promise<SkillLibraryItem[]> {
   const data = await hubFetch<{ skills?: SkillLibraryItem[] }>("/api/skills/library")
   return data.skills ?? []
+}
+
+export async function listSkillGroups(): Promise<SkillGroup[]> {
+  const data = await hubFetch<{ groups?: SkillGroup[] }>("/api/skills/groups")
+  return data.groups ?? []
 }
 
 export async function getSkillLibraryItem(skillId: string): Promise<SkillLibraryItem> {

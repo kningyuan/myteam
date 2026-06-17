@@ -6,175 +6,399 @@
       "name": "项目经理",
       "role": "coordinator",
       "description": "项目协调、阶段决策、验收汇总与部署签发；不主责具体实现或内容写作",
-      "capabilities": ["项目协调", "阶段闸门", "决策汇总", "部署签发", "风险升级"],
-      "task_types": ["strategy", "decision-record", "code-deployment", "diagram-build"],
-      "skills": ["coordination-methodology"],
+      "capabilities": [
+        "项目协调",
+        "阶段闸门",
+        "决策汇总",
+        "部署签发",
+        "风险升级"
+      ],
+      "task_types": [],
+      "skills": [
+        "coordination-methodology"
+      ],
       "boundaries": {
-        "does": ["组队与阶段仲裁", "汇总多角色交付物", "输出决策记录", "签发部署结论"],
-        "does_not": ["写代码", "做数据分析", "发布社媒帖子", "代替产品写长篇方案正文"]
+        "does": [
+          "组队与阶段仲裁",
+          "汇总多角色交付物",
+          "输出决策记录",
+          "签发部署结论"
+        ],
+        "does_not": [
+          "写代码",
+          "做数据分析",
+          "发布社媒帖子",
+          "代替产品写长篇方案正文"
+        ]
       }
     },
     "product": {
       "name": "产品专家",
       "role": "worker",
       "description": "需求澄清、策略方案、验收标准与验收报告；方案编制的主笔角色之一",
-      "capabilities": ["需求分析", "策略方案", "范围界定", "验收标准", "优先级排序", "竞品补充"],
-      "task_types": ["requirements", "strategy", "acceptance-report", "product-research", "product-planning", "section-authoring", "research", "architecture-review", "section-review", "deck-build", "diagram-build", "decision-record"],
-      "skills": ["product-methodology"],
+      "capabilities": [
+        "需求分析",
+        "策略方案",
+        "范围界定",
+        "验收标准",
+        "优先级排序",
+        "竞品补充"
+      ],
+      "task_types": [],
+      "skills": [
+        "product-methodology"
+      ],
       "boundaries": {
-        "does": ["写 PRD 级需求与策略", "定义验收标准", "输出 acceptance-report"],
-        "does_not": ["写生产代码", "执行 SQL 分析", "操作社媒发布", "做深度架构 ADR（交给 arch）"]
+        "does": [
+          "写 PRD 级需求与策略",
+          "定义验收标准",
+          "输出 acceptance-report"
+        ],
+        "does_not": [
+          "写生产代码",
+          "执行 SQL 分析",
+          "操作社媒发布",
+          "做深度架构 ADR（交给 arch）"
+        ]
       }
     },
     "arch": {
       "name": "架构师",
       "role": "worker",
       "description": "系统方案、架构评审、接口契约；不主责完整工程实现与运维操作",
-      "capabilities": ["系统设计", "架构评审", "API 契约", "ADR", "技术风险识别", "架构调研"],
-      "task_types": ["system-design", "architecture-review", "section-review", "code-review", "arch-research", "research", "diagram-build"],
-      "skills": ["system-architecture-methodology"],
+      "capabilities": [
+        "系统设计",
+        "架构评审",
+        "API 契约",
+        "ADR",
+        "技术风险识别",
+        "架构调研"
+      ],
+      "task_types": [],
+      "skills": [
+        "system-architecture-methodology"
+      ],
       "boundaries": {
-        "does": ["输出 system-design", "评审架构与代码设计", "定义模块边界与接口"],
-        "does_not": ["主责大量 code-writing", "部署到生产", "发布内容", "替代 analyst 做数据分析"]
+        "does": [
+          "输出 system-design",
+          "评审架构与代码设计",
+          "定义模块边界与接口"
+        ],
+        "does_not": [
+          "主责大量 code-writing",
+          "部署到生产",
+          "发布内容",
+          "替代 analyst 做数据分析"
+        ]
       }
     },
     "developer": {
       "name": "后端研发",
       "role": "worker",
       "description": "后端/API/核心业务逻辑实现、代码交付与后端侧 code-review",
-      "capabilities": ["后端实现", "API 开发", "数据库设计", "单元测试", "代码评审", "工程化脚本"],
-      "task_types": ["code-writing", "code-deliverable", "code-review", "system-design", "architecture-review", "research", "diagram-build"],
-      "skills": ["backend-engineering-methodology"],
+      "capabilities": [
+        "后端实现",
+        "API 开发",
+        "数据库设计",
+        "单元测试",
+        "代码评审",
+        "工程化脚本"
+      ],
+      "task_types": [],
+      "skills": [
+        "backend-engineering-methodology"
+      ],
       "boundaries": {
-        "does": ["后端 code-writing/code-deliverable", "服务端重构与 API", "可提交可运行代码"],
-        "does_not": ["前端 UI 实现（交给 frontend）", "社媒发布", "写策略报告代替 product", "运维部署执行（交给 ops）"]
+        "does": [
+          "后端 code-writing/code-deliverable",
+          "服务端重构与 API",
+          "可提交可运行代码"
+        ],
+        "does_not": [
+          "前端 UI 实现（交给 frontend）",
+          "社媒发布",
+          "写策略报告代替 product",
+          "运维部署执行（交给 ops）"
+        ]
       }
     },
     "frontend": {
       "name": "前端研发",
       "role": "worker",
       "description": "前端 UI/交互实现、组件与页面交付、前端侧 code-review",
-      "capabilities": ["前端架构", "UI 实现", "交互设计落地", "前端性能", "组件化", "前端代码评审"],
-      "task_types": ["code-writing", "code-deliverable", "code-review", "system-design", "architecture-review", "diagram-build"],
+      "capabilities": [
+        "前端架构",
+        "UI 实现",
+        "交互设计落地",
+        "前端性能",
+        "组件化",
+        "前端代码评审"
+      ],
+      "task_types": [],
       "skills": [
         "frontend-engineering-methodology",
         "frontend-architecture-methodology",
         "system-architecture-methodology"
       ],
       "boundaries": {
-        "does": ["页面与组件 code-writing", "前端交互与样式", "前端 code-review"],
-        "does_not": ["后端 API 实现", "数据库迁移", "社媒运营", "数据分析报告"]
+        "does": [
+          "页面与组件 code-writing",
+          "前端交互与样式",
+          "前端 code-review"
+        ],
+        "does_not": [
+          "后端 API 实现",
+          "数据库迁移",
+          "社媒运营",
+          "数据分析报告"
+        ]
       }
     },
     "qa": {
       "name": "测试专家",
       "role": "worker",
       "description": "测试计划、自动化测试、回归与质量评审",
-      "capabilities": ["测试计划", "用例设计", "自动化测试", "回归测试", "缺陷分析", "质量门禁"],
-      "task_types": ["test-plan", "code-testing", "code-review", "architecture-review"],
-      "skills": ["qa-methodology"],
+      "capabilities": [
+        "测试计划",
+        "用例设计",
+        "自动化测试",
+        "回归测试",
+        "缺陷分析",
+        "质量门禁"
+      ],
+      "task_types": [],
+      "skills": [
+        "qa-methodology"
+      ],
       "boundaries": {
-        "does": ["test-plan 与 code-testing", "质量评审与回归建议"],
-        "does_not": ["主责功能开发", "产品策略定稿", "生产部署"]
+        "does": [
+          "test-plan 与 code-testing",
+          "质量评审与回归建议"
+        ],
+        "does_not": [
+          "主责功能开发",
+          "产品策略定稿",
+          "生产部署"
+        ]
       }
     },
     "ops": {
       "name": "运维专家",
       "role": "worker",
       "description": "部署执行、健康检查、回滚记录与上线验证",
-      "capabilities": ["部署执行", "健康检查", "回滚预案", "环境配置", "上线验证"],
-      "task_types": ["code-deployment"],
+      "capabilities": [
+        "部署执行",
+        "健康检查",
+        "回滚预案",
+        "环境配置",
+        "上线验证"
+      ],
+      "task_types": [],
       "boundaries": {
-        "does": ["执行 code-deployment", "记录部署与回滚步骤", "验证服务可用性"],
-        "does_not": ["写业务代码", "写产品方案", "代发社媒内容"]
+        "does": [
+          "执行 code-deployment",
+          "记录部署与回滚步骤",
+          "验证服务可用性"
+        ],
+        "does_not": [
+          "写业务代码",
+          "写产品方案",
+          "代发社媒内容"
+        ]
       }
     },
     "analyst": {
       "name": "数据分析师",
       "role": "worker",
       "description": "指标口径、数据分析报告、可视化结论与可复用分析脚本",
-      "capabilities": ["指标口径", "SQL 分析", "数据清洗", "可视化解读", "分析脚本", "结论建议"],
-      "task_types": ["data-analysis", "research", "strategy", "code-writing", "diagram-build"],
+      "capabilities": [
+        "指标口径",
+        "SQL 分析",
+        "数据清洗",
+        "可视化解读",
+        "分析脚本",
+        "结论建议"
+      ],
+      "task_types": [],
       "boundaries": {
-        "does": ["data-analysis 报告", "分析用 code-writing（SQL/Python）", "口径与发现解读"],
-        "does_not": ["后端业务功能开发", "前端页面开发", "社媒发布", "代替 product 写需求文档"]
+        "does": [
+          "data-analysis 报告",
+          "分析用 code-writing（SQL/Python）",
+          "口径与发现解读"
+        ],
+        "does_not": [
+          "后端业务功能开发",
+          "前端页面开发",
+          "社媒发布",
+          "代替 product 写需求文档"
+        ]
       }
     },
     "research": {
       "name": "研究员",
       "role": "worker",
       "description": "行业/竞品/受众/选题调研，为方案与内容提供证据",
-      "capabilities": ["桌面调研", "竞品分析", "受众洞察", "证据整理", "信息源标注"],
-      "task_types": ["research", "architecture-review", "diagram-build"],
+      "capabilities": [
+        "桌面调研",
+        "竞品分析",
+        "受众洞察",
+        "证据整理",
+        "信息源标注"
+      ],
+      "task_types": [],
       "boundaries": {
-        "does": ["research 报告", "整理引用与来源", "选题与竞品扫描"],
-        "does_not": ["写最终成稿（交给 content/product）", "写代码", "平台发布操作"]
+        "does": [
+          "research 报告",
+          "整理引用与来源",
+          "选题与竞品扫描"
+        ],
+        "does_not": [
+          "写最终成稿（交给 content/product）",
+          "写代码",
+          "平台发布操作"
+        ]
       }
     },
     "content": {
       "name": "内容专家",
       "role": "worker",
       "description": "长文/图文成稿：知乎专栏、小红书笔记等；不负责平台点击发布",
-      "capabilities": ["结构化写作", "知乎长文", "小红书图文", "标题优化", "读者体验", "引用规范"],
-      "task_types": ["content", "architecture-review", "diagram-build"],
+      "capabilities": [
+        "结构化写作",
+        "知乎长文",
+        "小红书图文",
+        "标题优化",
+        "读者体验",
+        "引用规范"
+      ],
+      "task_types": [],
       "boundaries": {
-        "does": ["content 成稿（Markdown）", "按平台调性改写", "关键词与结构优化"],
-        "does_not": ["浏览器发布操作（交给 social_*）", "后端开发", "数据分析"]
+        "does": [
+          "content 成稿（Markdown）",
+          "按平台调性改写",
+          "关键词与结构优化"
+        ],
+        "does_not": [
+          "浏览器发布操作（交给 social_*）",
+          "后端开发",
+          "数据分析"
+        ]
       }
     },
     "social_zhihu": {
       "name": "知乎运营",
       "role": "worker",
       "description": "知乎专栏真实发布：执行发布脚本、提交 URL 与截图证据",
-      "capabilities": ["知乎专栏发布", "发布留痕", "登录态排查", "GEO 关键词布局配合"],
-      "task_types": ["publish-post"],
+      "capabilities": [
+        "知乎专栏发布",
+        "发布留痕",
+        "登录态排查",
+        "GEO 关键词布局配合"
+      ],
+      "task_types": [],
       "boundaries": {
-        "does": ["publish-post 到知乎", "提交真实 URL 与截图", "发布失败如实上报"],
-        "does_not": ["编造 URL", "写长文初稿（交给 content）", "小红书发布"]
+        "does": [
+          "publish-post 到知乎",
+          "提交真实 URL 与截图",
+          "发布失败如实上报"
+        ],
+        "does_not": [
+          "编造 URL",
+          "写长文初稿（交给 content）",
+          "小红书发布"
+        ]
       }
     },
     "social_xhs": {
       "name": "小红书运营",
       "role": "worker",
       "description": "小红书笔记发布：执行发布流程、提交 URL/链接与截图证据",
-      "capabilities": ["小红书发布", "笔记排版", "发布留痕", "话题标签"],
-      "task_types": ["publish-post"],
+      "capabilities": [
+        "小红书发布",
+        "笔记排版",
+        "发布留痕",
+        "话题标签"
+      ],
+      "task_types": [],
       "boundaries": {
-        "does": ["publish-post 到小红书", "提交真实链接与截图", "按平台规范排版"],
-        "does_not": ["编造链接", "知乎发布", "后端/数据分析工作"]
+        "does": [
+          "publish-post 到小红书",
+          "提交真实链接与截图",
+          "按平台规范排版"
+        ],
+        "does_not": [
+          "编造链接",
+          "知乎发布",
+          "后端/数据分析工作"
+        ]
       }
     },
     "docs": {
       "name": "文档专家",
       "role": "worker",
       "description": "方案/交付物汇总、结构优化与可读性定稿",
-      "capabilities": ["文档结构化", "多源汇总", "可读性优化", "目录与附录"],
-      "task_types": ["content", "architecture-review", "diagram-build"],
+      "capabilities": [
+        "文档结构化",
+        "多源汇总",
+        "可读性优化",
+        "目录与附录"
+      ],
+      "task_types": [],
       "boundaries": {
-        "does": ["汇总多角色交付物", "统一格式与章节", "输出可读定稿"],
-        "does_not": ["改变业务结论（只整理不篡改）", "写代码", "平台发布"]
+        "does": [
+          "汇总多角色交付物",
+          "统一格式与章节",
+          "输出可读定稿"
+        ],
+        "does_not": [
+          "改变业务结论（只整理不篡改）",
+          "写代码",
+          "平台发布"
+        ]
       }
     },
     "geo": {
       "name": "GEO 专家",
       "role": "worker",
       "description": "生成式引擎优化：策略、审计、效果验证（配合内容运营）",
-      "capabilities": ["GEO 策略", "AI 搜索可见性", "内容可引用性", "效果验证"],
-      "task_types": ["geo-plan", "geo-audit", "geo-verification", "research", "content"],
+      "capabilities": [
+        "GEO 策略",
+        "AI 搜索可见性",
+        "内容可引用性",
+        "效果验证"
+      ],
+      "task_types": [],
       "boundaries": {
-        "does": ["GEO 专项任务", "审计与验证报告"],
-        "does_not": ["后端开发", "替代 content 写整篇正文"]
+        "does": [
+          "GEO 专项任务",
+          "审计与验证报告"
+        ],
+        "does_not": [
+          "后端开发",
+          "替代 content 写整篇正文"
+        ]
       }
     },
     "seo": {
       "name": "SEO 专家",
       "role": "worker",
       "description": "关键词研究、SEO 规划与传统搜索策略",
-      "capabilities": ["关键词研究", "SEO 规划", "内容集群", "技术 SEO 建议"],
-      "task_types": ["seo-plan", "research"],
+      "capabilities": [
+        "关键词研究",
+        "SEO 规划",
+        "内容集群",
+        "技术 SEO 建议"
+      ],
+      "task_types": [],
       "boundaries": {
-        "does": ["seo-plan", "关键词与竞品词研究"],
-        "does_not": ["代码实现", "社媒点击发布"]
+        "does": [
+          "seo-plan",
+          "关键词与竞品词研究"
+        ],
+        "does_not": [
+          "代码实现",
+          "社媒点击发布"
+        ]
       }
     }
   }
