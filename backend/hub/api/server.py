@@ -33,7 +33,7 @@ from base.agent_chat import (
     set_agent_backend_config,
 )
 from base.agent_factory import generate_agent, suggest_agent_id
-from hub.paths import FRONTEND_V1_ENABLED, FRONTEND_V2_DIST, STATIC_DIR, resolve_workspace, to_relative_path
+from hub.paths import FRONTEND_V2_DIST, resolve_workspace, to_relative_path
 from hub.services.project_launch import (
     resume_kernel_bg,
     run_kernel_bg,
@@ -238,34 +238,15 @@ async def api_get_agent_runtime(agent_id: str):
 
 _V2_UI_READY = FRONTEND_V2_DIST.is_dir() and (FRONTEND_V2_DIST / "index.html").is_file()
 
-if FRONTEND_V1_ENABLED and STATIC_DIR.exists():
-    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-
 
 @app.get("/")
 async def index():
     if _V2_UI_READY:
         return RedirectResponse(url="/v2/", status_code=302)
-    if FRONTEND_V1_ENABLED:
-        idx = STATIC_DIR / "index.html"
-        if idx.is_file():
-            return FileResponse(str(idx))
     raise HTTPException(
         status_code=503,
         detail="Web UI 未就绪：请执行 cd frontend-v2 && npm install && npm run build",
     )
-
-
-@app.get("/classic", include_in_schema=False)
-@app.get("/classic/", include_in_schema=False)
-async def classic_v1_ui():
-    """Legacy v1 UI — 仅当 MYTEAM_V1_UI=1 时可用。"""
-    if not FRONTEND_V1_ENABLED:
-        raise HTTPException(status_code=404, detail="经典版 UI 已关闭")
-    idx = STATIC_DIR / "index.html"
-    if not idx.is_file():
-        raise HTTPException(status_code=404, detail="经典版 UI 文件不存在")
-    return FileResponse(str(idx))
 
 
 @app.get("/api/agents/{agent_id}/detail")

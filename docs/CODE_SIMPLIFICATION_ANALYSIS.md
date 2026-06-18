@@ -119,6 +119,8 @@ codegraph explore "imports workspace_events"
 | `backend/common/project_group_discussion.py` | 57 | 仅 test；shim，实现已在 `loop_discussion_*` |
 | `backend/common/recurring_trigger.py` | 126 | 仅 test + regression 脚本引用 test |
 
+**注意 `logger.py` 的 docstring 示例**：line 8 的 `from common.logger import ...` 出现在模块 docstring 的「使用方式」示例里，**不是**可执行的 self-import。整文件全库零外部 import，Phase 1 直接删文件即可（无需单独处理「内部自引用」）。
+
 验证命令：
 
 ```bash
@@ -339,6 +341,8 @@ backend/adapters/     ← 具体实现（opencode/claude/stub）（~1,160 行）
 
 **建议**：改成 `backend/adapter-core/` 或直接在文档里注明区别。
 
+> **注意改名成本**：`backend/adapter/`（单数）被约 15 个文件 import。物理改名意味着更新所有 import 路径。建议在 Phase 3/4 做，或仅在文档中注明不做物理改名（成本 vs 收益需权衡）。
+
 ---
 
 ## 7. 精简前后对比
@@ -379,12 +383,36 @@ grep -rn "from common.<name>" backend/
 pytest backend/common/tests/
 ```
 
+**顺手清理：未使用的 import（约 15 处，每条 ~1 行）**
+
+以下清单为 **2026-06-18 baseline** 快照；`event_handler.py` / `logger.py` / `quality_gate.py` 在 P1 整文件删除后，对应行自然消失。
+
+| 文件 | 未使用 import |
+|------|--------------|
+| `common/agent_registry.py` | `Path`, `Optional`, `MYTEAM_ROOT` |
+| `common/agent_task_type_suggest.py` | `load_registry` |
+| `common/agent_transport.py` | `tempfile`, `get_spec` |
+| `common/business_hook_loader.py` | `Path` |
+| `common/deliverable_guarantee.py` | `json`, `Union` |
+| `common/gate.py` | `get_spec`（本文件未调用；Gate 用 `resolve_format_spec`） |
+| `common/hub_operation_meta.py` | `Path` |
+| `common/job_supervisor.py` | `time` |
+| `common/mcp_catalog.py` | `Path` |
+| `common/ops_log.py` | `Path`, `Optional` |
+| `common/run_kernel.py` | `NoReturn` |
+| `common/shared_rules.py` | `Path` |
+| `common/skill_categories.py` | `resolve_skill_display_description`, `resolve_skill_display_name` |
+| `common/task_data_store.py` | `time` |
+| `common/workflow_validate.py` | `LoopSpec` |
+
+这些清理不会改变任何行为。可用 `ruff check --select F401 backend/` 或 IDE 辅助确认后再删。
+
 ### Phase 2：删遗留物（低风险）
 
 顺序：
 
 1. 删 `frontend/` 目录 + `classic_v1_ui` 路由
-2. 删 3 个 orphan API 路由文件
+2. 删 3 个 orphan API 路由文件（注意：只删 HTTP 路由，不删 `JobSupervisor`）
 3. `git rm --cached` regression 快照
 4. `codegraph sync` 清 stale 索引
 
@@ -392,11 +420,13 @@ pytest backend/common/tests/
 
 顺序：
 
-1. 将 `workflow_suggest.py` 的 8 个硬编码任务模板迁入 YAML 配置
+1. 将 `workflow_suggest.py` 的 8 个硬编码任务模板迁入 YAML 配置（风险最低，匹配逻辑不变）
 2. 合并 `skill_*.py` 到 3 个文件
 3. 精简 `loop_runtime.py` 到 ~400 行
 4. 拆分 `group_manager.py`
 5. 拆分 `server.py`
+
+> **注意 `catalog.yaml` 依赖**：Phase 4 删 `catalog.yaml` 前必须确保 `/api/skills/matrix` 审计接口已改造为扫目录模式。否则 Phase 4 不可早于 Phase 2。
 
 ### Phase 4：合并注册表（低影响，长期）
 
@@ -405,6 +435,15 @@ pytest backend/common/tests/
 1. 填充 `templates.yaml`（或废弃 FormatSpec 注册表）
 2. 合并 templates + prompt_templates + delivery_profiles + prompt_injections → `task_types.yaml`
 3. 删 `catalog.yaml`（审计功能改为扫目录）
+
+### 风险矩阵
+
+| Phase | 风险 | 验证方法 |
+|-------|:----:|----------|
+| P1 删死代码 | 低 — 无人 import 的文件 | `pytest backend/common/tests/ -q` |
+| P2 删遗留物 | 低 — frontend v1 和 orphan API 前端不引用 | 浏览器打开 hub，检查各页面 |
+| P3 精简膨胀 | 中 — skill/workflow/loop 重构可能漏 import | `pytest` + 手动启动 Hub 检查 |
+| P4 合并注册表 | 低 — 配置聚合 | `pytest` 测试配置加载 |
 
 ---
 
@@ -442,3 +481,71 @@ wc -l backend/base/group_manager.py backend/common/loop_runtime.py backend/hub/a
 # 全库 pytest
 pytest backend/common/tests/ -q
 ```
+
+---
+
+## 11. 独立验证补充（交叉核对后增补）
+
+> 本节由独立代码分析补充，与文档前文结论一致，仅增补细节。
+
+### 11.1 `common/logger.py` 零引用确认
+
+`logger.py` line 8 的 `from common.logger import get_skill_logger, log_skill_step_failure, fail_skill_step` 位于**模块 docstring** 的用法示例，不是运行时代码。`get_skill_logger` 等三个函数虽在文件内定义，但全库零外部 import。Phase 1 整文件删除即可。
+
+### 11.2 `inject_catalog` 字段零引用验证
+
+```
+business/templates/delivery_profiles.yaml       — 3 处定义
+backend/common/delivery_profiles.py             — 2 处解析 + 1 处类型注解
+```
+
+**生产代码零处读取**该字段。`Profile` 实例化后，没有任何代码检查 `.inject_catalog`。
+
+### 11.3 `quality_gate.py` → `gate.py` 迁移清单
+
+| 活符号 | 在 `quality_gate.py` 行号 | 迁入目标 |
+|--------|:-------------------------:|----------|
+| `EVIDENCE_VERIFY_OFF` | ~20 | `gate.py` 常量区 |
+| `_URL_RE` | ~30 | `gate.py` 模块级 |
+| `_extract_field()` | ~240 | `gate.py` 工具函数 |
+| `verify_published_url()` | ~260 | `gate.py` 工具函数 |
+
+迁入后 `gate.py` 可删除 `from common.quality_gate import ...` 行（line 30），整体 ~+20 行。
+
+### 11.4 执行顺序依赖关系
+
+```
+P1（删死代码）
+  ↓ 无依赖
+P2（删遗留物）—— 注意保留 JobSupervisor，只删 3 个路由文件
+  ↓ P2 完成后
+P4 删 catalog.yaml —— 必须等 audit 接口改造完成
+  ↑
+P3（精简膨胀）—— 可并行或先于 P4
+```
+
+**关键依赖**：`catalog.yaml` 不能先于 audit 改造被删。其余 Phase 间无严格依赖，P3 可与 P2 并行。
+
+### 11.5 文件规模分布（Top 15，2026-06-18 baseline）
+
+Phase 3 完成后应重跑 `wc -l` 更新本表。
+
+```
+backend/base/group_manager.py          2,529 行  ← 最大文件
+backend/common/loop_runtime.py         1,167 行
+backend/hub/api/server.py                992 行
+backend/common/process.py                670 行
+backend/common/agent_transport.py        551 行
+backend/common/skill_catalog.py          531 行
+backend/common/agent_port.py             500 行
+backend/common/roundtable_runtime.py     468 行
+backend/common/run_kernel.py             450 行
+backend/common/workflow_suggest.py       431 行
+backend/hub/services/agent_registry.py   461 行
+backend/base/agent_chat.py               430 行
+backend/common/observability.py          417 行
+backend/common/roundtable_context.py     412 行
+backend/common/quality_gate.py           341 行
+```
+
+**前 5 个文件合计 5,909 行**，占后端生产代码的 ~21%。精简重点在此。

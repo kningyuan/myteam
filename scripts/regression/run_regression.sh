@@ -31,7 +31,6 @@ REG05_PASS=0
 REG05_SKIP=0
 REG_K2_PASS=0
 REG_K7_PASS=0
-REG_K16_PASS=0
 REG_K17_PASS=0
 REG_K14_PASS=0
 REG_O8_PASS=0
@@ -227,8 +226,6 @@ if [[ "$SUITE" == "k17" || "$SUITE" == "framework" || "$SUITE" == "all" ]]; then
     REG_K17_EXIT=$?
     "$REPO_ROOT/venv/bin/python3" scripts/regression/reg_k14_per_agent_backend.py
     REG_K14_EXIT=$?
-    "$REPO_ROOT/venv/bin/python3" scripts/regression/reg_k16_recurring_trigger.py
-    REG_K16_EXIT=$?
     if [[ "$SUITE" == "framework" || "$SUITE" == "all" ]]; then
         "$REPO_ROOT/venv/bin/python3" scripts/regression/reg_rules_injection.py
         REG_RULES_EXIT=$?
@@ -250,7 +247,6 @@ if [[ "$SUITE" == "k17" || "$SUITE" == "framework" || "$SUITE" == "all" ]]; then
     if [[ $REG_C_EXIT -eq 0 ]]; then REG_C_PASS=1; fi
     if [[ $REG_K17_EXIT -eq 0 ]]; then REG_K17_PASS=1; fi
     if [[ $REG_K14_EXIT -eq 0 ]]; then REG_K14_PASS=1; fi
-    if [[ $REG_K16_EXIT -eq 0 ]]; then REG_K16_PASS=1; fi
     if [[ $REG_RULES_EXIT -eq 0 ]]; then REG_RULES_PASS=1; fi
     if [[ $REG_O8_EXIT -eq 0 ]]; then REG_O8_PASS=1; fi
     if [[ $REG_C9_EXIT -eq 0 ]]; then REG_C9_PASS=1; fi
@@ -260,27 +256,10 @@ if [[ "$SUITE" == "k17" || "$SUITE" == "framework" || "$SUITE" == "all" ]]; then
     echo "  REG-C:   $([ $REG_C_PASS -eq 1 ] && echo PASS || echo FAIL)"
     echo "  REG-K17: $([ $REG_K17_PASS -eq 1 ] && echo PASS || echo FAIL)"
     echo "  REG-K14: $([ $REG_K14_PASS -eq 1 ] && echo PASS || echo FAIL)"
-    echo "  REG-K16: $([ $REG_K16_PASS -eq 1 ] && echo PASS || echo FAIL)"
     [[ "$SUITE" == "framework" || "$SUITE" == "all" ]] && echo "  REG-RULES: $([ $REG_RULES_PASS -eq 1 ] && echo PASS || echo FAIL)"
     [[ "$SUITE" == "framework" || "$SUITE" == "all" ]] && echo "  REG-O8:  $([ $REG_O8_PASS -eq 1 ] && echo PASS || echo FAIL)"
     [[ "$SUITE" == "framework" || "$SUITE" == "all" ]] && echo "  REG-C9:  $([ $REG_C9_PASS -eq 1 ] && echo PASS || echo FAIL)"
     [[ "$SUITE" == "framework" || "$SUITE" == "all" ]] && echo "  REG-L3-SKILL: $([ $REG_L3_SKILL_PASS -eq 1 ] && echo PASS || echo FAIL)"
-fi
-
-# ---- Phase 4e: REG-K16 外部 recurring 触发入口（CHECK_ONLY）----
-if [[ "$SUITE" == "k16" ]]; then
-    echo ""
-    echo "=== Phase 4e: REG-K16 外部 recurring 触发入口 ==="
-    set +e
-    "$REPO_ROOT/venv/bin/python3" scripts/regression/reg_k16_recurring_trigger.py
-    REG_K16_EXIT=$?
-    set -e
-    if [[ $REG_K16_EXIT -eq 0 ]]; then
-        echo "Phase 4e (REG-K16): PASS"
-        REG_K16_PASS=1
-    else
-        echo "Phase 4e (REG-K16): FAIL (exit=$REG_K16_EXIT)"
-    fi
 fi
 
 # ---- Phase 4d: REG-O8 结构化审计日志（CHECK_ONLY）----
@@ -406,13 +385,11 @@ if [[ "$SUITE" == "k17" || "$SUITE" == "framework" || "$SUITE" == "all" ]]; then
     echo "  REG-C:    $([ $REG_C_PASS -eq 1 ] && echo PASS || echo FAIL)"
     echo "  REG-K17:  $([ $REG_K17_PASS -eq 1 ] && echo PASS || echo FAIL)"
     echo "  REG-K14:  $([ $REG_K14_PASS -eq 1 ] && echo PASS || echo FAIL)"
-    echo "  REG-K16:  $([ $REG_K16_PASS -eq 1 ] && echo PASS || echo FAIL)"
     [[ "$SUITE" == "framework" || "$SUITE" == "all" ]] && echo "  REG-RULES: $([ $REG_RULES_PASS -eq 1 ] && echo PASS || echo FAIL)"
     [[ "$SUITE" == "framework" || "$SUITE" == "all" ]] && echo "  REG-O8:   $([ $REG_O8_PASS -eq 1 ] && echo PASS || echo FAIL)"
     [[ "$SUITE" == "framework" || "$SUITE" == "all" ]] && echo "  REG-C9:   $([ $REG_C9_PASS -eq 1 ] && echo PASS || echo FAIL)"
     [[ "$SUITE" == "framework" || "$SUITE" == "all" ]] && echo "  REG-L3-SKILL: $([ $REG_L3_SKILL_PASS -eq 1 ] && echo PASS || echo FAIL)"
 fi
-[[ "$SUITE" == "k16" ]] && echo "  REG-K16:  $([ $REG_K16_PASS -eq 1 ] && echo PASS || echo FAIL)"
 [[ "$SUITE" == "o8" ]] && echo "  REG-O8:   $([ $REG_O8_PASS -eq 1 ] && echo PASS || echo FAIL)"
 [[ "$SUITE" == "l3skill" ]] && echo "  REG-L3-SKILL: $([ $REG_L3_SKILL_PASS -eq 1 ] && echo PASS || echo FAIL)"
 if [[ "$SUITE" == "l2" || "$SUITE" == "all" ]]; then
@@ -461,9 +438,6 @@ if [[ $REG_K17_PASS -eq 0 && ("$SUITE" == "k17" || "$SUITE" == "framework" || "$
     exit 1
 fi
 if [[ $REG_K14_PASS -eq 0 && ("$SUITE" == "k17" || "$SUITE" == "framework" || "$SUITE" == "all") ]]; then
-    exit 1
-fi
-if [[ $REG_K16_PASS -eq 0 && ("$SUITE" == "k16" || "$SUITE" == "k17" || "$SUITE" == "framework" || "$SUITE" == "all") ]]; then
     exit 1
 fi
 if [[ $REG_RULES_PASS -eq 0 && ("$SUITE" == "framework" || "$SUITE" == "all") ]]; then

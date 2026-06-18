@@ -17,6 +17,7 @@
 """
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -24,15 +25,73 @@ from typing import Optional
 
 from common.contracts import validate_response_dict
 from common.delivery_profiles import get_delivery_profile
-from common.registry import FormatSpec, get_spec, is_stub  # FormatSpec used by check_code_project
+from common.registry import FormatSpec, is_stub  # FormatSpec used by check_code_project
 
-# 复用 quality_gate 的证据校验工具，避免重复实现
-from common.quality_gate import (  # noqa: E402
-    EVIDENCE_VERIFY_OFF,
-    _URL_RE,
-    _extract_field,
-    verify_published_url,
-)
+# 动作证据校验：访问已发布页超时；EVIDENCE_GATE_VERIFY=0 关闭实时访问
+EVIDENCE_FETCH_TIMEOUT = 30
+EVIDENCE_VERIFY_OFF = os.environ.get("EVIDENCE_GATE_VERIFY", "1") == "0"
+_URL_RE = re.compile(r"https?://[^\s)\]\"'<>]+")
+
+# 平台反爬/登录墙特征：命中则事后重读不可信，判为「无法核实」而非「动作未发生」。
+_BLOCKED_MARKERS = ("signin", "unhuman", "/account/", "captcha", "verify",
+                    "登录知乎", "网络环境存在异常")
+
+
+def _extract_field(content: str, field_name: str) -> str:
+    """从交付物提取 '字段名：值' 或 H2 章节下首个非空行的值。"""
+    inline = re.search(rf"{re.escape(field_name)}\s*[:：]\s*(.+)", content)
+    if inline:
+        return inline.group(1).strip()
+    sec = re.search(rf"^#+\s*{re.escape(field_name)}\s*\n+([^\n#]+)", content, re.MULTILINE)
+    if sec:
+        return sec.group(1).strip()
+    return ""
+
+
+def verify_published_url(url: str, title: str) -> tuple[bool, bool, str]:
+    """真实访问已发布 URL，尽力核对页面含帖子标题。
+
+    返回 (verified, blocked, detail)：
+      - verified=True：页面正常加载且含标题 → 动作确认。
+      - blocked=True：被平台反爬/登录墙拦截或无 browser → 无法核实（调用方不应据此硬失败）。
+      - 二者皆 False：页面正常加载但查无标题 → 动作存疑（硬失败）。
+    """
+    import subprocess
+
+    browse = _resolve_browse_bin()
+    if not browse:
+        return False, True, "browse 二进制不可用，无法实时核实（不作硬失败）"
+    try:
+        subprocess.run([browse, "goto", url], capture_output=True, text=True,
+                       timeout=EVIDENCE_FETCH_TIMEOUT)
+        final = subprocess.run([browse, "url"], capture_output=True, text=True,
+                               timeout=EVIDENCE_FETCH_TIMEOUT)
+        res = subprocess.run([browse, "text"], capture_output=True, text=True,
+                             timeout=EVIDENCE_FETCH_TIMEOUT)
+    except (subprocess.TimeoutExpired, OSError) as e:
+        return False, True, f"访问已发布页异常，无法实时核实（不作硬失败）：{e}"
+    final_url = (final.stdout or "").strip()
+    page_text = res.stdout or ""
+    blob = f"{final_url}\n{page_text}"
+    if any(m in blob for m in _BLOCKED_MARKERS):
+        return False, True, f"事后重读被平台反爬/登录墙拦截，无法核实（不作硬失败）：{final_url}"
+    if title and title in page_text:
+        return True, False, "已发布页含帖子标题，动作确认"
+    return False, False, "已发布页正常加载但未找到帖子标题，动作存疑"
+
+
+def _resolve_browse_bin() -> Optional[str]:
+    """定位 gstack browse 二进制（动作证据实时访问用）。"""
+    env = os.environ.get("GSTACK_BROWSE")
+    candidates = [env] if env else []
+    candidates += [
+        str(Path.home() / "skill" / "gstack" / "browse" / "dist" / "browse"),
+        str(Path.home() / ".claude" / "skills" / "gstack" / "browse" / "dist" / "browse"),
+    ]
+    for c in candidates:
+        if c and Path(c).exists():
+            return c
+    return None
 
 # PGD 阶段闸门：决策/验收类交付物始终校验 must_include（阻塞项清零等）
 _PGD_STRICT_TYPES = frozenset({"decision-record", "acceptance-report"})

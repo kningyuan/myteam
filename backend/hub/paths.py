@@ -1,16 +1,12 @@
 """myteam 路径常量 — 唯一来源（全部相对 MYTEAM_ROOT）。"""
 
-import os
 from pathlib import Path
 
 MYTEAM_ROOT = Path(__file__).resolve().parent.parent.parent
 BACKEND_DIR = MYTEAM_ROOT / "backend"
 
-FRONTEND_DIR = MYTEAM_ROOT / "frontend"
 FRONTEND_V2_DIR = MYTEAM_ROOT / "frontend-v2"
 FRONTEND_V2_DIST = FRONTEND_V2_DIR / "dist"
-# Legacy v1 UI — 默认关闭对外访问；源码保留在 frontend/。设 MYTEAM_V1_UI=1 可临时恢复。
-FRONTEND_V1_ENABLED = os.environ.get("MYTEAM_V1_UI", "").lower() in ("1", "true", "yes")
 CONFIG_DIR = MYTEAM_ROOT / "config"
 BUSINESS_DIR = MYTEAM_ROOT / "business"
 BUSINESS_CONFIG_DIR = BUSINESS_DIR / "config"
@@ -23,7 +19,6 @@ PROJECTS_DIR = TASKS_DIR / "project"
 WORKSPACE_PREFIX = "workspace-"
 
 MYTEAM_DIR = MYTEAM_ROOT
-STATIC_DIR = FRONTEND_DIR
 DATA_DIR = CONFIG_DIR
 TEAM_DIR = MYTEAM_ROOT
 

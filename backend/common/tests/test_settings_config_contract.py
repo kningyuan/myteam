@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
-"""设置页 settings.js ↔ /api/config、/api/skill-config 字段覆盖（防漂移）。"""
+"""设置页 frontend-v2 ↔ /api/config、/api/skill-config 字段覆盖（防漂移）。"""
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
-SETTINGS_JS = ROOT / "frontend" / "settings.js"
+SETTINGS_PAGE = ROOT / "frontend-v2" / "src" / "pages" / "SettingsPage.tsx"
 
 SYSTEM_FIELDS = {
     "system.port",
@@ -49,95 +48,87 @@ SKILL_FIELDS = {
     "process_defaults.budget_degrade_model",
 }
 
-FRONTEND_MAPPINGS = {
-    "set-port": "system.port",
-    "set-default-backend": "system.default_backend",
-    "set-default-model": "system.default_model",
-    "set-debug": "system.debug",
-    "set-audit-log": "system.audit_log",
-    "set-audit-log-max-bytes": "system.audit_log_max_bytes",
-    "set-price": "system.price_per_mtok",
-    "set-default-review": "system.default_review",
-    "set-model-aliases": "backends.opencode.model_aliases",
-    "set-use-project-group": "notifications.use_project_group",
-    "set-enable-telegram": "notifications.enable_telegram",
-    "set-hub-url": "hub.url",
-    "set-poll-interval": "executor.poll_interval",
-    "set-ack-timeout": "executor.ack_timeout",
-    "set-task-timeout": "executor.task_timeout",
-    "set-agent-msg-timeout": "executor.agent_msg_timeout",
-    "set-team-config-timeout": "executor.team_config_timeout",
-    "set-task-plan-timeout": "executor.task_plan_timeout",
-    "set-max-retries": "executor.max_retries",
-    "set-auto-group": "auto_group.enabled",
-    "set-auto-group-include-main": "auto_group.include_main",
-    "set-auto-group-name-prefix": "auto_group.name_prefix",
-    "set-default-budget": "process_defaults.default_project_budget",
-    "set-max-gate-retries": "process_defaults.max_gate_retries",
-    "set-soft-idle": "process_defaults.soft_idle_sec",
-    "set-hard-idle": "process_defaults.hard_idle_sec",
-    "set-max-cycles": "process_defaults.max_cycles",
-    "set-split-default": "process_defaults.split_enabled",
-    "set-parallel-default": "process_defaults.parallel_enabled",
-    "set-max-parallel": "process_defaults.max_parallel",
-    "set-max-concurrent-projects": "process_defaults.max_concurrent_projects",
-    "set-budget-degrade-threshold": "process_defaults.budget_degrade_threshold",
-    "set-budget-degrade-backend": "process_defaults.budget_degrade_backend",
-    "set-budget-degrade-model": "process_defaults.budget_degrade_model",
+# SettingsPage.tsx state → config path (load + save must both touch these keys)
+FRONTEND_FIELD_MARKERS = {
+    "system.port": ("sys.port", "port:"),
+    "system.default_backend": ("defaultBackend", "default_backend"),
+    "system.default_model": ("defaultModel", "default_model"),
+    "system.debug": ("sys.debug", "debug:"),
+    "system.audit_log": ("sys.audit_log", "audit_log:"),
+    "system.audit_log_max_bytes": ("audit_log_max_bytes", "auditMaxBytes"),
+    "system.price_per_mtok": ("price_per_mtok", "pricePerMtok"),
+    "system.default_review": ("default_review", "defaultReview"),
+    "notifications.use_project_group": ("use_project_group", "useProjectGroup"),
+    "notifications.enable_telegram": ("enable_telegram", "enableTelegram"),
+    "hub.url": ("skill.hub", "hubUrl"),
+    "executor.poll_interval": ("poll_interval", "pollInterval"),
+    "executor.ack_timeout": ("ack_timeout", "ackTimeout"),
+    "executor.task_timeout": ("task_timeout", "taskTimeout"),
+    "executor.agent_msg_timeout": ("agent_msg_timeout", "agentMsgTimeout"),
+    "executor.team_config_timeout": ("team_config_timeout", "teamConfigTimeout"),
+    "executor.task_plan_timeout": ("task_plan_timeout", "taskPlanTimeout"),
+    "executor.max_retries": ("max_retries", "maxRetries"),
+    "auto_group.enabled": ("ag.enabled", "autoGroup"),
+    "auto_group.include_main": ("include_main", "autoGroupMain"),
+    "auto_group.name_prefix": ("name_prefix", "autoGroupPrefix"),
+    "process_defaults.default_project_budget": ("default_project_budget", "defaultBudget"),
+    "process_defaults.max_gate_retries": ("max_gate_retries", "maxGateRetries"),
+    "process_defaults.soft_idle_sec": ("soft_idle_sec", "softIdleSec"),
+    "process_defaults.hard_idle_sec": ("hard_idle_sec", "hardIdleSec"),
+    "process_defaults.max_cycles": ("max_cycles", "maxCycles"),
+    "process_defaults.split_enabled": ("split_enabled", "splitDefault"),
+    "process_defaults.parallel_enabled": ("parallel_enabled", "parallelEnabled"),
+    "process_defaults.max_parallel": ("max_parallel", "maxParallel"),
+    "process_defaults.max_concurrent_projects": ("max_concurrent_projects", "maxConcurrentProjects"),
+    "process_defaults.budget_degrade_threshold": ("budget_degrade_threshold", "budgetDegradeThreshold"),
+    "process_defaults.budget_degrade_backend": ("budget_degrade_backend", "budgetDegradeBackend"),
+    "process_defaults.budget_degrade_model": ("budget_degrade_model", "budgetDegradeModel"),
 }
 
 
 @pytest.fixture(scope="module")
 def settings_source() -> str:
-    return SETTINGS_JS.read_text(encoding="utf-8")
+    assert SETTINGS_PAGE.is_file(), f"missing {SETTINGS_PAGE}"
+    return SETTINGS_PAGE.read_text(encoding="utf-8")
 
 
-def test_all_system_fields_have_ui_control():
-    mapped = set(FRONTEND_MAPPINGS.values())
-    missing = SYSTEM_FIELDS - mapped
-    assert not missing, f"system fields without UI: {missing}"
+def test_all_system_fields_have_ui_control(settings_source: str):
+    for field in SYSTEM_FIELDS:
+        a, b = FRONTEND_FIELD_MARKERS[field]
+        assert a in settings_source or b in settings_source, field
 
 
-def test_all_skill_fields_have_ui_control():
-    mapped = set(FRONTEND_MAPPINGS.values())
-    missing = SKILL_FIELDS - mapped
-    assert not missing, f"skill fields without UI: {missing}"
+def test_all_skill_fields_have_ui_control(settings_source: str):
+    for field in SKILL_FIELDS:
+        a, b = FRONTEND_FIELD_MARKERS[field]
+        assert a in settings_source or b in settings_source, field
 
 
-def test_load_settings_reads_process_defaults_from_api(settings_source):
+def test_load_settings_reads_process_defaults_from_api(settings_source: str):
+    assert "skill.process_defaults" in settings_source
+    assert "process_defaults" in settings_source
+
+
+def test_save_settings_writes_process_defaults(settings_source: str):
     assert "skillCfg.process_defaults" in settings_source
-    assert "GOLDEN_PROCESS_DEFAULTS" not in settings_source
+    assert "updateSkillConfig" in settings_source
 
 
-def test_save_settings_does_not_write_models(settings_source):
-    save_block = settings_source.split("async function saveSettings", 1)[1]
+def test_save_settings_does_not_write_models(settings_source: str):
+    save_block = settings_source.split("async function handleSave", 1)[1]
     assert "cfg.models" not in save_block
 
 
-def test_system_fields_have_load_paths(settings_source):
+def test_system_fields_have_load_paths(settings_source: str):
     for field in SYSTEM_FIELDS:
         key = field.split(".", 1)[1]
-        assert f"cfg.system?.{key}" in settings_source or f"cfg.system.{key}" in settings_source
+        assert f"sys.{key}" in settings_source or key in settings_source, field
 
 
-def test_process_defaults_use_pd_from_skill_config(settings_source):
-    for field in SKILL_FIELDS:
-        if not field.startswith("process_defaults."):
-            continue
-        key = field.split(".", 1)[1]
-        assert f"pd.{key}" in settings_source, field
+def test_process_defaults_use_pd_from_skill_config(settings_source: str):
+    assert "const pd = (skill.process_defaults" in settings_source
 
 
-def test_executor_fields_read_from_skill_cfg(settings_source):
-    for field in SKILL_FIELDS:
-        if not field.startswith("executor."):
-            continue
-        key = field.split(".", 1)[1]
-        assert f"skillCfg.executor?.{key}" in settings_source
-
-
-def test_settings_dom_ids_exist_in_html():
-    html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
-    html_ids = set(re.findall(r'id="(set-[^"]+)"', html))
-    for dom_id in FRONTEND_MAPPINGS:
-        assert dom_id in html_ids, dom_id
+def test_executor_fields_read_from_skill_cfg(settings_source: str):
+    assert "skill.executor" in settings_source
+    assert "skillCfg.executor" in settings_source

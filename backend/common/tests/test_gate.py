@@ -12,7 +12,13 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from common.gate import check_contract, check_execute, check_format  # noqa: E402
+from common.gate import (  # noqa: E402
+    _extract_field,
+    check_contract,
+    check_execute,
+    check_format,
+    verify_published_url,
+)
 from common.registry import FormatSpec, get_spec, is_stub, load_registry  # noqa: E402
 
 
@@ -181,3 +187,19 @@ def test_check_execute_action_missing_url(tmp_path):
     }
     res = check_execute(env, base_dir=str(tmp_path))
     assert not res.passed and any(f["rule"] == "evidence_url" for f in res.failures)
+
+
+# ── 证据工具（原 quality_gate 迁入 gate）────────────────────
+
+
+def test_extract_field_inline_and_section():
+    assert _extract_field("帖子标题：abc", "帖子标题") == "abc"
+    assert _extract_field("## 帖子标题\nxyz", "帖子标题") == "xyz"
+
+
+def test_verify_published_url_no_browse_returns_blocked(monkeypatch):
+    monkeypatch.setattr("common.gate._resolve_browse_bin", lambda: None)
+    verified, blocked, detail = verify_published_url("https://example.com/p/1", "标题")
+    assert not verified
+    assert blocked
+    assert "browse" in detail.lower() or "无法" in detail

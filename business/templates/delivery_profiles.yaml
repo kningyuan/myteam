@@ -8,7 +8,6 @@ profiles:
   none:
     description: 仅 deliverable，兼容旧 task_type
     process_artifacts: []
-    inject_catalog: false
 
   light_v1:
     description: 内容型交付 — 对齐 + 自检，无 means/catalog
@@ -22,7 +21,6 @@ profiles:
       verify.log:
         min_length: 8
     scaffold: business/playbooks/scripts/scaffold_light.sh
-    inject_catalog: false
 
   all_v1:
     description: 工具/means 型 — 完整 ALL + catalog 自选
@@ -42,4 +40,3 @@ profiles:
       verify.log:
         min_length: 8
     scaffold: business/playbooks/scripts/scaffold_process.sh
-    inject_catalog: true

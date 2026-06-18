@@ -33,7 +33,6 @@ class DeliveryProfile:
     process_artifacts: list[str] = None
     process_checks: dict = None
     scaffold: str = ""
-    inject_catalog: bool = False
 
     def __post_init__(self):
         if self.process_artifacts is None:
@@ -61,7 +60,6 @@ def _load_all(path_str: str) -> dict[str, DeliveryProfile]:
             process_artifacts=[str(x) for x in arts] if isinstance(arts, list) else [],
             process_checks=dict(checks) if isinstance(checks, dict) else {},
             scaffold=str(cfg.get("scaffold") or ""),
-            inject_catalog=bool(cfg.get("inject_catalog", False)),
         )
     return out
 
@@ -84,7 +82,6 @@ def load_delivery_profiles(path: Optional[Path] = None) -> dict[str, DeliveryPro
             process_checks=dict((cfg or {}).get("process_checks") or {})
             if isinstance((cfg or {}).get("process_checks"), dict) else {},
             scaffold=str((cfg or {}).get("scaffold") or ""),
-                inject_catalog=bool((cfg or {}).get("inject_catalog", False)),
             )
             for name, cfg in profiles.items()
             if isinstance(cfg, dict)
