@@ -79,7 +79,7 @@ def render_kind_intent(kind: str, variables: dict[str, Any],
 
 def render_execute_intent(task: dict, path: Optional[Path] = None) -> str:
     """把 task.description 嵌入 task_type 标准 execute 模板。"""
-    from common.registry import TASK_TYPE_DISPLAY_NAMES, resolve_format_spec
+    from common.registry import resolve_format_spec, task_type_label
 
     task_type = (task.get("task_type") or "").strip()
     template_id = str(task.get("template_id") or "").strip() or None
@@ -96,9 +96,7 @@ def render_execute_intent(task: dict, path: Optional[Path] = None) -> str:
         "task_name": task.get("name") or task.get("id") or "",
         "task_id": task.get("id") or "",
         "task_type": task_type,
-        "task_type_label": (spec.display_name if spec else "") or TASK_TYPE_DISPLAY_NAMES.get(
-            task_type, task_type,
-        ),
+        "task_type_label": (spec.display_name if spec else "") or task_type_label(task_type),
         "outcome_kind": spec.outcome_kind if spec else "artifact",
         "required_sections": sections,
     })

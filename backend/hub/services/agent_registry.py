@@ -79,11 +79,11 @@ def format_registry_for_prompt(*, role_filter: Optional[str] = None) -> str:
                 continue
         if not info.get("available"):
             continue
-        from common.registry import TASK_TYPE_DISPLAY_NAMES
+        from common.registry import task_type_label
 
         caps = "、".join(info.get("capabilities") or [])[:80]
         tts_raw = info.get("task_types") or []
-        tts = "、".join(TASK_TYPE_DISPLAY_NAMES.get(t, t) for t in tts_raw)
+        tts = "、".join(task_type_label(t) for t in tts_raw)
         extra = f"；可执行任务：{tts}" if tts else "；可执行任务：（未配置）"
         desc = (info.get("description") or "")[:120]
         lines.append(f"- {aid}（{info.get('name', aid)}）：{desc}；能力：{caps}{extra}")
@@ -326,6 +326,66 @@ def sync_missing_agent_skills(*, only_empty: bool = True) -> dict:
         updated.append({"agent_id": aid, "skills": sorted(set(sks))})
 
     return {"success": True, "updated": updated, "count": len(updated)}
+
+
+def list_agents_mounting_skill(skill_id: str) -> list[str]:
+    """返回 skills[] 中挂载了该 skill（含路径式引用）的 agent_id。"""
+    from common.skill_catalog import canonical_skill_mount_id
+
+    sid = (skill_id or "").strip()
+    if not sid:
+        return []
+    out: list[str] = []
+    for aid, meta in get_agents_registry()["agents"].items():
+        for ref in meta.get("skills") or []:
+            ref_s = str(ref).strip()
+            if not ref_s:
+                continue
+            if ref_s == sid or canonical_skill_mount_id(ref_s) == sid:
+                out.append(aid)
+                break
+    return out
+
+
+def normalize_agent_skill_mounts(*, skill_id: str | None = None) -> list[str]:
+    """将 agents_registry skills[] 中的路径式引用改写为规范 skill id；返回被更新的 agent_id。"""
+    from common.skill_catalog import canonical_skill_mount_id
+
+    sid_filter = (skill_id or "").strip() or None
+    raw = _load_registry_file()
+    raw.setdefault("agents", {})
+    updated: list[str] = []
+    for aid, meta in list(raw["agents"].items()):
+        skills = [str(s).strip() for s in (meta.get("skills") or []) if str(s).strip()]
+        if sid_filter and not any(
+            s == sid_filter or canonical_skill_mount_id(s) == sid_filter for s in skills
+        ):
+            continue
+        new_skills: list[str] = []
+        seen: set[str] = set()
+        changed = False
+        for ref in skills:
+            canon = canonical_skill_mount_id(ref)
+            target = canon if canon else ref
+            if canon and canon != ref:
+                changed = True
+            if target in seen:
+                if ref != target:
+                    changed = True
+                continue
+            seen.add(target)
+            new_skills.append(target)
+        if len(new_skills) != len(skills):
+            changed = True
+        if not changed:
+            continue
+        meta = dict(meta)
+        meta["skills"] = sorted(new_skills)
+        raw["agents"][aid] = meta
+        updated.append(aid)
+    if updated:
+        _save_registry_file(raw)
+    return updated
 
 
 def remove_skill_from_all_agents(skill_id: str) -> list[str]:

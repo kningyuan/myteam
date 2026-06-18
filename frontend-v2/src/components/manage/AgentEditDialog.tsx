@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { ChevronDown, ChevronRight } from "lucide-react"
 import { toast } from "sonner"
 import { getAgentDetail, updateAgentManage, type AgentSummary } from "@/lib/api/agents"
 import { listBackends, listBackendModels, type BackendModel, type BackendSummary } from "@/lib/api/config"
@@ -21,6 +22,37 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+
+function SkillMountOption({
+  name,
+  disabled,
+  checked,
+  onChange,
+  emphasized,
+  title,
+}: {
+  name: string
+  disabled?: boolean
+  checked: boolean
+  onChange: (checked: boolean) => void
+  emphasized?: boolean
+  title?: string
+}) {
+  return (
+    <label className={`flex items-center gap-2 text-sm ${disabled ? "opacity-60" : ""}`}>
+      <input
+        type="checkbox"
+        className="shrink-0"
+        disabled={disabled}
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span className={emphasized ? "font-medium" : undefined} title={title}>
+        {name}
+      </span>
+    </label>
+  )
+}
 
 export function AgentEditDialog({
   agent,
@@ -46,6 +78,7 @@ export function AgentEditDialog({
   const [models, setModels] = useState<BackendModel[]>([])
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     if (!agent || !open) return
@@ -89,6 +122,46 @@ export function AgentEditDialog({
   const standaloneSkills = allSkills.filter(
     (s) => s.is_mountable !== false && !groupedMemberIds.has(s.id),
   )
+
+  const skillDisplayNameById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const s of allSkills) map.set(s.id, s.name || s.id)
+    for (const g of skillGroups) {
+      map.set(g.id, g.name || g.id)
+      for (const m of g.members ?? []) map.set(m.id, m.name || m.id)
+    }
+    return map
+  }, [allSkills, skillGroups])
+
+  const selectedSkillLabels = useMemo(
+    () =>
+      skillIds.map((id) => ({
+        id,
+        name: skillDisplayNameById.get(id) || id,
+      })),
+    [skillIds, skillDisplayNameById],
+  )
+
+  useEffect(() => {
+    if (!open) return
+    const expanded = new Set<string>()
+    for (const g of skillGroups) {
+      const memberIds = (g.members ?? []).map((m) => m.id)
+      if (skillIds.includes(g.id) || memberIds.some((id) => skillIds.includes(id))) {
+        expanded.add(g.id)
+      }
+    }
+    setExpandedGroupIds(expanded)
+  }, [open, skillGroups, skillIds])
+
+  function toggleGroupExpanded(groupId: string) {
+    setExpandedGroupIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(groupId)) next.delete(groupId)
+      else next.add(groupId)
+      return next
+    })
+  }
 
   function toggleSkillId(id: string, checked: boolean) {
     setSkillIds((prev) => {
@@ -192,72 +265,93 @@ export function AgentEditDialog({
           <div className="grid gap-2">
             <Label>挂载 Skill</Label>
             <p className="hint text-xs">
-              可勾选整组（如 OfficeCLI）或组内单项；组与成员互斥。Agent 须 Read 完整 SKILL.md 才能执行。
+              可勾选整组（如 Office 文档套件）或组内单项；组与成员互斥。Agent 须 Read 完整 SKILL.md 才能执行。
             </p>
+            {selectedSkillLabels.length ? (
+              <div className="flex flex-wrap gap-1.5">
+                {selectedSkillLabels.map((s) => (
+                  <span
+                    key={s.id}
+                    className="inline-flex rounded-md border border-[var(--color-border)] bg-[var(--color-muted)]/40 px-2 py-1 text-xs font-medium"
+                    title={s.id}
+                  >
+                    {s.name}
+                  </span>
+                ))}
+              </div>
+            ) : null}
             {loadingDetail ? (
               <p className="text-xs text-[var(--color-muted-foreground)]">加载当前配置…</p>
             ) : (
-              <div className="max-h-48 space-y-2 overflow-y-auto rounded-md border border-[var(--color-border)] p-2">
-                {skillGroups.map((group) => {
-                  const groupChecked = skillIds.includes(group.id)
-                  return (
-                    <div key={group.id} className="space-y-1">
-                      <label className="flex items-start gap-2 text-sm font-medium">
-                        <input
-                          type="checkbox"
-                          className="mt-0.5"
-                          checked={groupChecked}
-                          onChange={(e) => toggleGroup(group, e.target.checked)}
-                        />
-                        <span title={group.id}>
-                          {group.name || group.id}
-                          {group.description ? (
-                            <span className="block text-xs font-normal text-[var(--color-muted-foreground)]">
-                              {group.description}
-                            </span>
-                          ) : null}
-                        </span>
-                      </label>
-                      <div className="ml-5 space-y-1 border-l border-[var(--color-border)] pl-3">
-                        {(group.members ?? []).map((m) => (
-                          <label key={m.id} className="flex items-start gap-2 text-sm">
-                            <input
-                              type="checkbox"
-                              className="mt-0.5"
-                              disabled={groupChecked}
-                              checked={groupChecked || skillIds.includes(m.id)}
-                              onChange={(e) => toggleGroupMember(group, m.id, e.target.checked)}
+              <div className="max-h-56 space-y-3 overflow-y-auto rounded-md border border-[var(--color-border)] p-2">
+                {skillGroups.length ? (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-[var(--color-muted-foreground)]">按分类</p>
+                    {skillGroups.map((group) => {
+                      const groupChecked = skillIds.includes(group.id)
+                      const groupName = group.name || group.id
+                      const expanded = expandedGroupIds.has(group.id)
+                      const memberCount = group.members?.length ?? 0
+                      return (
+                        <div key={group.id} className="rounded-md border border-[var(--color-border)]/60">
+                          <div className="flex items-center gap-1 px-2 py-1.5">
+                            <button
+                              type="button"
+                              className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-[var(--color-muted-foreground)] hover:bg-[var(--color-muted)]"
+                              aria-expanded={expanded}
+                              aria-label={expanded ? "收起分类" : "展开分类"}
+                              onClick={() => toggleGroupExpanded(group.id)}
+                            >
+                              {expanded ? (
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" />
+                              )}
+                            </button>
+                            <SkillMountOption
+                              name={`${groupName}${memberCount ? `（${memberCount}）` : ""}`}
+                              title={group.id}
+                              checked={groupChecked}
+                              emphasized
+                              onChange={(checked) => toggleGroup(group, checked)}
                             />
-                            <span title={m.id} className={groupChecked ? "opacity-60" : undefined}>
-                              <span>{m.name || m.id}</span>
-                              {m.description ? (
-                                <span className="block text-xs text-[var(--color-muted-foreground)]">
-                                  {m.description}
-                                </span>
+                          </div>
+                          {expanded ? (
+                            <div className="space-y-1 border-t border-[var(--color-border)]/60 px-2 py-2 pl-9">
+                              {(group.members ?? []).map((m) => (
+                                <SkillMountOption
+                                  key={m.id}
+                                  name={m.name || skillDisplayNameById.get(m.id) || m.id}
+                                  title={m.id}
+                                  disabled={groupChecked}
+                                  checked={groupChecked || skillIds.includes(m.id)}
+                                  onChange={(checked) => toggleGroupMember(group, m.id, checked)}
+                                />
+                              ))}
+                              {!group.members?.length ? (
+                                <p className="text-xs text-[var(--color-muted-foreground)]">该分类下暂无 Skill</p>
                               ) : null}
-                            </span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  )
-                })}
-                {standaloneSkills.map((s) => (
-                  <label key={s.id} className="flex items-start gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      className="mt-0.5"
-                      checked={skillIds.includes(s.id)}
-                      onChange={(e) => toggleSkillId(s.id, e.target.checked)}
-                    />
-                    <span title={s.id}>
-                      <span className="font-medium">{s.name || s.id}</span>
-                      {s.description ? (
-                        <span className="block text-xs text-[var(--color-muted-foreground)]">{s.description}</span>
-                      ) : null}
-                    </span>
-                  </label>
-                ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : null}
+                {standaloneSkills.length ? (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-[var(--color-muted-foreground)]">未分类</p>
+                    {standaloneSkills.map((s) => (
+                      <SkillMountOption
+                        key={s.id}
+                        name={s.name || skillDisplayNameById.get(s.id) || s.id}
+                        title={s.id}
+                        checked={skillIds.includes(s.id)}
+                        onChange={(checked) => toggleSkillId(s.id, checked)}
+                      />
+                    ))}
+                  </div>
+                ) : null}
                 {!skillGroups.length && !standaloneSkills.length ? (
                   <p className="text-xs text-[var(--color-muted-foreground)]">Skill 库为空</p>
                 ) : null}

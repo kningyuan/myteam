@@ -265,8 +265,16 @@ def move_skill_to_category(skill_id: str, category_id: str | None) -> dict:
     except OSError as e:
         return {"success": False, "error": f"移动失败：{e}"}
 
+    from common.adapter_skill_registry import remount_skill_after_library_move
+
+    remount = remount_skill_after_library_move(sid)
     entry = get_skill_entry(sid)
-    return {"success": True, "skill": entry, "category_id": target_cat}
+    return {
+        "success": True,
+        "skill": entry,
+        "category_id": target_cat,
+        "remount": remount,
+    }
 
 
 def resolve_library_entry(entry_id: str) -> Optional[dict]:

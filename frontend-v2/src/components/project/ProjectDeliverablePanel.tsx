@@ -47,9 +47,11 @@ export function ProjectDeliverablePanel({
 
   useEffect(() => {
     if (!selectedTaskId) return
+    let cancelled = false
     setLoading(true)
     getDeliverableBundle(projectId, selectedTaskId)
       .then((bundle) => {
+        if (cancelled) return
         const fs = bundle.files ?? []
         setFiles(fs)
         const verify = fs.find((f) => /verify\.log$/i.test(f.path || f.name || ""))
@@ -61,12 +63,14 @@ export function ProjectDeliverablePanel({
         } else if (verify) {
           setActivePath(verify.path)
           return getDeliverableFile(projectId, selectedTaskId, verify.path).then((f) => {
+            if (cancelled) return
             setContent(f.content || "")
             setMeta(`Gate 校验 · ${verify.path}`)
           })
         } else if (fs[0]) {
           setActivePath(fs[0].path)
           return getDeliverableFile(projectId, selectedTaskId, fs[0].path).then((f) => {
+            if (cancelled) return
             setContent(f.content || "")
             setMeta(`${KIND_LABEL[f.kind || ""] || "文件"} · ${fs[0].path}`)
           })
@@ -76,10 +80,16 @@ export function ProjectDeliverablePanel({
         }
       })
       .catch((e: Error) => {
+        if (cancelled) return
         setContent("")
         setMeta(`加载失败：${e.message}`)
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [projectId, selectedTaskId])
 
   async function loadFile(path: string) {

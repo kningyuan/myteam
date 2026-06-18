@@ -73,13 +73,37 @@ def _group_member_ids(group_id: str) -> list[str]:
     return []
 
 
+def group_member_ids(group_id: str) -> list[str]:
+    """组内叶子 skill id 列表（供 API / UI 展示）。"""
+    return _group_member_ids(group_id)
+
+
+def _member_catalog_entry(member_id: str) -> dict:
+    from common.skill_catalog import get_skill_entry
+
+    mid = (member_id or "").strip()
+    entry = get_skill_entry(mid) or {}
+    return {
+        "id": mid,
+        "name": entry.get("name") or resolve_skill_display_name(mid, ""),
+        "description": entry.get("description") or resolve_skill_display_description(mid, ""),
+    }
+
+
 def expand_skill_mounts(configured_ids: list[str]) -> list[str]:
     """将 registry 配置（组 id 或叶子 id）展开为 CLI 同步用的叶子 skill id 列表。"""
+    from common.skill_catalog import canonical_skill_mount_id
+
     out: list[str] = []
     seen: set[str] = set()
     for raw in configured_ids:
         sid = (raw or "").strip()
-        if not sid or sid in seen:
+        if not sid:
+            continue
+        canon = canonical_skill_mount_id(sid)
+        if canon:
+            sid = canon
+        if sid in seen:
             continue
         if is_skill_group(sid):
             for mid in _group_member_ids(sid):
@@ -88,9 +112,8 @@ def expand_skill_mounts(configured_ids: list[str]) -> list[str]:
                     out.append(mid)
             seen.add(sid)
             continue
-        if sid not in seen:
-            seen.add(sid)
-            out.append(sid)
+        seen.add(sid)
+        out.append(sid)
     return out
 
 
@@ -101,13 +124,7 @@ def list_skill_groups() -> list[dict]:
     for gid, meta in sorted(SKILL_GROUPS.items()):
         storage = str(meta.get("storage_dir") or gid)
         seen_dirs.add(storage)
-        members = []
-        for mid in _group_member_ids(gid):
-            members.append({
-                "id": mid,
-                "name": resolve_skill_display_name(mid, mid),
-                "description": resolve_skill_display_description(mid, ""),
-            })
+        members = [_member_catalog_entry(mid) for mid in _group_member_ids(gid)]
         items.append({
             "id": gid,
             "name": meta.get("name_zh") or meta.get("name") or gid,
@@ -121,13 +138,7 @@ def list_skill_groups() -> list[dict]:
         cid = cat["id"]
         if cid in seen_dirs:
             continue
-        members = []
-        for mid in list_category_member_ids(cid):
-            members.append({
-                "id": mid,
-                "name": resolve_skill_display_name(mid, mid),
-                "description": resolve_skill_display_description(mid, ""),
-            })
+        members = [_member_catalog_entry(mid) for mid in list_category_member_ids(cid)]
         items.append({
             "id": cid,
             "name": cat.get("name") or cid,

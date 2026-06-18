@@ -172,16 +172,20 @@ export function ProjectDetailPanel({
   const [error, setError] = useState("")
   const [groupId, setGroupId] = useState<string | null>(null)
   const mainRef = useRef<HTMLDivElement>(null)
+  const reloadSeq = useRef(0)
 
   const reload = useCallback(async () => {
+    const seq = ++reloadSeq.current
+    const pid = projectId
     try {
       const [overview, costData, fleetData, runStatus, evData] = await Promise.all([
-        getProjectOverview(projectId),
-        getProjectCost(projectId).catch(() => ({})),
-        getProjectFleet(projectId).catch(() => ({ fleet: {} })),
-        getProjectRunStatus(projectId).catch(() => ({ running: false })),
-        getProjectEvents(projectId).catch(() => ({ events: [] })),
+        getProjectOverview(pid),
+        getProjectCost(pid).catch(() => ({})),
+        getProjectFleet(pid).catch(() => ({ fleet: {} })),
+        getProjectRunStatus(pid).catch(() => ({ running: false })),
+        getProjectEvents(pid).catch(() => ({ events: [] })),
       ])
+      if (seq !== reloadSeq.current) return
       setOv(overview)
       setCost(costData)
       setFleet(fleetData.fleet ?? {})
@@ -189,6 +193,8 @@ export function ProjectDetailPanel({
       setEvents(evData.events ?? [])
       setError("")
     } catch (e) {
+      if (seq !== reloadSeq.current) return
+      setOv(null)
       setError(e instanceof Error ? e.message : "加载失败")
     }
   }, [projectId])
@@ -208,8 +214,27 @@ export function ProjectDetailPanel({
   }, [syncGroupLink])
 
   useEffect(() => {
-    if (ov?.tasks?.length && !selectedTaskId) setSelectedTaskId(ov.tasks[0].id)
-  }, [ov, selectedTaskId])
+    reloadSeq.current += 1
+    setOv(null)
+    setError("")
+    setSelectedTaskId("")
+    setCost({})
+    setFleet({})
+    setEvents([])
+    setRunning(false)
+    setTab("overview")
+  }, [projectId])
+
+  useEffect(() => {
+    if (!ov?.tasks?.length) {
+      setSelectedTaskId("")
+      return
+    }
+    setSelectedTaskId((prev) => {
+      if (prev && ov.tasks!.some((t) => t.id === prev)) return prev
+      return ov.tasks![0].id
+    })
+  }, [ov])
 
   useEffect(() => {
     reload()
@@ -227,7 +252,7 @@ export function ProjectDetailPanel({
     else if (goExec) setTab("exec")
   }
 
-  if (error) return <div className="p-6 text-red-300">{error}</div>
+  if (error && !ov) return <div className="p-6 text-red-300">{error}</div>
   if (!ov) return <div className="p-6 text-[var(--color-muted-foreground)]">加载项目…</div>
 
   const tasks = ov.tasks ?? []
@@ -407,6 +432,7 @@ export function ProjectDetailPanel({
                 <ProjectTaskQualityCard projectId={projectId} taskId={selectedTaskId} compact />
               )}
               <ProjectExecTree
+                tasks={tasks}
                 events={events}
                 selectedTaskId={selectedTaskId}
                 onSelectTask={(id) => selectTask(id, false, false)}

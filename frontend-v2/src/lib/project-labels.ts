@@ -25,6 +25,8 @@ export const DAG_LABELS: Record<string, string> = {
 export const INTERACTION_LABELS: Record<string, string> = {
   team_config: "组队配置",
   task_plan: "任务拆分",
+  evaluate: "派发前评估",
+  dispatch_evaluate: "派发前评估",
   execute: "执行",
   review: "评审",
   triage: "分诊",
@@ -70,6 +72,7 @@ export const EVENT_LABELS: Record<string, string> = {
   response_snapshot: "响应快照",
   message: "消息",
   parallel_wave: "并行波次",
+  task_split: "子任务拆分",
   text: "模型输出",
   step_finish: "Token 计量",
   error: "错误",
@@ -196,6 +199,11 @@ export function eventDetail(e: { kind?: string; payload?: Record<string, unknown
     const state = String(p.state || "")
     const rounds = p.rounds_used != null ? ` · ${p.rounds_used} 轮` : ""
     return `${state || "结束"}${rounds}`
+  }
+  if (kind === "task_split") {
+    const children = Array.isArray(p.children) ? (p.children as string[]) : []
+    const reason = p.reason ? ` · ${p.reason}` : ""
+    return `拆出 ${children.length} 个子任务${reason}`
   }
   if (kind === "blocked" || kind === "plan_rejected") {
     return String(p.reason || (Array.isArray(p.invalid_agents) ? p.invalid_agents.join(", ") : ""))

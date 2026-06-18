@@ -2933,6 +2933,81 @@ body.col-resizing * {
   word-break: break-all;
 }
 
+.exec-task-fold.selected > .exec-node-head {
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+}
+
+.exec-task-fold--nested {
+  margin-top: 8px;
+  margin-left: 4px;
+  border-left: 2px solid var(--color-border);
+}
+
+.exec-task-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: inherit;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.exec-task-title:hover,
+.exec-task-title.active {
+  color: var(--color-primary);
+}
+
+.exec-task-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.exec-split-banner {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--color-primary) 6%, var(--color-muted));
+  border: 1px solid var(--color-border);
+}
+
+.exec-split-title {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.exec-split-summary {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--color-muted-foreground);
+}
+
+.exec-phases,
+.exec-subtasks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.exec-task-activity {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--color-muted);
+}
+
+.exec-activity-row--compact {
+  padding: 2px 0;
+  border: none;
+}
+
+.exec-phase {
+  margin-left: 0;
+}
+
 .exec-node-ts {
   margin-left: auto;
   font-size: 11px;

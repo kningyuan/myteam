@@ -45,6 +45,44 @@ def sync_all_agent_skills_to_cli() -> dict:
     return {"success": ok, "count": len(results), "results": results}
 
 
+def remount_skill_after_library_move(skill_id: str) -> dict:
+    """Skill 物理目录变更后：规范化 registry 挂载 id，并刷新 Cursor / CLI 工作区软链。"""
+    from common.skill_link import (
+        _migrate_flat_vendor_anchor,
+        business_skill_anchor,
+        sync_cursor_skill_links,
+    )
+    from hub.services.agent_registry import (
+        list_agents_mounting_skill,
+        normalize_agent_skill_mounts,
+    )
+
+    sid = (skill_id or "").strip()
+    if not sid:
+        return {"success": False, "error": "skill_id 为空"}
+
+    dest = business_skill_anchor(sid)
+    _migrate_flat_vendor_anchor(sid, dest)
+
+    registry_updated = normalize_agent_skill_mounts(skill_id=sid)
+    agent_ids = sorted(set(list_agents_mounting_skill(sid)) | set(registry_updated))
+
+    cursor = sync_cursor_skill_links(skill_ids=[sid])
+    cli_results: list[dict] = []
+    for aid in agent_ids:
+        cli_results.append(sync_agent_skills_to_cli(aid))
+
+    cli_ok = all(r.get("success") for r in cli_results) if cli_results else True
+    return {
+        "success": cursor.get("success", False) and cli_ok,
+        "skill_id": sid,
+        "registry_normalized": registry_updated,
+        "agents_synced": agent_ids,
+        "cursor": cursor,
+        "cli": cli_results,
+    }
+
+
 def sync_all_agent_skill_mounts() -> dict:
     """将 registry skills 同步到 CLI，并清理 AGENTS.md 中历史 Skill 挂载节。"""
     from common.agent_skills import strip_agents_md_skills_section

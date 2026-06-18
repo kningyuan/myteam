@@ -1,0 +1,1093 @@
+research:
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 调研背景
+      description: 填写「调研背景」
+      required: true
+    - name: 信息来源
+      description: 填写「信息来源」
+      required: true
+    - name: 关键发现
+      description: 填写「关键发现」
+      required: true
+    - name: 结论
+      description: 填写「结论」
+      required: true
+    structure:
+    - H1 标题作为报告主标题
+    - 每个章节使用 H2 标题
+    - 数据使用表格呈现
+    - 引用来源标注出处和链接
+  check_rules:
+    required_sections:
+    - 调研背景
+    - 信息来源
+    - 关键发现
+    - 结论
+    must_include:
+    - 数据来源
+    - 可信度
+    min_length: 500
+  display_name: 调研
+  outcome_kind: artifact
+  required_sections:
+  - 调研背景
+  - 信息来源
+  - 关键发现
+  - 结论
+product-research:
+  delivery_profile: light_v1
+  display_name: 产品调研
+  outcome_kind: artifact
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 调研背景
+      description: 产品视角 — 用户、市场、机会
+      required: true
+    - name: 信息来源
+      description: 填写「信息来源」
+      required: true
+    - name: 关键发现
+      description: 竞品、用户痛点、机会与约束
+      required: true
+    - name: 结论
+      description: 产品可行动结论
+      required: true
+    structure:
+    - H1 标题作为报告主标题
+    - 每个章节使用 H2 标题
+    - 引用来源标注出处和链接
+  check_rules:
+    required_sections:
+    - 调研背景
+    - 信息来源
+    - 关键发现
+    - 结论
+    min_length: 500
+  required_sections:
+  - 调研背景
+  - 信息来源
+  - 关键发现
+  - 结论
+product-planning:
+  delivery_profile: light_v1
+  display_name: 产品整体规划
+  outcome_kind: artifact
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 背景与目标
+      description: 产品定位、范围与成功标准
+      required: true
+    - name: 产品架构
+      description: 核心组件与分层关系（可按项目交付 drawio/png）
+      required: true
+    - name: 核心能力
+      description: 关键能力与模块划分
+      required: true
+    - name: 设计原则
+      required: true
+    - name: 优势分析
+      description: 相对竞品或替代方案的差异化
+      required: true
+    - name: 功能架构
+      required: true
+    - name: 核心流程
+      required: true
+    - name: 产品形态与使用方式
+      required: true
+    - name: 研发规划
+      description: 分期交付与里程碑
+      required: true
+  check_rules:
+    required_sections:
+    - 背景与目标
+    - 产品架构
+    - 核心能力
+    - 设计原则
+    - 优势分析
+    - 功能架构
+    - 核心流程
+    - 产品形态与使用方式
+    - 研发规划
+    min_length: 1500
+  required_sections:
+  - 背景与目标
+  - 产品架构
+  - 核心能力
+  - 设计原则
+  - 优势分析
+  - 功能架构
+  - 核心流程
+  - 产品形态与使用方式
+  - 研发规划
+section-authoring:
+  delivery_profile: light_v1
+  display_name: 方案编制
+  outcome_kind: artifact
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 章节对象
+      description: Goal 指定的文档名、章节号/标题、完善范围
+      required: true
+    - name: 正文
+      description: 章节完整 Markdown 正文，可直接贴回源文档
+      required: true
+    - name: 依据与引用
+      description: 引用的材料路径、关键结论与原文对齐说明
+      required: true
+    - name: 变更说明
+      description: 相对源稿或上一轮审计反馈的主要修改点
+      required: true
+    - name: 自检清单
+      description: 逐条对照 Goal 与 task_type 章节的自检结果
+      required: true
+    structure:
+    - H1 标题含章节标识
+    - 每个小节 H2，标题与 Gate 章节名逐字一致
+    - 正文须可独立粘贴，不得留空占位
+  check_rules:
+    required_sections:
+    - 章节对象
+    - 正文
+    - 依据与引用
+    - 变更说明
+    - 自检清单
+    min_length: 800
+  acceptance_criteria:
+  - 完整覆盖「章节对象」「正文」「依据与引用」「变更说明」「自检清单」且内容具体可执行
+  - 正文与 Goal 指定章节范围一致，无空占位句
+  - 自检清单逐条可核对 Gate 章节与 Goal 要求
+  required_sections:
+  - 章节对象
+  - 正文
+  - 依据与引用
+  - 变更说明
+  - 自检清单
+arch-research:
+  delivery_profile: light_v1
+  display_name: 架构调研
+  outcome_kind: artifact
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 调研背景
+      description: 架构视角 — 系统边界、技术上下文
+      required: true
+    - name: 信息来源
+      description: 填写「信息来源」
+      required: true
+    - name: 关键发现
+      description: 技术栈、模块划分、集成与扩展点
+      required: true
+    - name: 结论
+      description: 架构风险、建议与待验证点
+      required: true
+    structure:
+    - H1 标题作为报告主标题
+    - 每个章节使用 H2 标题
+    - 引用来源标注出处和链接
+  check_rules:
+    required_sections:
+    - 调研背景
+    - 信息来源
+    - 关键发现
+    - 结论
+    min_length: 500
+  required_sections:
+  - 调研背景
+  - 信息来源
+  - 关键发现
+  - 结论
+seo-plan:
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 关键词研究
+      description: 填写「关键词研究」
+      required: true
+    - name: 技术优化
+      description: 填写「技术优化」
+      required: true
+    - name: 内容策略
+      description: 填写「内容策略」
+      required: true
+    - name: 效果预估
+      description: 填写「效果预估」
+      required: true
+    structure:
+    - H1 标题作为方案主标题
+    - 每个章节使用 H2 标题
+    - 数据使用表格呈现
+  check_rules:
+    required_sections:
+    - 关键词研究
+    - 技术优化
+    - 内容策略
+    - 效果预估
+    must_include:
+    - 核心词
+    - 长尾词
+    - 竞品词
+    - Core Web Vitals
+    min_length: 400
+  display_name: SEO规划
+  outcome_kind: artifact
+  required_sections:
+  - 关键词研究
+  - 技术优化
+  - 内容策略
+  - 效果预估
+content:
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 目标读者
+      description: 填写「目标读者」
+      required: true
+    - name: 内容结构
+      description: 填写「内容结构」
+      required: true
+    - name: 正文内容
+      description: 填写「正文内容」
+      required: true
+    - name: 引用来源
+      description: 填写「引用来源」
+      required: true
+    structure:
+    - H1 标题作为文章主标题
+    - 每个章节使用 H2 标题
+    - 引用使用序号标注
+  check_rules:
+    required_sections:
+    - 目标读者
+    - 内容结构
+    - 正文内容
+    - 引用来源
+    must_include:
+    - 关键词研究
+    - 目标读者
+    min_length: 300
+  display_name: 内容
+  outcome_kind: artifact
+  required_sections:
+  - 目标读者
+  - 内容结构
+  - 正文内容
+  - 引用来源
+test-plan:
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 测试范围
+      description: 填写「测试范围」
+      required: true
+    - name: 测试用例
+      description: 填写「测试用例」
+      required: true
+    - name: 正常路径
+      description: 填写「正常路径」
+      required: true
+    - name: 边界条件
+      description: 填写「边界条件」
+      required: true
+    - name: 异常路径
+      description: 填写「异常路径」
+      required: true
+    structure:
+    - H1 标题作为测试计划主标题
+    - 每个章节使用 H2 标题
+    - 用例使用表格呈现
+  check_rules:
+    required_sections:
+    - 测试范围
+    - 测试用例
+    - 正常路径
+    - 边界条件
+    - 异常路径
+    must_include:
+    - 测试数据
+    - 预期结果
+    min_length: 300
+  display_name: 测试计划
+  outcome_kind: artifact
+  required_sections:
+  - 测试范围
+  - 测试用例
+  - 正常路径
+  - 边界条件
+  - 异常路径
+code-deliverable:
+  outcome_kind: code_project
+  acceptance_criteria:
+  - deliverables/<task_id>/ 目录内包含可运行脚本与 README
+  - output/ 中有运行产出或运行说明
+  deliverable_template:
+    sections:
+    - name: 正文
+      description: 填写「正文」
+      required: true
+    structure:
+    - 根目录：deliverables/<task_id>/
+    - 脚本在根目录，运行产出在 output/
+    - 交付物是代码工程，不是单篇 Markdown
+    required_heading_level: 2
+  check_rules:
+    min_project_files: 2
+    require_code_file: true
+    file_exists:
+    - README.md
+    required_sections:
+    - 正文
+    min_length: 200
+  display_name: 代码交付
+  required_sections:
+  - 正文
+strategy:
+  delivery_profile: light_v1
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 背景
+      description: 填写「背景」
+      required: true
+    - name: 分析
+      description: 填写「分析」
+      required: true
+    - name: 方案
+      description: 填写「方案」
+      required: true
+    - name: 建议
+      description: 填写「建议」
+      required: true
+    structure:
+    - H1 标题作为报告主标题
+    - 每个章节使用 H2 标题
+    - 对比使用表格呈现
+  check_rules:
+    required_sections:
+    - 背景
+    - 分析
+    - 方案
+    - 建议
+    must_include:
+    - 不确定性
+    min_length: 300
+  display_name: 策略分析
+  outcome_kind: artifact
+  required_sections:
+  - 背景
+  - 分析
+  - 方案
+  - 建议
+publish-post:
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 发布平台
+      description: 填写「发布平台」
+      required: true
+    - name: 帖子标题
+      description: 填写「帖子标题」
+      required: true
+    - name: 已发布URL
+      description: 填写「已发布URL」
+      required: true
+    - name: 证据截图
+      description: 填写「证据截图」
+      required: true
+    structure:
+    - H1 标题作为记录主标题
+    - 每个章节使用 H2 标题
+    - 已发布URL 单独成行，便于门禁提取
+  check_rules:
+    required_sections:
+    - 发布平台
+    - 帖子标题
+    - 已发布URL
+    - 证据截图
+    must_include:
+    - https://
+    min_length: 20
+    evidence_url:
+      host_contains: zhihu.com
+      url_must_match: zhuanlan.zhihu.com/p/
+      screenshot_field: 证据截图
+      verify_title: true
+  display_name: 内容发布
+  outcome_kind: action
+  required_sections:
+  - 发布平台
+  - 帖子标题
+  - 已发布URL
+  - 证据截图
+system-design:
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 问题与约束
+      description: 填写「问题与约束」
+      required: true
+    - name: 领域与边界
+      description: 填写「领域与边界」
+      required: true
+    - name: 架构方案
+      description: 填写「架构方案」
+      required: true
+    - name: 接口契约
+      description: 填写「接口契约」
+      required: true
+    - name: 演化与风险
+      description: 填写「演化与风险」
+      required: true
+    structure:
+    - H1 标题作为方案主标题
+    - 每个章节使用 H2 标题
+    - 重要决策附 ADR 编号或内嵌 ADR 小节
+  check_rules:
+    required_sections:
+    - 问题与约束
+    - 领域与边界
+    - 架构方案
+    - 接口契约
+    - 演化与风险
+    must_include:
+    - trade-off
+    min_length: 400
+  display_name: 系统设计
+  outcome_kind: artifact
+  required_sections:
+  - 问题与约束
+  - 领域与边界
+  - 架构方案
+  - 接口契约
+  - 演化与风险
+architecture-review:
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 评审范围
+      description: 填写「评审范围」
+      required: true
+    - name: 现状摘要
+      description: 填写「现状摘要」
+      required: true
+    - name: 发现与分级
+      description: 填写「发现与分级」
+      required: true
+    - name: 技术债务
+      description: 填写「技术债务」
+      required: true
+    - name: 演进建议
+      description: 填写「演进建议」
+      required: true
+    structure:
+    - H1 标题作为评审报告主标题
+    - 发现项使用分级标记
+  check_rules:
+    required_sections:
+    - 评审范围
+    - 现状摘要
+    - 发现与分级
+    - 技术债务
+    - 演进建议
+    min_length: 300
+  display_name: 架构评审
+  outcome_kind: artifact
+  required_sections:
+  - 评审范围
+  - 现状摘要
+  - 发现与分级
+  - 技术债务
+  - 演进建议
+section-review:
+  delivery_profile: light_v1
+  display_name: 章节审计
+  outcome_kind: artifact
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 评审范围
+      description: 本轮审计的对象（章节、版本、引用材料）
+      required: true
+    - name: 审计结论
+      description: 明确写「放行」或「需修订」；放行时须说明依据
+      required: true
+    - name: 发现与分级
+      description: 🔴阻塞 🟡建议 🟢可选；无问题时写「无阻塞项」
+      required: true
+    - name: 修订要求
+      description: 需修订时逐条可执行修改项；放行时写「无」
+      required: true
+    structure:
+    - H1 标题含被审章节标识
+    - 每个小节 H2，标题与 Gate 章节名逐字一致
+    - 审计结论须单独成行，便于 Gate 与循环退出判定
+  check_rules:
+    required_sections:
+    - 评审范围
+    - 审计结论
+    - 发现与分级
+    - 修订要求
+    must_include:
+    - 审计结论
+    min_length: 200
+  acceptance_criteria:
+  - 评审须基于内容质量（合理性、准确性、完整性、可交付性），不得以字数/篇幅作为放行主要依据
+  - 完整覆盖「评审范围」「审计结论」「发现与分级」「修订要求」
+  - 审计结论明确为「放行」或「需修订」，不得模糊
+  - 放行依据须引用具体质量判断（可含抽样小节），不得仅写「字数达标」
+  - 需修订时修订要求逐条可定点 PATCH；放行时修订要求写「无」
+  required_sections:
+  - 评审范围
+  - 审计结论
+  - 发现与分级
+  - 修订要求
+code-review:
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 变更摘要
+      description: 填写「变更摘要」
+      required: true
+    - name: 审查意见
+      description: 填写「审查意见」
+      required: true
+    - name: 优点
+      description: 填写「优点」
+      required: true
+    - name: 结论
+      description: 填写「结论」
+      required: true
+    structure:
+    - H1 标题作为审查报告主标题
+    - 意见项带文件/行号引用
+  check_rules:
+    required_sections:
+    - 变更摘要
+    - 审查意见
+    - 优点
+    - 结论
+    min_length: 200
+  display_name: 代码评审
+  outcome_kind: artifact
+  required_sections:
+  - 变更摘要
+  - 审查意见
+  - 优点
+  - 结论
+code-writing:
+  outcome_kind: code_project
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 正文
+      description: 填写「正文」
+      required: true
+    structure:
+    - H1 标题作为文档主标题
+    - 交付物为 deliverables/<task_id>/ 代码工程目录
+  check_rules:
+    min_project_files: 2
+    require_code_file: true
+    file_exists:
+    - README.md
+    required_sections:
+    - 正文
+    min_length: 200
+  display_name: 代码编写
+  required_sections:
+  - 正文
+code-testing:
+  outcome_kind: code_project
+  acceptance_criteria:
+  - 测试用例、测试记录、测试报告以实体文件存在于工程目录
+  - output/ 或 reports/ 中有执行产出
+  deliverable_template:
+    sections:
+    - name: 正文
+      description: 填写「正文」
+      required: true
+    structure:
+    - 根目录：deliverables/<task_id>/
+    - tests/ 放用例，reports/ 放报告，output/ 放执行记录
+    - 交付物是测试工程（多文件），不是单篇说明文档
+    required_heading_level: 2
+  check_rules:
+    min_project_files: 3
+    file_exists:
+    - tests/cases.md
+    - reports/test_report.md
+    required_sections:
+    - 正文
+    min_length: 200
+  display_name: 代码测试
+  required_sections:
+  - 正文
+requirements:
+  delivery_profile: light_v1
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 背景与目标
+      description: 填写「背景与目标」
+      required: true
+    - name: 范围
+      description: 填写「范围」
+      required: true
+    - name: 用户故事与验收标准
+      description: 填写「用户故事与验收标准」
+      required: true
+    - name: 方案方向
+      description: 填写「方案方向」
+      required: true
+    - name: 风险与依赖
+      description: 填写「风险与依赖」
+      required: true
+    structure:
+    - H1 标题作为需求文档主标题
+    - 验收标准使用表格
+    - 版本号写在标题或文首 meta（如 v1 / v2）
+  check_rules:
+    required_sections:
+    - 背景与目标
+    - 范围
+    - 用户故事与验收标准
+    - 方案方向
+    - 风险与依赖
+    must_include:
+    - Out of Scope
+    min_length: 400
+  display_name: 需求
+  outcome_kind: artifact
+  required_sections:
+  - 背景与目标
+  - 范围
+  - 用户故事与验收标准
+  - 方案方向
+  - 风险与依赖
+decision-record:
+  delivery_profile: light_v1
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 评审范围
+      description: 填写「评审范围」
+      required: true
+    - name: 反馈汇总
+      description: 填写「反馈汇总」
+      required: true
+    - name: 采纳决策
+      description: 填写「采纳决策」
+      required: true
+    - name: 阻塞项处理
+      description: 填写「阻塞项处理」
+      required: true
+    - name: 阶段结论
+      description: 填写「阶段结论」
+      required: true
+    structure:
+    - H1 标题含阶段名（如「需求阶段决策记录」）
+    - 阻塞项处理须含开放 🔴 计数
+  check_rules:
+    required_sections:
+    - 评审范围
+    - 反馈汇总
+    - 采纳决策
+    - 阻塞项处理
+    - 阶段结论
+    must_include:
+    - 🔴
+    - 结论
+    - 开放 🔴：0
+    min_length: 250
+  display_name: 决策记录
+  outcome_kind: artifact
+  required_sections:
+  - 评审范围
+  - 反馈汇总
+  - 采纳决策
+  - 阻塞项处理
+  - 阶段结论
+acceptance-report:
+  delivery_profile: light_v1
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 验收范围
+      description: 填写「验收范围」
+      required: true
+    - name: 验收结果
+      description: 填写「验收结果」
+      required: true
+    - name: 遗留项
+      description: 填写「遗留项」
+      required: true
+    - name: 发布建议
+      description: 填写「发布建议」
+      required: true
+    structure:
+    - H1 标题作为验收报告主标题
+    - 验收结果使用表格对照需求 ID
+  check_rules:
+    required_sections:
+    - 验收范围
+    - 验收结果
+    - 遗留项
+    - 发布建议
+    must_include:
+    - 通过
+    min_length: 200
+  display_name: 验收报告
+  outcome_kind: artifact
+  required_sections:
+  - 验收范围
+  - 验收结果
+  - 遗留项
+  - 发布建议
+code-deployment:
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 部署概要
+      description: 填写「部署概要」
+      required: true
+    - name: 部署步骤
+      description: 填写「部署步骤」
+      required: true
+    - name: 验证结果
+      description: 填写「验证结果」
+      required: true
+    - name: 回滚方案
+      description: 填写「回滚方案」
+      required: true
+    structure:
+    - H1 标题作为部署记录主标题
+    - 每个章节使用 H2 标题
+    - 命令使用代码块
+  check_rules:
+    required_sections:
+    - 部署概要
+    - 部署步骤
+    - 验证结果
+    - 回滚方案
+    must_include:
+    - 健康检查
+    min_length: 200
+  display_name: 部署记录（文档态）
+  outcome_kind: artifact
+  required_sections:
+  - 部署概要
+  - 部署步骤
+  - 验证结果
+  - 回滚方案
+deploy-run:
+  display_name: 部署执行留痕
+  outcome_kind: action
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 部署环境
+      description: 填写部署环境
+      required: true
+    - name: 服务URL
+      description: 可访问的服务根 URL
+      required: true
+    - name: 健康检查
+      description: 探活结果与 HTTP 状态
+      required: true
+    - name: 证据截图
+      description: 截图相对路径
+      required: true
+  check_rules:
+    required_sections:
+    - 部署环境
+    - 服务URL
+    - 健康检查
+    - 证据截图
+    must_include:
+    - http
+    min_length: 30
+    evidence_url:
+      screenshot_field: 证据截图
+      verify_title: false
+  required_sections:
+  - 部署环境
+  - 服务URL
+  - 健康检查
+  - 证据截图
+config-bundle:
+  display_name: 配置包交付
+  outcome_kind: code_project
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 包说明
+      description: 配置用途与变更摘要
+      required: true
+    - name: 文件清单
+      description: 目录内文件说明
+      required: true
+  check_rules:
+    min_project_files: 2
+    required_extensions:
+    - .yaml
+    - .yml
+    - .json
+    file_exists:
+    - README.md
+    required_sections:
+    - 包说明
+    - 文件清单
+    min_length: 100
+  required_sections:
+  - 包说明
+  - 文件清单
+data-analysis:
+  display_name: 数据分析
+  outcome_kind: artifact
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 分析问题与口径
+      description: 要回答的业务问题、指标定义、统计口径与时间范围
+      required: true
+    - name: 数据来源与质量
+      description: 数据来源、样本量、缺失与偏差说明
+      required: true
+    - name: 分析过程与方法
+      description: 清洗、聚合、对比或建模步骤（可含 SQL/公式说明）
+      required: true
+    - name: 关键发现
+      description: 附表格或要点，每条发现须有数据支撑
+      required: true
+    - name: 结论与行动建议
+      description: 可执行的下一步与风险提示
+      required: true
+    structure:
+    - H1 标题作为分析报告主标题
+    - 每个章节使用 H2 标题
+    - 数据使用表格呈现
+  check_rules:
+    required_sections:
+    - 分析问题与口径
+    - 数据来源与质量
+    - 分析过程与方法
+    - 关键发现
+    - 结论与行动建议
+    must_include:
+    - 数据来源
+    min_length: 400
+geo-plan:
+  display_name: GEO策略规划
+  outcome_kind: artifact
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 目标引擎与场景
+      description: Perplexity / ChatGPT Search 等目标引擎与用户查询场景
+      required: true
+    - name: 内容可引用性诊断
+      description: 现有内容在 AI 答案中被引用/概括的障碍
+      required: true
+    - name: 结构化与实体策略
+      description: Schema、实体、段落块、问答式标题等
+      required: true
+    - name: 权威来源与E-E-A-T
+      description: 引用、作者、出处与可信度建设
+      required: true
+    - name: 试点与度量指标
+      description: 试点范围、观测指标与验收标准
+      required: true
+    structure:
+    - H1 标题作为 GEO 方案主标题
+    - 每个章节使用 H2 标题
+  check_rules:
+    required_sections:
+    - 目标引擎与场景
+    - 内容可引用性诊断
+    - 结构化与实体策略
+    - 权威来源与E-E-A-T
+    - 试点与度量指标
+    min_length: 400
+geo-audit:
+  display_name: GEO内容审计
+  outcome_kind: artifact
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 审计范围
+      description: 被审计的 URL/栏目/页面列表
+      required: true
+    - name: 现状摘要
+      description: 页面结构、关键内容块、结构化标记现状
+      required: true
+    - name: GEO问题分级
+      description: 按重要性列出可改进项（引用性、结构、权威、可读）
+      required: true
+    - name: 改写与结构建议
+      description: 可执行的页面级建议
+      required: true
+    - name: 优先级与排期
+      description: 建议实施顺序
+      required: true
+    structure:
+    - H1 标题作为审计报告主标题
+    - 发现项使用分级标记
+  check_rules:
+    required_sections:
+    - 审计范围
+    - 现状摘要
+    - GEO问题分级
+    - 改写与结构建议
+    - 优先级与排期
+    min_length: 300
+geo-verification:
+  display_name: GEO效果验证
+  outcome_kind: action
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 目标页面URL
+      description: 被验证的页面链接
+      required: true
+    - name: 目标查询
+      description: 用于触发 AI 搜索/问答的查询词
+      required: true
+    - name: AI引擎与回答摘要
+      description: 使用的引擎与回答要点（是否引用目标页）
+      required: true
+    - name: 引用情况
+      description: 是否引用、引用片段、排名或替代来源
+      required: true
+    - name: 证据截图
+      description: 截图文件名（相对交付物目录）
+      required: true
+    structure:
+    - H1 标题作为验证记录主标题
+    - 目标页面URL 单独成行
+  check_rules:
+    required_sections:
+    - 目标页面URL
+    - 目标查询
+    - AI引擎与回答摘要
+    - 引用情况
+    - 证据截图
+    must_include:
+    - https://
+    min_length: 50
+    evidence_url:
+      screenshot_field: 证据截图
+      verify_title: false
+deck-build:
+  delivery_profile: all_v1
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 演示目标
+      description: 填写「演示目标」
+      required: true
+    - name: 文稿结构
+      description: 填写「文稿结构」
+      required: true
+    - name: 产出文件
+      description: 填写「产出文件」；须写明 deck.pptx
+      required: true
+    - name: 封面预览
+      description: 填写「封面预览」
+      required: true
+    structure:
+    - H1 标题作为交付记录主标题
+    - deck.pptx 与交付物 Markdown 同目录
+  check_rules:
+    required_sections:
+    - 演示目标
+    - 文稿结构
+    - 产出文件
+    - 封面预览
+    must_include:
+    - deck.pptx
+    file_exists:
+    - deck.pptx
+    min_length: 80
+  display_name: 演示文稿
+  outcome_kind: artifact
+  required_sections:
+  - 演示目标
+  - 文稿结构
+  - 产出文件
+  - 封面预览
+diagram-build:
+  delivery_profile: all_v1
+  display_name: 架构流程图
+  outcome_kind: artifact
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 图表目标
+      description: 填写「图表目标」
+      required: true
+    - name: 结构说明
+      description: 填写「结构说明」
+      required: true
+    - name: 产出文件
+      description: 须写明 diagram.drawio 与 diagram.png
+      required: true
+    - name: 预览
+      description: 填写「预览」
+      required: true
+    structure:
+    - H1 标题作为交付记录主标题
+    - diagram.drawio 与 diagram.png 与交付物 Markdown 同目录
+  check_rules:
+    required_sections:
+    - 图表目标
+    - 结构说明
+    - 产出文件
+    must_include:
+    - diagram.drawio
+    - diagram.png
+    file_exists:
+    - diagram.drawio
+    - diagram.png
+    min_length: 60
+  required_sections:
+  - 图表目标
+  - 结构说明
+  - 产出文件
+  - 预览
+custom-survey:
+  display_name: 自定义调研
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 背景
+      description: 填写「背景」
+      required: true
+    - name: 结论
+      description: 填写「结论」
+      required: true
+  check_rules:
+    required_sections:
+    - 背景
+    - 结论
+    min_length: 200
+  required_sections:
+  - 背景
+  - 结论
+  outcome_kind: artifact
+my-type:
+  display_name: 我的类型
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 正文
+      description: 填写「正文」章节
+      required: true
+  check_rules:
+    required_sections:
+    - 正文
+    min_length: 200

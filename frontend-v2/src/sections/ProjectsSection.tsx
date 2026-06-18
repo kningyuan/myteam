@@ -287,7 +287,7 @@ export function ProjectsSection() {
         }
       >
         {projectId ? (
-          <ProjectDetailPanel projectId={projectId} pricePerMtok={pricePerMtok} />
+          <ProjectDetailPanel key={projectId} projectId={projectId} pricePerMtok={pricePerMtok} />
         ) : (
           <WelcomePane
             title="选择一个项目"

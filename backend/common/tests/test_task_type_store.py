@@ -51,10 +51,20 @@ def test_delete_task_type_blocked_when_agent_uses(tpl_env):
         delete_task_type("my-type")
 
 
-def test_builtin_data_analysis_spec(tpl_env, monkeypatch):
-    monkeypatch.setattr(paths, "templates_file", lambda: paths.BUSINESS_DIR / "templates" / "templates.yaml")
-    from common.registry import invalidate_registry_cache, get_spec
-    invalidate_registry_cache()
+def test_data_analysis_spec_from_yaml(tpl_env):
+    upsert_task_type("data-analysis", {
+        "display_name": "数据分析",
+        "outcome_kind": "artifact",
+        "check_rules": {
+            "required_sections": [
+                "分析问题与口径",
+                "数据来源与质量",
+                "分析过程与方法",
+                "关键发现",
+                "结论与行动建议",
+            ],
+        },
+    })
     spec = get_spec("data-analysis")
     assert spec is not None
     assert spec.outcome_kind == "artifact"

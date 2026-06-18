@@ -120,9 +120,7 @@ def project_overview(store: Store, project_id: str) -> dict:
         "budget": budget,
         "budget_ratio": ratio,
         "budget_state": bstate,
-        "tasks": [{"id": t["task_id"], "name": t.get("name", ""), "status": t["status"],
-                   "agent": t["agent"], "dependencies": t["dependencies"],
-                   "summary": (t.get("meta") or {}).get("summary", "")} for t in tasks],
+        "tasks": [_task_overview_row(t) for t in tasks],
         "iterations": _build_iterations(store, project_id),
     }
 
@@ -240,8 +238,27 @@ _FEED_KINDS = {
     "watchdog_soft_idle", "watchdog_hard_kill", "transport_error",
     "reconcile_timed_out", "reconcile_adopted",
     "tool_use", "tool_result", "prompt_sent", "request_snapshot", "response_snapshot",
-    "message", "parallel_wave",
+    "message", "parallel_wave", "task_split",
 }
+
+
+def _task_overview_row(t: dict) -> dict:
+    meta = t.get("meta") or {}
+    split_children = meta.get("split_children")
+    if not isinstance(split_children, list):
+        split_children = []
+    return {
+        "id": t["task_id"],
+        "name": t.get("name", ""),
+        "status": t["status"],
+        "agent": t.get("agent", ""),
+        "task_type": t.get("task_type", ""),
+        "dependencies": t.get("dependencies") or [],
+        "summary": meta.get("summary", ""),
+        "loop": meta.get("loop") or "",
+        "split_parent": meta.get("split_parent") or "",
+        "split_children": [str(x) for x in split_children if str(x).strip()],
+    }
 
 
 def _build_iterations(store: Store, project_id: str) -> list[dict]:
@@ -332,10 +349,14 @@ def project_events(store: Store, project_id: str) -> list[dict]:
     for e in store.list_project_events(project_id):
         if e["kind"] not in _FEED_KINDS:
             continue
+        payload = e.get("payload") or {}
+        task_id = e.get("task_id") or ""
+        if not task_id and e["kind"] == "task_split":
+            task_id = str(payload.get("parent") or "")
         feed.append({
             "ts": e["ts"], "category": "event", "kind": e["kind"],
-            "agent_id": e["agent_id"], "task_id": e["task_id"],
-            "interaction_id": e["interaction_id"], "payload": e["payload"],
+            "agent_id": e["agent_id"], "task_id": task_id,
+            "interaction_id": e["interaction_id"], "payload": payload,
         })
     feed.sort(key=lambda x: (x.get("ts") or "", x.get("category") == "event"))
     return feed

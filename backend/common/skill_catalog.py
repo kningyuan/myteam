@@ -433,18 +433,40 @@ def update_skill_name(skill_id: str, name: str) -> dict:
     return {"success": True, "skill_id": skill_dir.name, "name": new_name}
 
 
-def validate_skill_ids(skill_ids: list[str]) -> tuple[list[str], list[str]]:
-    """返回 (valid_ids, unknown_ids)。接受 Skill 组 id（如 officecli）。"""
+def canonical_skill_mount_id(raw: str) -> str | None:
+    """将 registry / 前端可能保存的路径式挂载（如 methodology/foo）规范为 skill id。"""
     from common.skill_groups import is_skill_group
 
+    s = (raw or "").strip().strip("/")
+    if not s:
+        return None
+    for prefix in ("business/skills/", "skills/"):
+        if s.startswith(prefix):
+            s = s[len(prefix) :]
+    if "/" in s:
+        leaf = s.rsplit("/", 1)[-1].strip()
+        if leaf and (is_skill_group(leaf) or get_skill_library_entry(leaf)):
+            return leaf
+        return None
+    if is_skill_group(s) or get_skill_library_entry(s):
+        return s
+    return None
+
+
+def validate_skill_ids(skill_ids: list[str]) -> tuple[list[str], list[str]]:
+    """返回 (valid_ids, unknown_ids)。接受 Skill 组 id（如 officecli）及 category/skill 路径。"""
     valid: list[str] = []
     unknown: list[str] = []
+    seen: set[str] = set()
     for raw in skill_ids:
         sid = str(raw).strip()
         if not sid:
             continue
-        if is_skill_group(sid) or get_skill_library_entry(sid):
-            valid.append(sid)
+        canon = canonical_skill_mount_id(sid)
+        if canon:
+            if canon not in seen:
+                seen.add(canon)
+                valid.append(canon)
         else:
             unknown.append(sid)
     return valid, unknown

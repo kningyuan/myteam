@@ -66,9 +66,12 @@
         "代码评审",
         "工程化"
       ],
-      "task_types": [],
+      "task_types": [
+        "code-audit"
+      ],
       "skills": [
-        "backend-engineering-methodology"
+        "backend-engineering-methodology",
+        "code-audit"
       ]
     },
     "frontend": {

@@ -36,9 +36,12 @@ export type ProjectOverview = {
     name?: string
     status?: string
     agent?: string
+    task_type?: string
     dependencies?: string[]
     summary?: string
     loop?: string
+    split_parent?: string
+    split_children?: string[]
   }[]
   iterations?: {
     loop_id?: string

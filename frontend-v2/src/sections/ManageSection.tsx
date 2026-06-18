@@ -25,6 +25,7 @@ import {
   listDeliveryTemplates,
   listOutcomeKinds,
   listSkillLibrary,
+  listSkillGroups,
   listTaskTypes,
   saveDeliveryTemplate,
   suggestTaskType,
@@ -286,9 +287,15 @@ function AgentDetailPanel({
   const [mcpNameById, setMcpNameById] = useState<Record<string, string>>({})
 
   useEffect(() => {
-    Promise.all([listSkillLibrary(), listMcpLibrary(true)])
-      .then(([skills, mcps]) => {
-        setSkillNameById(Object.fromEntries(skills.map((s) => [s.id, s.name || s.id])))
+    Promise.all([listSkillLibrary(), listSkillGroups(), listMcpLibrary(true)])
+      .then(([skills, groups, mcps]) => {
+        const map: Record<string, string> = {}
+        for (const s of skills) map[s.id] = s.name || s.id
+        for (const g of groups) {
+          map[g.id] = g.name || g.id
+          for (const m of g.members ?? []) map[m.id] = m.name || m.id
+        }
+        setSkillNameById(map)
         setMcpNameById(Object.fromEntries(mcps.map((m) => [m.id, m.name || m.id])))
       })
       .catch(() => {})

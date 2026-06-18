@@ -333,7 +333,7 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
         lines.append(json.dumps(req.input or {}, ensure_ascii=False))
         if kind in ("task_plan", "evaluate"):
             from common.agent_registry import agent_task_type_map
-            from common.registry import TASK_TYPE_DISPLAY_NAMES
+            from common.registry import task_type_label
 
             team = (req.input or {}).get("team") or []
             cap_map = agent_task_type_map()
@@ -347,7 +347,7 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
                 lines.append(f"agent 字段只能从以下取：{', '.join(team)}")
             if task_types:
                 labels = [
-                    f"{TASK_TYPE_DISPLAY_NAMES.get(t, t)}（{t}）" for t in task_types
+                    f"{task_type_label(t)}（{t}）" for t in task_types
                 ]
                 lines.append(f"task_type 须与 agent 能力匹配，只能从以下取：{', '.join(labels)}")
         if kind == "evaluate":

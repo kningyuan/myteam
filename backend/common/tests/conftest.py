@@ -2,8 +2,26 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import pytest
+
+_TEST_TASK_TYPES = Path(__file__).resolve().parent / "fixtures" / "task_types.yaml"
+
+
+@pytest.fixture(autouse=True)
+def _test_task_type_registry(monkeypatch):
+    """单测使用 fixtures/task_types.yaml，产品 templates.yaml 默认为空。"""
+    if not _TEST_TASK_TYPES.is_file():
+        yield
+        return
+    from common import paths
+    from common.registry import invalidate_registry_cache
+
+    monkeypatch.setattr(paths, "templates_file", lambda: _TEST_TASK_TYPES)
+    invalidate_registry_cache()
+    yield
+    invalidate_registry_cache()
 
 
 @pytest.fixture(autouse=True)

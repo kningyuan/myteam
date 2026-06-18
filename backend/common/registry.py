@@ -29,41 +29,6 @@ from common.delivery_profiles import merge_file_exists, resolve_profile_name
 DEFAULT_STUB_FLOOR = 20
 _PLACEHOLDER_MARKERS = ("待补充", "待填写", "todo", "tbd", "tbd", "xxx", "lorem ipsum", "占位")
 
-# UI 展示名（中文）；templates.yaml 中 display_name 可覆盖
-TASK_TYPE_DISPLAY_NAMES: dict[str, str] = {
-    "research": "调研",
-    "seo-plan": "SEO 规划",
-    "content": "内容",
-    "test-plan": "测试计划",
-    "code-deliverable": "代码交付",
-    "strategy": "策略分析",
-    "publish-post": "内容发布",
-    "system-design": "系统设计",
-    "architecture-review": "架构评审",
-    "code-review": "代码评审",
-    "code-writing": "代码编写",
-    "code-testing": "代码测试",
-    "requirements": "需求",
-    "decision-record": "决策记录",
-    "acceptance-report": "验收报告",
-    "code-deployment": "部署记录",
-    "deploy-run": "部署执行留痕",
-    "config-bundle": "配置包",
-    "data-analysis": "数据分析",
-    "geo-plan": "GEO 策略规划",
-    "geo-audit": "GEO 内容审计",
-    "geo-verification": "GEO 效果验证",
-    "diagram-build": "架构流程图",
-    "deck-build": "演示文稿",
-    "product-research": "产品调研",
-    "product-planning": "产品整体规划",
-    "section-authoring": "方案编制",
-    "section-review": "章节审计",
-    "arch-research": "架构调研",
-    "iteration-assess": "迭代评估",
-}
-
-
 @dataclass
 class FormatSpec:
     task_type: str
@@ -167,12 +132,12 @@ def _derive_acceptance_criteria(task_cfg: dict, required_sections: list[str]) ->
 
 
 def resolve_display_name(task_type: str, task_cfg: Optional[dict] = None) -> str:
-    """task_type 的 UI 展示名：yaml display_name > 内置映射 > 注册键本身。"""
+    """task_type 的 UI 展示名：yaml display_name > 注册键本身。"""
     cfg = task_cfg if isinstance(task_cfg, dict) else {}
     explicit = (cfg.get("display_name") or cfg.get("label") or "").strip()
     if explicit:
         return explicit
-    return TASK_TYPE_DISPLAY_NAMES.get(task_type, task_type)
+    return (task_type or "").strip()
 
 
 def _build_spec(task_type: str, task_cfg: dict) -> FormatSpec:
@@ -251,6 +216,17 @@ def load_registry(path: Optional[Path] = None) -> dict[str, FormatSpec]:
 
 def get_spec(task_type: str, path: Optional[Path] = None) -> Optional[FormatSpec]:
     return load_registry(path).get(task_type)
+
+
+def task_type_label(task_type: str, *, path: Optional[Path] = None) -> str:
+    """已注册类型的展示名；未注册时返回 task_type id。"""
+    tt = (task_type or "").strip()
+    if not tt:
+        return ""
+    spec = get_spec(tt, path)
+    if spec and (spec.display_name or "").strip():
+        return spec.display_name.strip()
+    return tt
 
 
 def is_stub(content: str, floor: int = DEFAULT_STUB_FLOOR) -> bool:

@@ -293,7 +293,7 @@ async def agent_detail(agent_id: str):
 
     from common.agent_registry import get_agent_info, get_agent_task_types
     from common.agent_skills import get_agent_skill_ids, skill_file_path
-    from common.skill_groups import get_skill_group, is_skill_group
+    from common.skill_groups import get_skill_group, group_member_ids, is_skill_group
     from common.agent_mcp import get_agent_mcp_ids
     from common.mcp_catalog import get_mcp_server
     from common.registry import get_spec
@@ -315,14 +315,13 @@ async def agent_detail(agent_id: str):
     for sid in skill_ids:
         if is_skill_group(sid):
             g = get_skill_group(sid) or {}
-            members = g.get("members") or []
             skills.append(
                 {
                     "skill_id": sid,
                     "name": g.get("name_zh") or g.get("name") or sid,
                     "available": True,
                     "is_group": True,
-                    "member_ids": list(members),
+                    "member_ids": group_member_ids(sid),
                     "path": g.get("vendor_skills_root"),
                 }
             )

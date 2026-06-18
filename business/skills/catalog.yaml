@@ -107,6 +107,11 @@ skills:
     task_types: [architecture-review]
     router: business/skills/architecture-review/SKILL.md
 
+  - id: code-audit
+    task_types: [code-audit]
+    description: 代码健康检查 — 运行 tsc/eslint/pytest，生成评分仪表盘
+    router: business/skills/code-audit/SKILL.md
+
   - id: code-writing
     task_types: [code-writing]
     router: business/skills/code-writing/SKILL.md

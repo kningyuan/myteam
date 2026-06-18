@@ -25,6 +25,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
+import { sortByModifiedDesc } from "@/lib/sortByModified"
 
 type SidebarEntry = {
   id: string
@@ -32,6 +33,7 @@ type SidebarEntry = {
   name: string
   sub: string
   isDraft?: boolean
+  updated_at?: number
 }
 
 function SkillOverviewHome({
@@ -154,12 +156,18 @@ export function SkillsSection() {
     return map
   }, [categories])
 
+  const sortedCategories = useMemo(
+    () => sortByModifiedDesc(categories ?? []),
+    [categories],
+  )
+
   const sidebarEntries = useMemo((): SidebarEntry[] => {
-    const cats: SidebarEntry[] = (categories ?? []).map((c) => ({
+    const cats: SidebarEntry[] = sortedCategories.map((c) => ({
       id: c.id,
       kind: "category" as const,
       name: c.name || c.id,
       sub: c.description || `${c.member_count ?? 0} 个成员`,
+      updated_at: c.updated_at,
     }))
     const skills: SidebarEntry[] = standaloneSkills.map((s) => ({
       id: s.id,
@@ -167,9 +175,10 @@ export function SkillsSection() {
       name: s.name || s.id,
       sub: s.description || s.id,
       isDraft: s.is_draft,
+      updated_at: s.updated_at,
     }))
-    return [...cats, ...skills].sort((a, b) => a.name.localeCompare(b.name, "zh-CN"))
-  }, [categories, standaloneSkills])
+    return sortByModifiedDesc([...cats, ...skills])
+  }, [sortedCategories, standaloneSkills])
 
   const reloadDetail = useCallback(() => {
     if (!skillId) {
@@ -256,9 +265,9 @@ export function SkillsSection() {
               <Plus className="h-3.5 w-3.5" />
             </Button>
           </div>
-          {(categories ?? []).length ? (
+          {(sortedCategories ?? []).length ? (
             <div className="skill-category-tags">
-              {(categories ?? []).map((c) => (
+              {sortedCategories.map((c) => (
                 <button
                   key={c.id}
                   type="button"
@@ -314,7 +323,7 @@ export function SkillsSection() {
         ) : (
           <SkillOverviewHome
             entries={sidebarEntries}
-            categories={categories ?? []}
+            categories={sortedCategories}
             loading={loading}
             error={error}
             onSelect={(id) => navigate(`/skills/${encodeURIComponent(id)}`)}

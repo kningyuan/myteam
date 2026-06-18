@@ -1,68 +1,69 @@
-id: 架构评审-round
 name: 架构评审（单轮）
-version: "1.0"
-description: |
-  gstack 映射：/plan-eng-review 的独立短流程（仅工程视角，无四轮）。
+version: '1.0'
+description: gstack 映射：/plan-eng-review 的独立短流程（仅工程视角，无四轮）。
 options:
   review_enabled: false
-  split_enabled: false
-  collaboration:
-    project_group:
-      enabled: true
-    notifications:
-      enabled: true
-    group_discussion:
-      enabled: false
+  split_enabled: true
+  parallel_enabled: true
+  max_parallel: 3
 tasks:
-  - id: task-1
-    name: 架构评审
-    loop: arch_review_round
-    dependencies: []
-    description: |
-      架构师评审 → 决策记录。
+- id: task-1
+  name: 架构评审
+  dependencies: []
+  description: '架构师评审 → 决策记录。
+
+    '
+  loop: arch_review_round
+id: 架构评审-round
 loops:
-  - id: arch_review_round
-    max_rounds: 2
-    min_rounds: 1
-    default_body: default
-    on_pass: complete
-    on_exhaust: needs_review
-    bodies:
-      default:
-        - id: step-arch
-          name: 架构评审
-          agent: arch
-          task_type: architecture-review
-          template_id: arch-review
-          dependencies: []
-          description: |
-            【gstack】/plan-eng-review
-            【输入】Goal 指定设计/计划文档
-            【交付】deliverables/arch-review.md
-            【质量】末行 ARCH: PASS 或 ARCH: FAIL
-        - id: step-decision
-          name: 评审结论
-          agent: main
-          task_type: decision-record
-          dependencies:
-            - step-arch
-          description: |
-            【交付】deliverables/arch-review-decision.md
-    assess:
-      ref: step-arch
-      inputs:
-        - kind: goal
-    transition:
-      - when: deliverable_marker
-        task: step-arch
-        marker: "ARCH: PASS"
-        action: exit
-        outcome: complete
-      - when: deliverable_marker
-        task: step-arch
-        marker: "ARCH: FAIL"
-        action: continue
-        next_body: default
-      - when: exhausted
-        action: exit
-        outcome: needs_review
+- id: arch_review_round
+  max_rounds: 2
+  min_rounds: 1
+  default_body: default
+  on_pass: complete
+  on_exhaust: needs_review
+  bodies:
+    default:
+    - id: step-1
+      name: 架构评审
+      agent: arch
+      task_type: architecture-review
+      template_id: arch-review
+      dependencies: []
+      description: '【gstack】/plan-eng-review
+
+        【输入】Goal 指定设计/计划文档
+
+        【交付】deliverables/arch-review.md
+
+        【质量】末行 ARCH: PASS 或 ARCH: FAIL
+
+        '
+    - id: step-2
+      name: 评审结论
+      agent: main
+      task_type: decision-record
+      dependencies:
+      - step-1
+      description: '【交付】deliverables/arch-review-decision.md
+
+        '
+  assess:
+    ref: step-1
+    inputs:
+    - kind: goal
+  transition:
+  - when: deliverable_marker
+    task: step-1
+    marker: 'ARCH: PASS'
+    action: exit
+    outcome: complete
+  - when: deliverable_marker
+    task: step-1
+    marker: 'ARCH: FAIL'
+    action: continue
+    next_body: default
+  - when: exhausted
+    action: exit
+    outcome: needs_review
+  fallback_until: []
