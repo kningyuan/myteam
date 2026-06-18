@@ -18,6 +18,7 @@ import {
   getProjectFleet,
   getProjectOverview,
   getProjectRunStatus,
+  projectWorkflowLabel,
   resumeProject,
   subscribeProjectStream,
   type ProjectCost,
@@ -48,7 +49,7 @@ function fmtTime(iso?: string) {
 function LaunchConfig({ ov, cyclesDone }: { ov: ProjectOverview; cyclesDone?: number }) {
   const lc = ov.launch || {}
   const items = [
-    ["工作流", lc.workflow_label || lc.workflow || ov.workflow || "自由规划"],
+    ["工作流", projectWorkflowLabel(ov)],
     ["模式", lc.mode_label || lc.mode || ov.mode || "—"],
     ...(ov.mode === "recurring" || lc.mode === "recurring"
       ? [
@@ -264,6 +265,7 @@ export function ProjectDetailPanel({
   const byTask = cost.by_task ?? {}
   const totalTok = cost.project ?? ov.tokens ?? 0
   const cyclesDone = events.filter((e) => e.kind === "cycle_done").length
+  const workflowLabel = projectWorkflowLabel(ov)
 
   return (
     <div className="project-workspace" ref={mainRef}>
@@ -326,11 +328,7 @@ export function ProjectDetailPanel({
 
         <div className="project-workspace-stats">
           <StatusBadge status={status} label={statusLabel(status)} />
-          {(ov.launch?.workflow_label || ov.workflow) && (
-            <Badge variant="outline">
-              流程 {ov.launch?.workflow_label || ov.workflow}
-            </Badge>
-          )}
+          <Badge variant="outline">流程 {workflowLabel}</Badge>
           <span className="stat-pill">{tasks.length} 任务</span>
           <span className="stat-pill">{formatNumber(totalTok)} tok</span>
           {ov.budget && <span className="stat-pill">预算 {formatNumber(ov.budget)}</span>}

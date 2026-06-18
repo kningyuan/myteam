@@ -104,6 +104,36 @@ export function isExecThinkingKind(kind?: string): boolean {
   return EXEC_THINKING_KINDS.has(kind || "")
 }
 
+/** 任务级执行过程：跳过项目级交互 */
+export const TASK_EXEC_SKIP_INTERACTIONS = new Set(["team_config", "task_plan"])
+
+export function execContentTag(kind?: string): { label: string; tone: string } {
+  const k = kind || ""
+  if (k === "tool_use" || k === "tool_result") return { label: "Skill", tone: "skill" }
+  if (k === "text" || k === "reasoning") return { label: "输出", tone: "text" }
+  if (k === "step_finish" || k === "step_start") return { label: "思考", tone: "think" }
+  if (k.startsWith("gate_")) return { label: "门禁", tone: "gate" }
+  if (k.startsWith("review_")) return { label: "评审", tone: "review" }
+  if (k.startsWith("loop_") || k === "branch_selected") return { label: "循环", tone: "loop" }
+  if (k === "task_split") return { label: "拆分", tone: "split" }
+  if (k === "error" || k === "transport_error" || k === "watchdog_hard_kill") {
+    return { label: "错误", tone: "error" }
+  }
+  if (k === "prompt_sent" || k === "request_snapshot" || k === "response_snapshot") {
+    return { label: "请求", tone: "meta" }
+  }
+  return { label: EVENT_LABELS[k] || EXEC_CHILD_LABELS[k] || k || "事件", tone: "meta" }
+}
+
+export function execPhaseTag(kind?: string): { label: string; tone: string } {
+  const k = kind || ""
+  if (k === "evaluate" || k === "dispatch_evaluate") return { label: "评估", tone: "evaluate" }
+  if (k === "execute") return { label: "执行", tone: "execute" }
+  if (k === "review") return { label: "评审", tone: "review" }
+  if (k === "triage") return { label: "分诊", tone: "meta" }
+  return { label: INTERACTION_LABELS[k] || k || "步骤", tone: "meta" }
+}
+
 export const EXEC_TIMELINE_KINDS = new Set([
   "step_start",
   "tool_use",

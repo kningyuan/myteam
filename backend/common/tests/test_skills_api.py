@@ -69,6 +69,7 @@ def test_delete_library_skill(tmp_path, monkeypatch):
     monkeypatch.setattr("common.skill_catalog.SKILLS_DIR", skills_dir)
     monkeypatch.setattr("common.skill_catalog.MYTEAM_ROOT", tmp_path)
     monkeypatch.setattr("common.skill_extract.SKILLS_DIR", skills_dir)
+    monkeypatch.setattr("common.skill_link.SKILLS_DIR", skills_dir)
 
     app = FastAPI()
     app.include_router(skills_api.router)

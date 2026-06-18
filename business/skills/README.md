@@ -4,7 +4,9 @@
 
 ## External / vendor skills
 
-Third-party skill packs are **symlinks** under `business/skills/<category>/<id>/` (OfficeCLI 套件在 `business/skills/officecli/<id>/`) pointing at the real upstream directory. Do not copy only `SKILL.md`. Register upstream paths in `backend/common/skill_link.py` (`VENDOR_SKILL_SOURCES`). Run skill sync so `.cursor/skills/` and agent workspaces link through the same anchor.
+Third-party skill packs are **symlinks** under `business/skills/<id>/` pointing at the real upstream directory. Do not copy only `SKILL.md`. Register upstream paths in `backend/common/skill_link.py` (`VENDOR_SKILL_SOURCES`). Run skill sync so `.cursor/skills/` and agent workspaces link through the same anchor.
+
+**展示分类**（方法论 / 代码工程 / OfficeCLI 等）写在 `business/skills/categories.yaml`，**不**再使用 `business/skills/<category>/<id>/` 物理嵌套；改分类只更新 yaml，skill 目录始终在顶层 `<id>/`。
 
 ## SKILL.md frontmatter（Agent 选型必填）
 
@@ -69,7 +71,8 @@ B · Skills (business/skills/)     — task_type router SKILL.md + catalog.yaml
 ```text
 business/playbooks/          # ALL.md + 通用过程模板 + scaffold_process.sh
 business/means/              # 可插拔小工具（diagram-build …）
-business/skills/catalog.yaml # Agent 自选 means / router
+business/skills/catalog.yaml # Agent 自选 means / router（扁平 business/skills/<id>/）
+business/skills/categories.yaml # UI 展示分类与成员列表（元数据）
 business/experience/         # ledger schema
 business/workspaces/         # IDENTITY.md / SOUL.md 身份；能力与 task_type 见 agents_registry.json
 ```
@@ -79,12 +82,10 @@ Workflow **不得**写 `【Skill】`；自选记录在 `plan.md`。lint：`scrip
 ### Workflow 共享包（仍可用）
 
 ```text
-business/skills/product-operations/
-business/skills/wps-deck/        # 待迁 means（Sprint 2+）
-  SKILL.md
-  scripts/
+business/skills/product-operations/   # 待建：独立 task router
+business/skills/wps-deck/             # 待迁 means（Sprint 2+）
 ```
 
-内核仍按 `business/skills/<task_type>/SKILL.md` 注入 router 路径。
+内核与 catalog 均按 **`business/skills/<skill_id>/SKILL.md`** 扁平路径注入 router；展示分类见 `categories.yaml`。校验：`scripts/audit_skill_matrix.py` 或 `GET /api/skills/matrix` 的 `catalog_missing_routers`。
 
 If a proposed Skill needs to control scheduling, persistence, or validation, it is probably not a Skill. Move that concern to the System Kernel or Strategy Registry instead.

@@ -59,7 +59,7 @@ def test_ensure_vendor_replaces_stub(tmp_path, monkeypatch):
 
 def test_resolve_skill_source_prefers_business_dir(tmp_path, monkeypatch):
     skills_dir = tmp_path / "business" / "skills"
-    local = skills_dir / "officecli" / "officecli"
+    local = skills_dir / "officecli"
     local.mkdir(parents=True)
     (local / "SKILL.md").write_text("# office\n", encoding="utf-8")
     (local / "bin").mkdir()
@@ -71,15 +71,10 @@ def test_resolve_skill_source_prefers_business_dir(tmp_path, monkeypatch):
     assert resolved == local.resolve()
 
 
-def test_migrate_flat_does_not_remove_category_dir(tmp_path, monkeypatch):
-    """officecli 成员 id 与分类目录同名时，不得删除整包 officecli/。"""
+def test_ensure_vendor_links_flat_anchor(tmp_path, monkeypatch):
+    """vendor skill 挂载在 business/skills/<id>/ 顶层。"""
     skills_dir = tmp_path / "business" / "skills"
-    category = skills_dir / "officecli"
-    category.mkdir(parents=True)
-    sibling = category / "officecli-pptx"
-    sibling.mkdir()
-    (sibling / "SKILL.md").write_text("# pptx\n", encoding="utf-8")
-
+    skills_dir.mkdir(parents=True)
     vendor = tmp_path / "upstream" / "officecli"
     vendor.mkdir(parents=True)
     (vendor / "SKILL.md").write_text("# office\n", encoding="utf-8")
@@ -92,9 +87,9 @@ def test_migrate_flat_does_not_remove_category_dir(tmp_path, monkeypatch):
 
     out = ensure_vendor_skill_link("officecli")
     assert out["status"] == "linked"
-    assert category.is_dir()
-    assert (category / "officecli").is_symlink()
-    assert sibling.exists()
+    dest = skills_dir / "officecli"
+    assert dest.is_symlink()
+    assert (dest / "SKILL.md").is_file()
 
 
 def test_sync_cursor_skill_links(tmp_path, monkeypatch):

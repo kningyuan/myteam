@@ -104,16 +104,18 @@ def project_overview(store: Store, project_id: str) -> dict:
     meta = proj.get("meta") or {}
     budget = meta.get("token_budget")
     ratio, bstate = _budget_state(used, budget)
+    launch = _launch_config(proj, meta)
     return {
         "project_id": project_id,
         "title": proj.get("title") or project_id,  # 与 api-reference.md §11.1 + 前端 project.js 对齐；proj 兜底时退化为 pid
         "status": proj.get("status"),
         "mode": proj.get("mode"),
         "workflow": meta.get("workflow"),
+        "workflow_label": launch.get("workflow_label") or "",
         "launch_error": meta.get("launch_error"),
         "created_at": proj.get("created_at"),
         "updated_at": proj.get("updated_at"),
-        "launch": _launch_config(proj, meta),
+        "launch": launch,
         "task_counts": counts,
         "progress": round(done / total, 3),
         "tokens": used,

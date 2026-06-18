@@ -104,53 +104,44 @@ def link_skill_dir(dest: Path, src: Path, *, allow_copy_fallback: bool = False) 
 
 
 def business_skill_anchor(skill_id: str) -> Path:
-    """business/skills 下该 skill 的挂载锚点路径（分类子目录或顶层）。"""
-    from common.skill_categories import category_for_skill
+    """business/skills/<id>/ — skill 目录始终扁平，分类仅元数据。"""
+    return SKILLS_DIR / (skill_id or "").strip()
 
+
+def _legacy_nested_skill_dir(skill_id: str) -> Optional[Path]:
+    """只读兼容：迁移前嵌套在 <category>/<id>/ 下的旧路径。"""
     sid = (skill_id or "").strip()
-    cat = category_for_skill(sid)
-    if not cat and sid in OFFICECLI_VENDOR_SKILL_IDS:
-        cat = "officecli"
-    if cat:
-        return SKILLS_DIR / cat / sid
-    return SKILLS_DIR / sid
+    if not sid or not SKILLS_DIR.is_dir():
+        return None
+    for parent in sorted(SKILLS_DIR.iterdir()):
+        if not parent.is_dir() or parent.name.startswith("."):
+            continue
+        nested = parent / sid
+        if nested.is_dir() and (nested / "SKILL.md").is_file():
+            return nested
+    return None
 
 
 def _migrate_flat_vendor_anchor(skill_id: str, dest: Path) -> None:
-    """旧版 business/skills/<id> 顶层软链迁移到分类子目录后删除。"""
-    from common.skill_categories import is_skill_category_dir, category_for_skill
-
-    legacy = SKILLS_DIR / (skill_id or "").strip()
-    if legacy == dest or not (legacy.exists() or legacy.is_symlink()):
-        return
-    # member id 与分类目录同名时（如 officecli），legacy 是套件目录而非旧顶层锚点
-    cat = category_for_skill(skill_id)
-    if cat and legacy == SKILLS_DIR / cat and legacy.is_dir() and not legacy.is_symlink():
-        return
-    if is_skill_category_dir(legacy.name) and legacy.is_dir() and not legacy.is_symlink():
-        return
-    if legacy.is_dir() and not legacy.is_symlink() and not (legacy / "SKILL.md").is_file():
-        return
-    remove_skill_entry(legacy)
+    """删除与 dest 重复的其它挂载锚点（扁平布局下通常无操作）。"""
+    sid = (skill_id or "").strip()
+    legacy = _legacy_nested_skill_dir(sid)
+    if legacy and legacy != dest and (legacy.exists() or legacy.is_symlink()):
+        remove_skill_entry(legacy)
 
 
 def iter_business_skill_dir_names(business_root: Path = SKILLS_DIR) -> list[str]:
-    """枚举 business/skills 下所有叶子 skill 目录名（含分类子目录内）。"""
-    from common.skill_categories import is_skill_category_dir
-
+    """枚举 business/skills 下顶层含 SKILL.md 的 skill 目录。"""
     if not business_root.is_dir():
         return []
     names: list[str] = []
     for p in sorted(business_root.iterdir()):
         if not p.is_dir() or p.name.startswith("."):
             continue
+        if p.name == "categories.yaml":
+            continue
         if (p / "SKILL.md").is_file():
             names.append(p.name)
-            continue
-        if is_skill_category_dir(p.name):
-            for child in sorted(p.iterdir()):
-                if child.is_dir() and (child / "SKILL.md").is_file():
-                    names.append(child.name)
     return names
 
 
@@ -173,9 +164,9 @@ def resolve_skill_source_dir(skill_id: str) -> Optional[Path]:
     if local.is_dir() and (local / "SKILL.md").is_file():
         return local if local.is_symlink() else local.resolve()
 
-    legacy = SKILLS_DIR / sid
-    if legacy != local and legacy.is_dir() and (legacy / "SKILL.md").is_file():
-        return legacy if legacy.is_symlink() else legacy.resolve()
+    nested = _legacy_nested_skill_dir(sid)
+    if nested is not None:
+        return nested if nested.is_symlink() else nested.resolve()
 
     vendor = resolve_vendor_source(sid)
     if vendor is not None:

@@ -202,21 +202,14 @@ def _list_skill_tree(skill_dir: Path) -> list[dict]:
 
 
 def _iter_skill_dirs():
-    """遍历 business/skills 下所有含 SKILL.md 的叶子目录（含分类子目录）。"""
-    from common.skill_categories import is_skill_category_dir
-
+    """遍历 business/skills 顶层含 SKILL.md 的 skill 目录。"""
     if not SKILLS_DIR.is_dir():
         return
     for p in sorted(SKILLS_DIR.iterdir()):
-        if not p.is_dir():
+        if not p.is_dir() or p.name.startswith("."):
             continue
         if (p / "SKILL.md").is_file():
             yield p
-            continue
-        if is_skill_category_dir(p.name):
-            for child in sorted(p.iterdir()):
-                if child.is_dir() and (child / "SKILL.md").is_file():
-                    yield child
 
 
 def _skill_anchor_meta(skill_id: str) -> dict:
@@ -310,7 +303,7 @@ def _read_skill_meta(skill_dir: Path, text: str) -> dict:
         "is_draft": is_draft,
         "is_mountable": not is_draft,
         "group_id": gid,
-        "category_dir": skill_dir.parent.name if gid and skill_dir.parent != SKILLS_DIR else "",
+        "category_dir": gid or "",
     }
 
 
@@ -346,7 +339,7 @@ def list_skill_library() -> list[dict]:
             "updated_at": _resolve_updated_at(p, meta),
             "line_count": len(text.splitlines()),
             "group_id": gid,
-            "category_dir": p.parent.name if gid and p.parent != SKILLS_DIR else "",
+            "category_dir": gid or "",
         })
     items.sort(key=lambda i: i.get("updated_at") or 0, reverse=True)
     return items
@@ -391,20 +384,25 @@ def get_skill_file(skill_id: str, rel_path: str) -> Optional[dict]:
     rel = (rel_path or "").strip().lstrip("/")
     if not rel or ".." in Path(rel).parts:
         return None
-    target = (skill_dir / rel).resolve()
-    if not str(target).startswith(str(skill_dir.resolve())):
-        return None
-    if not target.is_file():
+    candidate = skill_dir / rel
+    if not candidate.is_file():
         return {"path": rel, "exists": False, "content": ""}
-    text = target.read_text(encoding="utf-8", errors="replace")
-    ext = target.suffix.lower()
+    # Vendor skills often symlink SKILL.md outside the resolved anchor
+    # (e.g. skills/officecli/SKILL.md -> ../../SKILL.md). Lexical rel is
+    # already confined to skill_dir; follow symlinks on read only.
+    try:
+        text = candidate.read_text(encoding="utf-8", errors="replace")
+        size = candidate.stat().st_size
+    except OSError:
+        return {"path": rel, "exists": False, "content": ""}
+    ext = Path(rel).suffix.lower()
     return {
         "path": rel,
-        "name": target.name,
+        "name": Path(rel).name,
         "kind": _FILE_KIND.get(ext, "file"),
         "exists": True,
         "content": text,
-        "size": target.stat().st_size,
+        "size": size,
     }
 
 
@@ -496,3 +494,38 @@ def delete_skill_library_entry(skill_id: str) -> dict:
     except OSError as e:
         return {"success": False, "error": f"删除失败：{e}"}
     return {"success": True, "skill_id": sid, "path": str(skill_dir.relative_to(MYTEAM_ROOT))}
+
+
+def audit_catalog_router_paths(catalog_path: Path | None = None) -> dict:
+    """校验 catalog.yaml 中 router 路径是否在磁盘存在。"""
+    fp = catalog_path or (MYTEAM_ROOT / "business" / "skills" / "catalog.yaml")
+    missing: list[dict[str, str]] = []
+    ok_count = 0
+    if not fp.is_file():
+        return {"catalog_path": str(fp), "router_total": 0, "router_ok": 0, "missing_routers": missing}
+    try:
+        data = yaml.safe_load(fp.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError as e:
+        return {
+            "catalog_path": str(fp),
+            "router_total": 0,
+            "router_ok": 0,
+            "missing_routers": [{"error": f"catalog parse failed: {e}"}],
+        }
+    seen: set[str] = set()
+    for item in data.get("skills") or []:
+        router = (item.get("router") or "").strip()
+        if not router or router in seen:
+            continue
+        seen.add(router)
+        target = MYTEAM_ROOT / router
+        if target.is_file() or target.is_symlink():
+            ok_count += 1
+        else:
+            missing.append({"router": router, "catalog_id": str(item.get("id") or "")})
+    return {
+        "catalog_path": str(fp.relative_to(MYTEAM_ROOT)) if fp.is_relative_to(MYTEAM_ROOT) else str(fp),
+        "router_total": len(seen),
+        "router_ok": ok_count,
+        "missing_routers": missing,
+    }

@@ -9,9 +9,10 @@ import {
 import {
   DAG_LABELS,
   EVENT_LABELS,
-  EXEC_CHILD_LABELS,
   EXEC_TIMELINE_KINDS,
   eventDetail,
+  execContentTag,
+  execPhaseTag,
   fmtExecTs,
   INTERACTION_LABELS,
   INTERACTION_STATUS_LABEL,
@@ -23,6 +24,7 @@ import {
   groupInteractionsByTask,
   listExecChildTasks,
   listExecRootTasks,
+  listProjectLevelInteractions,
   taskActivityEvents,
   taskSplitEventsFor,
   type ExecTask,
@@ -38,13 +40,17 @@ function execStatusClass(status?: string) {
   return `status-${status || "pending"}`
 }
 
+function ExecTag({ label, tone }: { label: string; tone: string }) {
+  return <span className={`exec-tag exec-tag--${tone}`}>{label}</span>
+}
+
 function TimelineDetail({ ev }: { ev: TimelineEvent }) {
   const p = ev.payload || {}
   const kind = ev.kind || ""
   if (kind === "text") {
     return (
       <div className="trace-section">
-        <span className="trace-tag">输出</span>
+        <ExecTag {...execContentTag(kind)} />
         <div className="trace-msg">{String(p.content || "").slice(0, 8000)}</div>
       </div>
     )
@@ -55,7 +61,7 @@ function TimelineDetail({ ev }: { ev: TimelineEvent }) {
   if (kind === "prompt_sent") {
     return (
       <div className="trace-section">
-        <span className="trace-tag">Prompt</span>
+        <ExecTag {...execContentTag(kind)} />
         <div className="trace-msg">{String(p.prompt || "").slice(0, 8000)}</div>
       </div>
     )
@@ -63,20 +69,20 @@ function TimelineDetail({ ev }: { ev: TimelineEvent }) {
   if (kind === "tool_result") {
     return (
       <div className="trace-section">
-        <span className="trace-tag">返回</span>
+        <ExecTag {...execContentTag(kind)} />
         <div className="trace-msg">{String(p.content || "").slice(0, 8000)}</div>
       </div>
     )
   }
   return (
     <div className="trace-section">
-      <span className="trace-tag">详情</span>
+      <ExecTag {...execContentTag(kind)} />
       <pre className="trace-pre">{payloadPre(p)}</pre>
     </div>
   )
 }
 
-function ExecChildRow({
+function TaggedContentRow({
   ev,
   childId,
   open,
@@ -88,28 +94,31 @@ function ExecChildRow({
   onToggle: () => void
 }) {
   const p = ev.payload || {}
-  const summary = truncateText(eventDetail({ kind: ev.kind, payload: p }), open ? 500 : 140)
-  const label = EVENT_LABELS[ev.kind || ""] || EXEC_CHILD_LABELS[ev.kind || ""] || ev.kind
-  const cls =
-    ev.kind === "tool_use"
-      ? "exec-child-tool"
-      : ev.kind === "text"
-        ? "exec-child-text"
-        : ["error", "transport_error", "watchdog_hard_kill"].includes(ev.kind || "")
-          ? "exec-child-error"
-          : "exec-child-mile"
+  const tag = execContentTag(ev.kind)
+  const title = EVENT_LABELS[ev.kind || ""] || ev.kind || "事件"
+  const summary = truncateText(eventDetail({ kind: ev.kind, payload: p }), open ? 500 : 120)
+  const expandable = !isExecThinkingKind(ev.kind) || ev.kind === "text"
+
+  if (!expandable && summary) {
+    return (
+      <div className="exec-feed-row exec-feed-row--inline">
+        <ExecTag {...tag} />
+        <span className="exec-feed-title">{title}</span>
+        <span className="exec-feed-summary">{summary}</span>
+      </div>
+    )
+  }
 
   return (
-    <div className={`exec-child ${cls}${open ? " open" : ""}`} data-child-id={childId}>
-      <div className="exec-child-head" role="button" tabIndex={0} onClick={onToggle}>
-        <span className="exec-chevron">{open ? "▾" : "▸"}</span>
-        <div className="exec-child-main">
-          <div className="exec-child-label">{label}</div>
-          {summary && <div className="exec-child-summary">{summary}</div>}
-        </div>
+    <div className={`exec-feed-row${open ? " open" : ""}`} data-child-id={childId}>
+      <div className="exec-feed-head" role="button" tabIndex={0} onClick={onToggle}>
+        <ExecTag {...tag} />
+        <span className="exec-feed-title">{title}</span>
+        {summary && <span className="exec-feed-summary">{summary}</span>}
+        <span className="exec-chevron exec-chevron--sm">{open ? "▾" : "▸"}</span>
       </div>
       {open && (
-        <div className="exec-child-body">
+        <div className="exec-feed-body">
           <TimelineDetail ev={ev} />
         </div>
       )}
@@ -117,24 +126,21 @@ function ExecChildRow({
   )
 }
 
-function PhaseBlock({
+function TaggedPhaseSection({
   event,
-  open,
-  onToggle,
-  childrenOpen,
-  onChildToggle,
   timeline,
   loading,
+  childrenOpen,
+  onChildToggle,
 }: {
   event: ProjectEvent
-  open: boolean
-  onToggle: () => void
-  childrenOpen: Record<string, boolean>
-  onChildToggle: (id: string) => void
   timeline: TimelineEvent[]
   loading: boolean
+  childrenOpen: Record<string, boolean>
+  onChildToggle: (id: string) => void
 }) {
-  const label = INTERACTION_LABELS[event.kind || ""] || event.kind || "交互"
+  const phaseTag = execPhaseTag(event.kind)
+  const phaseLabel = INTERACTION_LABELS[event.kind || ""] || event.kind || "步骤"
   const att = (event.attempt ?? 0) > 1 ? ` ×${event.attempt}` : ""
   const tok = event.tokens ? `${Number(event.tokens).toLocaleString()} tok` : ""
   const stLabel = INTERACTION_STATUS_LABEL[event.status || ""] || event.status || ""
@@ -146,66 +152,71 @@ function PhaseBlock({
   )
 
   return (
-    <div className={`exec-node exec-phase ${execStatusClass(event.status)}${open ? " open" : ""}`}>
-      <div className="exec-node-head" role="button" tabIndex={0} onClick={onToggle}>
-        <span className="exec-chevron">{open ? "▾" : "▸"}</span>
-        <div className="exec-node-main">
-          <div className="exec-node-row1">
-            <span className="exec-node-title">
-              {label}
-              {att}
-            </span>
-            <span className={`exec-status-badge s-${event.status || "pending"}`}>{stLabel}</span>
-            {tok && <span className="exec-node-tok">{tok}</span>}
-            <span className="exec-node-ts">{fmtExecTs(event.ts)}</span>
-          </div>
-        </div>
-      </div>
-      {open && (
-        <div className="exec-node-body">
-          {loading && <div className="exec-loading hint">加载明细…</div>}
-          {!loading && timeline.length === 0 && (
-            <div className="exec-empty hint">该步骤暂无 skill 调用或其它明细</div>
-          )}
-          {!loading && thinkingEvents.length > 0 && (
-            <div className="exec-thinking-wrap">
-              <ThinkingStream events={thinkingEvents} streaming={streaming} defaultOpen={streaming} />
+    <section className={`exec-step ${execStatusClass(event.status)}`}>
+      <header className="exec-step-head">
+        <ExecTag {...phaseTag} />
+        <span className="exec-step-title">
+          {phaseLabel}
+          {att}
+        </span>
+        <span className={`exec-status-badge s-${event.status || "pending"}`}>{stLabel}</span>
+        {tok && <span className="exec-node-tok">{tok}</span>}
+        <span className="exec-node-ts">{fmtExecTs(event.ts)}</span>
+      </header>
+      <div className="exec-step-body">
+        {loading && <div className="exec-loading hint">加载中…</div>}
+        {!loading && timeline.length === 0 && (
+          <div className="exec-empty hint">暂无明细</div>
+        )}
+        {!loading && thinkingEvents.length > 0 && (
+          <div className="exec-thinking-wrap">
+            <div className="exec-feed-row exec-feed-row--think-label">
+              <ExecTag label="思考" tone="think" />
+              <span className="exec-feed-title">Agent 思考与 Skill 调用</span>
             </div>
-          )}
-          {!loading &&
-            milestoneEvents.map((ev, idx) => {
-              const childId = `${event.interaction_id}:${ev.seq ?? idx}`
-              return (
-                <ExecChildRow
-                  key={childId}
-                  ev={ev}
-                  childId={childId}
-                  open={!!childrenOpen[childId]}
-                  onToggle={() => onChildToggle(childId)}
-                />
-              )
-            })}
-        </div>
-      )}
-    </div>
+            <ThinkingStream events={thinkingEvents} streaming={streaming} defaultOpen={streaming} />
+          </div>
+        )}
+        {!loading &&
+          milestoneEvents.map((ev, idx) => {
+            const childId = `${event.interaction_id}:${ev.seq ?? idx}`
+            return (
+              <TaggedContentRow
+                key={childId}
+                ev={ev}
+                childId={childId}
+                open={!!childrenOpen[childId]}
+                onToggle={() => onChildToggle(childId)}
+              />
+            )
+          })}
+      </div>
+    </section>
   )
 }
 
 function TaskActivityStrip({ events }: { events: ProjectEvent[] }) {
   if (!events.length) return null
   return (
-    <div className="exec-task-activity">
-      {events.map((e, idx) => {
-        const label = EVENT_LABELS[e.kind || ""] || e.kind || "事件"
-        const summary = eventDetail(e)
-        return (
-          <div key={`${e.kind}-${e.ts}-${idx}`} className="exec-activity-row exec-activity-row--compact">
-            <span className="exec-activity-ts">{fmtExecTs(e.ts)}</span>
-            <span className="exec-activity-label">{label}</span>
-            {summary && <span className="exec-activity-summary">{summary}</span>}
-          </div>
-        )
-      })}
+    <div className="exec-step exec-step--activity">
+      <header className="exec-step-head">
+        <ExecTag label="循环" tone="loop" />
+        <span className="exec-step-title">轮次与分支</span>
+      </header>
+      <div className="exec-step-body">
+        {events.map((e, idx) => {
+          const tag = execContentTag(e.kind)
+          const summary = eventDetail(e)
+          return (
+            <div key={`${e.kind}-${e.ts}-${idx}`} className="exec-feed-row exec-feed-row--inline">
+              <ExecTag {...tag} />
+              <span className="exec-feed-title">{EVENT_LABELS[e.kind || ""] || e.kind}</span>
+              {summary && <span className="exec-feed-summary">{summary}</span>}
+              <span className="exec-node-ts">{fmtExecTs(e.ts)}</span>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -215,8 +226,11 @@ function SplitBanner({ events }: { events: ProjectEvent[] }) {
   const last = events[events.length - 1]
   const summary = eventDetail(last)
   return (
-    <div className="exec-split-banner">
-      <div className="exec-split-title">{EVENT_LABELS.task_split}</div>
+    <div className="exec-step exec-step--split">
+      <header className="exec-step-head">
+        <ExecTag label="拆分" tone="split" />
+        <span className="exec-step-title">{EVENT_LABELS.task_split}</span>
+      </header>
       {summary && <div className="exec-split-summary">{summary}</div>}
     </div>
   )
@@ -230,8 +244,6 @@ function TaskFold({
   depth,
   open,
   onToggle,
-  openPhases,
-  onPhaseToggle,
   openChildren,
   onChildToggle,
   timelines,
@@ -251,8 +263,6 @@ function TaskFold({
   depth: number
   open: boolean
   onToggle: () => void
-  openPhases: Record<string, boolean>
-  onPhaseToggle: (iid: string) => void
   openChildren: Record<string, boolean>
   onChildToggle: (id: string) => void
   timelines: Record<string, TimelineEvent[]>
@@ -270,18 +280,20 @@ function TaskFold({
   const splitEvents = taskSplitEventsFor(events, task.id)
   const activity = taskActivityEvents(events, task.id)
   const stLabel = DAG_LABELS[task.status || ""] || task.status || ""
-  const subtitle = [task.agent, task.task_type].filter(Boolean).join(" · ")
+  const agentLine = [task.agent && `Agent · ${task.agent}`, task.task_type].filter(Boolean).join(" · ")
 
   useEffect(() => {
     if (!open) return
     for (const p of phases) {
       const iid = p.interaction_id
-      if (!iid || !openPhases[iid]) continue
+      if (!iid) continue
       void loadTimeline(iid)
       if (p.status === "running") startStream(iid)
       else stopStream(iid)
     }
-  }, [open, openPhases, phases, loadTimeline, startStream, stopStream])
+  }, [open, phases, loadTimeline, startStream, stopStream])
+
+  const hasBody = phases.length > 0 || splitEvents.length > 0 || activity.length > 0 || childTasks.length > 0
 
   return (
     <div
@@ -293,6 +305,7 @@ function TaskFold({
         <span className="exec-chevron">{open ? "▾" : "▸"}</span>
         <div className="exec-node-main">
           <div className="exec-node-row1">
+            <ExecTag label="任务" tone="task" />
             <button
               type="button"
               className={`exec-task-title${selectedTaskId === task.id ? " active" : ""}`}
@@ -305,14 +318,28 @@ function TaskFold({
             </button>
             <span className={`exec-status-badge s-${task.status || "pending"}`}>{stLabel}</span>
           </div>
-          {subtitle && <div className="exec-node-meta">{subtitle}</div>}
+          {agentLine && <div className="exec-node-meta">{agentLine}</div>}
         </div>
       </div>
       {open && (
         <div className="exec-node-body exec-task-body">
+          {!hasBody && <div className="exec-empty hint">该任务暂无执行记录</div>}
+          {phases.map((p, idx) => {
+            const iid = p.interaction_id!
+            return (
+              <TaggedPhaseSection
+                key={`${iid}-${idx}`}
+                event={p}
+                timeline={timelines[iid] ?? []}
+                loading={!!loading[iid]}
+                childrenOpen={openChildren}
+                onChildToggle={onChildToggle}
+              />
+            )
+          })}
           <SplitBanner events={splitEvents} />
           <TaskActivityStrip events={activity} />
-          {childTasks.length > 0 ? (
+          {childTasks.length > 0 && (
             <div className="exec-subtasks">
               {childTasks.map((child) => (
                 <TaskFold
@@ -324,8 +351,6 @@ function TaskFold({
                   depth={depth + 1}
                   open={!!openTasks[child.id]}
                   onToggle={() => onTaskToggle(child.id)}
-                  openPhases={openPhases}
-                  onPhaseToggle={onPhaseToggle}
                   openChildren={openChildren}
                   onChildToggle={onChildToggle}
                   timelines={timelines}
@@ -340,26 +365,6 @@ function TaskFold({
                 />
               ))}
             </div>
-          ) : phases.length > 0 ? (
-            <div className="exec-phases">
-              {phases.map((p, idx) => {
-                const iid = p.interaction_id!
-                return (
-                  <PhaseBlock
-                    key={`${iid}-${idx}`}
-                    event={p}
-                    open={openPhases[iid] ?? p.status === "running"}
-                    onToggle={() => onPhaseToggle(iid)}
-                    childrenOpen={openChildren}
-                    onChildToggle={onChildToggle}
-                    timeline={timelines[iid] ?? []}
-                    loading={!!loading[iid]}
-                  />
-                )
-              })}
-            </div>
-          ) : (
-            <div className="exec-empty hint">该任务暂无执行记录</div>
           )}
         </div>
       )}
@@ -379,13 +384,13 @@ export function ProjectExecTree({
   onSelectTask?: (taskId: string) => void
 }) {
   const [openTasks, setOpenTasks] = useState<Record<string, boolean>>({})
-  const [openPhases, setOpenPhases] = useState<Record<string, boolean>>({})
   const [openChildren, setOpenChildren] = useState<Record<string, boolean>>({})
   const [timelines, setTimelines] = useState<Record<string, TimelineEvent[]>>({})
   const [loading, setLoading] = useState<Record<string, boolean>>({})
 
   const interactionsByTask = useMemo(() => groupInteractionsByTask(events), [events])
   const rootTasks = useMemo(() => listExecRootTasks(tasks, events), [tasks, events])
+  const projectLevelInteractions = useMemo(() => listProjectLevelInteractions(events), [events])
 
   const visibleTaskIds = useMemo(() => {
     const ids = new Set<string>()
@@ -468,28 +473,14 @@ export function ProjectExecTree({
     })
   }, [rootTasks, selectedTaskId])
 
-  useEffect(() => {
-    const next: Record<string, boolean> = {}
-    for (const list of Object.values(interactionsByTask)) {
-      for (const p of list) {
-        const iid = p.interaction_id
-        if (!iid) continue
-        if (p.status === "running") next[iid] = true
-      }
-    }
-    if (Object.keys(next).length) {
-      setOpenPhases((prev) => ({ ...next, ...prev }))
-    }
-  }, [interactionsByTask])
-
-  if (!rootTasks.length && !activityEvents.length) {
+  if (!rootTasks.length && !activityEvents.length && !projectLevelInteractions.length) {
     return <span className="hint">暂无执行事件</span>
   }
 
   return (
     <div className="exec-panel">
       <p className="exec-panel-hint">
-        按任务折叠：展开后依次为派发评估、执行与评审阶段；若已拆分则展示子任务；循环轮次显示在任务内。
+        每个任务展示 Agent 的思考与执行过程；彩色标签标出阶段与内容类型。
       </p>
       <div className="exec-tree">
         {rootTasks.map((task) => (
@@ -502,8 +493,6 @@ export function ProjectExecTree({
             depth={0}
             open={!!openTasks[task.id]}
             onToggle={() => setOpenTasks((prev) => ({ ...prev, [task.id]: !prev[task.id] }))}
-            openPhases={openPhases}
-            onPhaseToggle={(iid) => setOpenPhases((prev) => ({ ...prev, [iid]: !prev[iid] }))}
             openChildren={openChildren}
             onChildToggle={(cid) => setOpenChildren((prev) => ({ ...prev, [cid]: !prev[cid] }))}
             timelines={timelines}
@@ -519,13 +508,23 @@ export function ProjectExecTree({
         ))}
         {!rootTasks.length && <p className="hint exec-tree-empty">暂无可展示的任务执行记录</p>}
       </div>
-      {activityEvents.length > 0 && (
+      {(projectLevelInteractions.length > 0 || activityEvents.length > 0) && (
         <details className="exec-activity-section">
           <summary>
             项目动态
-            <span className="exec-activity-count">{activityEvents.length}</span>
+            <span className="exec-activity-count">
+              {projectLevelInteractions.length + activityEvents.length}
+            </span>
           </summary>
-          <ProjectActivityFeed events={activityEvents} />
+          <ProjectActivityFeed
+            events={[
+              ...projectLevelInteractions.map((e) => ({
+                ...e,
+                category: "interaction" as const,
+              })),
+              ...activityEvents,
+            ]}
+          />
         </details>
       )}
     </div>

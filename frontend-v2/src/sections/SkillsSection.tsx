@@ -61,7 +61,7 @@ function SkillOverviewHome({
     return (
       <WelcomePane
         title="暂无 Skill"
-        description="左侧可新建 Skill 分类（创建目录）；叶子 Skill 放在分类子目录或 business/skills 顶层。"
+        description="左侧可新建展示分类（写入 categories.yaml）；每个 Skill 目录固定在 business/skills/<id>/。"
       />
     )
   }
@@ -358,7 +358,7 @@ export function SkillsSection() {
               <Label>显示名称</Label>
               <Input value={newCatName} onChange={(e) => setNewCatName(e.target.value)} placeholder="例如 设计工具" />
             </div>
-            <p className="hint text-xs">将在 business/skills/&lt;id&gt;/ 创建目录与 category.yaml。</p>
+            <p className="hint text-xs">写入 business/skills/categories.yaml，不会创建物理子目录。</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>

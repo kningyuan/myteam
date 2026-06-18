@@ -21,6 +21,7 @@ export type ProjectOverview = {
   status?: string
   mode?: string
   workflow?: string
+  workflow_label?: string
   goal?: string
   launch_error?: string
   created_at?: string
@@ -106,8 +107,17 @@ export type ProjectSummary = {
   updated_at?: string
   meta?: {
     workflow?: string
+    workflow_label?: string
     hub_kernel_run?: { running?: boolean; error?: string }
   }
+}
+
+/** 项目概览 / 列表中展示的工作流名称（不含 id） */
+export function projectWorkflowLabel(
+  ov: Pick<ProjectOverview, "workflow_label" | "launch">,
+): string {
+  const label = (ov.workflow_label || ov.launch?.workflow_label || "").trim()
+  return label || "自由规划"
 }
 
 export type ProjectTask = {
@@ -185,6 +195,7 @@ export async function listProjects(): Promise<ProjectSummary[]> {
       mode?: string
       progress?: number
       task_count?: number
+      workflow_label?: string
       updated_at?: string
     }[]
   }>("/api/obs/projects")
@@ -196,6 +207,7 @@ export async function listProjects(): Promise<ProjectSummary[]> {
     progress: p.progress,
     task_count: p.task_count,
     updated_at: p.updated_at,
+    meta: p.workflow_label ? { workflow: p.workflow_label, workflow_label: p.workflow_label } : undefined,
   }))
 }
 
@@ -208,7 +220,10 @@ export async function getProject(projectId: string): Promise<ProjectDetail> {
     name: ov.title || ov.project_id,
     status: ov.status,
     goal: ov.goal || ov.launch?.goal,
-    meta: { workflow: ov.workflow || ov.launch?.workflow },
+    meta: {
+      workflow: projectWorkflowLabel(ov),
+      workflow_label: projectWorkflowLabel(ov),
+    },
     tasks: (ov.tasks ?? []).map((t) => ({
       id: t.id,
       name: t.name,

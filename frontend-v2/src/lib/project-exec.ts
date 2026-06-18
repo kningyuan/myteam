@@ -2,6 +2,9 @@ import type { ProjectEvent, ProjectOverview } from "@/lib/api/projects"
 
 export type ExecTask = NonNullable<ProjectOverview["tasks"]>[number]
 
+/** 任务级执行过程：跳过项目级交互 */
+export const TASK_EXEC_SKIP_INTERACTIONS = new Set(["team_config", "task_plan"])
+
 export function taskHasInteractions(events: ProjectEvent[], taskId: string): boolean {
   return events.some((e) => e.category === "interaction" && e.task_id === taskId)
 }
@@ -31,12 +34,23 @@ export function groupInteractionsByTask(events: ProjectEvent[]): Record<string, 
   const out: Record<string, ProjectEvent[]> = {}
   for (const e of events) {
     if (e.category !== "interaction" || !e.task_id || !e.interaction_id) continue
+    if (TASK_EXEC_SKIP_INTERACTIONS.has(e.kind || "")) continue
     ;(out[e.task_id] ??= []).push(e)
   }
   for (const list of Object.values(out)) {
     list.sort((a, b) => (a.ts || "").localeCompare(b.ts || ""))
   }
   return out
+}
+
+/** 项目级交互（组队、规划等），不进任务折叠 */
+export function listProjectLevelInteractions(events: ProjectEvent[]): ProjectEvent[] {
+  return events.filter(
+    (e) =>
+      e.category === "interaction" &&
+      e.interaction_id &&
+      TASK_EXEC_SKIP_INTERACTIONS.has(e.kind || ""),
+  )
 }
 
 export function taskSplitEventsFor(

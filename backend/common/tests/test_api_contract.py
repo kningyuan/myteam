@@ -23,7 +23,7 @@ from common.store import Store  # noqa: E402
 # ── A：项目总览全集（含 title） ─────────────────────────────
 # 用全集断言（== 而非 in）落实 §4.5：改前端消费字段须先改契约 + 测试。
 # 增删字段都会让此用例变红，强制走「变更登记」流程。
-OVERVIEW_KEYS = {"project_id", "title", "status", "mode", "workflow", "launch_error",
+OVERVIEW_KEYS = {"project_id", "title", "status", "mode", "workflow", "workflow_label", "launch_error",
                  "created_at", "updated_at", "launch",
                  "task_counts", "progress", "tokens", "budget", "budget_ratio", "budget_state", "tasks",
                  "iterations"}

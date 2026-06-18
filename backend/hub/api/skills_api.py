@@ -246,6 +246,8 @@ async def skill_matrix_audit():
     """catalog × templates 覆盖摘要（只读）。"""
     import yaml
 
+    from common.skill_catalog import audit_catalog_router_paths
+    from common.skill_link import iter_business_skill_dir_names
     from common.task_type_store import list_task_types_for_api
 
     catalog_path = MYTEAM_ROOT / "business/skills/catalog.yaml"
@@ -261,6 +263,7 @@ async def skill_matrix_audit():
 
     missing_router = sorted(registered - skill_dirs - catalog_types)
     missing_catalog = sorted(skill_dirs - catalog_types)
+    router_audit = audit_catalog_router_paths(catalog_path)
 
     return {
         "registered_task_types": len(registered),
@@ -269,4 +272,7 @@ async def skill_matrix_audit():
         "draft_count": len(list_skill_drafts()),
         "missing_router_skill_md": missing_router,
         "in_skill_dir_not_catalog": missing_catalog,
+        "catalog_router_total": router_audit["router_total"],
+        "catalog_router_ok": router_audit["router_ok"],
+        "catalog_missing_routers": router_audit["missing_routers"],
     }

@@ -6,6 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from common.skill_catalog import (  # noqa: E402
+    audit_catalog_router_paths,
     get_skill_library_entry,
     list_all_skills,
     list_skill_library,
@@ -112,3 +113,35 @@ def test_update_skill_name_bumps_updated_at(tmp_path, monkeypatch):
     assert items[0]["id"] == skill_id
     assert items[0]["name"] == "新名"
     assert items[0]["updated_at"] > old_ts + 100
+
+
+def test_catalog_router_paths_exist():
+    """catalog.yaml 声明的 router 须指向真实 SKILL.md。"""
+    audit = audit_catalog_router_paths()
+    assert audit["router_total"] >= 1
+    assert audit["missing_routers"] == [], audit["missing_routers"]
+    assert audit["router_ok"] == audit["router_total"]
+
+
+def test_get_skill_file_follows_vendor_symlink(tmp_path, monkeypatch):
+    """vendor SKILL.md 软链到锚点外时仍可读（如 officecli/SKILL.md -> ../../SKILL.md）。"""
+    from common.skill_catalog import get_skill_file
+
+    upstream = tmp_path / "vendor-repo"
+    upstream.mkdir()
+    (upstream / "SKILL.md").write_text("# upstream skill\n", encoding="utf-8")
+    skill_anchor = tmp_path / "business" / "skills" / "officecli"
+    skill_anchor.parent.mkdir(parents=True)
+    skill_anchor.symlink_to(upstream / "skills" / "officecli", target_is_directory=True)
+    (upstream / "skills" / "officecli").mkdir(parents=True)
+    (upstream / "skills" / "officecli" / "SKILL.md").symlink_to("../../SKILL.md")
+
+    skills_dir = tmp_path / "business" / "skills"
+    monkeypatch.setattr("common.skill_catalog.SKILLS_DIR", skills_dir)
+    monkeypatch.setattr("common.skill_link.SKILLS_DIR", skills_dir)
+    monkeypatch.setattr("common.skill_catalog.MYTEAM_ROOT", tmp_path)
+
+    out = get_skill_file("officecli", "SKILL.md")
+    assert out is not None
+    assert out["exists"] is True
+    assert "upstream skill" in out["content"]

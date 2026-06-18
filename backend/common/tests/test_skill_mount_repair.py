@@ -92,22 +92,23 @@ def test_move_skill_remounts_workspace_symlink(skills_env, tmp_path, monkeypatch
 
     result = move_skill_to_category("alpha", "tools")
     assert result["success"] is True
-    assert resolve_skill_source_dir("alpha") == skills_env / "tools" / "alpha"
+    assert resolve_skill_source_dir("alpha") == skills_env / "alpha"
 
     raw = _load_registry_file()
     assert raw["agents"]["dev"]["skills"] == ["alpha"]
 
     new_link = ws / ".claude" / "skills" / "alpha"
     assert new_link.is_symlink()
-    assert new_link.resolve() == (skills_env / "tools" / "alpha").resolve()
+    assert new_link.resolve() == (skills_env / "alpha").resolve()
     assert result["remount"]["success"] is True
 
 
 def test_normalize_agent_skill_mounts_dedupes_path_and_id(skills_env, tmp_path, monkeypatch):
     create_skill_category("tools", name="工具箱")
-    nested = skills_env / "tools" / "beta"
-    nested.mkdir(parents=True)
-    (nested / "SKILL.md").write_text("---\ndescription: d\n---\n", encoding="utf-8")
+    flat = skills_env / "beta"
+    flat.mkdir()
+    (flat / "SKILL.md").write_text("---\ndescription: d\n---\n", encoding="utf-8")
+    move_skill_to_category("beta", "tools")
 
     registry_path = tmp_path / "config" / "agents_registry.json"
     registry_path.parent.mkdir(parents=True)

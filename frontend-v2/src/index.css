@@ -3008,6 +3008,171 @@ body.col-resizing * {
   margin-left: 0;
 }
 
+/* 内容类型 / 阶段标签 */
+.exec-tag {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.5;
+}
+
+.exec-tag--task {
+  background: color-mix(in srgb, #6366f1 18%, transparent);
+  color: #818cf8;
+}
+
+.exec-tag--evaluate {
+  background: color-mix(in srgb, #8b5cf6 18%, transparent);
+  color: #a78bfa;
+}
+
+.exec-tag--execute {
+  background: color-mix(in srgb, #3b82f6 18%, transparent);
+  color: #60a5fa;
+}
+
+.exec-tag--review {
+  background: color-mix(in srgb, #eab308 18%, transparent);
+  color: #facc15;
+}
+
+.exec-tag--think {
+  background: color-mix(in srgb, #06b6d4 15%, transparent);
+  color: #22d3ee;
+}
+
+.exec-tag--skill {
+  background: color-mix(in srgb, #10b981 15%, transparent);
+  color: #34d399;
+}
+
+.exec-tag--text {
+  background: color-mix(in srgb, #64748b 15%, transparent);
+  color: #94a3b8;
+}
+
+.exec-tag--gate {
+  background: color-mix(in srgb, #a855f7 15%, transparent);
+  color: #c084fc;
+}
+
+.exec-tag--loop,
+.exec-tag--split {
+  background: color-mix(in srgb, #f97316 15%, transparent);
+  color: #fb923c;
+}
+
+.exec-tag--error {
+  background: color-mix(in srgb, #ef4444 15%, transparent);
+  color: #f87171;
+}
+
+.exec-tag--meta {
+  background: var(--color-muted);
+  color: var(--color-muted-foreground);
+}
+
+.exec-step {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--color-muted) 30%, transparent);
+}
+
+.exec-step-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-background);
+}
+
+.exec-step-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.exec-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px 12px;
+}
+
+.exec-step--split {
+  padding: 8px 12px;
+}
+
+.exec-step--split .exec-split-summary {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--color-muted-foreground);
+}
+
+.exec-feed-row {
+  border-radius: 6px;
+  border: 1px solid transparent;
+}
+
+.exec-feed-row--inline,
+.exec-feed-row--think-label {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 2px;
+}
+
+.exec-feed-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.exec-feed-head:hover {
+  background: var(--color-muted);
+}
+
+.exec-feed-title {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.exec-feed-summary {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--color-muted-foreground);
+  word-break: break-word;
+}
+
+.exec-feed-body {
+  padding: 4px 8px 8px 28px;
+}
+
+.exec-chevron--sm {
+  margin-left: auto;
+  font-size: 10px;
+}
+
+[data-theme="light"] .exec-tag--task { color: #4f46e5; }
+[data-theme="light"] .exec-tag--evaluate { color: #7c3aed; }
+[data-theme="light"] .exec-tag--execute { color: #2563eb; }
+[data-theme="light"] .exec-tag--review { color: #ca8a04; }
+[data-theme="light"] .exec-tag--think { color: #0891b2; }
+[data-theme="light"] .exec-tag--skill { color: #059669; }
+
 .exec-node-ts {
   margin-left: auto;
   font-size: 11px;

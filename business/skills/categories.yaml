@@ -1,0 +1,37 @@
+# Skill 展示分类（标签）— 仅元数据，不对应物理子目录
+version: "1"
+categories:
+  methodology:
+    name: 方法论
+    description: 专业领域方法论
+    members:
+      - backend-engineering-methodology
+      - coordination-methodology
+      - diagram-build
+      - frontend-architecture-methodology
+      - frontend-engineering-methodology
+      - product-methodology
+      - qa-methodology
+      - system-architecture-methodology
+      - workflow-design
+  code-project:
+    name: 代码工程
+    description: 代码工程相关技能
+    members:
+      - code-audit
+      - quality-review
+  officecli:
+    name: Office 文档套件
+    description: OfficeCLI 上游 skills 全套，含 docx/pptx/xlsx 及场景化子 skill。
+    members:
+      - officecli
+      - officecli-docx
+      - officecli-pptx
+      - officecli-xlsx
+      - officecli-pitch-deck
+      - officecli-academic-paper
+      - officecli-data-dashboard
+      - officecli-financial-model
+      - officecli-word-form
+      - morph-ppt
+      - morph-ppt-3d

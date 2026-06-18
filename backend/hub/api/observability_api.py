@@ -61,6 +61,7 @@ async def list_projects():
                 "progress": ov.get("progress", 0),
                 "task_count": len(ov.get("tasks", [])),
                 "updated_at": p.get("updated_at"),
+                "workflow_label": ov.get("workflow_label") or "",
             })
         return {"projects": out}
     finally:
