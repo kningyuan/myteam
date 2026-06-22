@@ -7,7 +7,11 @@ import {
   getSkillLibraryItem,
   listSkillCategories,
   listSkillLibrary,
+  listSkillPending,
+  approveSkillPending,
+  rejectSkillPending,
   type SkillLibraryItem,
+  type SkillPendingItem,
 } from "@/lib/api/workflows"
 import { useResourceQuery, useOnResourceInvalidate } from "@/hooks/useResourceQuery"
 import { SkillDetailPanel } from "@/components/skills/SkillDetailPanel"
@@ -134,6 +138,19 @@ export function SkillsSection() {
   const [newCatId, setNewCatId] = useState("")
   const [newCatName, setNewCatName] = useState("")
   const [creating, setCreating] = useState(false)
+  const [pendingItems, setPendingItems] = useState<SkillPendingItem[]>([])
+  const [pendingOpen, setPendingOpen] = useState(false)
+  const [pendingBusy, setPendingBusy] = useState<string | null>(null)
+
+  const reloadPending = useCallback(() => {
+    listSkillPending()
+      .then(setPendingItems)
+      .catch(() => setPendingItems([]))
+  }, [])
+
+  useEffect(() => {
+    reloadPending()
+  }, [reloadPending])
 
   const memberIdSet = useMemo(() => {
     const ids = new Set<string>()
@@ -232,6 +249,33 @@ export function SkillsSection() {
     }
   }
 
+  async function handleApprovePending(id: string) {
+    setPendingBusy(id)
+    try {
+      await approveSkillPending(id)
+      toast.success("已批准并写入 Skill")
+      reloadPending()
+      void reloadLibrary()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "批准失败")
+    } finally {
+      setPendingBusy(null)
+    }
+  }
+
+  async function handleRejectPending(id: string) {
+    setPendingBusy(id)
+    try {
+      await rejectSkillPending(id)
+      toast.success("已拒绝")
+      reloadPending()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "拒绝失败")
+    } finally {
+      setPendingBusy(null)
+    }
+  }
+
   return (
     <DiscordShell
       list={
@@ -253,6 +297,16 @@ export function SkillsSection() {
               title="管理分类标签"
             >
               标签
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2 text-[11px]"
+              onClick={() => setPendingOpen(true)}
+              title="Skill review 待审批"
+            >
+              待审批{pendingItems.length ? ` (${pendingItems.length})` : ""}
             </Button>
             <Button
               type="button"
@@ -330,6 +384,54 @@ export function SkillsSection() {
           />
         )}
       </div>
+
+      <Dialog open={pendingOpen} onOpenChange={setPendingOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Skill review 待审批（_pending/）</DialogTitle>
+          </DialogHeader>
+          {pendingItems.length ? (
+            <div className="max-h-[60vh] space-y-3 overflow-y-auto py-2">
+              {pendingItems.map((p) => (
+                <div key={p.pending_id} className="rounded-md border border-[var(--color-border)] p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium">{p.skill_id || "（无 skill_id）"}</p>
+                      <p className="font-mono text-xs text-[var(--color-muted-foreground)]">
+                        {p.pending_id} · {p.action || "patch"} · {p.task_id}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        disabled={pendingBusy === p.pending_id}
+                        onClick={() => void handleApprovePending(p.pending_id)}
+                      >
+                        批准
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={pendingBusy === p.pending_id}
+                        onClick={() => void handleRejectPending(p.pending_id)}
+                      >
+                        拒绝
+                      </Button>
+                    </div>
+                  </div>
+                  {p.patch_preview ? (
+                    <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-[var(--color-muted)]/30 p-2 font-mono text-xs">
+                      {p.patch_preview}
+                    </pre>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="py-4 text-sm text-[var(--color-muted-foreground)]">暂无待审批包</p>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <SkillCategoryManageDialog
         open={manageOpen}

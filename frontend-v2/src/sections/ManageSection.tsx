@@ -15,7 +15,7 @@ import {
   type AgentSkillRef,
   type AgentSummary,
 } from "@/lib/api/agents"
-import { listMemory, getMemory, deleteMemory, type MemoryEntry } from "@/lib/api/projects"
+import { listMemory, getMemory, deleteMemory, createMemory, updateMemory, type MemoryEntry } from "@/lib/api/projects"
 import { listMcpLibrary } from "@/lib/api/mcp"
 import {
   createTaskType,
@@ -36,6 +36,7 @@ import {
 } from "@/lib/api/workflows"
 import { useResourceQuery, useOnResourceInvalidate } from "@/hooks/useResourceQuery"
 import { AgentEditDialog } from "@/components/manage/AgentEditDialog"
+import { PreferencesLibraryPanel } from "@/components/manage/PreferencesLibraryPanel"
 import { ManageSegmentNav } from "@/components/manage/ManageSegmentNav"
 import { matchQuery } from "@/components/manage/ManageSearchBar"
 import { sortByModifiedDesc } from "@/lib/sortByModified"
@@ -59,12 +60,11 @@ import { MarkdownBody } from "@/components/MarkdownBody"
 import { gateLabel } from "@/components/ui/page"
 import { cn } from "@/lib/utils"
 
-type ManageTab = "agents" | "task-types" | "templates" | "knowledge"
+type ManageTab = "agents" | "preferences" | "task-types" | "templates" | "knowledge"
 
 const AGENT_WORKSPACE_FILES = [
   "IDENTITY.md",
   "SOUL.md",
-  "USER.md",
 ] as const
 
 type AgentWorkspaceFileName = (typeof AGENT_WORKSPACE_FILES)[number]
@@ -72,7 +72,6 @@ type AgentWorkspaceFileName = (typeof AGENT_WORKSPACE_FILES)[number]
 const AGENT_FILE_LABELS: Record<AgentWorkspaceFileName, string> = {
   "IDENTITY.md": "身份定义",
   "SOUL.md": "人格风格",
-  "USER.md": "用户偏好",
 }
 
 type ConfigFileKey =
@@ -175,7 +174,7 @@ function AgentConfigFilesEditor({
       <header className="agent-detail-capability-head">
         <div>
           <h3 className="text-sm font-semibold">Markdown 配置</h3>
-          <p className="hint text-xs">团队通用规则改一处全员更新；下方为当前 Agent 工作区专属文件</p>
+          <p className="hint text-xs">团队通用规则改一处全员更新；下方为当前 Agent 人设文件（身份/风格）。团队偏好请改「偏好库」tab。</p>
         </div>
       </header>
       <div className="agent-config-files">
@@ -534,13 +533,22 @@ function TemplateDetailPanel({
 function KnowledgeDetailPanel({
   entry,
   onDelete,
+  onUpdated,
 }: {
   entry: MemoryEntry
   onDelete: () => void
+  onUpdated: (row: MemoryEntry) => void
 }) {
   const [detail, setDetail] = useState<MemoryEntry | null>(null)
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [titleDraft, setTitleDraft] = useState("")
+  const [contentDraft, setContentDraft] = useState("")
+  const [tagsDraft, setTagsDraft] = useState("")
+  const [projectDraft, setProjectDraft] = useState("")
+  const [taskDraft, setTaskDraft] = useState("")
 
   useEffect(() => {
     if (!entry.id) {
@@ -568,6 +576,40 @@ function KnowledgeDetailPanel({
   const shown = detail ?? entry
   const body = shown.content ?? shown.preview ?? ""
 
+  useEffect(() => {
+    setTitleDraft(shown.title || "")
+    setContentDraft(body)
+    setTagsDraft((shown.tags || []).join(", "))
+    setProjectDraft(shown.project_id || "")
+    setTaskDraft(shown.task_id || "")
+  }, [shown.id, shown.title, shown.project_id, shown.task_id, shown.tags, body])
+
+  async function handleSave() {
+    if (!entry.id) return
+    setSaving(true)
+    try {
+      const tags = tagsDraft
+        .split(/[,，]/)
+        .map((t) => t.trim())
+        .filter(Boolean)
+      const row = await updateMemory(entry.id, {
+        title: titleDraft.trim(),
+        content: contentDraft,
+        project_id: projectDraft.trim(),
+        task_id: taskDraft.trim(),
+        tags,
+      })
+      setDetail(row)
+      setEditing(false)
+      onUpdated(row)
+      toast.success("知识条目已保存")
+    } catch (e) {
+      toast.error("保存失败", { description: e instanceof Error ? e.message : "" })
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function handleDelete() {
     if (!entry.id) return
     if (!window.confirm(`删除知识条目「${shown.title || entry.id}」？\n\n此操作不可恢复。`)) return
@@ -590,15 +632,25 @@ function KnowledgeDetailPanel({
           <h2 className="text-lg font-semibold">{shown.title || "（无标题）"}</h2>
           <p className="mt-1 font-mono text-xs text-[var(--color-muted-foreground)]">#{shown.id}</p>
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          className="border-[var(--color-destructive)] text-[var(--color-destructive)] hover:bg-[var(--color-destructive)]/10"
-          disabled={!entry.id || deleting}
-          onClick={() => void handleDelete()}
-        >
-          {deleting ? "删除中…" : "删除"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" disabled={!entry.id || loading} onClick={() => setEditing((v) => !v)}>
+            {editing ? "取消编辑" : "编辑"}
+          </Button>
+          {editing && (
+            <Button size="sm" disabled={!entry.id || saving} onClick={() => void handleSave()}>
+              {saving ? "保存中…" : "保存"}
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-[var(--color-destructive)] text-[var(--color-destructive)] hover:bg-[var(--color-destructive)]/10"
+            disabled={!entry.id || deleting}
+            onClick={() => void handleDelete()}
+          >
+            {deleting ? "删除中…" : "删除"}
+          </Button>
+        </div>
       </div>
       <Separator className="my-5" />
       <dl className="detail-dl">
@@ -620,7 +672,32 @@ function KnowledgeDetailPanel({
         </div>
       </dl>
       <Separator className="my-5" />
-      {loading ? (
+      {editing ? (
+        <div className="grid gap-3">
+          <div className="grid gap-2">
+            <Label>标题</Label>
+            <Input value={titleDraft} onChange={(e) => setTitleDraft(e.target.value)} />
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label>项目 ID</Label>
+              <Input value={projectDraft} onChange={(e) => setProjectDraft(e.target.value)} />
+            </div>
+            <div className="grid gap-2">
+              <Label>任务 ID</Label>
+              <Input value={taskDraft} onChange={(e) => setTaskDraft(e.target.value)} />
+            </div>
+          </div>
+          <div className="grid gap-2">
+            <Label>标签（逗号分隔）</Label>
+            <Input value={tagsDraft} onChange={(e) => setTagsDraft(e.target.value)} />
+          </div>
+          <div className="grid gap-2">
+            <Label>正文</Label>
+            <Textarea rows={14} value={contentDraft} onChange={(e) => setContentDraft(e.target.value)} className="font-mono text-xs" />
+          </div>
+        </div>
+      ) : loading ? (
         <p className="text-sm text-[var(--color-muted-foreground)]">加载正文…</p>
       ) : (
         <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-muted-foreground)]">
@@ -643,6 +720,12 @@ export function ManageSection() {
   const [kinds, setKinds] = useState<OutcomeKind[]>([])
   const [entries, setEntries] = useState<MemoryEntry[]>([])
   const [kbLoading, setKbLoading] = useState(false)
+  const [kbKind, setKbKind] = useState<"kb" | "global" | "project" | "l1" | "all">("kb")
+  const [kbCreateOpen, setKbCreateOpen] = useState(false)
+  const [kbCreateTitle, setKbCreateTitle] = useState("")
+  const [kbCreateProject, setKbCreateProject] = useState("")
+  const [kbCreateContent, setKbCreateContent] = useState("")
+  const [kbCreateBusy, setKbCreateBusy] = useState(false)
 
   const [agentEditOpen, setAgentEditOpen] = useState(false)
   const [agentCreateOpen, setAgentCreateOpen] = useState(false)
@@ -693,7 +776,7 @@ export function ManageSection() {
     let cancelled = false
     setKbLoading(true)
     const timer = window.setTimeout(() => {
-      listMemory({ limit: 200, text: search.trim() || undefined })
+      listMemory({ limit: 200, text: search.trim() || undefined, kind: kbKind })
         .then((rows) => {
           if (!cancelled) setEntries(rows)
         })
@@ -708,7 +791,7 @@ export function ManageSection() {
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [activeTab, search])
+  }, [activeTab, search, kbKind])
 
   const filteredAgents = useMemo(
     () =>
@@ -772,6 +855,30 @@ export function ManageSection() {
     }, 400)
     return () => window.clearTimeout(timer)
   }, [agentCreateOpen, newAgentDesc, newAgentId])
+
+  async function handleCreateKnowledge() {
+    const title = kbCreateTitle.trim()
+    const project_id = kbCreateProject.trim()
+    if (!title || !project_id) {
+      toast.error("标题与项目 ID 必填")
+      return
+    }
+    setKbCreateBusy(true)
+    try {
+      const row = await createMemory({ project_id, title, content: kbCreateContent })
+      setEntries((prev) => [row, ...prev])
+      setKbCreateOpen(false)
+      setKbCreateTitle("")
+      setKbCreateProject("")
+      setKbCreateContent("")
+      if (row.id) navigate(`/manage/knowledge/${row.id}`)
+      toast.success("已创建知识条目")
+    } catch (e) {
+      toast.error("创建失败", { description: e instanceof Error ? e.message : "" })
+    } finally {
+      setKbCreateBusy(false)
+    }
+  }
 
   async function handleDeleteKnowledge(entry: MemoryEntry) {
     if (!entry.id) return
@@ -1019,7 +1126,9 @@ export function ManageSection() {
   const searchPlaceholder =
     activeTab === "agents"
       ? "搜索 Agent…"
-      : activeTab === "templates"
+      : activeTab === "preferences"
+        ? ""
+        : activeTab === "templates"
         ? "搜索模板…"
         : activeTab === "task-types"
           ? "搜索任务类型…"
@@ -1034,11 +1143,13 @@ export function ManageSection() {
             action={listAction}
             tabs={<ManageSegmentNav />}
             search={
+              activeTab === "preferences" ? undefined : (
               <input
                 placeholder={searchPlaceholder}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
+              )
             }
             widthStorageKey="agentHub.manageListWidth"
           >
@@ -1077,6 +1188,12 @@ export function ManageSection() {
                   onClick={() => navigate(`/manage/templates/${encodeURIComponent(t.id)}`)}
                 />
               ))}
+
+            {activeTab === "preferences" && (
+              <p className="px-4 py-6 text-center text-xs text-[var(--color-muted-foreground)]">
+                团队偏好库在右侧编辑；全员 Agent 共用，不按成员分叉。
+              </p>
+            )}
 
             {activeTab === "knowledge" &&
               (kbLoading ? (
@@ -1167,11 +1284,51 @@ export function ManageSection() {
             </>
           )}
 
+          {activeTab === "preferences" && (
+            <>
+              <WorkspaceHeader
+                title="偏好库"
+                description="人类操作规则与交付标准；execute harness 注入全员 Agent，与 Agent 人设（IDENTITY/SOUL）分离。"
+              />
+              <PreferencesLibraryPanel />
+            </>
+          )}
+
           {activeTab === "knowledge" && (
             <>
-              <WorkspaceHeader title="知识库" description="项目运行沉淀的长期记忆，可查看全文或删除条目。" />
+              <WorkspaceHeader
+                title="知识库"
+                description="任务沉淀与可检索经验。团队通用条目用 project_id=__global__；项目专属用具体 project_id。"
+              />
+              <div className="mb-4 flex flex-wrap items-center gap-2 px-4">
+                {(
+                  [
+                    ["kb", "全部 KB"],
+                    ["global", "团队通用"],
+                    ["project", "按项目"],
+                    ["l1", "L1 工作记忆"],
+                    ["all", "全部"],
+                  ] as const
+                ).map(([k, label]) => (
+                  <Button
+                    key={k}
+                    size="sm"
+                    variant={kbKind === k ? "default" : "outline"}
+                    onClick={() => setKbKind(k)}
+                  >
+                    {label}
+                  </Button>
+                ))}
+                <Button size="sm" variant="outline" className="ml-auto" onClick={() => setKbCreateOpen(true)}>
+                  新建条目
+                </Button>
+              </div>
               {selectedEntry ? (
-                <KnowledgeDetailPanel entry={selectedEntry} onDelete={() => void handleDeleteKnowledge(selectedEntry)} />
+                <KnowledgeDetailPanel
+                  entry={selectedEntry}
+                  onDelete={() => void handleDeleteKnowledge(selectedEntry)}
+                  onUpdated={(row) => setEntries((prev) => prev.map((e) => (e.id === row.id ? { ...e, ...row } : e)))}
+                />
               ) : (
                 <WelcomePane title="选择知识条目" description="左侧已列出全部条目，点选一项查看详情。" />
               )}
@@ -1361,6 +1518,36 @@ export function ManageSection() {
               取消
             </Button>
             <Button onClick={() => void handleSaveTemplateForm()}>保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={kbCreateOpen} onOpenChange={setKbCreateOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>新建知识条目</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            <div className="grid gap-2">
+              <Label>项目 ID *</Label>
+              <Input value={kbCreateProject} onChange={(e) => setKbCreateProject(e.target.value)} placeholder="__global__ 或 sa-human" />
+            </div>
+            <div className="grid gap-2">
+              <Label>标题 *</Label>
+              <Input value={kbCreateTitle} onChange={(e) => setKbCreateTitle(e.target.value)} />
+            </div>
+            <div className="grid gap-2">
+              <Label>正文</Label>
+              <Textarea rows={8} value={kbCreateContent} onChange={(e) => setKbCreateContent(e.target.value)} className="font-mono text-xs" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setKbCreateOpen(false)}>
+              取消
+            </Button>
+            <Button disabled={kbCreateBusy} onClick={() => void handleCreateKnowledge()}>
+              {kbCreateBusy ? "创建中…" : "创建"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

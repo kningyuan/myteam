@@ -452,3 +452,49 @@ export async function getSkillDraftDiff(draftId: string): Promise<SkillDraftDiff
 export async function getSkillMatrixAudit(): Promise<SkillMatrixAudit> {
   return hubFetch("/api/skills/matrix")
 }
+
+export type SkillPendingItem = {
+  pending_id: string
+  project_id?: string
+  task_id?: string
+  task_type?: string
+  agent_id?: string
+  action?: string
+  skill_id?: string
+  notes?: string
+  created_at?: string
+  has_patch?: boolean
+  patch_preview?: string
+  patch_content?: string
+}
+
+export async function listSkillPending(): Promise<SkillPendingItem[]> {
+  const data = await hubFetch<{ pending?: SkillPendingItem[] }>("/api/skills/pending")
+  return data.pending ?? []
+}
+
+export async function getSkillPending(pendingId: string): Promise<SkillPendingItem> {
+  return hubFetch(`/api/skills/pending/${encodeURIComponent(pendingId)}`)
+}
+
+export async function approveSkillPending(pendingId: string): Promise<{ success: boolean; applied_path?: string }> {
+  return hubFetch(`/api/skills/pending/${encodeURIComponent(pendingId)}/approve`, { method: "POST" })
+}
+
+export async function rejectSkillPending(pendingId: string): Promise<{ success: boolean }> {
+  return hubFetch(`/api/skills/pending/${encodeURIComponent(pendingId)}/reject`, { method: "POST" })
+}
+
+export type SkillReferenceItem = {
+  path: string
+  name: string
+  size?: number
+  updated_at?: number
+}
+
+export async function listSkillReferences(skillId: string): Promise<SkillReferenceItem[]> {
+  const data = await hubFetch<{ references?: SkillReferenceItem[] }>(
+    `/api/skills/library/${encodeURIComponent(skillId)}/references`,
+  )
+  return data.references ?? []
+}

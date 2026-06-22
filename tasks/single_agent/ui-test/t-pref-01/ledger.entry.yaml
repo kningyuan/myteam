@@ -1,0 +1,14 @@
+task_id: t-pref-01
+task_type: research
+intent: 验证团队偏好库注入
+summary: |
+  （任务完成后填写：关键结论 1-3 句）
+lesson:
+  worked: |
+    （有效做法）
+  failed: |
+    （无效或踩坑）
+pitfalls:
+  - （下次同类任务须避免）
+sources:
+  - （扫描路径 / 文件 / 命令）

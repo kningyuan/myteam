@@ -7,6 +7,7 @@ import { ManageSection } from "@/sections/ManageSection"
 import { ProjectsSection } from "@/sections/ProjectsSection"
 import { WorkflowsSection } from "@/sections/WorkflowsSection"
 import { SkillsSection } from "@/sections/SkillsSection"
+import { ExecuteSection } from "@/sections/ExecuteSection"
 import { McpSection } from "@/sections/McpSection"
 import { DiscordShell } from "@/components/layout/DiscordShell"
 
@@ -35,6 +36,8 @@ export default function App() {
         <Route path="groups/:groupId" element={<GroupsSection />} />
         <Route path="projects" element={<ProjectsSection />} />
         <Route path="projects/:projectId" element={<ProjectsSection />} />
+        <Route path="execute" element={<ExecuteSection />} />
+        <Route path="execute/:projectId/:taskId" element={<ExecuteSection />} />
         <Route path="manage" element={<ManageSection />} />
         <Route path="manage/:tab" element={<ManageSection />} />
         <Route path="manage/:tab/:itemId" element={<ManageSection />} />

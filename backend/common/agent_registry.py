@@ -9,6 +9,20 @@ from typing import Optional
 from common.paths import BUSINESS_CONFIG_DIR, MYTEAM_ROOT, WORKSPACES_DIR, WORKSPACE_PREFIX
 
 REGISTRY_FILE = BUSINESS_CONFIG_DIR / "agents_registry.json"
+_ROSTER_FILE = MYTEAM_ROOT / "business" / "templates" / "business-roster.json"
+
+
+def _load_business_roster_agent(agent_id: str) -> dict:
+    if not _ROSTER_FILE.is_file():
+        return {}
+    try:
+        import json
+
+        raw = json.loads(_ROSTER_FILE.read_text(encoding="utf-8"))
+        entry = (raw.get("agents") or {}).get(agent_id)
+        return dict(entry) if isinstance(entry, dict) else {}
+    except Exception:
+        return {}
 
 
 def _load_registry() -> dict:
@@ -90,8 +104,19 @@ def build_registry_capability_context(agent_id: str) -> str:
 
 
 def get_agent_info(agent_id: str) -> dict:
-    """注册表中该 agent 的原始元数据。"""
-    return dict((_load_registry().get("agents") or {}).get(agent_id) or {})
+    """注册表中该 agent 的元数据；skills/task_types 空时回退 business-roster 模板。"""
+    info = dict((_load_registry().get("agents") or {}).get(agent_id) or {})
+    roster = _load_business_roster_agent(agent_id)
+    if roster:
+        if not info.get("skills") and roster.get("skills"):
+            info["skills"] = list(roster["skills"])
+        if not info.get("task_types") and roster.get("task_types"):
+            info["task_types"] = list(roster["task_types"])
+        if not info.get("description") and roster.get("description"):
+            info["description"] = roster["description"]
+        if not info.get("capabilities") and roster.get("capabilities"):
+            info["capabilities"] = list(roster["capabilities"])
+    return info
 
 
 def get_agent_task_types(agent_id: str) -> list[str]:

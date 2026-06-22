@@ -101,3 +101,24 @@ Out of Scope 是 Gate 硬要求，不可省略或合并进正文。
 - 无 Out of Scope 的「大而全」需求
 - 验收标准无法被 qa 或脚本复现
 - 策略文档无不确定性章节
+
+---
+
+## Pitfalls（常见踩坑）
+
+- **冷启动瞎编**：未 Read 本 SKILL + 上游 research 就写结论 → 必须标注「待验证假设」
+- **Scope creep**：In Scope 不断追加、Out of Scope 空白 → Gate 会拒
+- **不可测试验收**：「体验好」「性能够」→ 改成 Given/When/Then 或可脚本化检查
+- **越界写实现**：PRD 里定死 API/表结构 → 留给 arch / system-design
+- **调研无过程**：全景调研须列出扫描路径、测试命令、文档/代码对照；禁止只读 README 就下结论
+
+---
+
+## Verification（交付前自检）
+
+- [ ] 已 Read 本 SKILL.md 全文并按 Step 1–6 执行
+- [ ] In Scope / Out of Scope 均非空（Out ≥ 3 条）
+- [ ] 每条 P0 用户故事有 R1/Rn 可测试验收
+- [ ] 策略/调研类含「不确定性」或「文档 drift」清单
+- [ ] 引用的文件路径已核实存在（不存在须标明）
+- [ ] `submit_result.metadata.chosen_skills` 含本方法论 id（若适用）

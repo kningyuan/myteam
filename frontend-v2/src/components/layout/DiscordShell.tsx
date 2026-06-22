@@ -12,6 +12,7 @@ import {
   Workflow,
   Sparkles,
   Plug,
+  Zap,
 } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ResizableColumn } from "@/components/ui/ResizableColumn"
@@ -29,6 +30,7 @@ const mainNav: {
   { to: "/chat", label: "对话", icon: MessageCircle },
   { to: "/groups", label: "群组", icon: Users },
   { to: "/projects", label: "项目", icon: FolderKanban },
+  { to: "/execute", label: "Execute", icon: Zap },
   { to: "/manage", label: "管理", icon: Layers },
   { to: "/workflows", label: "流程", icon: Workflow },
   { to: "/skills", label: "Skill", icon: Sparkles },

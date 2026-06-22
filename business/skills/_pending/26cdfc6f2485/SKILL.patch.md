@@ -1,0 +1,1 @@
+本次执行中，submit_result.py 因系统 Python 缺少 pydantic 依赖而失败，需切换到 venv/bin/python3 重试。教训：worker prompt 应预置环境检查步骤，验证 pydantic 可用后再提交。已在 product-methodology/SKILL.patch.md 中写入 Procedure/Pitfalls/Verification 三段内容。

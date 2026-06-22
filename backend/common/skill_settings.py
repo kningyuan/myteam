@@ -72,6 +72,43 @@ def agent_memory_enabled(default: bool = True) -> bool:
     return bool(raw)
 
 
+def _memstack() -> dict:
+    raw = _load().get("memstack")
+    if isinstance(raw, dict):
+        return dict(raw)
+    raw = _load().get("memory")
+    return dict(raw) if isinstance(raw, dict) else {}
+
+
+def memstack_enabled(default: bool = False) -> bool:
+    sec = _memstack()
+    if "enabled" in sec:
+        return bool(sec.get("enabled"))
+    return default
+
+
+def memstack_kb_backend(default: str = "sqlite") -> str:
+    return str(_memstack().get("kb_backend") or default).strip() or default
+
+
+def memstack_l1_backend(default: str = "sqlite") -> str:
+    name = _memstack().get("l1_backend")
+    if not name:
+        name = _agent_memory().get("backend")
+    return str(name or default).strip() or default
+
+
+def memstack_preferences_backend(default: str = "static") -> str:
+    return str(_memstack().get("preferences_backend") or default).strip() or default
+
+
+def memstack_inject_top_k(default: int = 3) -> int:
+    try:
+        return max(0, int(_memstack().get("inject_top_k", default)))
+    except (TypeError, ValueError):
+        return default
+
+
 def hub_base_url() -> str:
     """skill_config.hub.url — 进度通报/外链默认 Hub 根地址。"""
     url = str((_load().get("hub") or {}).get("url") or "").strip().rstrip("/")

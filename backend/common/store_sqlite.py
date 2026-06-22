@@ -15,7 +15,8 @@ class SQLiteStoreBackend(AbstractStoreBackend):
         self.db_path = db_path
         self._schema = schema
         self._tls = threading.local()
-        self._fts = False
+        self._message_fts = False
+        self._memory_fts = False
         self._bootstrap_schema()
 
     def _open_connection(self) -> sqlite3.Connection:
@@ -29,7 +30,10 @@ class SQLiteStoreBackend(AbstractStoreBackend):
     def _bootstrap_schema(self) -> None:
         conn = self._open_connection()
         conn.executescript(self._schema)
-        self._fts = self._init_message_fts(conn)
+        self._message_fts = self._init_message_fts(conn)
+        self._memory_fts = self._init_memory_fts(conn)
+        if self._memory_fts:
+            self._backfill_memory_fts(conn)
         conn.commit()
         conn.close()
 
@@ -43,7 +47,11 @@ class SQLiteStoreBackend(AbstractStoreBackend):
 
     @property
     def fts_enabled(self) -> bool:
-        return self._fts
+        return self._message_fts
+
+    @property
+    def memory_fts_enabled(self) -> bool:
+        return self._memory_fts
 
     def _init_message_fts(self, conn: sqlite3.Connection) -> bool:
         """message 全文索引（trigram，CJK 子串召回友好）。FTS5/trigram 不可用时回退 LIKE。"""
@@ -59,6 +67,39 @@ class SQLiteStoreBackend(AbstractStoreBackend):
             except sqlite3.OperationalError:
                 conn.execute("DROP TABLE IF EXISTS message_fts")
         return False
+
+    def _init_memory_fts(self, conn: sqlite3.Connection) -> bool:
+        """memory 全文索引（trigram，KB/L1 关键词召回）。"""
+        for tokenize in ("tokenize='trigram'", ""):
+            try:
+                conn.execute(
+                    "CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5("
+                    "title, content, project_id UNINDEXED, tags UNINDEXED"
+                    + (", " + tokenize if tokenize else "")
+                    + ")"
+                )
+                return True
+            except sqlite3.OperationalError:
+                conn.execute("DROP TABLE IF EXISTS memory_fts")
+        return False
+
+    def _backfill_memory_fts(self, conn: sqlite3.Connection) -> None:
+        """已有 memory 行回填 FTS（幂等）。"""
+        try:
+            count = conn.execute("SELECT COUNT(*) FROM memory_fts").fetchone()[0]
+            if count:
+                return
+            rows = conn.execute(
+                "SELECT id, title, content, project_id, tags FROM memory"
+            ).fetchall()
+            for r in rows:
+                conn.execute(
+                    "INSERT INTO memory_fts(rowid, title, content, project_id, tags) "
+                    "VALUES (?,?,?,?,?)",
+                    (r[0], r[1] or "", r[2] or "", r[3] or "", r[4] or "[]"),
+                )
+        except sqlite3.OperationalError:
+            pass
 
     def close(self) -> None:
         conn = getattr(self._tls, "conn", None)

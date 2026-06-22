@@ -1,0 +1,12 @@
+{
+  "pending_id": "819196ae174e",
+  "project_id": "plan-final",
+  "task_id": "t3.t3.1",
+  "task_type": "research",
+  "agent_id": "research",
+  "action": "patch",
+  "skill_id": "product-methodology",
+  "notes": "复盘教训：deliverable_adopted.path 应使用相对路径而非绝对路径。上一轮门禁失败是因为 result.artifact.path 使用了绝对路径 /Users/.../deliverables/...，Gate 拒绝。已在 SKILL.patch.md 中追加 Pitfalls 和 Verification 条目。",
+  "created_at": "2026-06-22T23:13:03.841737+00:00",
+  "write_approval": true
+}

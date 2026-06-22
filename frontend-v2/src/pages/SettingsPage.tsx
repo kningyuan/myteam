@@ -97,6 +97,15 @@ export function SettingsPage({ section = "system" }: { section?: SettingsSection
   const [splitDefault, setSplitDefault] = useState(false)
   const [maxCycles, setMaxCycles] = useState("3")
 
+  const [harnessEnabled, setHarnessEnabled] = useState(true)
+  const [executeHarness, setExecuteHarness] = useState(true)
+  const [ledgerDistill, setLedgerDistill] = useState(true)
+  const [prefsOnExecute, setPrefsOnExecute] = useState(true)
+  const [interactiveHarness, setInteractiveHarness] = useState(true)
+  const [memstackEnabled, setMemstackEnabled] = useState(false)
+  const [memstackL1, setMemstackL1] = useState(true)
+  const [injectTopK, setInjectTopK] = useState("3")
+
   const [rawCfg, setRawCfg] = useState<Record<string, unknown>>({})
   const [rawSkill, setRawSkill] = useState<Record<string, unknown>>({})
 
@@ -192,6 +201,17 @@ export function SettingsPage({ section = "system" }: { section?: SettingsSection
         }
         setSplitDefault(!!pd.split_enabled)
         setMaxCycles(String(pd.max_cycles ?? 3))
+
+        const eh = (skill.execution_harness || {}) as Record<string, unknown>
+        setHarnessEnabled(eh.enabled !== false)
+        setExecuteHarness(eh.execute_harness_enabled !== false)
+        setLedgerDistill(eh.ledger_distill_enabled !== false)
+        setPrefsOnExecute(eh.preferences_on_execute !== false)
+        setInteractiveHarness(eh.interactive_harness_enabled !== false)
+        setInjectTopK(String(eh.inject_top_k ?? 3))
+        const ms = (skill.memstack || {}) as Record<string, unknown>
+        setMemstackEnabled(!!ms.enabled)
+        setMemstackL1(ms.l1_on_execute !== false)
       })
       .catch((e: Error) => toast.error("加载设置失败", { description: e.message }))
       .finally(() => setLoading(false))
@@ -309,6 +329,20 @@ export function SettingsPage({ section = "system" }: { section?: SettingsSection
         budget_degrade_backend: budgetDegradeBackend.trim(),
         budget_degrade_model: budgetDegradeModel.trim(),
       }
+      skillCfg.execution_harness = {
+        ...((skillCfg.execution_harness || {}) as Record<string, unknown>),
+        enabled: harnessEnabled,
+        execute_harness_enabled: executeHarness,
+        ledger_distill_enabled: ledgerDistill,
+        preferences_on_execute: prefsOnExecute,
+        interactive_harness_enabled: interactiveHarness,
+        inject_top_k: parseInt(injectTopK, 10) || 3,
+      }
+      skillCfg.memstack = {
+        ...((skillCfg.memstack || {}) as Record<string, unknown>),
+        enabled: memstackEnabled,
+        l1_on_execute: memstackL1,
+      }
 
       await Promise.all([updateConfig(cfg), updateSkillConfig(skillCfg)])
       setRawCfg(cfg)
@@ -344,6 +378,10 @@ export function SettingsPage({ section = "system" }: { section?: SettingsSection
     },
     exec: { title: "执行", description: "轮询间隔、任务超时与重试策略。" },
     project: { title: "项目", description: "默认预算、并行度与 Gate 重试。" },
+    quality: {
+      title: "执行质量",
+      description: "Layer B execute harness 注入与 Memstack KB/L1；改后下次 execute 生效。",
+    },
   }
 
   const meta = sectionMeta[section]
@@ -612,6 +650,29 @@ export function SettingsPage({ section = "system" }: { section?: SettingsSection
             }
           />
         </SettingSection>
+      )}
+
+      {section === "quality" && (
+        <>
+          <SettingSection title="Execution Harness（Layer B）" description="单 Agent execute 前的 Skill/偏好/KB 注入；与 Workflow Gate 无关。">
+            <CheckboxRow label="Harness 总开关" checked={harnessEnabled} onChange={setHarnessEnabled} />
+            <CheckboxRow label="Execute 注入（prepare worker prompt）" checked={executeHarness} onChange={setExecuteHarness} />
+            <CheckboxRow label="USER 偏好注入（config/USER.md）" checked={prefsOnExecute} onChange={setPrefsOnExecute} />
+            <CheckboxRow label="群聊轻量 Harness" checked={interactiveHarness} onChange={setInteractiveHarness} />
+            <CheckboxRow label="Ledger 蒸馏入 KB" checked={ledgerDistill} onChange={setLedgerDistill} />
+            <SettingRow
+              label="KB inject top-K"
+              value={<Input value={injectTopK} onChange={(e) => setInjectTopK(e.target.value)} className="max-w-[120px]" />}
+            />
+          </SettingSection>
+          <SettingSection title="Memstack" description="KB FTS 检索与 L1 工作记忆；KB 注入需 memstack.enabled=true。">
+            <CheckboxRow label="Memstack 启用" checked={memstackEnabled} onChange={setMemstackEnabled} />
+            <CheckboxRow label="Execute 时注入 L1" checked={memstackL1} onChange={setMemstackL1} />
+            <p className="text-xs text-[var(--color-muted-foreground)]">
+              关闭 Memstack 时仍可通过 USER 偏好与 Skill references 复利；KB top-K 检索需开启 Memstack。
+            </p>
+          </SettingSection>
+        </>
       )}
     </div>
   )

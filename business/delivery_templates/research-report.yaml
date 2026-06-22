@@ -1,0 +1,28 @@
+id: research-report
+version: '1.0'
+display_name: 调研报告
+description: 调研任务交付模板
+task_types:
+- research
+deliverable_template:
+  required_heading_level: 2
+  sections:
+  - name: 调研目标
+    description: 填写「调研目标」
+    required: true
+  - name: 信息来源
+    description: 填写「信息来源」
+    required: true
+  - name: 关键发现
+    description: 填写「关键发现」
+    required: true
+  - name: 结论
+    description: 填写「结论」
+    required: true
+check_rules:
+  required_sections:
+  - 调研目标
+  - 信息来源
+  - 关键发现
+  - 结论
+  min_length: 200

@@ -59,17 +59,17 @@ class ChatService:
                     agent_id, message, cancel_event, rules_profile=profile,
                 )
                 return
-        from common.agent_memory import (
-            MemoryScope,
-            get_agent_memory_provider,
-            inject_memory_hints,
-            memory_scope_dm,
-        )
+        from memstack.facade import after_chat_turn, on_chat_turn
+        from memstack.l1.protocol import MemoryScope, memory_scope_dm
+        from memstack.l1.registry import get_agent_memory_provider
+        from memstack.orchestration.context import ChatTurnContext
 
         scope = memory_scope if isinstance(memory_scope, MemoryScope) else memory_scope_dm(agent_id)
         provider = get_agent_memory_provider()
-        hint = provider.before_turn(scope, message)
-        effective_message = inject_memory_hints(message, hint)
+        effective_message = on_chat_turn(
+            ChatTurnContext(scope=scope, message=message, owner_id=agent_id),
+            provider=provider,
+        )
         agent_cfg = _load_agents_config().get(agent_id, {})
         workspace = resolve_workspace(agent_id, agent_cfg.get("workspace"))
         if not workspace.is_dir():
@@ -138,7 +138,12 @@ class ChatService:
                 session_store.set(adapter_id, agent_id, ws_key, sid)
 
             try:
-                provider.after_turn(scope, message, "".join(assistant_buf).strip())
+                after_chat_turn(
+                    scope,
+                    message,
+                    "".join(assistant_buf).strip(),
+                    provider=provider,
+                )
             except Exception:
                 pass
 
@@ -315,6 +320,14 @@ class ChatService:
         skill_block = build_skill_context(agent_id)
         if skill_block:
             sections.append(skill_block)
+        try:
+            from execution_harness.pre.interactive import build_interactive_harness_block
+
+            harness_block = build_interactive_harness_block(agent_id)
+            if harness_block:
+                sections.append(harness_block)
+        except Exception:
+            pass
         mcp_block = build_mcp_context(agent_id)
         if mcp_block:
             sections.append(mcp_block)

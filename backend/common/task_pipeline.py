@@ -9,7 +9,7 @@ from typing import Callable, Optional
 
 from common.agent_port import AgentPort, finalize_interaction, read_adoptable_response
 from common.agent_transport import lookup_interaction_session
-from common.gate import check_execute
+from common.gate import check_execute, check_plan
 from common.process_types import BudgetExceededError, ProcessConfig, TaskOutcome
 from common.project_artifacts import (
     artifact_rel_path,
@@ -23,7 +23,9 @@ from common.deliverable_guarantee import (
     scaffold_markdown_deliverable,
     scaffold_process_artifacts,
 )
-from common.experience import promote_ledger_to_memory
+from execution_harness.facade import on_task_complete
+from execution_harness.context import TaskCompleteContext
+from common.contracts import parse_request
 from common.prompt_templates import render_execute_intent
 from common.registry import spec_for_task
 from common.store import Store
@@ -34,6 +36,26 @@ _FORMAT_ONLY_RULES = frozenset({"section_level", "required_sections"})
 
 def _is_pure_format_failure(failures: list[dict]) -> bool:
     return bool(failures) and all(f.get("rule") in _FORMAT_ONLY_RULES for f in failures)
+
+
+def _plan_to_string(result: dict) -> str:
+    """PlanResult dict → 可读字符串（供 execute prompt 注入）。"""
+    lines = ["【执行前计划】"]
+    approach = (result.get("approach") or "").strip()
+    if approach:
+        lines.append(f"  总体思路：{approach}")
+    steps = result.get("steps") or []
+    if steps:
+        lines.append("  执行步骤：")
+        for i, s in enumerate(steps, 1):
+            lines.append(f"    {i}. {s}")
+    risks = result.get("risks") or []
+    if risks:
+        lines.append(f"  已识别风险：{'；'.join(risks[:5])}")
+    conf = result.get("confidence")
+    if conf is not None:
+        lines.append(f"  自评信心：{conf}")
+    return "\n".join(lines)
 
 
 def _port_fail_reason(status: str, detail: str) -> str:
@@ -67,6 +89,78 @@ class TaskPipeline:
     config: ProcessConfig
     release_files: Callable[[str, str], None]
 
+    def _task_plan_enabled(self) -> bool:
+        return bool(self.config.plan_enabled)
+
+    def _needs_plan(self, task_type: str) -> bool:
+        if not self._task_plan_enabled():
+            return False
+        # 不需要 plan 的 task_type：review（本身就是评审）、action（动作型 task 靠实时证据）
+        spec = spec_for_task({"task_type": task_type})
+        if spec and spec.outcome_kind == "action":
+            return False
+        if task_type in ("review",):
+            return False
+        return True
+
+    def run_plan(self, project_id: str, task: dict) -> Optional[str]:
+        """预执行 plan 交互（路径 A）。产物存 task meta，失败不阻塞 execute。"""
+        if not self._needs_plan(task.get("task_type", "")):
+            return None
+        tid = task["id"]
+        agent = task.get("agent", "")
+        iid = f"{project_id}:{tid}:plan"
+        req = {
+            "interaction_id": iid,
+            "kind": "plan", "project_id": project_id, "task_id": tid,
+            "agent_id": agent,
+            "intent": f"为任务「{task.get('name') or tid}」制定执行计划",
+            "input": {"task": task},
+            "response_schema": "plan.result@1.0",
+        }
+        res = self.port.run(req)
+        if res.status != "done":
+            self.release_files(agent, iid)
+            self.store.append_run_event(iid, "plan_unreachable", {"reason": res.reason})
+            return None
+        resp = res.response
+        gate_res = check_plan(resp)
+        if not gate_res.passed:
+            self.release_files(agent, iid)
+            self.store.append_run_event(iid, "plan_gate_failed",
+                                        {"failures": gate_res.failures})
+            return None
+        result = resp.get("result", {})
+        plan_str = _plan_to_string(result)
+        self.store.update_task_meta(project_id, tid, plan=plan_str, plan_raw=result)
+        self.store.append_run_event(iid, "plan_done", {"summary": plan_str[:200]})
+        self.release_files(agent, iid)
+        return plan_str
+
+    def _record_quality(self, project_id: str, task: dict, resp: dict,
+                         attempt: int, status: str, agent: str) -> None:
+        """路径 C：将 task 质量写入 KB。"""
+        try:
+            from execution_harness.post.quality import record_quality
+
+            task_type = task.get("task_type", "")
+            quality = resp.get("quality") or {}
+            score = quality.get("score") or 0.0
+            gate_passed = status in ("completed", "needs_review")
+            review_result: str = "skipped"
+            if self.config.review_enabled:
+                review_result = "passed" if status == "completed" else "failed"
+            record_quality(
+                store=self.store, project_id=project_id,
+                task_id=task.get("id", ""),
+                task_type=task_type, agent_id=agent,
+                attempt=attempt, quality_score=score,
+                gate_passed=gate_passed,
+                review_result=review_result, status=status,
+            )
+        except Exception:
+            pass
+
     def run_task(self, project_id: str, task: dict) -> TaskOutcome:
         tid = task["id"]
         row = self.store.get_task(project_id, tid) or {}
@@ -80,6 +174,11 @@ class TaskPipeline:
         patch_hint: str = ""
 
         context = self.build_context(project_id, task) if self.config.inject_context else {}
+
+        # 路径 A：执行前 plan（不阻塞 execute）
+        plan = self.run_plan(project_id, task)
+        if plan:
+            context["plan"] = plan
 
         spec = spec_for_task(task)
         template_id = str(task.get("template_id") or "").strip()
@@ -153,6 +252,23 @@ class TaskPipeline:
 
             feedback = [f"[{f['rule']}] 期望：{f['expected']}；实际：{f['actual']}"
                         for f in gate_res.failures]
+            from execution_harness.post.failure_patterns import (
+                build_classified_summary, classify_failures, pattern_guidance,
+            )
+            classified = classify_failures(gate_res.failures)
+            classified_summary = build_classified_summary(gate_res.failures)
+            enriched_lines = [classified_summary]
+            seen_patterns: set[str] = set()
+            for cf in classified:
+                p = cf.get("pattern", "")
+                if p not in seen_patterns:
+                    seen_patterns.add(p)
+                    enriched_lines.append(f"  {cf['label']}")
+                    enriched_lines.append(f"    → {pattern_guidance(p)}")
+            enriched_lines.append("【失败详情】")
+            for f in feedback:
+                enriched_lines.append(f"  ❌ {f}")
+            feedback = enriched_lines
             if _is_pure_format_failure(gate_res.failures):
                 dv_abs = _resolve_deliverable_path(resp, base_dir)
                 if dv_abs:
@@ -334,6 +450,8 @@ class TaskPipeline:
             maybe_log_task_completion(project_id, tid, task_type, status=status)
         except Exception:
             pass
+        # 路径 C：质量画像记录
+        self._record_quality(project_id, task, resp, attempt, status, agent)
         self.capture_summary(project_id, tid, resp, rel_path)
         if is_code_project_task(task_type):
             proj = task_project_dir(project_id, tid)
@@ -346,6 +464,22 @@ class TaskPipeline:
         self.store.append_run_event(interaction_id, "gate_passed",
                                     {"final_status": status})
         base_dir = task_deliverable_base(project_id, tid, task_type)
-        promote_ledger_to_memory(base_dir, project_id, tid, task_type, self.store)
+        on_task_complete(
+            TaskCompleteContext(
+                base_dir=base_dir,
+                project_id=project_id,
+                task_id=tid,
+                task_type=task_type,
+                store=self.store,
+                agent_id=agent,
+                gate_passed=(status in ("completed", "needs_review")),
+                interaction_id=interaction_id,
+                attempt=attempt,
+                status=status,
+            ),
+            port_run=lambda r: self.port.run(
+                parse_request(r) if isinstance(r, dict) else r
+            ),
+        )
         self.release_files(agent, interaction_id)
         return TaskOutcome(tid, status, "", attempt, resp)

@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import sys
 import time
@@ -258,6 +259,11 @@ class Store:
     @property
     def _fts(self) -> bool:
         return self._backend.fts_enabled
+
+    @property
+    def _memory_fts(self) -> bool:
+        getter = getattr(self._backend, "memory_fts_enabled", None)
+        return bool(getter() if callable(getter) else False)
 
     def close(self):
         self._backend.close()
@@ -689,14 +695,51 @@ class Store:
                 "VALUES (?,?,?,?,?,?)",
                 (project_id, task_id, _dumps(tags or []), title, content, _now()),
             )
-        return cur.lastrowid
+            mid = cur.lastrowid
+            if self._memory_fts:
+                self._conn.execute(
+                    "INSERT INTO memory_fts(rowid, title, content, project_id, tags) "
+                    "VALUES (?,?,?,?,?)",
+                    (mid, title or "", content or "", project_id or "",
+                     _dumps(tags or [])),
+                )
+        return mid
 
     def memory_get(self, mem_id: int) -> Optional[dict]:
         row = self._conn.execute("SELECT * FROM memory WHERE id=?", (mem_id,)).fetchone()
         return self._mem_row(row) if row else None
 
     def memory_search(self, *, tags: Optional[list] = None, text: str = "",
-                     project_id: Optional[str] = None) -> list[dict]:
+                     project_id: Optional[str] = None, limit: int = 50) -> list[dict]:
+        q = (text or "").strip()
+        if q and self._memory_fts and len(q) >= 2:
+            tokens = [t for t in re.split(r"\s+", q) if len(t) >= 2]
+            if not tokens:
+                tokens = [q]
+            if len(tokens) == 1:
+                match_expr = '"' + tokens[0].replace('"', '""') + '"'
+            else:
+                match_expr = " OR ".join(
+                    '"' + t.replace('"', '""') + '"' for t in tokens
+                )
+            sql = (
+                "SELECT m.* FROM memory m JOIN memory_fts ON memory_fts.rowid=m.id "
+                "WHERE memory_fts MATCH ?"
+            )
+            params: list = [match_expr]
+            if project_id:
+                sql += " AND m.project_id=?"
+                params.append(project_id)
+            sql += " ORDER BY rank LIMIT ?"
+            params.append(max(1, limit))
+            try:
+                rows = self._conn.execute(sql, params).fetchall()
+                out = [self._mem_row(r) for r in rows]
+                if tags:
+                    out = [d for d in out if set(tags) & set(d["tags"])]
+                return out
+            except sqlite3.OperationalError:
+                pass
         rows = self._conn.execute("SELECT * FROM memory ORDER BY id DESC").fetchall()
         out = []
         for r in rows:
@@ -705,13 +748,55 @@ class Store:
                 continue
             if tags and not (set(tags) & set(d["tags"])):
                 continue
-            if text and text not in d["title"] and text not in d["content"]:
-                continue
+            if q and q not in d["title"] and q not in d["content"]:
+                tokens = [t for t in re.split(r"\s+", q) if t]
+                if tokens:
+                    hay = f"{d.get('title') or ''} {d.get('content') or ''}".lower()
+                    if not all(t.lower() in hay for t in tokens):
+                        continue
+                else:
+                    continue
             out.append(d)
+            if len(out) >= limit:
+                break
         return out
+
+    def memory_update(
+        self,
+        mem_id: int,
+        *,
+        title: Optional[str] = None,
+        content: Optional[str] = None,
+        tags: Optional[list] = None,
+        project_id: Optional[str] = None,
+        task_id: Optional[str] = None,
+    ) -> bool:
+        row = self.memory_get(mem_id)
+        if not row:
+            return False
+        new_title = title if title is not None else row.get("title") or ""
+        new_content = content if content is not None else row.get("content") or ""
+        new_tags = tags if tags is not None else row.get("tags") or []
+        new_project = project_id if project_id is not None else row.get("project_id") or ""
+        new_task = task_id if task_id is not None else row.get("task_id") or ""
+        with self._conn:
+            self._conn.execute(
+                "UPDATE memory SET project_id=?, task_id=?, tags=?, title=?, content=? WHERE id=?",
+                (new_project, new_task, _dumps(new_tags), new_title, new_content, mem_id),
+            )
+            if self._memory_fts:
+                self._conn.execute("DELETE FROM memory_fts WHERE rowid=?", (mem_id,))
+                self._conn.execute(
+                    "INSERT INTO memory_fts(rowid, title, content, project_id, tags) "
+                    "VALUES (?,?,?,?,?)",
+                    (mem_id, new_title, new_content, new_project, _dumps(new_tags)),
+                )
+        return True
 
     def memory_delete(self, mem_id: int) -> bool:
         with self._conn:
+            if self._memory_fts:
+                self._conn.execute("DELETE FROM memory_fts WHERE rowid=?", (mem_id,))
             cur = self._conn.execute("DELETE FROM memory WHERE id=?", (mem_id,))
         return cur.rowcount > 0
 

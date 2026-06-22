@@ -88,11 +88,32 @@ async def list_task_types():
 
 
 @router.get("/memory")
-async def list_memory(project_id: str | None = None, text: str = "", limit: int = 50):
-    """只读：知识库（KB）条目列表，正文截断为预览。"""
+async def list_memory(
+    project_id: str | None = None,
+    text: str = "",
+    limit: int = 50,
+    kind: str = "kb",
+):
+    """知识库条目列表（正文截断为预览）。
+
+    kind: kb（默认，排除 L1）| l1 | all
+    """
     store = _store()
     try:
         rows = store.memory_search(project_id=project_id, text=text)
+        l1_pid = "__memstack_l1__"
+        global_pid = "__global__"
+        if kind == "kb":
+            rows = [r for r in rows if r.get("project_id") not in (l1_pid,)]
+        elif kind == "l1":
+            rows = [r for r in rows if r.get("project_id") == l1_pid]
+        elif kind == "global":
+            rows = [r for r in rows if r.get("project_id") == global_pid]
+        elif kind == "project":
+            rows = [
+                r for r in rows
+                if r.get("project_id") not in (l1_pid, global_pid)
+            ]
         rows.sort(key=lambda r: (r.get("created_at") or "", r.get("id") or 0), reverse=True)
         out = []
         for r in rows[: max(1, min(limit, 200))]:
@@ -146,6 +167,58 @@ async def delete_memory(memory_id: int):
         if not store.memory_delete(memory_id):
             raise HTTPException(status_code=404, detail=f"知识条目不存在：{memory_id}")
         return {"success": True, "id": memory_id}
+    finally:
+        store.close()
+
+
+@router.post("/memory")
+async def create_memory(body: dict):
+    """新建 KB 条目（Web 知识库编辑）。"""
+    project_id = (body.get("project_id") or "").strip()
+    title = (body.get("title") or "").strip()
+    content = (body.get("content") or "").strip()
+    if not project_id or not title:
+        raise HTTPException(status_code=400, detail="project_id 与 title 必填")
+    tags = body.get("tags") or []
+    if not isinstance(tags, list):
+        tags = [str(tags)]
+    store = _store()
+    try:
+        if project_id != "__memstack_l1__":
+            store.upsert_project(project_id, title=project_id, status="active")
+        mid = store.memory_write(
+            project_id,
+            title,
+            content,
+            task_id=str(body.get("task_id") or ""),
+            tags=[str(t) for t in tags if str(t).strip()],
+        )
+        row = store.memory_get(mid)
+        return {"success": True, "memory": _memory_api_row(row or {"id": mid})}
+    finally:
+        store.close()
+
+
+@router.put("/memory/{memory_id}")
+async def update_memory(memory_id: int, body: dict):
+    """更新 KB 条目。"""
+    store = _store()
+    try:
+        if not store.memory_get(memory_id):
+            raise HTTPException(status_code=404, detail=f"知识条目不存在：{memory_id}")
+        tags = body.get("tags")
+        ok = store.memory_update(
+            memory_id,
+            title=body.get("title"),
+            content=body.get("content"),
+            tags=tags if isinstance(tags, list) else None,
+            project_id=body.get("project_id"),
+            task_id=body.get("task_id"),
+        )
+        if not ok:
+            raise HTTPException(status_code=404, detail=f"知识条目不存在：{memory_id}")
+        row = store.memory_get(memory_id)
+        return {"success": True, "memory": _memory_api_row(row or {})}
     finally:
         store.close()
 

@@ -21,6 +21,16 @@ from common.prompt_templates import render_kind_intent
 from common.store import Store
 
 
+def _list_agent_ids(store: Store) -> list[str]:
+    """从 agents_config.json 枚举 agent_ids。"""
+    try:
+        from common.agent_transport import _load_agents_config
+        cfg = _load_agents_config()
+        return list(cfg.keys())
+    except Exception:
+        return []
+
+
 @dataclass
 class TriageOutcome:
     decision: str
@@ -34,13 +44,40 @@ class DecisionPipeline:
     config: ProcessConfig
     release_files: Callable[[str, str], None]
 
+    def _quality_team_hint(self) -> str:
+        """路径 C：取所有已知 agent 的质量摘要。"""
+        try:
+            from execution_harness.post.quality import (
+                fetch_quality_profile,
+                summarize_quality,
+            )
+
+            all_agents = sorted({
+                aid for aid in _list_agent_ids(self.store) if aid != "main"
+            })
+            hints: list[str] = []
+            for aid in all_agents:
+                entries = fetch_quality_profile(aid, store=self.store, limit=3)
+                if entries:
+                    summary = summarize_quality(entries)
+                    if summary:
+                        hints.append(summary)
+            return "\n".join(hints) if hints else ""
+        except Exception:
+            return ""
+
     def team_config(self, project_id: str, goal: str) -> list[str]:
         iid = f"{project_id}:team_config"
+        inp: dict = {"goal": goal}
+        # 路径 C：注入质量画像
+        quality_hint = self._quality_team_hint()
+        if quality_hint:
+            inp["quality_summary"] = quality_hint
         req = {
             "interaction_id": iid,
             "kind": "team_config", "project_id": project_id, "agent_id": "main",
             "intent": render_kind_intent("team_config", {"goal": goal}),
-            "input": {"goal": goal},
+            "input": inp,
             "response_schema": "team_config.result@1.0",
         }
         res = self.port.run(req)

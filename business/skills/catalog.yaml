@@ -153,3 +153,9 @@ skills:
     description: Office 文档创建/分析/修改 — .docx / .xlsx / .pptx 全流程 CLI
     router: business/skills/officecli/SKILL.md
     means: []
+
+  - id: prompt-optimizer
+    task_types: [prompt-optimize]
+    description: Prompt 质量评估与自动改写 — 使用 LLM 进行结构化评估和多轮迭代优化
+    router: business/skills/prompt_optimizer/SKILL.md
+    execution: business/skills/prompt_optimizer/SKILL.md

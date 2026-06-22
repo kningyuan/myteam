@@ -1,0 +1,24 @@
+id: review-report
+version: '1.0'
+display_name: 评审报告
+description: 标准评审交付
+task_types:
+- review
+deliverable_template:
+  required_heading_level: 2
+  sections:
+  - name: 评审范围
+    description: 填写「评审范围」
+    required: true
+  - name: 问题列表
+    description: 填写「问题列表」
+    required: true
+  - name: 改进建议
+    description: 填写「改进建议」
+    required: true
+check_rules:
+  required_sections:
+  - 评审范围
+  - 问题列表
+  - 改进建议
+  min_length: 200

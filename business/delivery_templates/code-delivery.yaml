@@ -1,0 +1,28 @@
+id: code-delivery
+version: '1.0'
+display_name: 代码交付
+description: 标准编码交付
+task_types:
+- coding
+deliverable_template:
+  required_heading_level: 2
+  sections:
+  - name: 需求分析
+    description: 填写「需求分析」
+    required: true
+  - name: 设计方案
+    description: 填写「设计方案」
+    required: true
+  - name: 代码实现
+    description: 填写「代码实现」
+    required: true
+  - name: 测试结果
+    description: 填写「测试结果」
+    required: true
+check_rules:
+  required_sections:
+  - 需求分析
+  - 设计方案
+  - 代码实现
+  - 测试结果
+  min_length: 200

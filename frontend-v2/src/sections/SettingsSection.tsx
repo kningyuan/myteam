@@ -1,6 +1,6 @@
 import { useEffect } from "react"
 import { useNavigate, useParams } from "react-router-dom"
-import { Cpu, Layers, MessageCircle, Settings2, Users } from "lucide-react"
+import { Cpu, Layers, MessageCircle, Settings2, Sparkles, Users } from "lucide-react"
 import { SettingsPage } from "@/pages/SettingsPage"
 import { DiscordShell, ListColumn } from "@/components/layout/DiscordShell"
 import { ListNavItem } from "@/components/layout/ListNavItem"
@@ -11,6 +11,7 @@ const sections = [
   { id: "group", label: "群配置", icon: MessageCircle, description: "@all 圆桌讨论" },
   { id: "exec", label: "执行", icon: Cpu, description: "超时与重试" },
   { id: "project", label: "项目", icon: Layers, description: "预算与并行" },
+  { id: "quality", label: "执行质量", icon: Sparkles, description: "Harness 与 Memstack" },
 ] as const
 
 export type SettingsSectionId = (typeof sections)[number]["id"]

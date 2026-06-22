@@ -1,1 +1,121 @@
-{}
+custom-survey:
+  display_name: 自定义调研
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 背景
+      description: 填写「背景」
+      required: true
+    - name: 结论
+      description: 填写「结论」
+      required: true
+  check_rules:
+    required_sections:
+    - 背景
+    - 结论
+    min_length: 200
+  required_sections:
+  - 背景
+  - 结论
+my-type:
+  display_name: 我的类型
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 正文
+      description: 填写「正文」章节
+      required: true
+  check_rules:
+    required_sections:
+    - 正文
+    min_length: 200
+data-analysis:
+  display_name: 数据分析
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 正文
+      description: 填写「正文」章节
+      required: true
+  check_rules:
+    required_sections:
+    - 分析问题与口径
+    - 数据来源与质量
+    - 分析过程与方法
+    - 关键发现
+    - 结论与行动建议
+  outcome_kind: artifact
+research:
+  display_name: 调研
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 调研目标
+      description: 填写「调研目标」章节
+      required: true
+    - name: 信息来源
+      description: 填写「信息来源」章节
+      required: true
+    - name: 关键发现
+      description: 填写「关键发现」章节
+      required: true
+    - name: 结论
+      description: 填写「结论」章节
+      required: true
+  check_rules:
+    required_sections:
+    - 调研目标
+    - 信息来源
+    - 关键发现
+    - 结论
+    min_length: 200
+  task_type: research
+  outcome_kind: artifact
+coding:
+  display_name: 编码
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 需求分析
+      description: 填写「需求分析」章节
+      required: true
+    - name: 设计方案
+      description: 填写「设计方案」章节
+      required: true
+    - name: 代码实现
+      description: 填写「代码实现」章节
+      required: true
+    - name: 测试结果
+      description: 填写「测试结果」章节
+      required: true
+  check_rules:
+    required_sections:
+    - 需求分析
+    - 设计方案
+    - 代码实现
+    - 测试结果
+    min_length: 200
+  task_type: coding
+  outcome_kind: artifact
+review:
+  display_name: 评审
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 评审范围
+      description: 填写「评审范围」章节
+      required: true
+    - name: 问题列表
+      description: 填写「问题列表」章节
+      required: true
+    - name: 改进建议
+      description: 填写「改进建议」章节
+      required: true
+  check_rules:
+    required_sections:
+    - 评审范围
+    - 问题列表
+    - 改进建议
+    min_length: 200
+  task_type: review
+  outcome_kind: artifact

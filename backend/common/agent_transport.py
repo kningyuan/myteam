@@ -35,12 +35,24 @@ from common.paths import (
 )
 from common.project_artifacts import is_code_project_task, task_project_dir
 from common.prompt_composer import compose_execute_layers
-from common.experience import append_experience_hints
+from execution_harness.context import ExecuteHarnessContext
+from execution_harness.facade import inject_for_execute, prepare_execute_harness
 from common.registry import get_spec, load_registry
 
 RULES_DIR = BUSINESS_CONFIG_DIR.parent / "rules"
 
 _IDENTITY_FILES = ("AGENTS.md", "IDENTITY.md", "SOUL.md", "MEMORY.md")
+
+
+def _resolve_harness_store(req) -> Optional["Store"]:
+    """execute harness 可选绑定 Store（单测 / single_execute 用 context.store_path）。"""
+    ctx = getattr(req, "context", None) or {}
+    raw = ctx.get("store_path") if isinstance(ctx, dict) else None
+    if not raw:
+        return None
+    from common.store import Store
+
+    return Store(raw)
 
 
 def parallel_execute_workspace(agent_id: str, req) -> Path:
@@ -87,6 +99,13 @@ _RESULT_SKELETON = {
         '"sub_tasks": [{"id": "s1", "name": "子任务名", "agent": "", "task_type": "", '
         '"description": "做什么", "reviewer": "", "dependencies": []}]}'
         " — 参考 input.fail_reason / fail_detail 决策；任务过大无法一次完成时用 split 并给出 sub_tasks"
+    ),
+    "skill_review": (
+        '{"action": "noop|patch|reference|create", "skill_id": "", "notes": "", "pending_content": ""}'
+    ),
+    "plan": (
+        '{"approach": "总体思路/方法", "steps": ["步骤1", "步骤2", "..."], '
+        '"risks": ["风险1", "..."], "confidence": 0.8}'
     ),
 }
 
@@ -167,6 +186,22 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
     """
     submit_script = submit_script or (Path(__file__).resolve().parent / "submit_result.py")
     kind = req.kind
+
+    if kind == "skill_review":
+        from execution_harness.post.review import build_skill_review_prompt
+
+        req_dict = req.model_dump() if hasattr(req, "model_dump") else dict(req)
+        base = build_skill_review_prompt(req_dict)
+        resp_path = response_dir(getattr(req, "agent_id", "") or "") / f"{req.interaction_id}.response"
+        lines = [
+            base,
+            "",
+            "【提交结果（必须这样做）】",
+            f"  {sys.executable} {submit_script} --out {resp_path} --file <你的结果json文件>",
+            "不要在聊天里直接返回 JSON。",
+        ]
+        return "\n".join(lines)
+
     lines = [
         f"你正在执行一次「{kind}」交互（interaction_id={req.interaction_id}）。",
         f"意图：{req.intent or '(见下方输入)'}",
@@ -178,6 +213,11 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
         lines.append("【上游已完成任务的摘要（仅供参考，勿照抄）】")
         for u in upstream:
             lines.append(f"- {u.get('task_id')}: {u.get('summary','')}（引用：{u.get('ref','')}）")
+        lines.append("")
+
+    plan = (req.context or {}).get("plan")
+    if plan:
+        lines.append(plan)
         lines.append("")
 
     if kind == "execute":
@@ -202,7 +242,17 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
             lines.append("")
         profile = spec.delivery_profile if spec else "none"
         compose_execute_layers(lines, task_type, profile)
-        append_experience_hints(lines, req.project_id, task_type)
+        hctx = ExecuteHarnessContext(
+            lines=lines,
+            project_id=req.project_id,
+            task_id=req.task_id or "",
+            task_type=task_type,
+            agent_id=req.agent_id,
+            intent=req.intent or "",
+            store=_resolve_harness_store(req),
+        )
+        prepare_execute_harness(hctx)
+        inject_for_execute(hctx)
         if spec and spec.outcome_kind == "code_project":
             proj = task_project_dir(req.project_id, req.task_id)
             lines.append("【交付物形态】代码工程目录（不是单篇说明文档）")
@@ -328,6 +378,21 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
         lines.append("【全文一致性】术语、范围、架构/流程描述前后须自洽，无矛盾。")
         lines.append("整体达标则 passed=true；否则 passed=false，feedback 按章节列出须修正之处。")
         result_hint = '"result": %s' % _RESULT_SKELETON["review"]
+    elif kind == "plan":
+        intent = getattr(req, "intent", None) or ""
+        desc = ((req.input or {}).get("task") or {}).get("description", "")
+        lines.append(f"任务意图：{intent}")
+        if desc:
+            lines.append(f"任务描述：{desc}")
+        lines.append("")
+        lines.append("【要求】请针对上述任务输出执行计划，包含以下字段：")
+        lines.append("  - approach：总体思路/方法（10 字以上）")
+        lines.append("  - steps：执行步骤列表（至少 1 个实质性步骤）")
+        lines.append("  - risks：识别到的风险或不确定性（可选但建议 1+）")
+        lines.append("  - confidence：对计划可行的信心（0..1，可选，默认 0.7）")
+        lines.append("")
+        lines.append("计划是执行前的思考，不是交付物。请确保思路合理、步骤可操作。")
+        result_hint = '"result": %s' % _RESULT_SKELETON["plan"]
     else:
         lines.append("输入数据：")
         lines.append(json.dumps(req.input or {}, ensure_ascii=False))
@@ -366,15 +431,39 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
             for f in req.retry_feedback:
                 if f.startswith("上一轮"):
                     lines.append(f"  📁 {f}")
+                elif f.startswith("【"):
+                    lines.append(f"  {f}")
                 else:
                     lines.append(f"  ❌ {f}")
             lines.append("")
             lines.append("【指示】交付物已存在，仅修正标题层级与章节名使其通过门禁；")
             lines.append("禁止重读仓库、禁止重写正文、禁止重新调研。")
         else:
-            lines.append("【PATCH 修正 — 针对以下问题做定点修改】")
-            for f in req.retry_feedback:
-                lines.append(f"  ❌ {f}")
+            # 结构化重试反馈：可能含 【】 分类块、→ 指引行、❌ 失败详情
+            has_classified = any(f.startswith("【失败根因分类") for f in req.retry_feedback)
+            if has_classified:
+                lines.append("【上一轮门禁失败 — 按类别修复】")
+                in_detail = False
+                for f in req.retry_feedback:
+                    if f.startswith("【失败详情】"):
+                        lines.append("")
+                        lines.append("  ── 具体失败条目 ──")
+                        in_detail = True
+                        continue
+                    if f.startswith("【失败根因分类"):
+                        lines.append(f"  {f}")
+                    elif in_detail:
+                        lines.append(f"  ❌ {f}")
+                    elif f.strip().startswith("→"):
+                        lines.append(f"    🔧 {f.strip()}")
+                    elif f.strip().startswith("┃") or not f.strip():
+                        lines.append(f"  {f}")
+                    else:
+                        lines.append(f"  {f}")
+            else:
+                lines.append("【PATCH 修正 — 针对以下问题做定点修改】")
+                for f in req.retry_feedback:
+                    lines.append(f"  ❌ {f}")
             lines.append("")
             dv_path = (req.input or {}).get("deliverable_path", "")
             if dv_path:

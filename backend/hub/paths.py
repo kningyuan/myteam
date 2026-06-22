@@ -36,8 +36,8 @@ CHAT_ARCHIVES_DIR = BUSINESS_CONFIG_DIR / "chat_archives"
 GROUP_ARCHIVES_FILE = BUSINESS_CONFIG_DIR / "group_archives.json"
 
 IDENTITY_FILES = ["IDENTITY.md", "SOUL.md", "USER.md"]
-# CLI 编排 + Hub 聊天实际读取的工作区 Markdown（与 IDENTITY_FILES 同源）
-AGENT_WORKSPACE_FILES = IDENTITY_FILES
+# Hub 可编辑的 per-agent 工作区文件（USER.md 已移至团队「偏好库」）
+AGENT_WORKSPACE_FILES = ["IDENTITY.md", "SOUL.md"]
 
 
 def resolve_path(path: str | Path) -> Path:

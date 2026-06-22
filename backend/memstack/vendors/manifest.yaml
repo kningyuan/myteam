@@ -1,0 +1,27 @@
+# memstack third-party vendors — 登记表
+# 安装说明见 vendors/README.md
+
+vendors:
+  - id: gbrain
+    purpose: L3 team knowledge base + graph
+    adapter: memstack.kb.gbrain.GbrainKnowledgeBackend
+    repo: https://github.com/example/gbrain
+    status: pending
+    env:
+      - GBRAIN_BRAIN_ROOT
+
+  - id: mem0
+    purpose: L1 working memory + user preferences
+    adapter: memstack.l1.mem0.Mem0AgentMemory
+    repo: https://github.com/mem0ai/mem0
+    status: pending
+    env:
+      - MEM0_API_KEY
+
+  - id: anysearch
+    purpose: external web search + extract
+    adapter: memstack.orchestration.anysearch
+    install_path: ~/skill/anysearch-skill
+    status: available
+    env:
+      - ANYSEARCH_HOME

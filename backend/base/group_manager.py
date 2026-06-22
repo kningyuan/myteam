@@ -2093,6 +2093,19 @@ def _run_group_roundtable(
         )
         if assessment_path is not None:
             assessment_rel_path = to_relative_path(assessment_path)
+            try:
+                from memstack.facade import on_consensus
+                from memstack.orchestration.context import ConsensusContext
+
+                on_consensus(
+                    ConsensusContext(
+                        group_id=group_id,
+                        draft_text=last_consensus_draft,
+                        agenda=assessment_agenda,
+                    )
+                )
+            except Exception:
+                pass
 
     if consensus_status == "yes":
         status_text = (

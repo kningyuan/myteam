@@ -385,13 +385,48 @@ export async function listMemory(opts?: {
   limit?: number
   text?: string
   projectId?: string
+  kind?: "kb" | "global" | "project" | "l1" | "all"
 }): Promise<MemoryEntry[]> {
   const limit = opts?.limit ?? 200
   const params = new URLSearchParams({ limit: String(limit) })
   if (opts?.text?.trim()) params.set("text", opts.text.trim())
   if (opts?.projectId?.trim()) params.set("project_id", opts.projectId.trim())
+  if (opts?.kind) params.set("kind", opts.kind)
   const data = await hubFetch<{ memory?: MemoryEntry[] }>(`/api/obs/memory?${params}`)
   return data.memory ?? []
+}
+
+export async function createMemory(body: {
+  project_id: string
+  title: string
+  content?: string
+  task_id?: string
+  tags?: string[]
+}): Promise<MemoryEntry> {
+  const data = await hubFetch<{ memory?: MemoryEntry }>("/api/obs/memory", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+  return data.memory ?? {}
+}
+
+export async function updateMemory(
+  memoryId: number,
+  body: Partial<{
+    project_id: string
+    title: string
+    content: string
+    task_id: string
+    tags: string[]
+  }>,
+): Promise<MemoryEntry> {
+  const data = await hubFetch<{ memory?: MemoryEntry }>(`/api/obs/memory/${memoryId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+  return data.memory ?? {}
 }
 
 export async function getMemory(memoryId: number): Promise<MemoryEntry> {

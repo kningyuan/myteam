@@ -1,0 +1,10 @@
+{
+  "project_id": "ui-test",
+  "task_id": "t-pref-01",
+  "agent_id": "product",
+  "task_type": "research",
+  "intent": "验证团队偏好库注入",
+  "prepared_at": "2026-06-19T13:23:42",
+  "deliverable": "/Users/kuanghualong/Project/Cursor/myteam/business/tasks/project/ui-test/deliverables/t-pref-01_deliverable.md",
+  "ledger": "/Users/kuanghualong/Project/Cursor/myteam/tasks/single_agent/ui-test/t-pref-01/ledger.entry.yaml"
+}

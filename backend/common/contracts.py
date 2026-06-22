@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field, TypeAdapter, ValidationError, model_valid
 
 SCHEMA_VERSION = "1.0"
 
-Kind = Literal["team_config", "task_plan", "evaluate", "execute", "review", "triage"]
+Kind = Literal["team_config", "task_plan", "plan", "evaluate", "execute", "review", "triage", "skill_review"]
 
 
 # ── 共享子结构 ───────────────────────────────────────────────
@@ -116,6 +116,15 @@ class ExecuteResult(BaseModel):
     outcome: Outcome
 
 
+class PlanResult(BaseModel):
+    """Agent 执行前计划（路径 A）。轻量：approach + steps + risks + confidence。"""
+
+    approach: str = Field(..., min_length=10, description="总体思路/方法")
+    steps: list[str] = Field(..., min_length=1, description="执行步骤列表")
+    risks: list[str] = Field(default_factory=list, description="识别到的风险/不确定性")
+    confidence: float = Field(default=0.7, ge=0.0, le=1.0, description="自评信心")
+
+
 class ReviewResult(BaseModel):
     passed: bool
     feedback: str = ""
@@ -135,6 +144,15 @@ class TriageResult(BaseModel):
         if self.decision == "split" and not self.sub_tasks:
             raise ValueError("decision=split 时 sub_tasks 不能为空")
         return self
+
+
+class SkillReviewResult(BaseModel):
+    """Background skill review 产出（写入 _pending/，不直接改生产 Skill）。"""
+
+    action: Literal["patch", "reference", "create", "noop"] = "noop"
+    skill_id: str = ""
+    notes: str = ""
+    pending_content: str = ""
 
 
 # ── Response 信封（辨识联合）─────────────────────────────────
@@ -175,6 +193,11 @@ class ExecuteResponse(_BaseResponse):
         return self
 
 
+class PlanResponse(_BaseResponse):
+    kind: Literal["plan"]
+    result: PlanResult
+
+
 class ReviewResponse(_BaseResponse):
     kind: Literal["review"]
     result: ReviewResult
@@ -191,14 +214,21 @@ class TriageResponse(_BaseResponse):
     result: TriageResult
 
 
+class SkillReviewResponse(_BaseResponse):
+    kind: Literal["skill_review"]
+    result: SkillReviewResult
+
+
 InteractionResponse = Annotated[
     Union[
         TeamConfigResponse,
         TaskPlanResponse,
         EvaluateResponse,
         ExecuteResponse,
+        PlanResponse,
         ReviewResponse,
         TriageResponse,
+        SkillReviewResponse,
     ],
     Field(discriminator="kind"),
 ]
@@ -210,8 +240,10 @@ _RESPONSE_MODEL_BY_KIND: dict[str, type[_BaseResponse]] = {
     "task_plan": TaskPlanResponse,
     "evaluate": EvaluateResponse,
     "execute": ExecuteResponse,
+    "plan": PlanResponse,
     "review": ReviewResponse,
     "triage": TriageResponse,
+    "skill_review": SkillReviewResponse,
 }
 
 

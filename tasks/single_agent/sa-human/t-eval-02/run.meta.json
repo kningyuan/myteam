@@ -1,0 +1,10 @@
+{
+  "project_id": "sa-human",
+  "task_id": "t-eval-02",
+  "agent_id": "product",
+  "task_type": "research",
+  "intent": "第二次 research：评估单 agent 交付质量（总监已打回 t-eval-01，须应用纠正）",
+  "prepared_at": "2026-06-19T11:42:51",
+  "deliverable": "/Users/kuanghualong/Project/Cursor/myteam/business/tasks/project/sa-human/deliverables/t-eval-02_deliverable.md",
+  "ledger": "/Users/kuanghualong/Project/Cursor/myteam/tasks/single_agent/sa-human/t-eval-02/ledger.entry.yaml"
+}

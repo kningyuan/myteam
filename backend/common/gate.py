@@ -351,6 +351,45 @@ def check_execute(response: dict, *, base_dir: Optional[str] = None,
     return fmt
 
 
+def check_plan(response: dict) -> GateResult:
+    """plan 门禁（路径 A）：从契约到结构完整性（轻量）。不判好不好，只判有没有。"""
+    contract = check_contract(response)
+    if not contract.passed:
+        return contract
+    if response.get("kind") != "plan":
+        return contract
+
+    result = (response.get("result") or {})
+    res = GateResult(passed=True)
+
+    approach = (result.get("approach") or "").strip()
+    if len(approach) < 10:
+        res.add("plan_approach", "approach 至少 10 个字符描述总体思路", f"仅 {len(approach)} 字符")
+
+    steps = result.get("steps") or []
+    if not isinstance(steps, list) or len(steps) == 0:
+        res.add("plan_steps", "至少 1 个执行步骤", "steps 为空")
+    else:
+        non_trivial = [s for s in steps if len(s.strip()) >= 2]
+        if len(non_trivial) < 1:
+            res.add("plan_steps", "步骤须有实质性描述（≥2 字符）", "所有步骤过于简短")
+
+    risks = result.get("risks") or []
+    if isinstance(risks, list) and len(risks) > 0:
+        non_trivial_risks = [r for r in risks if len(r.strip()) >= 4]
+        if not non_trivial_risks:
+            res.add("plan_risks", "风险须有实质性描述（≥2 字符）", "所有风险过于简短")
+
+    confidence = result.get("confidence")
+    if confidence is not None:
+        if not isinstance(confidence, (int, float)) or confidence < 0 or confidence > 1:
+            res.add("plan_confidence", "confidence 须在 0..1 之间", str(confidence))
+
+    if not res.passed:
+        res.feedback = _feedback("plan", res.failures)
+    return res
+
+
 def _feedback(task_type: str, failures: list[dict]) -> str:
     lines = [f"任务类型「{task_type}」未通过格式/完整性门禁，请修正后重交：\n"]
     for f in failures:

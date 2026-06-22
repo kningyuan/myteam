@@ -44,7 +44,16 @@
         "优先级排序",
         "竞品补充"
       ],
-      "task_types": [],
+      "task_types": [
+        "research",
+        "requirements",
+        "strategy",
+        "product-research",
+        "product-planning",
+        "acceptance-report",
+        "section-authoring",
+        "section-review"
+      ],
       "skills": [
         "product-methodology"
       ],
@@ -400,6 +409,19 @@
           "社媒点击发布"
         ]
       }
+    },
+    "writer": {
+      "name": "行业研究员",
+      "role": "researcher",
+      "description": "行业调研与竞品分析",
+      "capabilities": [
+        "竞品分析",
+        "调研报告"
+      ],
+      "task_types": [
+        "research"
+      ],
+      "skills": []
     }
   }
 }

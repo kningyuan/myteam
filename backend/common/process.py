@@ -627,6 +627,19 @@ class Process:
             gc_project_workspace(self.store, project_id)
             if status == "completed":
                 self._maybe_extract_skills(project_id)
+                try:
+                    from memstack.facade import on_project_complete
+                    from memstack.orchestration.context import ProjectCompleteContext
+
+                    on_project_complete(
+                        ProjectCompleteContext(
+                            project_id=project_id,
+                            store=self.store,
+                            status=status,
+                        )
+                    )
+                except Exception:
+                    pass
         return status
 
     def _maybe_extract_skills(self, project_id: str) -> None:

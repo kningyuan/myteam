@@ -276,3 +276,60 @@ async def skill_matrix_audit():
         "catalog_router_ok": router_audit["router_ok"],
         "catalog_missing_routers": router_audit["missing_routers"],
     }
+
+
+@router.get("/pending")
+async def list_skill_pending_api():
+    """Skill review 待审批包（_pending/）。"""
+    from execution_harness.post.pending import list_pending
+
+    items = list_pending()
+    return {"pending": items, "count": len(items)}
+
+
+@router.get("/pending/{pending_id}")
+async def get_skill_pending_api(pending_id: str):
+    from execution_harness.post.pending import get_pending
+
+    item = get_pending(pending_id)
+    if not item:
+        raise HTTPException(status_code=404, detail=f"pending 不存在：{pending_id}")
+    return item
+
+
+@router.post("/pending/{pending_id}/approve")
+async def approve_skill_pending_api(pending_id: str):
+    from execution_harness.post.pending import approve_pending
+
+    result = approve_pending(pending_id)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error") or "批准失败")
+    return result
+
+
+@router.post("/pending/{pending_id}/reject")
+async def reject_skill_pending_api(pending_id: str):
+    from execution_harness.post.pending import reject_pending
+
+    result = reject_pending(pending_id)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error") or "拒绝失败")
+    return result
+
+
+@router.get("/library/{skill_id}/references")
+async def list_skill_references_api(skill_id: str):
+    """列出 umbrella skill 的 references/ 目录。"""
+    from common.skill_catalog import SKILLS_DIR
+
+    ref_dir = SKILLS_DIR / skill_id / "references"
+    refs: list[dict] = []
+    if ref_dir.is_dir():
+        for fp in sorted(ref_dir.glob("*.md")):
+            refs.append({
+                "path": f"references/{fp.name}",
+                "name": fp.name,
+                "size": fp.stat().st_size,
+                "updated_at": fp.stat().st_mtime,
+            })
+    return {"skill_id": skill_id, "references": refs, "count": len(refs)}

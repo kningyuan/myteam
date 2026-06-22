@@ -1,0 +1,10 @@
+{
+  "project_id": "sa-human",
+  "task_id": "t-eval-01",
+  "agent_id": "product",
+  "task_type": "research",
+  "intent": "评估 myteam 单 agent 在 research 任务上的交付质量：须列出至少 5 个具体代码路径、2 条可复现命令、明确 Out of Scope",
+  "prepared_at": "2026-06-19T11:42:31",
+  "deliverable": "/Users/kuanghualong/Project/Cursor/myteam/business/tasks/project/sa-human/deliverables/t-eval-01_deliverable.md",
+  "ledger": "/Users/kuanghualong/Project/Cursor/myteam/tasks/single_agent/sa-human/t-eval-01/ledger.entry.yaml"
+}

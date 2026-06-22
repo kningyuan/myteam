@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('business/config/agents_registry.json'\\)\\); [print\\(f'{k}: skills={v.get\\(\\\\\"skills\\\\\",\\\\\"<none>\\\\\"\\)}'\\) for k,v in d['agents'].items\\(\\)]\")",
+      "Bash(python3 -c ' *)"
+    ]
+  }
+}

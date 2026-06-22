@@ -1,0 +1,28 @@
+id: product-research-workflow
+name: 产品调研与方案
+description: 竞品调研 → 技术方案设计 → 方案评审
+version: '1.0'
+tasks:
+- id: research
+  agent_id: research
+  task_type: research
+  template_id: research-report
+  name: 竞品调研
+  description: 调研 myteam 同类竞品的核心功能和架构设计
+  dependencies: []
+- id: coding
+  agent_id: developer
+  task_type: coding
+  template_id: code-delivery
+  name: 方案设计
+  description: 基于调研结果，设计一个 myteam 使用示例方案
+  dependencies:
+  - research
+- id: review
+  agent_id: qa
+  task_type: review
+  template_id: review-report
+  name: 方案评审
+  description: 评审方案设计交付物的完整性和质量
+  dependencies:
+  - coding

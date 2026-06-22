@@ -1,0 +1,26 @@
+task_id: t-eval-01
+task_type: research
+intent: 评估单 agent research 交付质量
+summary: |
+  首稿交付不合格（总监 2/5）：缺路径清单、缺命令、缺 Out of Scope、结论空话。
+director_verdict: fail
+director_score: 2
+lesson:
+  worked: |
+    （首稿无有效做法）
+  failed: |
+    Agent 未读 product-methodology Verification 清单；
+    忽视 intent 中「5 路径 / 2 命令 / Out of Scope」硬要求；
+    用「框架不错」替代可验证结论。
+pitfalls:
+  - research 无扫描清单表格 = 总监必打回
+  - 结论写「有潜力/建议完善」= 视为未调研
+  - 不声明 chosen_skills = execute 纪律违规
+director_correction: |
+  已更新 config/USER.md：强制扫描清单≥5、命令≥2、Out of Scope≥3、结论 Pass/Fail 格式
+keywords:
+  - 扫描清单
+  - 可复现命令
+  - Out of Scope
+  - 总监打回
+  - 空话结论

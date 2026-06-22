@@ -284,6 +284,14 @@ def build_system_prompt(agent_id: str, workspace: str, *, profile: str = "intera
     skill_block = build_skill_context(agent_id)
     if skill_block:
         sections.append(skill_block)
+    try:
+        from execution_harness.pre.interactive import build_interactive_harness_block
+
+        harness_block = build_interactive_harness_block(agent_id)
+        if harness_block:
+            sections.append(harness_block)
+    except Exception:
+        pass
     mcp_block = build_mcp_context(agent_id)
     if mcp_block:
         sections.append(mcp_block)

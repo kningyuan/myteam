@@ -38,6 +38,7 @@ class ProcessConfig:
     default_model: str = ""                # 自动创建 agent 时的默认模型
     parallel_enabled: bool = False         # L2：同波次无依赖任务真并行
     max_parallel: int = 4                  # 单波次最大并发任务数
+    plan_enabled: bool = True              # 路径 A：execute 前是否插入 plan 交互
 
 
 @dataclass

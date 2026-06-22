@@ -1,0 +1,1 @@
+本次会话暴露了 Research 任务中 Agent 误以为需主动调用 submit_result.py 来提交 markdown deliverable 的问题。已在 SKILL.patch.md 的 Pitfalls 中新增条目：明确 Research 类任务（deliverable 为 markdown 文件）无需调用 submit_result.py，该工具是为 kernel 内部 JSON interaction 设计的，Agent 手动调用违反 adapter 隔离原则。Agent 只需写入 deliverable + .response JSON 即可，由 executor 引擎统一调度提交。

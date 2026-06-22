@@ -38,8 +38,11 @@ def test_backend_factory_default_and_unknown(tmp_path):
     store = Store(tmp_path / "s.db")
     assert isinstance(get_backend(store), SqliteMemory)
     assert isinstance(get_backend(store, backend="sqlite"), SqliteMemory)
+    from memstack.kb.gbrain import GbrainKnowledgeBackend
+
+    assert isinstance(get_backend(store, backend="gbrain"), GbrainKnowledgeBackend)
     with pytest.raises(NotImplementedError):
-        get_backend(store, backend="gbrain")
+        get_backend(store, backend="nonexistent")
     store.close()
 
 

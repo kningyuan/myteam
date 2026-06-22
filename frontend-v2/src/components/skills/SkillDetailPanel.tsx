@@ -7,7 +7,9 @@ import {
   moveSkillToCategory,
   updateSkillCategory,
   updateSkillName,
+  listSkillReferences,
   type SkillLibraryItem,
+  type SkillReferenceItem,
   type SkillTreeNode,
 } from "@/lib/api/workflows"
 import { MarkdownBody } from "@/components/MarkdownBody"
@@ -71,6 +73,7 @@ export function SkillDetailPanel({
   const [editingDesc, setEditingDesc] = useState(false)
   const [descDraft, setDescDraft] = useState("")
   const [savingDesc, setSavingDesc] = useState(false)
+  const [references, setReferences] = useState<SkillReferenceItem[]>([])
 
   const isCategory = item?.kind === "category"
   const tree = item?.tree ?? []
@@ -119,6 +122,16 @@ export function SkillDetailPanel({
       cancelled = true
     }
   }, [item?.id, activePath])
+
+  useEffect(() => {
+    if (!item?.id || isCategory) {
+      setReferences([])
+      return
+    }
+    listSkillReferences(item.id)
+      .then(setReferences)
+      .catch(() => setReferences([]))
+  }, [item?.id, isCategory])
 
   async function saveName() {
     if (!item?.id) return
@@ -407,6 +420,26 @@ export function SkillDetailPanel({
                 defaultPath={defaultPath}
                 onSelectFile={setActivePath}
               />
+              {!isCategory && references.length ? (
+                <div className="mt-4 border-t border-[var(--color-border)] pt-3">
+                  <p className="mb-2 text-xs font-medium text-[var(--color-muted-foreground)]">
+                    references/ ({references.length})
+                  </p>
+                  <ul className="space-y-1">
+                    {references.map((r) => (
+                      <li key={r.path}>
+                        <button
+                          type="button"
+                          className="w-full truncate text-left font-mono text-[11px] text-[var(--color-primary)] hover:underline"
+                          onClick={() => setActivePath(r.path)}
+                        >
+                          {r.name}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </ScrollArea>
           </div>
         </aside>

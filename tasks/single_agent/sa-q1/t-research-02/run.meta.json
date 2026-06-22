@@ -1,0 +1,10 @@
+{
+  "project_id": "sa-q1",
+  "task_id": "t-research-02",
+  "agent_id": "product",
+  "task_type": "research",
+  "intent": "第二次 research：应召回上次 single_execute / L1 scope 相关经验",
+  "prepared_at": "2026-06-19T11:38:32",
+  "deliverable": "/Users/kuanghualong/Project/Cursor/myteam/business/tasks/project/sa-q1/deliverables/t-research-02_deliverable.md",
+  "ledger": "/Users/kuanghualong/Project/Cursor/myteam/tasks/single_agent/sa-q1/t-research-02/ledger.entry.yaml"
+}
