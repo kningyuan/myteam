@@ -212,6 +212,24 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 CREATE INDEX IF NOT EXISTS idx_audit_log_project ON audit_log(project_id);
 
+CREATE TABLE IF NOT EXISTS deliverable (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id  TEXT NOT NULL,
+    task_id     TEXT NOT NULL,
+    file_path   TEXT NOT NULL,
+    file_name   TEXT NOT NULL,
+    file_size   INTEGER DEFAULT 0,
+    file_kind   TEXT DEFAULT 'file',   -- script | doc | output | test | data | file
+    task_type   TEXT DEFAULT '',
+    created_at  TEXT,
+    updated_at  TEXT,
+    version     INTEGER DEFAULT 1,
+    FOREIGN KEY (project_id, task_id) REFERENCES task(project_id, task_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_deliverable_pt ON deliverable(project_id, task_id);
+CREATE INDEX IF NOT EXISTS idx_deliverable_kind_type ON deliverable(file_kind, task_type);
+
 CREATE TABLE IF NOT EXISTS agent_config (
     agent_id        TEXT PRIMARY KEY,
     config          TEXT NOT NULL DEFAULT '{}',
@@ -1140,6 +1158,55 @@ class Store:
                 (workflow_id, ver, _dumps(body), now),
             )
         return ver
+
+    # ── deliverable metadata（Phase N）─────────────────────────
+
+    def upsert_deliverable(self, project_id: str, task_id: str, file_path: str,
+                           file_name: str, file_size: int = 0,
+                           file_kind: str = "file", task_type: str = "") -> int:
+        now = _now()
+        with self._conn:
+            cur = self._conn.execute(
+                """INSERT INTO deliverable
+                     (project_id, task_id, file_path, file_name, file_size, file_kind,
+                      task_type, created_at, updated_at, version)
+                   VALUES (?,?,?,?,?,?,?,?,?,1)
+                   ON CONFLICT(file_path) DO UPDATE SET
+                     file_size=excluded.file_size,
+                     file_kind=excluded.file_kind,
+                     task_type=excluded.task_type,
+                     updated_at=excluded.updated_at,
+                     version=deliverable.version+1""",
+                (project_id, task_id, file_path, file_name, file_size, file_kind,
+                 task_type, now, now),
+            )
+            return int(cur.lastrowid)
+
+    def list_deliverables(self, project_id: str, task_id: Optional[str] = None
+                          ) -> list[dict]:
+        if task_id:
+            rows = self._conn.execute(
+                "SELECT * FROM deliverable WHERE project_id=? AND task_id=? ORDER BY id",
+                (project_id, task_id),
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                "SELECT * FROM deliverable WHERE project_id=? ORDER BY id",
+                (project_id,),
+            ).fetchall()
+        return [self._del_row(r) for r in rows]
+
+    def get_deliverable_stats(self, project_id: str) -> dict[str, int]:
+        rows = self._conn.execute(
+            "SELECT file_kind, COUNT(*) AS cnt FROM deliverable "
+            "WHERE project_id=? GROUP BY file_kind",
+            (project_id,),
+        ).fetchall()
+        return {r["file_kind"]: r["cnt"] for r in rows}
+
+    @staticmethod
+    def _del_row(row: sqlite3.Row) -> dict:
+        return dict(row)
 
 
 def _main(argv: list[str]) -> int:

@@ -19,13 +19,253 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
+
+import yaml
 
 from common.store import Store
 
 logger = logging.getLogger("execution_harness.post.rubric_eval")
 
-# ── 可配置参数 ─────────────────────────────────────────────
+# ── Rubric Template Registry ──────────────────────────────────
+
+# Known task_type prefixes → template family mapping
+_TASK_TYPE_FAMILIES: dict[str, str] = {
+    # code family
+    "code-deliverable": "code",
+    "code-writing": "code",
+    "code-testing": "testing",
+    "coding": "code",
+    "code-review": "code",
+    "code-generation": "code",
+    "test": "testing",
+    "qa": "testing",
+    # research family
+    "research": "research",
+    "product-research": "research",
+    "market-research": "research",
+    "competitive-analysis": "research",
+    "literature-review": "research",
+    # publish family
+    "publish-post": "publish",
+    "publish": "publish",
+    "social-post": "publish",
+    "content-publish": "publish",
+    # architecture family
+    "architecture": "architecture",
+    "system-design": "architecture",
+    "arch-review": "architecture",
+    # documentation family
+    "documentation": "documentation",
+    "docs": "documentation",
+    "api-docs": "documentation",
+    # product family (default)
+    "product": "product",
+    "prd": "product",
+    "requirements": "product",
+    "strategy": "product",
+    "product-planning": "product",
+    "product-research": "research",
+}
+
+# Path to rubric templates YAML
+# Resolution order: RUBRIC_TEMPLATES_PATH env var > relative to this file location
+def _resolve_templates_path() -> Path:
+    """Resolve the rubric templates YAML path."""
+    env_path = os.environ.get("RUBRIC_TEMPLATES_PATH")
+    if env_path:
+        return Path(env_path)
+    # Try to resolve relative to this module's actual location
+    try:
+        import __main__ as main_mod
+        mod_dir = Path(main_mod.__file__).resolve().parent.parent.parent
+        candidate = mod_dir / "business" / "config" / "rubric_templates.yaml"
+        if candidate.is_file():
+            return candidate
+    except (AttributeError, ImportError):
+        pass
+    # Fallback: relative to CWD (works when run from repo root)
+    return Path("business/config/rubric_templates.yaml")
+
+
+_RUBRIC_TEMPLATES_PATH: Path = _resolve_templates_path()
+
+# Cached template data
+_loaded_templates: Optional[dict[str, Any]] = None
+
+
+def _load_templates() -> dict[str, Any]:
+    """Load rubric templates from YAML. Results are cached."""
+    global _loaded_templates
+    if _loaded_templates is not None:
+        return _loaded_templates
+
+    if not _RUBRIC_TEMPLATES_PATH.is_file():
+        logger.warning("Rubric templates file not found: %s — falling back to defaults", _RUBRIC_TEMPLATES_PATH)
+        _loaded_templates = {}
+        return _loaded_templates
+
+    try:
+        with open(_RUBRIC_TEMPLATES_PATH, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        if isinstance(data, dict) and "templates" in data:
+            _loaded_templates = data["templates"]
+        else:
+            _loaded_templates = data
+    except Exception as exc:
+        logger.error("Failed to load rubric templates: %s", exc)
+        _loaded_templates = {}
+
+    return _loaded_templates
+
+
+def resolve_template_family(task_type: str) -> str:
+    """Map a task_type string to a rubric template family name.
+
+    Falls back to "product" (the original rubric) when no mapping is found.
+    """
+    if not task_type:
+        return "product"
+
+    # Exact match first
+    if task_type in _TASK_TYPE_FAMILIES:
+        return _TASK_TYPE_FAMILIES[task_type]
+
+    # Prefix match (e.g. "code-deliverable-v2" → "code")
+    for prefix, family in _TASK_TYPE_FAMILIES.items():
+        if task_type.startswith(prefix):
+            return family
+
+    # Default to product (original rubric)
+    return "product"
+
+
+def get_template(family: str) -> Optional[dict[str, Any]]:
+    """Return the rubric template dict for a given family name."""
+    templates = _load_templates()
+    return templates.get(family)
+
+
+def _check_dimension(template_dim: dict[str, Any], content: str) -> tuple[float, list[str]]:
+    """Evaluate a single dimension against content.
+
+    Returns (score_0_to_1, list_of_failure_reasons).
+    """
+    failures: list[str] = []
+    checks = template_dim.get("checks", [])
+    if not checks:
+        return (1.0, [])
+
+    scores: list[float] = []
+
+    for check in checks:
+        check_type = check.get("type", "")
+
+        if check_type == "keyword":
+            keywords = check.get("keywords", [])
+            min_match = check.get("min_match", 1)
+            matched = sum(1 for kw in keywords if kw.lower() in content.lower())
+            if matched < min_match:
+                missing = [kw for kw in keywords if kw.lower() not in content.lower()]
+                failures.append(f"缺少关键词：{', '.join(missing[:3])}")
+            scores.append(min(matched / max(min_match, 1), 1.0))
+
+        elif check_type == "neg_keyword":
+            forbidden = check.get("forbidden", [])
+            max_match = check.get("max_match", 0)
+            count = sum(1 for fw in forbidden if fw.lower() in content.lower())
+            if count > max_match:
+                hits = [fw for fw in forbidden if fw.lower() in content.lower()]
+                failures.append(f"出现禁用词：{', '.join(hits[:3])}")
+            scores.append(max(0.0, 1.0 - count))
+
+        elif check_type == "pattern":
+            regex_str = check.get("regex", "")
+            min_matches = check.get("min_matches", 1)
+            min_capture = check.get("min_capture", 0)
+            matches = re.findall(regex_str, content)
+            if len(matches) < min_matches:
+                failures.append(f"模式 '{regex_str}' 匹配不足（期望≥{min_matches}，实际{len(matches)}）")
+            if min_capture > 0 and matches:
+                captured = int(matches[-1]) if matches else 0
+                if captured < min_capture:
+                    failures.append(f"捕获值 {captured} 低于阈值 {min_capture}")
+            scores.append(min(len(matches) / max(min_matches, 1), 1.0))
+
+        elif check_type == "content_length":
+            min_chars = check.get("min_chars", 0)
+            if min_chars and len(content) < min_chars:
+                failures.append(f"内容过短（{len(content)} 字符，期望≥{min_chars}）")
+            scores.append(min(len(content) / max(min_chars, 1), 1.0))
+
+        elif check_type == "section":
+            required = check.get("required", [])
+            for section in required:
+                if section not in content:
+                    failures.append(f"缺失章节：{section}")
+            scores.append(len(required) / max(len(required), 1))
+
+        elif check_type == "structure":
+            min_headings = check.get("min_headings", 1)
+            heading_count = len(re.findall(r'^#{1,3}\s', content, re.MULTILINE))
+            if heading_count < min_headings:
+                failures.append(f"章节结构不足（{heading_count} 个标题，期望≥{min_headings}）")
+            scores.append(min(heading_count / max(min_headings, 1), 1.0))
+
+        elif check_type == "data_source":
+            markers = check.get("markers", [])
+            has_any = any(m in content for m in markers)
+            if not has_any:
+                failures.append("缺少数据来源标注")
+            scores.append(1.0 if has_any else 0.0)
+
+    if not scores:
+        scores = [1.0]
+
+    dim_score = sum(scores) / len(scores)
+    return (round(dim_score, 3), failures)
+
+
+def _compute_weighted_score(template: dict[str, Any], content: str) -> tuple[float, dict[str, float], dict[str, list[str]], list[str]]:
+    """Evaluate all dimensions in a template against content.
+
+    Returns:
+        (weighted_total, dimension_scores, dimension_failures, redline_hits)
+    """
+    dimensions = template.get("dimensions", [])
+    total_weight = 0.0
+    weighted_sum = 0.0
+    dim_scores: dict[str, float] = {}
+    dim_failures: dict[str, list[str]] = {}
+
+    for dim in dimensions:
+        name = dim.get("name", "unknown")
+        weight = dim.get("weight", 0.0)
+        score, failures = _check_dimension(dim, content)
+        dim_scores[name] = score
+        if failures:
+            dim_failures[name] = failures
+        weighted_sum += score * weight
+        total_weight += weight
+
+    # Normalize by total weight
+    if total_weight > 0:
+        weighted_total = weighted_sum / total_weight
+    else:
+        weighted_total = 0.0
+
+    # Check redlines
+    redlines = template.get("redlines", [])
+    redline_hits: list[str] = []
+    for rl in redlines:
+        # Each redline is a keyword/pattern — if found, it's a hit
+        if rl.lower() in content.lower():
+            redline_hits.append(rl)
+
+    return (round(weighted_total, 4), dim_scores, dim_failures, redline_hits)
+
+
+# ── Legacy constants (kept for backward compatibility) ────────
 
 # 重复检索阈值（可通过 env 覆盖）
 REPEAT_SEARCH_THRESHOLD = int(os.environ.get("RUBRIC_REPEAT_SEARCH_N", "3"))
@@ -227,6 +467,96 @@ def evaluate_deliverable(
         result.passed = False
         result.feedback = "交付物为空或内容过短"
         return result
+
+    # Resolve template family for this task_type
+    family = resolve_template_family(task_type)
+    template = get_template(family)
+
+    if template and family != "product":
+        # ── Template-driven evaluation ──
+        pass_threshold = template.get("pass_threshold", 0.70)
+        weighted_total, dim_scores, dim_failures, redline_hits = _compute_weighted_score(
+            template, content
+        )
+
+        result.dimension_scores = dim_scores
+        result.dimension_failures = dim_failures
+        result.hit_redlines = redline_hits
+
+        # Compute raw score (0-100)
+        raw_score = weighted_total * 100
+        result.total_score = round(raw_score, 1)
+
+        # Determine pass
+        result.passed = weighted_total >= pass_threshold
+        if redline_hits:
+            result.passed = False
+
+        # Build feedback
+        fb_lines = [f"### Rubric 评估报告（总分：{result.total_score:.1f}/100，模板：{family}）"]
+        grade = _grade(result.total_score)
+        fb_lines.append(f"**评级：{grade['label']}**")
+        fb_lines.append("")
+
+        # Dimension breakdown
+        fb_lines.append("**维度评分：**")
+        for dim_name, score in dim_scores.items():
+            bar_len = int(score * 10)
+            bar = "█" * bar_len + "░" * (10 - bar_len)
+            fb_lines.append(f"  {dim_name}: {score:.2f} [{bar}]")
+        fb_lines.append("")
+
+        if dim_failures:
+            fb_lines.append("**维度问题：**")
+            for dim, failures in dim_failures.items():
+                for f in failures:
+                    fb_lines.append(f"  - ❌ {dim}: {f}")
+            fb_lines.append("")
+
+        if redline_hits:
+            fb_lines.append("**⚠️ 命中红线（直接不通过）：**")
+            for r in redline_hits:
+                fb_lines.append(f"  - 🔴 {r}")
+            fb_lines.append("")
+
+        # Execution efficiency (still tracked via env params)
+        eff_failures: list[str] = []
+        if execution_rounds > 3:
+            eff_failures.append(f"执行轮次过多（{execution_rounds} 轮）")
+        if total_retries > 4:
+            eff_failures.append(f"重试次数过多（{total_retries} 次）")
+        if eff_failures:
+            result.dimension_failures["执行效率"] = eff_failures
+
+        fb_lines.append(f"**判定：{'✅ 通过' if result.passed else '❌ 不通过'}**")
+        if not result.passed:
+            fb_lines.append("需要修正后重新提交。")
+
+        result.feedback = "\n".join(fb_lines)
+        result.score_breakdown = (
+            f"模板: {family}\n"
+            f"阈值: {pass_threshold:.2f}\n"
+            f"加权得分: {weighted_total:.4f}\n"
+            + "\n".join(f"  {k}: {v:.3f}" for k, v in dim_scores.items())
+        )
+    else:
+        # ── Legacy product-class evaluation (unchanged logic) ──
+        _evaluate_product_legacy(result, content, execution_rounds, total_retries)
+
+    return result
+
+
+def _evaluate_product_legacy(
+    result: RubricResult,
+    content: str,
+    execution_rounds: int,
+    total_retries: int,
+) -> None:
+    """Legacy product-class evaluation logic (preserved for backward compatibility)."""
+    if not _check_content_exists(content):
+        result.passed = False
+        result.feedback = "交付物为空或内容过短"
+        return
 
     # ── 维度 1.1：需求目标匹配度 ──
     dim_1_1_failures: list[str] = []

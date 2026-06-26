@@ -7,7 +7,7 @@ description: 前端架构方法论：信息架构、组件边界、状态数据�
 > **来源合成**（已裁剪）：
 > - 组件化 / 容器-展示分离
 > - 前端架构决策记录（轻量 ADR）
-> - API 契约消费与 Port 模式（对齐 myteam frontend-v2）
+> - API 契约消费与 Port 模式（对齐 myteam frontend）
 > - Core Web Vitals / 性能预算思路
 
 **myteam 红线**：读 `docs/FRAMEWORK-FREEZE.md`；Hub API 契约以 arch 输出为准；禁止建议重写内核调度。
@@ -99,6 +99,6 @@ description: 前端架构方法论：信息架构、组件边界、状态数据�
 
 ## 反模式（禁止）
 
-- 未读 `frontend-v2/ARCHITECTURE.md` 就提议全新目录结构
+- 未读 `frontend/ARCHITECTURE.md` 就提议全新目录结构
 - 在 architecture-review 中直接改 backend 代码（frontend 专责 t-fe-contract 只读 frontend）
 - 无 trade-off 的单方案「推荐 React Query」类断言

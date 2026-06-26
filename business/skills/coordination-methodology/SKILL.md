@@ -43,7 +43,7 @@ description: 多 Agent 编排纪律：范围封板、并行委派、回归验证
 
 任一项为「是」且无用户 **明示授权** → **停止**，仅写方案不落地。
 
-**主增量区**（鼓励）：`business/workflows/`、`business/skills/`、`docs/`、Hub routes 模块化、frontend-v2、回归脚本。
+**主增量区**（鼓励）：`business/workflows/`、`business/skills/`、`docs/`、Hub routes 模块化、frontend、回归脚本。
 
 ---
 
