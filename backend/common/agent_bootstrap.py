@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Agent 工作区 bootstrap — team_config 时自动创建 workspace 与注册项。"""
 from __future__ import annotations
 
@@ -6,15 +5,33 @@ import json
 
 from common import paths
 
-IDENTITY_TEMPLATES = {
-    "IDENTITY.md": """# Agent Identity
+# 身份文件模板 — 优先从 YAML 加载，失败时回退到内置模板
+# 正式模板请编辑 business/templates/identity_templates.yaml
+IDENTITY_TEMPLATES: dict[str, str] = {}
+
+
+def _load_identity_templates() -> dict[str, str]:
+    """从 identity_templates.yaml 加载模板，失败时返回内置默认。"""
+    fpath = paths.identity_templates_file()
+    if fpath.exists():
+        try:
+            import yaml
+            raw = yaml.safe_load(fpath.read_text(encoding="utf-8"))
+            if isinstance(raw, dict) and "identity_templates" in raw:
+                return raw["identity_templates"]
+        except Exception:
+            pass
+
+    # 内置回退
+    return {
+        "IDENTITY.md": """# Agent Identity
 
 emoji: 🤖
 name: {name}
 role: {role}
 description: {description}
 """,
-    "AGENTS.md": """# {name} - Agent 配置
+        "AGENTS.md": """# {name} - Agent 配置
 
 ## 核心定位
 {description}
@@ -29,7 +46,7 @@ description: {description}
 - 编排任务：内核经 AgentPort 下发 prompt；交卷用 submit_result 写 .response/{{interaction_id}}.response
 - 团队编排由 Process 调度 DAG，不与其他 Agent 直接互读 .trigger
 """,
-    "SOUL.md": """# {name} - 灵魂与行为准则
+        "SOUL.md": """# {name} - 灵魂与行为准则
 
 ## 行为准则
 1. 准确：确保输出正确可靠
@@ -37,13 +54,17 @@ description: {description}
 3. 协作：积极与其他 Agent 配合
 4. 透明：清晰说明工作状态
 """,
-    "USER.md": """# 用户信息
+        "USER.md": """# 用户信息
 
 用户: 待配置
 联系方式: 待配置
 偏好: 待配置
 """,
-}
+    }
+
+
+# 模块加载时初始化
+IDENTITY_TEMPLATES.update(_load_identity_templates())
 
 
 def auto_create_agent(agent_id: str, *, name: str = "", role: str = "worker",

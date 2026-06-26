@@ -199,3 +199,23 @@ def test_delete_project_purges_all_tables_and_isolates(store):
     assert store.get_project("pro_keep") is not None
     assert store._conn.execute(
         "SELECT COUNT(*) FROM run_event WHERE interaction_id LIKE 'pro_keep:%'").fetchone()[0] == 1
+
+
+def test_skill_review_does_not_overwrite_completed_task(store):
+    """create_interaction 的 skill_review kind 不应回滚 task 终态。
+    
+    Regression test for Bug 3: skill_review daemon thread was calling
+    create_interaction(..., task_status="in_progress") after _finalize_success
+    already set task to "completed", overwriting the status.
+    """
+    store.upsert_project("p_skill", title="SkillReviewBug", status="in_progress")
+    store.upsert_task("p_skill", "t1", name="test", agent="research")
+    store.set_task_status("p_skill", "t1", "completed")
+    assert store.get_task("p_skill", "t1")["status"] == "completed"
+    store.create_interaction(
+        "p_skill:t1:skill_review", "skill_review", "p_skill",
+        task_id="t1", agent_id="research",
+        task_status="in_progress",
+    )
+    assert store.get_task("p_skill", "t1")["status"] == "completed", \
+        "skill_review should not overwrite task status to in_progress"

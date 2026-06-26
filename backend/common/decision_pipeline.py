@@ -52,8 +52,9 @@ class DecisionPipeline:
                 summarize_quality,
             )
 
+            coordinator = self.config.coordinator_agent_id
             all_agents = sorted({
-                aid for aid in _list_agent_ids(self.store) if aid != "main"
+                aid for aid in _list_agent_ids(self.store) if aid != coordinator
             })
             hints: list[str] = []
             for aid in all_agents:
@@ -99,9 +100,10 @@ class DecisionPipeline:
         quality_hint = self._quality_team_hint()
         if quality_hint:
             inp["quality_summary"] = quality_hint
+        coordinator = self.config.coordinator_agent_id
         req = {
             "interaction_id": iid,
-            "kind": "team_config", "project_id": project_id, "agent_id": "main",
+            "kind": "team_config", "project_id": project_id, "agent_id": coordinator,
             "intent": render_kind_intent("team_config", {"goal": goal}),
             "input": inp,
             "response_schema": "team_config.result@1.0",
@@ -112,7 +114,7 @@ class DecisionPipeline:
         if res.status != "done":
             raise RuntimeError(f"team_config 失败：{res.status} {res.reason}")
         agents = normalize_agent_ids(res.response["result"]["agents"])
-        self.release_files("main", iid)
+        self.release_files(coordinator, iid)
 
         missing = [a for a in agents if not workspace_dir(a).exists()]
         if missing and self.config.auto_create_agents:
@@ -136,6 +138,7 @@ class DecisionPipeline:
     def task_plan(self, project_id: str, goal: str, agents: list[str], *,
                   cycle: int = 0, prior_summary: str = "") -> list[dict]:
         agents = normalize_agent_ids(agents)
+        coordinator = self.config.coordinator_agent_id
         team = set(agents)
         feedback: list[str] = []
         base_iid = f"{project_id}:task_plan" + (f":c{cycle}" if cycle else "")
@@ -155,7 +158,7 @@ class DecisionPipeline:
             iid = base_iid + ("" if attempt == 1 else f":{attempt}")
             req = {
                 "interaction_id": iid,
-                "kind": "task_plan", "project_id": project_id, "agent_id": "main",
+                "kind": "task_plan", "project_id": project_id, "agent_id": coordinator,
                 "intent": render_kind_intent("task_plan", {
                     "goal": goal,
                     "team": ", ".join(agents),
@@ -166,19 +169,19 @@ class DecisionPipeline:
             }
             res = self.port.run(req)
             if res.status == "budget_exceeded":
-                self.release_files("main", iid)
+                self.release_files(coordinator, iid)
                 raise BudgetExceededError(res.reason or "交互级 token 超预算")
             if res.status != "done":
-                self.release_files("main", iid)
+                self.release_files(coordinator, iid)
                 raise RuntimeError(f"task_plan 失败：{res.status} {res.reason}")
             tasks = normalize_plan_tasks(res.response["result"]["tasks"])
             check = check_plan(tasks, team)
             if check.passed:
-                self.release_files("main", iid)
+                self.release_files(coordinator, iid)
                 return tasks
             feedback = [check.feedback]
             self.store.append_run_event(iid, "plan_rejected", {"reason": check.feedback})
-            self.release_files("main", iid)
+            self.release_files(coordinator, iid)
         raise RuntimeError(
             f"task_plan 校验失败（重试 {self.config.max_plan_retries} 次仍未通过）：{feedback[0]}")
 
@@ -220,13 +223,14 @@ class DecisionPipeline:
         return None
 
     def triage(self, project_id: str, task: dict, reason: str) -> TriageOutcome:
+        coordinator = self.config.coordinator_agent_id
         tid = task["id"]
         row = self.store.get_task(project_id, tid) or {}
         meta = row.get("meta") or {}
         req = {
             "interaction_id": f"{project_id}:{tid}:triage",
             "kind": "triage", "project_id": project_id, "task_id": tid,
-            "agent_id": "main", "intent": f"任务 {tid} 失败，请决策",
+            "agent_id": coordinator, "intent": f"任务 {tid} 失败，请决策",
             "input": {
                 "task": task,
                 "reason": reason,
@@ -237,11 +241,11 @@ class DecisionPipeline:
         }
         res = self.port.run(req)
         if res.status != "done":
-            self.release_files("main", req["interaction_id"])
+            self.release_files(coordinator, req["interaction_id"])
             return TriageOutcome("drop")
         result = res.response["result"]
         decision = result.get("decision", "drop")
-        self.release_files("main", req["interaction_id"])
+        self.release_files(coordinator, req["interaction_id"])
         if decision == "reassign" and result.get("target_agent"):
             target = normalize_agent_id(result["target_agent"])
             self.store.upsert_task(project_id, tid, agent=target,

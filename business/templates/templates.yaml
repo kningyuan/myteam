@@ -1,7 +1,7 @@
 custom-survey:
   display_name: 自定义调研
   recommended_skills:
-    - product-research
+  - product-research
   deliverable_template:
     required_heading_level: 2
     sections:
@@ -22,7 +22,7 @@ custom-survey:
 my-type:
   display_name: 我的类型
   recommended_skills:
-    - product-research
+  - product-research
   deliverable_template:
     required_heading_level: 2
     sections:
@@ -36,7 +36,7 @@ my-type:
 data-analysis:
   display_name: 数据分析
   recommended_skills:
-    - data-analysis-kernel
+  - data-analysis-kernel
   deliverable_template:
     required_heading_level: 2
     sections:
@@ -54,8 +54,8 @@ data-analysis:
 research:
   display_name: 调研
   recommended_skills:
-    - research
-    - product-research
+  - research
+  - product-research
   deliverable_template:
     required_heading_level: 2
     sections:
@@ -77,15 +77,18 @@ research:
     - 信息来源
     - 关键发现
     - 结论
+    must_include:
+    - 数据来源
+    - 可信度
     min_length: 200
   task_type: research
   outcome_kind: artifact
 coding:
   display_name: 编码
   recommended_skills:
-    - code-writing
-    - code-testing
-    - code-deliverable
+  - code-writing
+  - code-testing
+  - code-deliverable
   deliverable_template:
     required_heading_level: 2
     sections:
@@ -113,8 +116,8 @@ coding:
 review:
   display_name: 评审
   recommended_skills:
-    - code-review
-    - section-review
+  - code-review
+  - section-review
   deliverable_template:
     required_heading_level: 2
     sections:
@@ -138,7 +141,7 @@ review:
 competitive-analysis:
   display_name: 竞品分析
   recommended_skills:
-    - product-research
+  - product-research
   deliverable_template:
     required_heading_level: 2
     sections:
@@ -166,7 +169,7 @@ competitive-analysis:
 product-planning:
   display_name: 产品规划
   recommended_skills:
-    - product-planning
+  - product-planning
   deliverable_template:
     required_heading_level: 2
     sections:
@@ -194,7 +197,7 @@ product-planning:
 acceptance-report:
   display_name: 验收报告
   recommended_skills:
-    - acceptance-report
+  - acceptance-report
   deliverable_template:
     required_heading_level: 2
     sections:
@@ -222,7 +225,7 @@ acceptance-report:
 product-research:
   display_name: 产品调研
   recommended_skills:
-    - product-research
+  - product-research
   deliverable_template:
     required_heading_level: 2
     sections:
@@ -254,56 +257,133 @@ product-research:
 business-diagnosis:
   display_name: 业务诊断
   recommended_skills:
-    - product-research
+  - product-research
   deliverable_template:
     required_heading_level: 2
     sections:
-      - name: 诊断背景
-        description: 填写「诊断背景」章节，描述业务现状和问题
-        required: true
-      - name: 问题分析
-        description: 填写「问题分析」章节，根因分析
-        required: true
-      - name: 改进建议
-        description: 填写「改进建议」章节，具体可执行的建议
-        required: true
-      - name: 实施计划
-        description: 填写「实施计划」章节，分步骤和时间线
-        required: true
+    - name: 诊断背景
+      description: 填写「诊断背景」章节，描述业务现状和问题
+      required: true
+    - name: 问题分析
+      description: 填写「问题分析」章节，根因分析
+      required: true
+    - name: 改进建议
+      description: 填写「改进建议」章节，具体可执行的建议
+      required: true
+    - name: 实施计划
+      description: 填写「实施计划」章节，分步骤和时间线
+      required: true
   check_rules:
     required_sections:
-      - 诊断背景
-      - 问题分析
-      - 改进建议
-      - 实施计划
+    - 诊断背景
+    - 问题分析
+    - 改进建议
+    - 实施计划
     min_length: 300
   task_type: business-diagnosis
   outcome_kind: artifact
 code-deployment:
   display_name: 部署上线
   recommended_skills:
-    - code-deliverable
+  - code-deliverable
   deliverable_template:
     required_heading_level: 2
     sections:
-      - name: 部署范围
-        description: 填写「部署范围」章节，明确部署目标、环境、版本
-        required: true
-      - name: 部署步骤
-        description: 填写「部署步骤」章节，详细记录部署操作
-        required: true
-      - name: 健康检查
-        description: 填写「健康检查」章节，记录验证结果
-        required: true
-      - name: 回滚预案
-        description: 填写「回滚预案」章节，说明回滚条件和步骤
-        required: true
+    - name: 部署范围
+      description: 填写「部署范围」章节，明确部署目标、环境、版本
+      required: true
+    - name: 部署步骤
+      description: 填写「部署步骤」章节，详细记录部署操作
+      required: true
+    - name: 健康检查
+      description: 填写「健康检查」章节，记录验证结果
+      required: true
+    - name: 回滚预案
+      description: 填写「回滚预案」章节，说明回滚条件和步骤
+      required: true
   check_rules:
     required_sections:
-      - 部署范围
-      - 部署步骤
-      - 健康检查
-      - 回滚预案
+    - 部署范围
+    - 部署步骤
+    - 健康检查
+    - 回滚预案
     min_length: 300
   task_type: code-deployment
   outcome_kind: artifact
+publish-post:
+  display_name: 发布帖子
+  outcome_kind: action
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 发布平台
+      required: true
+    - name: 帖子标题
+      required: true
+    - name: 已发布URL
+      required: true
+    - name: 证据截图
+      required: true
+  check_rules:
+    required_sections:
+    - 发布平台
+    - 帖子标题
+    - 已发布URL
+    - 证据截图
+    min_length: 100
+    evidence_url:
+      host_contains: zhuanlan.zhihu.com
+      screenshot_field: 证据截图
+      verify_title: true
+  task_type: publish-post
+code-deliverable:
+  display_name: 代码交付
+  outcome_kind: code_project
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 需求分析
+      required: true
+    - name: 设计方案
+      required: true
+    - name: 代码实现
+      required: true
+    - name: 测试结果
+      required: true
+  check_rules:
+    required_sections:
+    - 需求分析
+    - 设计方案
+    - 代码实现
+    - 测试结果
+    min_length: 200
+    min_project_files: 2
+    require_code_file: true
+    required_extensions:
+    - .py
+    - .sh
+    - .js
+    - .ts
+  task_type: code-deliverable
+decision-record:
+  display_name: 决策记录
+  outcome_kind: artifact
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 决策背景
+      required: true
+    - name: 可选方案
+      required: true
+    - name: 决策理由
+      required: true
+    - name: 行动事项
+      required: true
+  check_rules:
+    required_sections:
+    - 决策背景
+    - 可选方案
+    - 决策理由
+    - 行动事项
+    min_length: 200
+  task_type: decision-record

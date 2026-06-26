@@ -1,0 +1,28 @@
+id: deployment-report
+version: '1.0'
+display_name: 部署报告
+description: 部署上线交付模板
+task_types:
+  - code-deployment
+deliverable_template:
+  required_heading_level: 2
+  sections:
+    - name: 部署范围
+      description: 填写「部署范围」章节，明确部署目标、环境、版本
+      required: true
+    - name: 部署步骤
+      description: 填写「部署步骤」章节，详细记录部署操作
+      required: true
+    - name: 健康检查
+      description: 填写「健康检查」章节，记录验证结果
+      required: true
+    - name: 回滚预案
+      description: 填写「回滚预案」章节，说明回滚条件和步骤
+      required: true
+check_rules:
+  required_sections:
+    - 部署范围
+    - 部署步骤
+    - 健康检查
+    - 回滚预案
+  min_length: 300

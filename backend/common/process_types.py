@@ -33,6 +33,8 @@ class ProcessConfig:
     split_enabled: bool = False            # evaluate 拆分：派发前 + 执行中待调度任务；默认关，opt-in
     max_split_depth: int = 2               # 递归拆分深度上限 → 终止性硬底（无论 agent 怎么判都收敛）
     max_subtasks: int = 8                  # 单次拆分子任务数上限（防扇出爆炸）
+    coordinator_agent_id: str = "main"     # P0 边界澄清：协调者角色 ID（0.1），默认 "main"
+    deputy_agent_id: str = "deputy"        # 副协调者 ID（workers_only 排除用）
     auto_create_agents: bool = True        # team_config 时自动创建未就绪 agent
     default_backend: str = "opencode"      # 自动创建 agent 时的默认后端
     default_model: str = ""                # 自动创建 agent 时的默认模型

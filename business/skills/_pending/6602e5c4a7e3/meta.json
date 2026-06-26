@@ -1,0 +1,12 @@
+{
+  "pending_id": "6602e5c4a7e3",
+  "project_id": "p",
+  "task_id": "t",
+  "task_type": "research",
+  "agent_id": "product",
+  "action": "patch",
+  "skill_id": "product-methodology",
+  "notes": "n",
+  "created_at": "2026-06-26T14:05:15.798377+00:00",
+  "write_approval": true
+}

@@ -45,21 +45,34 @@ def write_global_user_md(content: str) -> Path:
     return GLOBAL_USER_PATH
 
 
-def sync_all_agents_bounded_user() -> list[str]:
-    """从 config/USER.md 刷新各 Agent workspace/USER.md（有界）。"""
-    synced: list[str] = []
-    try:
-        from hub.services.agent_registry import list_available_agent_ids
+def sync_all_agents_bounded_user(agent_ids: list[str] | None = None) -> list[str]:
+    """从 config/USER.md 刷新各 Agent workspace/USER.md（有界）。
 
-        agent_ids = list_available_agent_ids()
-    except Exception:
-        agent_ids = []
+    Args:
+        agent_ids: 可选注入的 agent 列表。None 时尝试从 agents_config.json 读取。
+    """
+    synced: list[str] = []
+    if agent_ids is None:
+        try:
+            from common.paths import BUSINESS_CONFIG_DIR
+            import json
+            path = BUSINESS_CONFIG_DIR / "agents_config.json"
+            if path.is_file():
+                raw = json.loads(path.read_text(encoding="utf-8"))
+                agent_ids = list(raw.keys())
+        except Exception:
+            agent_ids = []
+        if not agent_ids:
+            try:
+                from hub.services.agent_registry import list_available_agent_ids
+                agent_ids = list_available_agent_ids()
+            except Exception:
+                agent_ids = []
     if not agent_ids and LEGACY_USERS_DIR.is_dir():
         agent_ids = [d.name for d in LEGACY_USERS_DIR.iterdir() if d.is_dir()]
     for aid in agent_ids:
         try:
             from execution_harness.identity.bounded import sync_bounded_identity
-
             sync_bounded_identity(aid, owner_id=GLOBAL_OWNER_ID, workspace=workspace_dir(aid))
             synced.append(aid)
         except Exception:

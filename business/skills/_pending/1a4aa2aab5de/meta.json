@@ -1,0 +1,12 @@
+{
+  "pending_id": "1a4aa2aab5de",
+  "project_id": "ui_test_proj_unit",
+  "task_id": "t4",
+  "task_type": "data-analysis",
+  "agent_id": "main",
+  "action": "create",
+  "skill_id": "doc-validation-troubleshoot",
+  "notes": "从会话中提炼出文档验证错误排查的教训：Agent 遇到 section_level 验证失败，通过搜索模板和最终修正章节层级解决。该模式可复用于所有涉及文档结构验证的场景。",
+  "created_at": "2026-06-26T16:51:00.431541+00:00",
+  "write_approval": true
+}

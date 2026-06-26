@@ -43,7 +43,7 @@ def on_task_complete(
     *,
     port_run: Optional[Callable[[dict], Any]] = None,
 ) -> Optional[str]:
-    """H-POST — execute 成功后：promote + lesson 沉淀 + 可选 skill_review。"""
+    """H-POST — execute 成功后：promote + lesson 沉淀 + 可选 rubric 评估 + skill_review。"""
     ref: Optional[str] = None
     try:
         ref = promote_task_artifacts(ctx)

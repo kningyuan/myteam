@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(python3 -c \"import json; d=json.load\\(open\\('business/config/agents_registry.json'\\)\\); [print\\(f'{k}: skills={v.get\\(\\\\\"skills\\\\\",\\\\\"<none>\\\\\"\\)}'\\) for k,v in d['agents'].items\\(\\)]\")",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(rm -rf business/skills/_pending/*/)",
+      "Bash(rmdir business/skills/_pending/)",
+      "Bash(mkdir -p business/skills/_pending)"
     ]
   }
 }

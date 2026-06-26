@@ -1,0 +1,28 @@
+id: competitive-analysis
+version: '1.0'
+display_name: 竞品分析报告
+description: 竞品分析任务交付模板
+task_types:
+- competitive-analysis
+deliverable_template:
+  required_heading_level: 2
+  sections:
+  - name: 竞品概览
+    description: 填写「竞品概览」，包含各竞品的定位、核心能力、定价
+    required: true
+  - name: 能力对比矩阵
+    description: 填写「能力对比矩阵」，表格形式对比各竞品
+    required: true
+  - name: 优劣势分析
+    description: 填写「优劣势分析」，每个竞品 3-5 个优势/劣势
+    required: true
+  - name: 差异化机会
+    description: 填写「差异化机会」，基于对比分析提出差异化建议
+    required: true
+check_rules:
+  required_sections:
+  - 竞品概览
+  - 能力对比矩阵
+  - 优劣势分析
+  - 差异化机会
+  min_length: 300

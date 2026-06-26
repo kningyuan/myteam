@@ -1,0 +1,12 @@
+{
+  "pending_id": "4923fb9b97a6",
+  "project_id": "ui_test_proj_unit",
+  "task_id": "t4",
+  "task_type": "review",
+  "agent_id": "main",
+  "action": "reference",
+  "skill_id": "quality-review",
+  "notes": "本次 execute 暴露了一个常见场景：上游交付物文件不在项目目录中，仅能通过元数据摘要推断。quality-review skill 应补充关于「上游交付物缺失时的处理策略」的参考指引。",
+  "created_at": "2026-06-26T16:15:27.134074+00:00",
+  "write_approval": true
+}

@@ -427,10 +427,17 @@ class Store:
                 (interaction_id, kind, project_id, task_id, agent_id, backend, attempt, now, now),
             )
             if task_status and task_id:
-                self._conn.execute(
-                    "UPDATE task SET status=?, updated_at=? WHERE project_id=? AND task_id=?",
-                    (task_status, now, project_id, task_id),
-                )
+                # 防御：不回滚已终态的任务（skill_review 等后台 interaction 不应改写）
+                row = self._conn.execute(
+                    "SELECT status FROM task WHERE project_id=? AND task_id=?", (project_id, task_id),
+                ).fetchone()
+                if row and row[0] == "completed":
+                    pass
+                else:
+                    self._conn.execute(
+                        "UPDATE task SET status=?, updated_at=? WHERE project_id=? AND task_id=?",
+                        (task_status, now, project_id, task_id),
+                    )
 
     def update_interaction(self, interaction_id: str, *, status: Optional[str] = None,
                           response_ref: Optional[str] = None, tokens: Optional[int] = None,

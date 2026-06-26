@@ -213,7 +213,7 @@ export function ExecuteSection() {
     <>
       <DiscordShell
         list={
-          <ListColumn title="单 Agent Execute" widthStorageKey="agentHub.executeListWidth">
+          <ListColumn title="独立任务" widthStorageKey="agentHub.executeListWidth">
             <div className="px-3 pb-2">
               <Button size="sm" className="w-full" onClick={() => setCreateOpen(true)}>
                 新建任务
@@ -250,7 +250,7 @@ export function ExecuteSection() {
             )
           ) : (
             <WelcomePane
-              title="单 Agent Execute（Layer B）"
+              title="独立任务（Layer B）"
               description="无 Workflow：prepare 看 harness 注入 → Agent 写交付物/ledger → finish 沉淀 KB/references。"
             />
           )}
@@ -260,7 +260,7 @@ export function ExecuteSection() {
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>prepare 单 Agent 任务</DialogTitle>
+            <DialogTitle>prepare 独立任务</DialogTitle>
           </DialogHeader>
           <div className="grid gap-3 py-2">
             <div className="grid gap-2 sm:grid-cols-2">

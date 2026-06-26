@@ -1,0 +1,12 @@
+{
+  "pending_id": "e469d8adb0e8",
+  "project_id": "ui_test_proj_unit",
+  "task_id": "t3",
+  "task_type": "competitive-analysis",
+  "agent_id": "research",
+  "action": "reference",
+  "skill_id": "product-methodology",
+  "notes": "本次竞品分析任务暴露了「任务范围模糊」的常见场景：任务未指定具体产品领域，需基于上下文推断。建议在 product-methodology 下添加 references/scope-clarity.md，覆盖：\n\n## Procedure\n1. 收到任务后首先检查是否包含明确的分析范围（产品领域、目标市场、竞品类型）\n2. 若范围模糊，优先查看项目上下文（AGENTS.md、项目文档、前置任务）\n3. 无法推断时，在执行前主动向编排层确认范围\n4. 在交付物中声明假设的范围及其依据\n\n## Pitfalls\n- 直接假设范围而不声明，导致交付物偏离用户意图\n- 过度依赖隐式上下文，未验证假设的正确性\n- 交付后才发现范围不匹配，返工成本高\n\n## Verification\n- 交付物中是否包含「分析范围」或「假设声明」章节\n- 假设是否基于可追溯的上下文来源",
+  "created_at": "2026-06-26T16:13:17.048287+00:00",
+  "write_approval": true
+}

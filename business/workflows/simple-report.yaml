@@ -1,0 +1,28 @@
+id: simple-report
+name: 信息收集与报告撰写
+version: "1.0"
+description: 收集信息后撰写报告，两步简单流程
+tasks:
+  - id: step-collect
+    agent_id: research
+    task_type: research
+    template_id: research-report
+    name: 收集信息
+    description: |
+      【范围】围绕指定主题收集信息，整理关键发现
+      【输入】主题
+      【交付】信息收集结果（Markdown）
+      【质量】覆盖关键信息点，标注来源
+    dependencies: []
+  - id: step-report
+    agent_id: product
+    task_type: review
+    template_id: review-report
+    name: 撰写报告
+    description: |
+      【范围】基于收集的信息撰写完整报告
+      【输入】信息收集结果
+      【交付】报告（Markdown）
+      【质量】报告结构完整，逻辑清晰
+    dependencies:
+      - step-collect

@@ -17,6 +17,7 @@ from execution_harness.injection.blocks import (
     append_l1_block,
     append_preference_block,
     append_reference_pointers,
+    append_rubric_block,
     append_umbrella_skill_block,
 )
 from execution_harness.pre.lesson_inject import append_lesson_hints
@@ -99,5 +100,8 @@ def inject_execute_prompt(ctx: ExecuteHarnessContext) -> None:
             ctx.project_id, ctx.task_type, store=ctx.store, limit=ctx.limit
         )
         append_kb_top_k(ctx.lines, entries)
+
+        # 路径 D：Rubric 质量评分标准注入（让 Agent 知晓将被如何评估）
+        append_rubric_block(ctx.lines, task_type=ctx.task_type)
     except Exception as e:
         logger.warning("inject_execute_prompt failed: %s", e)

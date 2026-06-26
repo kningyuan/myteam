@@ -16,6 +16,29 @@ DEFAULT_CONFIG = {
         "default_review": False,
         "audit_log": False,
         "audit_log_max_bytes": 500000,
+        "coordinator_agent_id": "main",
+        "deputy_agent_id": "deputy",
+        # P0 边界澄清：旧路径清理（0.6）
+        "use_sqlite_project_store": False,
+        # P0 边界澄清：code_project outcome_kind 检测（0.2）
+        "use_outcome_kind_detection": False,
+        # P0 边界澄清：PGD 严格类型配置化（0.3）
+        "use_strict_must_include_config": False,
+        # P0 边界澄清：KB API 抽象修复（0.5）
+        "use_kb_backend_for_observability": False,
+        # P2 硬编码配置化
+        "placeholder_markers": ["待补充", "待填写", "todo", "tbd", "tbd", "xxx", "lorem ipsum", "占位"],
+        "blocked_markers": ["signin", "unhuman", "/account/", "captcha", "verify", "登录知乎", "网络环境存在异常"],
+        "code_extensions": [".py", ".sh", ".js", ".ts", ".java", ".go", ".rs", ".cpp", ".h", ".c", ".rb", ".php", ".swift"],
+        # rules 规则文件配置 — 每个 profile 对应的文件名（可覆盖）
+        "rules": {
+            "profile_filenames": {
+                "interactive": "interactive-guide.md",
+                "discussion": "brainstorming-guide.md",
+                "workflow_execute": "worker-template.md",
+                "ethos": "ethos.md",
+            },
+        },
     },
     "backends": {
         "opencode": {

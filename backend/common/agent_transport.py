@@ -76,13 +76,6 @@ def parallel_execute_workspace(agent_id: str, req) -> Path:
             shutil.copy2(src, dst)
     return iso
 
-_AGENT_DISPLAY_NAMES = {
-    "main": "项目协调专家",
-    "product": "产品经理",
-    "developer": "开发工程师",
-    "research": "研究员",
-    "content": "内容创作者",
-}
 
 # 决策类 kind 的 result 具体骨架（弱模型靠 response_schema 名字猜不出结构，须给样例，D11）。
 _RESULT_SKELETON = {
@@ -139,12 +132,30 @@ def _default_request_factory(**kw):
     return RunRequest(**kw)
 
 
+def _chinese_name(agent_id: str) -> str:
+    """从 agents_registry.json 读取显示名，fallback 到 agent_id。"""
+    try:
+        from common.paths import BUSINESS_CONFIG_DIR
+        import json
+        path = BUSINESS_CONFIG_DIR / "agents_registry.json"
+        if path.is_file():
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            agents = raw.get("agents") if isinstance(raw, dict) else raw
+            if isinstance(agents, dict):
+                cfg = agents.get(agent_id)
+                if isinstance(cfg, dict):
+                    return str(cfg.get("name", "") or cfg.get("display_name", "") or agent_id)
+    except Exception:
+        pass
+    return agent_id
+
+
 def _build_rules_file(agent_id: str) -> Optional[str]:
     """项目 execute：universal + worker-template + AGENTS.md（D1 与 Hub 规则目录同源）。"""
     from common.rules_merge import merge_rules_file
 
     ws = str(workspace_dir(agent_id))
-    chinese_name = _AGENT_DISPLAY_NAMES.get(agent_id, agent_id)
+    chinese_name = _chinese_name(agent_id)
     return merge_rules_file(
         agent_id,
         ws,
@@ -218,6 +229,12 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
     plan = (req.context or {}).get("plan")
     if plan:
         lines.append(plan)
+        lines.append("")
+
+    # 路径 E：自我提升前置约束注入
+    si_constraints = (req.context or {}).get("self_improve_constraints")
+    if si_constraints:
+        lines.append(si_constraints)
         lines.append("")
 
     if kind == "execute":
@@ -468,6 +485,12 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
             dv_path = (req.input or {}).get("deliverable_path", "")
             if dv_path:
                 lines.append(f"交付物文件：{dv_path}（请直接编辑此文件，不要重写）")
+
+    # 通用工程师思维循环 — 先想再做，自检后再提交
+    from execution_harness.pre.engineer_loop import ENGINEER_LOOP_BLOCK
+    lines.append("")
+    lines.append(ENGINEER_LOOP_BLOCK.strip())
+    lines.append("")
 
     lines += [
         "",

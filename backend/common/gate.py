@@ -33,8 +33,16 @@ EVIDENCE_VERIFY_OFF = os.environ.get("EVIDENCE_GATE_VERIFY", "1") == "0"
 _URL_RE = re.compile(r"https?://[^\s)\]\"'<>]+")
 
 # 平台反爬/登录墙特征：命中则事后重读不可信，判为「无法核实」而非「动作未发生」。
-_BLOCKED_MARKERS = ("signin", "unhuman", "/account/", "captcha", "verify",
-                    "登录知乎", "网络环境存在异常")
+try:
+    from store.system_config import system_config
+    _BLOCKED_MARKERS = system_config.get(
+        "system", "blocked_markers",
+        default=("signin", "unhuman", "/account/", "captcha", "verify",
+                  "登录知乎", "网络环境存在异常"),
+    )
+except Exception:
+    _BLOCKED_MARKERS = ("signin", "unhuman", "/account/", "captcha", "verify",
+                        "登录知乎", "网络环境存在异常")
 
 
 def _extract_field(content: str, field_name: str) -> str:
@@ -93,8 +101,13 @@ def _resolve_browse_bin() -> Optional[str]:
             return c
     return None
 
-# PGD 阶段闸门：决策/验收类交付物始终校验 must_include（阻塞项清零等）
-_PGD_STRICT_TYPES = frozenset({"decision-record", "acceptance-report"})
+
+# P0 边界澄清：feature flag 控制 strict_must_include 从 FormatSpec 读取
+try:
+    from store.system_config import system_config
+    USE_STRICT_MUST_INCLUDE = bool(system_config.get("system", "use_strict_must_include_config", default=False))
+except Exception:
+    USE_STRICT_MUST_INCLUDE = False
 
 
 @dataclass
@@ -203,7 +216,12 @@ def check_action_evidence(spec: FormatSpec, content: str,
     return res
 
 
-_CODE_EXTS = {".py", ".sh", ".js", ".ts", ".go", ".rb", ".java", ".rs"}
+try:
+    from store.system_config import system_config
+    _CODE_EXTS = set(system_config.get("system", "code_extensions",
+        default=[".py", ".sh", ".js", ".ts", ".java", ".go", ".rs", ".cpp", ".h", ".c", ".rb", ".php", ".swift"]))
+except Exception:
+    _CODE_EXTS = {".py", ".sh", ".js", ".ts", ".java", ".go", ".rs", ".cpp", ".h", ".c", ".rb", ".php", ".swift"}
 _PACKAGE_EXTS = {".yaml", ".yml", ".json", ".toml", ".env", ".cfg", ".ini"}
 
 
@@ -335,7 +353,12 @@ def check_execute(response: dict, *, base_dir: Optional[str] = None,
         return res
     content = Path(dv_path).read_text(encoding="utf-8")
 
-    strict_mi = enforce_must_include or task_type in _PGD_STRICT_TYPES
+    strict_mi = enforce_must_include
+    if not strict_mi:
+        if USE_STRICT_MUST_INCLUDE:
+            strict_mi = spec.strict_must_include
+        else:
+            strict_mi = task_type in {"decision-record", "acceptance-report"}
     fmt = check_format(spec, content, dv_path, enforce_must_include=strict_mi)
     if spec.outcome_kind == "action":
         ev = check_action_evidence(spec, content, dv_path)

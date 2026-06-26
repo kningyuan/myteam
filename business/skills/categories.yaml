@@ -14,6 +14,7 @@ categories:
       - qa-methodology
       - system-architecture-methodology
       - workflow-design
+      - evaluation-rubric
   code-project:
     name: 代码工程
     description: 代码工程相关技能
@@ -35,3 +36,11 @@ categories:
       - officecli-word-form
       - morph-ppt
       - morph-ppt-3d
+
+  workflow-creation:
+    name: Workflow 创建
+    description: 从SOP到myteam配置的完整流程
+    members:
+      - sop-to-workflow
+      - workflow-creator
+      - workflow-design

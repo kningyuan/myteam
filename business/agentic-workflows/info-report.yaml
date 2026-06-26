@@ -1,0 +1,72 @@
+id: info-report
+version: "1.0"
+name: 信息收集与报告
+description: 收集信息后撰写报告，适用于通用调研场景
+
+metadata:
+  source_sop: "收集信息 → 撰写报告"
+  created_at: "2026-06-25"
+  domain: "通用调研"
+
+inputs:
+  - name: topic
+    type: string
+    description: "调研主题"
+    required: true
+
+steps:
+  - id: step-collect
+    name: 收集信息
+    description: |
+      【范围】围绕指定主题收集相关信息，涵盖市场、用户、竞品等维度
+      【输入】调研主题
+      【交付】信息汇总（Markdown）
+      【质量】信息来源须标注来源；缺失信息明确标注
+    agent: research
+    task_type: research
+    inputs:
+      - topic
+    outputs:
+      - name: collected_info
+        type: file
+        format: markdown
+        description: "信息汇总，含来源标注"
+    quality_gate:
+      type: check_sections
+      required_sections:
+        - 调研目标
+        - 信息来源
+        - 关键发现
+        - 结论
+      min_length: 500
+
+  - id: step-report
+    name: 撰写报告
+    description: |
+      【范围】基于收集的信息，撰写完整报告
+      【输入】信息汇总
+      【交付】最终报告（Markdown）
+      【质量】报告须包含背景、核心发现、结论与建议
+    agent: product
+    task_type: product-planning
+    inputs:
+      - collected_info
+    outputs:
+      - name: final_report
+        type: file
+        format: markdown
+        description: "最终报告"
+    quality_gate:
+      type: check_sections
+      required_sections:
+        - 产品定位
+        - 核心功能
+        - 优先级排序
+        - 实施路线图
+      min_length: 800
+
+outputs:
+  - name: report
+    type: file
+    format: markdown
+    description: "最终报告"

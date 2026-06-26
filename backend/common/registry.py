@@ -24,10 +24,14 @@ from typing import Optional
 
 from common.paths import templates_file
 from common.delivery_profiles import merge_file_exists, resolve_profile_name
+from store.system_config import system_config
 
 # 防 stub 下限：低于此（去空白后字符数）或命中占位符 = stub（D14）。
 DEFAULT_STUB_FLOOR = 20
-_PLACEHOLDER_MARKERS = ("待补充", "待填写", "todo", "tbd", "tbd", "xxx", "lorem ipsum", "占位")
+_DEFAULT_PLACEHOLDER_MARKERS = ("待补充", "待填写", "todo", "tbd", "tbd", "xxx", "lorem ipsum", "占位")
+_PLACEHOLDER_MARKERS = tuple(
+    system_config.get("system", "placeholder_markers", default=_DEFAULT_PLACEHOLDER_MARKERS)
+)
 
 @dataclass
 class FormatSpec:
@@ -42,6 +46,7 @@ class FormatSpec:
     stub_floor: int = DEFAULT_STUB_FLOOR
     must_include: list[str] = field(default_factory=list)
     acceptance_criteria: list[str] = field(default_factory=list)
+    strict_must_include: bool = False        # P0 边界澄清：PGD 严格 must_include 校验（0.3）
     min_project_files: int = 1
     require_code_file: bool = False
     required_extensions: list[str] = field(default_factory=list)
@@ -93,6 +98,7 @@ def _spec_from_delivery_template(task_type: str, base: "FormatSpec", tpl) -> For
         stub_floor=stub_floor,
         must_include=list(check_rules.get("must_include") or []),
         acceptance_criteria=criteria,
+        strict_must_include=bool(check_rules.get("strict_must_include", base.strict_must_include)),
         min_project_files=int(check_rules.get("min_project_files", base.min_project_files) or base.min_project_files),
         require_code_file=bool(check_rules.get("require_code_file", base.require_code_file)),
         required_extensions=list(check_rules.get("required_extensions") or base.required_extensions or []),
@@ -158,6 +164,7 @@ def _build_spec(task_type: str, task_cfg: dict) -> FormatSpec:
         stub_floor=int(check_rules.get("stub_floor", DEFAULT_STUB_FLOOR)),
         must_include=list(check_rules.get("must_include", []) or []),
         acceptance_criteria=_derive_acceptance_criteria(task_cfg, required_sections),
+        strict_must_include=bool(check_rules.get("strict_must_include", False)),
         min_project_files=int(check_rules.get("min_project_files", 1) or 1),
         require_code_file=bool(check_rules.get("require_code_file", False)),
         required_extensions=[str(x) for x in (check_rules.get("required_extensions") or []) if str(x).strip()],

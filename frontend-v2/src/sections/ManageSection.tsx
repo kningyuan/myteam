@@ -1207,6 +1207,15 @@ export function ManageSection() {
                     avatar={e.title || "KB"}
                     active={String(e.id) === itemId}
                     onClick={() => navigate(`/manage/knowledge/${e.id}`)}
+                    onDelete={() => {
+                      if (!window.confirm(`删除知识条目「${e.title || e.id}」？\n\n此操作不可恢复。`)) return
+                      deleteMemory(e.id)
+                        .then(() => {
+                          setEntries((prev) => prev.filter((x) => x.id !== e.id))
+                          toast.success("已删除")
+                        })
+                        .catch((err) => toast.error("删除失败", { description: err instanceof Error ? err.message : "" }))
+                    }}
                   />
                 ))
               ) : (

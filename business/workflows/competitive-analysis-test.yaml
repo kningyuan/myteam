@@ -1,0 +1,40 @@
+id: competitive-analysis-test
+name: 竞品分析测试
+version: "1.0"
+description: 对 Cursor、GitHub Copilot、Augment Code 三款 AI 编程工具进行竞品分析
+tasks:
+  - id: step-research
+    agent_id: research
+    task_type: competitive-analysis
+    template_id: competitive-analysis
+    name: 信息收集
+    description: |
+      【范围】收集各竞品的基础信息
+      【输入】竞品列表、分析维度
+      【交付】竞品信息汇总表
+      【质量】每个竞品至少覆盖5个维度，信息来源可追溯
+    dependencies: []
+  - id: step-analysis
+    agent_id: product
+    task_type: competitive-analysis
+    template_id: competitive-analysis
+    name: 对比分析
+    description: |
+      【范围】建立对比矩阵，识别差异化机会
+      【输入】竞品信息汇总表
+      【交付】竞品对比矩阵
+      【质量】对比维度≥5个，每个维度有明确优劣判断
+    dependencies:
+      - step-research
+  - id: step-report
+    agent_id: product
+    task_type: competitive-analysis
+    template_id: competitive-analysis
+    name: 报告撰写
+    description: |
+      【范围】输出最终竞品分析报告
+      【输入】竞品对比矩阵
+      【交付】竞品分析报告.md
+      【质量】包含所有必要章节，建议具体可执行
+    dependencies:
+      - step-analysis

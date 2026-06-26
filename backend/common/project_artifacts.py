@@ -9,12 +9,33 @@ from common.paths import deliverables_dir, workspace_dir
 # 交付物 = 项目内代码工程目录（非单篇 Markdown）
 CODE_PROJECT_TASK_TYPES = frozenset({"code-deliverable", "code-writing", "code-testing"})
 
-_SKIP_DIRS = frozenset({".git", "__pycache__", ".trigger", ".response"})
-_CODE_EXTS = frozenset({".py", ".sh", ".js", ".ts", ".go", ".rb", ".java", ".rs"})
+# P0 边界澄清特性开关：用 outcome_kind 替代硬编码列表（之后会废弃 CODE_PROJECT_TASK_TYPES）
+try:
+    from store.system_config import system_config
+    USE_OUTCOME_KIND = bool(system_config.get("system", "use_outcome_kind_detection", default=False)) or False
+except Exception:
+    USE_OUTCOME_KIND = False
 
 
 def is_code_project_task(task_type: str) -> bool:
+    if USE_OUTCOME_KIND:
+        try:
+            from common.registry import get_spec
+            spec = get_spec(task_type)
+            if spec is not None:
+                return spec.outcome_kind == "code_project"
+        except Exception:
+            pass
     return task_type in CODE_PROJECT_TASK_TYPES
+
+
+_SKIP_DIRS = frozenset({".git", "__pycache__", ".trigger", ".response"})
+try:
+    from store.system_config import system_config
+    _CODE_EXTS = frozenset(system_config.get("system", "code_extensions",
+        default=[".py", ".sh", ".js", ".ts", ".java", ".go", ".rs", ".cpp", ".h", ".c", ".rb", ".php", ".swift"]))
+except Exception:
+    _CODE_EXTS = frozenset({".py", ".sh", ".js", ".ts", ".java", ".go", ".rs", ".cpp", ".h", ".c", ".rb", ".php", ".swift"})
 
 
 def task_project_dir(project_id: str, task_id: str) -> Path:

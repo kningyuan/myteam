@@ -35,3 +35,18 @@ class KnowledgeBackend(Protocol):
         project_id: Optional[str] = None,
     ) -> list[dict]:
         ...
+
+    def update(
+        self,
+        ref: str,
+        *,
+        title: Optional[str] = None,
+        content: Optional[str] = None,
+        tags: Optional[list] = None,
+        project_id: Optional[str] = None,
+        task_id: Optional[str] = None,
+    ) -> bool:
+        ...
+
+    def delete(self, ref: str) -> bool:
+        ...

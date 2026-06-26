@@ -175,6 +175,21 @@ class TaskPipeline:
 
         context = self.build_context(project_id, task) if self.config.inject_context else {}
 
+        # 路径 E：前置资产加载（偏好+Skill匹配+知识库）
+        self_improve_constraints = {}
+        try:
+            from execution_harness.pre.self_improve import merge_constraints
+            si = merge_constraints(
+                agent, task_type, task.get("name", ""),
+                intent=task.get("description", ""),
+                store=self.store,
+            )
+            if si.get("constraints_text"):
+                context["self_improve_constraints"] = si["constraints_text"]
+                self_improve_constraints = si
+        except Exception:
+            pass
+
         # 路径 A：执行前 plan（不阻塞 execute）
         plan = self.run_plan(project_id, task)
         if plan:
@@ -444,6 +459,31 @@ class TaskPipeline:
         status = self.quality_status(resp)
         if self.config.review_enabled:
             status = self.peer_review(project_id, task, status, task_type, rel_path)
+        # 路径 D：Rubric 自动化质量评估（不阻塞流程，仅记录+打分）
+        rubric_result = None
+        try:
+            from execution_harness.post.rubric_eval import (
+                evaluate_task_output, record_rubric_result,
+            )
+            base_dir = task_deliverable_base(project_id, tid, task_type)
+            dv_path = str(base_dir / rel_path) if rel_path else ""
+            if dv_path:
+                rubric_result = evaluate_task_output(
+                    self.store, project_id, tid, task_type, agent, dv_path,
+                    attempt=attempt,
+                )
+                record_rubric_result(
+                    self.store, project_id, tid, task_type, agent, rubric_result,
+                )
+                if rubric_result and not rubric_result.passed:
+                    self.store.append_run_event(
+                        interaction_id, "rubric_failed",
+                        {"score": rubric_result.total_score,
+                         "failures": rubric_result.dimension_failures,
+                         "redlines": rubric_result.hit_redlines},
+                    )
+        except Exception:
+            pass
         self.store.set_task_status(project_id, tid, status)
         try:
             from common.ops_log import maybe_log_task_completion

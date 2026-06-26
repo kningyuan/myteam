@@ -1,0 +1,40 @@
+id: data-summary
+name: 数据分析与总结
+version: "1.0"
+description: 分析数据、生成图表、撰写总结，三步流程
+tasks:
+  - id: step-analyze
+    agent_id: research
+    task_type: data-analysis
+    template_id: data-analysis
+    name: 分析数据
+    description: |
+      【范围】对指定数据进行分析，识别关键趋势和模式
+      【输入】数据来源
+      【交付】数据分析结果（Markdown）
+      【质量】覆盖分析口径、数据来源、关键发现
+    dependencies: []
+  - id: step-chart
+    agent_id: product
+    task_type: custom-survey
+    template_id: custom-survey
+    name: 生成图表
+    description: |
+      【范围】基于数据分析结果，生成可视化图表
+      【输入】数据分析结果
+      【交付】图表说明（Markdown，含图表描述和解读）
+      【质量】图表须覆盖核心数据发现，附解读说明
+    dependencies:
+      - step-analyze
+  - id: step-summary
+    agent_id: product
+    task_type: review
+    template_id: review-report
+    name: 写总结
+    description: |
+      【范围】整合数据分析结果和图表，撰写完整总结报告
+      【输入】数据分析结果、图表说明
+      【交付】总结报告（Markdown）
+      【质量】报告须包含背景、核心发现、结论与建议
+    dependencies:
+      - step-chart

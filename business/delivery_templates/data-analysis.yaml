@@ -1,0 +1,32 @@
+id: data-analysis
+version: '1.0'
+display_name: 数据分析
+description: 数据分析交付模板
+task_types:
+  - data-analysis
+deliverable_template:
+  required_heading_level: 2
+  sections:
+    - name: 分析问题与口径
+      description: 填写「分析问题与口径」章节，明确分析目标和统计口径
+      required: true
+    - name: 数据来源与质量
+      description: 填写「数据来源与质量」章节，说明数据来源和质量评估
+      required: true
+    - name: 分析过程与方法
+      description: 填写「分析过程与方法」章节，描述分析方法
+      required: true
+    - name: 关键发现
+      description: 填写「关键发现」章节，列出核心数据发现
+      required: true
+    - name: 结论与行动建议
+      description: 填写「结论与行动建议」章节，给出结论和建议
+      required: true
+check_rules:
+  required_sections:
+    - 分析问题与口径
+    - 数据来源与质量
+    - 分析过程与方法
+    - 关键发现
+    - 结论与行动建议
+  min_length: 300

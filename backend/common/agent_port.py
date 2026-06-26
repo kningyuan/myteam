@@ -134,10 +134,14 @@ class AgentPort:
         self._unlink(resp_path)
 
         # store 真相：建/刷新 interaction（顺带把 task 置 in_progress）
+        # 注意：skill_review/review 等后台复盘 interaction 不应回滚 task 终态
+        task_status: Optional[str] = None
+        if req.task_id and req.kind in ("execute", "plan", "evaluate", "triage"):
+            task_status = "in_progress"
         self.store.create_interaction(
             iid, req.kind, req.project_id, task_id=req.task_id,
             agent_id=req.agent_id, attempt=attempt,
-            task_status="in_progress" if req.task_id else None,
+            task_status=task_status,
         )
 
         # 写请求文件（原子）

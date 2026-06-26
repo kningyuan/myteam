@@ -70,7 +70,7 @@ def _research_spec() -> FormatSpec:
 
 def test_format_pass(tmp_path):
     content = (
-        "# 报告\n\n## 调研背景\n这是足够具体的背景说明，包含目的范围与方法。\n\n"
+        "# 报告\n\n## 调研目标\n这是足够具体的背景说明，包含目的范围与方法。\n\n"
         "## 信息来源\n| 来源 | 可信度 |\n|---|---|\n| A | 高 |\n\n"
         "## 关键发现\n发现一：依据……\n\n## 结论\n建议……\n"
     )
@@ -79,7 +79,7 @@ def test_format_pass(tmp_path):
 
 
 def test_format_missing_section():
-    content = "# 报告\n\n## 调研背景\n足够具体的内容说明在这里展开论述。\n"
+    content = "# 报告\n\n## 调研目标\n足够具体的内容说明在这里展开论述。\n"
     res = check_format(_research_spec(), content)
     assert not res.passed
     rules = {f["rule"] for f in res.failures}
@@ -87,7 +87,7 @@ def test_format_missing_section():
 
 
 def test_format_stub_rejected():
-    res = check_format(_research_spec(), "## 调研背景\n## 信息来源\n## 关键发现\n## 结论\nTODO")
+    res = check_format(_research_spec(), "## 调研目标\n## 信息来源\n## 关键发现\n## 结论\nTODO")
     assert not res.passed
     assert any(f["rule"] == "stub" for f in res.failures)
 
@@ -95,7 +95,7 @@ def test_format_stub_rejected():
 def test_must_include_off_by_default():
     # research 的 must_include 含「数据来源」「可信度」；默认关 → 不因缺关键词失败
     content = (
-        "# R\n\n## 调研背景\n足够具体的背景内容说明在此展开。\n\n## 信息来源\n来源若干。\n\n"
+        "# R\n\n## 调研目标\n足够具体的背景内容说明在此展开。\n\n## 信息来源\n来源若干。\n\n"
         "## 关键发现\n发现内容。\n\n## 结论\n结论内容。\n"
     )
     assert check_format(_research_spec(), content).passed
@@ -126,7 +126,7 @@ def test_check_execute_artifact_ok(tmp_path):
     dv = tmp_path / "deliverables" / "r.md"
     dv.parent.mkdir(parents=True)
     dv.write_text(
-        "# R\n\n## 调研背景\n足够具体的背景内容在此展开说明。\n\n## 信息来源\n来源。\n\n"
+        "# R\n\n## 调研目标\n足够具体的背景内容在此展开说明。\n\n## 信息来源\n来源。\n\n"
         "## 关键发现\n发现。\n\n## 结论\n结论。\n", encoding="utf-8")
     env = _execute_envelope({"kind": "artifact",
                              "artifact": {"path": "deliverables/r.md", "title": "R"}})

@@ -1,0 +1,316 @@
+{
+  "placeholders": {
+    "obj": "【对象】目标见【项目目标】",
+    "gh_obj": "【对象】目标 GitHub 仓库（链接见【项目目标】）",
+    "scope_readme": "【范围】仅 README、docs/、Releases；禁止全仓扫源码"
+  },
+  "patterns": {
+    "github-parallel-research": {
+      "label": "GitHub 三视角并行调研",
+      "options": {
+        "parallel_enabled": true,
+        "max_parallel": 3
+      },
+      "tasks": [
+        {
+          "id": "t-product",
+          "name": "产品设计调研",
+          "agent": "product",
+          "task_type": "research",
+          "dependencies": [],
+          "description": "【对象】目标 GitHub 仓库（链接见【项目目标】）\n【视角】产品：定位、目标用户、核心场景、与同类差异\n【范围】仅 README、docs/、Releases；禁止全仓扫源码"
+        },
+        {
+          "id": "t-arch",
+          "name": "架构调研",
+          "agent": "arch",
+          "task_type": "research",
+          "dependencies": [],
+          "description": "【对象】目标 GitHub 仓库（链接见【项目目标】）\n【视角】架构：技术栈、模块划分、集成方式、扩展点\n【范围】仅 README、docs/、Releases；禁止全仓扫源码"
+        },
+        {
+          "id": "t-eng",
+          "name": "工程化调研",
+          "agent": "developer",
+          "task_type": "research",
+          "dependencies": [],
+          "description": "【对象】目标 GitHub 仓库（链接见【项目目标】）\n【视角】工程化：构建/测试/CI、依赖、本地开发体验\n【范围】仅 README、docs/、Releases；禁止全仓扫源码"
+        },
+        {
+          "id": "t-summary",
+          "name": "三视角综合报告",
+          "agent": "main",
+          "task_type": "strategy",
+          "dependencies": ["t-product", "t-arch", "t-eng"],
+          "description": "【输入】只读 t-product、t-arch、t-eng 三份交付物"
+        }
+      ]
+    },
+    "smoke-research": {
+      "label": "最小调研+汇总",
+      "options": {},
+      "tasks": [
+        {
+          "id": "t1",
+          "name": "调研",
+          "agent": "research",
+          "task_type": "research",
+          "dependencies": [],
+          "description": "【对象】目标见【项目目标】\n【范围】仅 README、docs/、Releases；禁止全仓扫源码"
+        },
+        {
+          "id": "t2",
+          "name": "汇总",
+          "agent": "main",
+          "task_type": "strategy",
+          "dependencies": ["t1"],
+          "description": "【输入】只读 t1 交付物"
+        }
+      ]
+    },
+    "content-pipeline": {
+      "label": "内容生产流水线",
+      "options": {},
+      "tasks": [
+        {
+          "id": "t-research",
+          "name": "调研",
+          "agent": "research",
+          "task_type": "research",
+          "dependencies": [],
+          "description": "【对象】目标见【项目目标】\n【视角】行业/竞品/受众"
+        },
+        {
+          "id": "t-strategy",
+          "name": "策略",
+          "agent": "product",
+          "task_type": "strategy",
+          "dependencies": ["t-research"],
+          "description": "【输入】只读 t-research；输出内容策略与排期"
+        },
+        {
+          "id": "t-content",
+          "name": "内容产出",
+          "agent": "content",
+          "task_type": "content",
+          "dependencies": ["t-strategy"],
+          "description": "【输入】只读 t-strategy；按策略撰写正文"
+        }
+      ]
+    },
+    "content-publish-pipeline": {
+      "label": "内容生产+发布",
+      "options": {},
+      "tasks": [
+        {
+          "id": "t-research",
+          "name": "调研",
+          "agent": "research",
+          "task_type": "research",
+          "dependencies": [],
+          "description": "【对象】目标见【项目目标】\n【视角】行业/竞品/受众"
+        },
+        {
+          "id": "t-strategy",
+          "name": "策略",
+          "agent": "product",
+          "task_type": "strategy",
+          "dependencies": ["t-research"],
+          "description": "【输入】只读 t-research；输出内容策略与排期"
+        },
+        {
+          "id": "t-content",
+          "name": "内容产出",
+          "agent": "content",
+          "task_type": "content",
+          "dependencies": ["t-strategy"],
+          "description": "【输入】只读 t-strategy；按策略撰写正文"
+        },
+        {
+          "id": "t-publish",
+          "name": "发布",
+          "agent": "social",
+          "task_type": "publish-post",
+          "dependencies": ["t-content"],
+          "description": "【输入】只读 t-content；在目标平台发布并附 URL/截图证据"
+        }
+      ]
+    },
+    "data-analysis-pipeline": {
+      "label": "数据分析流水线",
+      "options": {},
+      "tasks": [
+        {
+          "id": "t-req",
+          "name": "分析需求",
+          "agent": "product",
+          "task_type": "requirements",
+          "dependencies": [],
+          "description": "【对象】目标见【项目目标】\n【视角】指标口径、分析目标、验收标准"
+        },
+        {
+          "id": "t-analysis",
+          "name": "数据分析报告",
+          "agent": "analyst",
+          "task_type": "data-analysis",
+          "dependencies": ["t-req"],
+          "description": "【输入】只读 t-req；输出结构化分析报告（按 task_type 章节）"
+        },
+        {
+          "id": "t-script",
+          "name": "分析脚本",
+          "agent": "analyst",
+          "task_type": "code-writing",
+          "dependencies": ["t-analysis"],
+          "description": "【输入】只读 t-analysis；交付可复用分析脚本/Notebook"
+        },
+        {
+          "id": "t-accept",
+          "name": "验收",
+          "agent": "product",
+          "task_type": "acceptance-report",
+          "dependencies": ["t-script"],
+          "description": "【输入】只读 t-analysis、t-script；对照 t-req 验收"
+        }
+      ]
+    },
+    "geo-pipeline": {
+      "label": "GEO 优化流水线",
+      "options": {},
+      "tasks": [
+        {
+          "id": "t-research",
+          "name": "GEO 背景调研",
+          "agent": "research",
+          "task_type": "research",
+          "dependencies": [],
+          "description": "【对象】目标见【项目目标】\n【视角】AI 搜索可见性、竞品引用、受众问题"
+        },
+        {
+          "id": "t-plan",
+          "name": "GEO 策略",
+          "agent": "geo",
+          "task_type": "geo-plan",
+          "dependencies": ["t-research"],
+          "description": "【输入】只读 t-research；输出 GEO 优化策略"
+        },
+        {
+          "id": "t-audit",
+          "name": "页面审计",
+          "agent": "geo",
+          "task_type": "geo-audit",
+          "dependencies": ["t-plan"],
+          "description": "【输入】只读 t-plan；审计目标页面可引用性与结构"
+        },
+        {
+          "id": "t-content",
+          "name": "内容改稿",
+          "agent": "content",
+          "task_type": "content",
+          "dependencies": ["t-audit"],
+          "description": "【输入】只读 t-audit；按审计意见改稿"
+        },
+        {
+          "id": "t-verify",
+          "name": "效果验证",
+          "agent": "geo",
+          "task_type": "geo-verification",
+          "dependencies": ["t-content"],
+          "description": "【输入】只读 t-content；执行验证动作并附 URL/截图"
+        }
+      ]
+    },
+    "product-plan-improve": {
+      "label": "产品规划方案完善",
+      "options": {
+        "split_enabled": true
+      },
+      "tasks": [
+        {
+          "id": "t-deck",
+          "name": "分层架构图（PPT）",
+          "agent": "product",
+          "task_type": "deck-build",
+          "dependencies": [],
+          "description": "【对象】目标见【项目目标】\n【交付】deliverables/产品架构图.pptx、系统架构图.pptx 及 PNG\n【质量】四层/分层、一功能一方块，禁止合并成大块"
+        },
+        {
+          "id": "t-author",
+          "name": "方案正文编制",
+          "agent": "product",
+          "task_type": "section-authoring",
+          "dependencies": ["t-deck"],
+          "description": "【输入】只读 t-deck 架构图；Goal 指定模版与参考稿路径\n【交付】完整 Word/Markdown 方案；按章节拆分执行\n【一致性】正文与架构图术语层次一致"
+        },
+        {
+          "id": "t-review",
+          "name": "质量评审",
+          "agent": "main",
+          "task_type": "section-review",
+          "dependencies": ["t-author"],
+          "description": "【输入】t-author 交付物 + Goal\n【输出】评审报告；末行 REVIEW: PASS 或 REVIEW: FAIL"
+        }
+      ]
+    },
+    "delivery-lite": {
+      "label": "轻量软件交付",
+      "options": {},
+      "tasks": [
+        {
+          "id": "t-research",
+          "name": "调研",
+          "agent": "research",
+          "task_type": "research",
+          "dependencies": [],
+          "description": "【对象】目标见【项目目标】"
+        },
+        {
+          "id": "t-req",
+          "name": "需求",
+          "agent": "product",
+          "task_type": "requirements",
+          "dependencies": ["t-research"],
+          "description": "【输入】只读 t-research"
+        },
+        {
+          "id": "t-design",
+          "name": "方案设计",
+          "agent": "arch",
+          "task_type": "system-design",
+          "dependencies": ["t-req"],
+          "description": "【输入】只读 t-req"
+        },
+        {
+          "id": "t-implement",
+          "name": "实现",
+          "agent": "developer",
+          "task_type": "code-writing",
+          "dependencies": ["t-design"],
+          "description": "【输入】只读 t-design"
+        }
+      ]
+    },
+    "linear-research": {
+      "label": "调研+汇总",
+      "options": {},
+      "tasks": [
+        {
+          "id": "t1",
+          "name": "调研",
+          "agent": "research",
+          "task_type": "research",
+          "dependencies": [],
+          "description": "【对象】目标见【项目目标】"
+        },
+        {
+          "id": "t2",
+          "name": "分析汇总",
+          "agent": "main",
+          "task_type": "strategy",
+          "dependencies": ["t1"],
+          "description": "【输入】只读 t1 交付物"
+        }
+      ]
+    }
+  }
+}

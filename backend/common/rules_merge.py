@@ -7,12 +7,25 @@ import tempfile
 from pathlib import Path
 from typing import Literal, Optional
 
+from store.system_config import system_config
+
 RulesProfile = Literal["interactive", "discussion", "workflow_execute", "conversation"]
 
-_INTERACTIVE_RULE = "interactive-guide.md"
-_DISCUSSION_RULE = "brainstorming-guide.md"
-_EXECUTE_RULE = "worker-template.md"
-_ETHOS_RULE = "ethos.md"
+# 默认值（仅当 system_config 中无配置时作为回退）
+_DEFAULT_RULE_FILES: dict[str, str] = {
+    "interactive": "interactive-guide.md",
+    "discussion": "brainstorming-guide.md",
+    "workflow_execute": "worker-template.md",
+    "ethos": "ethos.md",
+}
+
+
+def _get_rule_filename(key: str) -> str:
+    """从 system_config 读取规则文件名，找不到则使用硬编码默认值。"""
+    return system_config.get(
+        "system", "rules", "profile_filenames", key,
+        default=_DEFAULT_RULE_FILES[key],
+    )
 
 
 def normalize_rules_profile(profile: str) -> str:
@@ -50,22 +63,22 @@ def merge_rules_file(
             if universal.exists():
                 f.write(universal.read_text(encoding="utf-8"))
                 f.write("\n\n---\n\n")
-            ethos = rules_dir / _ETHOS_RULE
+            ethos = rules_dir / _get_rule_filename("ethos")
             if ethos.exists():
                 f.write(ethos.read_text(encoding="utf-8"))
                 f.write("\n\n---\n\n")
             if profile == "interactive":
-                fp = rules_dir / _INTERACTIVE_RULE
+                fp = rules_dir / _get_rule_filename("interactive")
                 if fp.exists():
                     f.write(fp.read_text(encoding="utf-8"))
                     f.write("\n\n---\n\n")
             elif profile == "discussion":
-                fp = rules_dir / _DISCUSSION_RULE
+                fp = rules_dir / _get_rule_filename("discussion")
                 if fp.exists():
                     f.write(fp.read_text(encoding="utf-8"))
                     f.write("\n\n---\n\n")
             elif profile == "workflow_execute" and agent_id != "main":
-                fp = rules_dir / _EXECUTE_RULE
+                fp = rules_dir / _get_rule_filename("workflow_execute")
                 if fp.exists():
                     f.write(fp.read_text(encoding="utf-8"))
                     f.write("\n\n---\n\n")

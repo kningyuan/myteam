@@ -43,6 +43,22 @@ def _store():
     return Store()
 
 
+def _use_kb_backend() -> bool:
+    """P0 边界澄清：observability memory 操作是否走 KnowledgeBackend（0.5）。"""
+    try:
+        from store.system_config import system_config
+        return bool(system_config.get("system", "use_kb_backend_for_observability", default=False))
+    except Exception:
+        return False
+
+
+def _kb():
+    """KnowledgeBackend 实例（惰性）。"""
+    _ensure_common_importable()
+    from memstack.kb.sqlite import SqliteKnowledgeBackend  # noqa: WPS433
+    return SqliteKnowledgeBackend()
+
+
 @router.get("/projects")
 async def list_projects():
     """从 SQLite 真相库列出项目（新内核写入），供 UI 项目列表使用。"""
@@ -98,38 +114,42 @@ async def list_memory(
 
     kind: kb（默认，排除 L1）| l1 | all
     """
-    store = _store()
-    try:
-        rows = store.memory_search(project_id=project_id, text=text)
-        l1_pid = "__memstack_l1__"
-        global_pid = "__global__"
-        if kind == "kb":
-            rows = [r for r in rows if r.get("project_id") not in (l1_pid,)]
-        elif kind == "l1":
-            rows = [r for r in rows if r.get("project_id") == l1_pid]
-        elif kind == "global":
-            rows = [r for r in rows if r.get("project_id") == global_pid]
-        elif kind == "project":
-            rows = [
-                r for r in rows
-                if r.get("project_id") not in (l1_pid, global_pid)
-            ]
-        rows.sort(key=lambda r: (r.get("created_at") or "", r.get("id") or 0), reverse=True)
-        out = []
-        for r in rows[: max(1, min(limit, 200))]:
-            content = r.get("content") or ""
-            out.append({
-                "id": r.get("id"),
-                "project_id": r.get("project_id"),
-                "task_id": r.get("task_id"),
-                "title": r.get("title"),
-                "tags": r.get("tags") or [],
-                "created_at": r.get("created_at"),
-                "preview": content[:200],
-            })
-        return {"memory": out, "total": len(rows)}
-    finally:
-        store.close()
+    if _use_kb_backend():
+        kb = _kb()
+        rows = kb.search(project_id=project_id, text=text) if (project_id or text) else kb.search()
+    else:
+        store = _store()
+        try:
+            rows = store.memory_search(project_id=project_id, text=text)
+        finally:
+            store.close()
+    l1_pid = "__memstack_l1__"
+    global_pid = "__global__"
+    if kind == "kb":
+        rows = [r for r in rows if r.get("project_id") not in (l1_pid,)]
+    elif kind == "l1":
+        rows = [r for r in rows if r.get("project_id") == l1_pid]
+    elif kind == "global":
+        rows = [r for r in rows if r.get("project_id") == global_pid]
+    elif kind == "project":
+        rows = [
+            r for r in rows
+            if r.get("project_id") not in (l1_pid, global_pid)
+        ]
+    rows.sort(key=lambda r: (r.get("created_at") or "", r.get("id") or 0), reverse=True)
+    out = []
+    for r in rows[: max(1, min(limit, 200))]:
+        content = r.get("content") or ""
+        out.append({
+            "id": r.get("id"),
+            "project_id": r.get("project_id"),
+            "task_id": r.get("task_id"),
+            "title": r.get("title"),
+            "tags": r.get("tags") or [],
+            "created_at": r.get("created_at"),
+            "preview": content[:200],
+        })
+    return {"memory": out, "total": len(rows)}
 
 
 def _memory_api_row(row: dict) -> dict:
@@ -149,6 +169,12 @@ def _memory_api_row(row: dict) -> dict:
 @router.get("/memory/{memory_id}")
 async def get_memory(memory_id: int):
     """单条知识库条目（含全文）。"""
+    if _use_kb_backend():
+        kb = _kb()
+        row = kb.get(f"kb://sqlite/{memory_id}")
+        if not row:
+            raise HTTPException(status_code=404, detail=f"知识条目不存在：{memory_id}")
+        return _memory_api_row(row)
     store = _store()
     try:
         row = store.memory_get(memory_id)
@@ -162,6 +188,12 @@ async def get_memory(memory_id: int):
 @router.delete("/memory/{memory_id}")
 async def delete_memory(memory_id: int):
     """删除单条知识库条目。"""
+    if _use_kb_backend():
+        kb = _kb()
+        ref = f"kb://sqlite/{memory_id}"
+        if not kb.delete(ref):
+            raise HTTPException(status_code=404, detail=f"知识条目不存在：{memory_id}")
+        return {"success": True, "id": memory_id}
     store = _store()
     try:
         if not store.memory_delete(memory_id):
@@ -182,6 +214,17 @@ async def create_memory(body: dict):
     tags = body.get("tags") or []
     if not isinstance(tags, list):
         tags = [str(tags)]
+    if _use_kb_backend():
+        kb = _kb()
+        if project_id != "__memstack_l1__":
+            store = _store()
+            try:
+                store.upsert_project(project_id, title=project_id, status="active")
+            finally:
+                store.close()
+        ref = kb.write(project_id, title, content, task_id=str(body.get("task_id") or ""), tags=tags)
+        ref_id = ref.split("/")[-1] if "/" in ref else ref
+        return {"success": True, "memory": {"id": ref_id, "title": title, "project_id": project_id}}
     store = _store()
     try:
         if project_id != "__memstack_l1__":
@@ -202,6 +245,24 @@ async def create_memory(body: dict):
 @router.put("/memory/{memory_id}")
 async def update_memory(memory_id: int, body: dict):
     """更新 KB 条目。"""
+    if _use_kb_backend():
+        kb = _kb()
+        ref = f"kb://sqlite/{memory_id}"
+        if not kb.get(ref):
+            raise HTTPException(status_code=404, detail=f"知识条目不存在：{memory_id}")
+        tags = body.get("tags")
+        ok = kb.update(
+            ref,
+            title=body.get("title"),
+            content=body.get("content"),
+            tags=tags if isinstance(tags, list) else None,
+            project_id=body.get("project_id"),
+            task_id=body.get("task_id"),
+        )
+        if not ok:
+            raise HTTPException(status_code=404, detail=f"知识条目不存在：{memory_id}")
+        row = kb.get(ref)
+        return {"success": True, "memory": _memory_api_row(row or {})}
     store = _store()
     try:
         if not store.memory_get(memory_id):

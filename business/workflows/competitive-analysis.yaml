@@ -1,0 +1,40 @@
+id: competitive-analysis
+name: 竞品分析
+version: "1.0"
+description: 每周对 Cursor、GitHub Copilot、Augment Code 进行竞品分析，产出包含竞品概览、对比矩阵、优劣势分析与差异化建议的 Markdown 报告
+tasks:
+  - id: step-collect
+    agent_id: research
+    task_type: research
+    template_id: research-report
+    name: 收集竞品信息
+    description: |
+      【范围】从官网、公开文档、应用商店收集 Cursor、GitHub Copilot、Augment Code 的功能、定价、用户评价信息。信息不完整时标注缺失，不跳过。
+      【输入】竞品列表、信息来源
+      【交付】竞品信息原始数据（Markdown）
+      【质量】每个竞品至少覆盖功能、定价、用户评价三个维度；缺失信息明确标注
+    dependencies: []
+  - id: step-compare
+    agent_id: product
+    task_type: competitive-analysis
+    template_id: competitive-analysis
+    name: 对比分析
+    description: |
+      【范围】基于收集的原始数据，从功能、定价两个维度建立对比矩阵，分析各竞品优劣势。
+      【输入】竞品信息原始数据
+      【交付】对比矩阵（Markdown 表格）
+      【质量】矩阵须覆盖功能、定价两个维度；每项结论须有数据支撑
+    dependencies:
+      - step-collect
+  - id: step-report
+    agent_id: product
+    task_type: competitive-analysis
+    template_id: competitive-analysis
+    name: 撰写最终报告
+    description: |
+      【范围】整合竞品原始数据与对比矩阵，撰写完整的竞品分析报告。
+      【输入】竞品信息原始数据、对比矩阵
+      【交付】竞品分析报告（Markdown），包含竞品概览、对比矩阵、优劣势分析、差异化建议
+      【质量】报告须包含竞品概览、对比矩阵、优劣势分析、差异化建议四个章节
+    dependencies:
+      - step-compare

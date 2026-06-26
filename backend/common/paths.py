@@ -38,6 +38,23 @@ TEAM_DIR = MYTEAM_ROOT
 MYTEAM_DIR = MYTEAM_ROOT
 CONTINUOUS_DIR = TASKS_DIR / "continuous"
 
+# ── hub-side paths (migrated from hub/paths.py — single source of truth) ──
+FRONTEND_V2_DIR = MYTEAM_ROOT / "frontend-v2"
+FRONTEND_V2_DIST = FRONTEND_V2_DIR / "dist"
+DATA_DIR = CONFIG_DIR  # config/ 的别名
+
+SKILL_CONFIG_FILE = CONFIG_DIR / "skill_config.json"
+SYSTEM_CONFIG_FILE = CONFIG_DIR / "system_config.json"
+
+MCP_REGISTRY_FILE = BUSINESS_CONFIG_DIR / "mcp_registry.json"
+GROUPS_FILE = BUSINESS_CONFIG_DIR / "groups.json"
+CHAT_ARCHIVES_DIR = BUSINESS_CONFIG_DIR / "chat_archives"
+GROUP_ARCHIVES_FILE = BUSINESS_CONFIG_DIR / "group_archives.json"
+
+IDENTITY_FILES = ["IDENTITY.md", "SOUL.md", "USER.md"]
+# Hub 可编辑的 per-agent 工作区文件（USER.md 已移至团队「偏好库」）
+AGENT_WORKSPACE_FILES = ["IDENTITY.md", "SOUL.md"]
+
 
 def ensure_team_importable() -> Path:
     """将 backend 加入 sys.path，使 `common` 内核包可被导入。"""
@@ -113,6 +130,21 @@ def response_file_path(agent_id: str, project_id: str, task_id: str) -> Path:
     return response_dir(agent_id) / f"{project_id}_{task_id}.response"
 
 
+def resolve_workspace(agent_id: str, custom: str | None = None) -> Path:
+    """解析 Agent 工作目录（支持相对路径）。"""
+    if custom:
+        p = resolve_path(custom)
+        if p.is_dir():
+            return p
+    primary = WORKSPACES_DIR / f"{WORKSPACE_PREFIX}{agent_id}"
+    if primary.is_dir():
+        return primary
+    alt = WORKSPACES_DIR / agent_id
+    if alt.is_dir():
+        return alt
+    return primary
+
+
 def script_path(*parts: str) -> Path:
     return TEAM_SKILL_DIR.joinpath(*parts)
 
@@ -131,6 +163,15 @@ def prompt_injections_file() -> Path:
 
 def delivery_profiles_file() -> Path:
     return BUSINESS_DIR / "templates" / "delivery_profiles.yaml"
+
+
+def identity_templates_file() -> Path:
+    """Agent 身份文件模板路径 (business/templates/identity_templates.yaml)。"""
+    return BUSINESS_DIR / "templates" / "identity_templates.yaml"
+
+
+def workflow_suggest_templates_file() -> Path:
+    return BUSINESS_DIR / "templates" / "workflow_suggest.json"
 
 
 def delivery_templates_dir() -> Path:

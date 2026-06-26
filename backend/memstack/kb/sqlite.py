@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from typing import Optional
 
-from common.store import Store
-
 from memstack.kb.protocol import KB_SCHEME
+from memstack.kb.store_adapter import MemoryStore, SqliteStoreAdapter
 from memstack.kb.template import content_to_json, is_structured, json_to_content
 
 
@@ -15,8 +14,8 @@ class SqliteKnowledgeBackend:
 
     name = "sqlite"
 
-    def __init__(self, store: Optional[Store] = None):
-        self.store = store or Store()
+    def __init__(self, store: Optional[MemoryStore] = None):
+        self.store = store or SqliteStoreAdapter()
 
     def write(
         self,
@@ -73,6 +72,34 @@ class SqliteKnowledgeBackend:
             if struct is not None:
                 entry["structured_content"] = struct
         return out
+
+    def update(
+        self,
+        ref: str,
+        *,
+        title: Optional[str] = None,
+        content: Optional[str] = None,
+        tags: Optional[list] = None,
+        project_id: Optional[str] = None,
+        task_id: Optional[str] = None,
+    ) -> bool:
+        mid = self._parse_ref(ref)
+        if mid is None:
+            return False
+        return self.store.memory_update(
+            mid,
+            title=title,
+            content=content,
+            tags=tags,
+            project_id=project_id,
+            task_id=task_id,
+        )
+
+    def delete(self, ref: str) -> bool:
+        mid = self._parse_ref(ref)
+        if mid is None:
+            return False
+        return self.store.memory_delete(mid)
 
     def _parse_ref(self, ref: str) -> Optional[int]:
         if not ref.startswith(f"{KB_SCHEME}{self.name}/"):
