@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-from common.skill_categories import (
+from common.skill.skill_categories import (
     category_for_skill,
     is_skill_category_dir,
     list_category_member_ids,
     list_skill_categories,
 )
-from common.skill_display_names import (
+from common.skill.skill_display_names import (
     resolve_skill_display_description,
     resolve_skill_display_name,
 )
-from common.skill_link import OFFICECLI_SKILLS_ROOT, OFFICECLI_VENDOR_SKILL_IDS
+from common.skill.skill_link import OFFICECLI_SKILLS_ROOT, OFFICECLI_VENDOR_SKILL_IDS
 
 OFFICECLI_CATEGORY_DIR = "officecli"
 
@@ -46,7 +46,7 @@ def get_skill_group(skill_id: str) -> dict | None:
     if gid in SKILL_GROUPS:
         return SKILL_GROUPS[gid]
     if is_skill_category_dir(gid):
-        from common.skill_categories import get_skill_category_entry
+        from common.skill.skill_categories import get_skill_category_entry
 
         entry = get_skill_category_entry(gid)
         if entry:
@@ -79,7 +79,7 @@ def group_member_ids(group_id: str) -> list[str]:
 
 
 def _member_catalog_entry(member_id: str) -> dict:
-    from common.skill_catalog import get_skill_entry
+    from common.skill.skill_catalog import get_skill_entry
 
     mid = (member_id or "").strip()
     entry = get_skill_entry(mid) or {}
@@ -92,7 +92,7 @@ def _member_catalog_entry(member_id: str) -> dict:
 
 def expand_skill_mounts(configured_ids: list[str]) -> list[str]:
     """将 registry 配置（组 id 或叶子 id）展开为 CLI 同步用的叶子 skill id 列表。"""
-    from common.skill_catalog import canonical_skill_mount_id
+    from common.skill.skill_catalog import canonical_skill_mount_id
 
     out: list[str] = []
     seen: set[str] = set()

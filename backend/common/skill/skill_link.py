@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 from common.paths import MYTEAM_ROOT
-from common.skill_catalog import SKILLS_DIR
+from common.skill.skill_catalog import SKILLS_DIR
 
 OFFICECLI_SKILLS_ROOT = "~/skill/OfficeCLI/skills"
 

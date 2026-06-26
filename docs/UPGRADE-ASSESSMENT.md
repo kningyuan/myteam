@@ -14,7 +14,7 @@ myteam 的架构设计整体优秀——三层架构（System Kernel / Strategy 
 1. **边界清晰度**：系统能力与用户配置能力的边界存在 10+ 处硬编码泄露（最严重的是 `main` 协调者角色渗透）
 2. **模块独立性**：知识库、偏好库、项目库在架构上已具备独立雏形，但存储层和部分调用路径存在耦合
 3. **代码组织结构**：`backend/common/`（85个模块平铺）和 `hub/api/server.py`（975行/37端点）过于臃肿，缺乏子目录分组
-4. **历史遗留**：存在 `agentic-workflows/`、`task_data.json`、`frontend-v2` 等过渡/遗留产物
+4. **历史遗留**：存在 `agentic-workflows/`、`task_data.json` 等过渡/遗留产物
 
 ### 1.2 升级原则
 
@@ -297,7 +297,7 @@ backend/hub/api/
 | 当前 | 建议 | 优先级 | 理由 |
 |------|------|--------|------|
 | `backend/adapter/` + `backend/adapters/` | 合并为 `backend/adapters/`，下设 `base/` | P1 | 两个目录只差一个s，极易混淆 |
-| `frontend-v2/` | `frontend/` | P1 | v1已完全移除，保留v2无意义 |
+| `frontend-v2/` | `frontend/` | P1 | ~~已完成~~ v1已完全移除，保留v2无意义 |
 | `backend/base/` | 移入 `backend/hub/domain/` | P1 | base含义不清，实际是Hub业务逻辑层 |
 | `business/agentic-workflows/` | 移入 `business/playbooks/workflow-designs/` | P1 | 未接入系统的设计态产物，不应与运行态workflows并列 |
 | `business/means/` | 并入 `business/skills/` 或改 `business/tools/` | P2 | means命名不直观，且几乎未被使用 |
@@ -387,7 +387,7 @@ backend/config/                  # 统一配置读取层
 | 2.1 拆分 common/ 子目录 | 按 kernel/agent/skill/workflow/... 分组 | 所有测试通过，import 路径兼容 |
 | 2.2 拆分 server.py 端点 | 37个端点迁移到 routes/ 下 | 所有 API 端点行为不变 |
 | 2.3 统一路径常量 | 合并 common/paths.py 和 hub/paths.py | 全局搜索无重复定义 |
-| 2.4 重命名 frontend-v2 → frontend | 目录名 + 后端变量同步 | 前端正常构建访问 |
+| 2.4 重命名 frontend-v2 → frontend | 目录名 + 后端变量同步 | ~~已完成~~ 前端正常构建访问 |
 | 2.5 清理 agentic-workflows | 移入 playbooks/ 或删除 | 确认无代码引用 |
 
 ### Phase 3：库独立（中高风险，长期收益大）—— 约 10 天

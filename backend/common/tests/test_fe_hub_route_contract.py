@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Frontend lib/api REST paths must match Hub FastAPI routes (parity contract).
 
-Scans ``frontend-v2/src/lib/api/*.ts`` for ``/api/`` path templates consumed via
+Scans ``frontend/src/lib/api/*.ts`` for ``/api/`` path templates consumed via
 ``hubFetch``, ``fetch``, or ``EventSource``, then introspects the Hub app route
 table. Each FE (method, path) pair must match a registered Hub route unless
 listed in ``ALLOWED_FE_HUB_MISMATCHES`` with an inline comment explaining why.
@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 
 MYTEAM_ROOT = Path(__file__).resolve().parents[3]
-FE_API_DIR = MYTEAM_ROOT / "frontend-v2" / "src" / "lib" / "api"
+FE_API_DIR = MYTEAM_ROOT / "frontend" / "src" / "lib" / "api"
 
 sys_path_backend = str(MYTEAM_ROOT / "backend")
 import sys

@@ -47,7 +47,7 @@ Thumbs.db
 
 # Node (means / skills local deps)
 **/node_modules/
-frontend-v2/dist/
+frontend/dist/
 
 # Regression forensics (large, reproducible locally)
 business/regression/artifacts/

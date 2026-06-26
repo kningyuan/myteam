@@ -1,7 +1,7 @@
 # myteam Code Wiki
 
 > 结构化代码文档：整体架构、模块职责、关键类与函数、依赖关系、运行方式。
-> 与仓库源码同步（2026-06-26）。若与代码不符，以 `backend/`、`frontend-v2/src/`、`business/templates/` 为准。
+> 与仓库源码同步（2026-06-26）。若与代码不符，以 `backend/`、`frontend/src/`、`business/templates/` 为准。
 
 ---
 
@@ -13,7 +13,7 @@
 4. [后端架构详解](#4-后端架构详解)
 5. [编排内核深入](#5-编排内核深入)
 6. [CLI 适配器机制](#6-cli-适配器机制)
-7. [前端架构（frontend-v2）](#7-前端架构frontend-v2)
+7. [前端架构（frontend）](#7-前端架构frontend)
 8. [Business 策略层](#8-business-策略层)
 9. [关键数据契约](#9-关键数据契约)
 10. [关键类与函数索引](#10-关键类与函数索引)
@@ -58,7 +58,7 @@ myteam 的关键设计是 **两条互不依赖的执行流**，共用 Agent 名�
 
 ```
 A) Hub 交互流（人 ↔ Agent / 群），流式：
-   浏览器 frontend-v2 (/v2)
+   浏览器 frontend (/v2)
      → FastAPI backend/hub/api/server.py
      → hub/services/chat_service（或 groups / notify）
      → base/agent_chat + adapter/registry
@@ -124,7 +124,7 @@ myteam/
 │   ├── execution_harness/    #   execute 前后处理钩子（self-improve / review / distill）
 │   └── memstack/             #   记忆栈（l1 / kb / preferences / orchestration）
 │
-├── frontend-v2/              # 生产 Web UI（React SPA，见 §7）
+├── frontend/              # 生产 Web UI（React SPA，见 §7）
 ├── frontend/                 # 经典 v1 UI（静态文件，默认关闭）
 │
 ├── business/                 # 业务领域（配置与运行态混合，见 §8）
@@ -174,7 +174,7 @@ myteam/
 | [mcp_api.py](../backend/hub/api/mcp_api.py) | `/api/mcp` | MCP 库 CRUD、enabled |
 | [observability_api.py](../backend/hub/api/observability_api.py) | `/api/obs` | 项目/Agent 可观测、run_event SSE |
 
-静态资源：`/` → 重定向 `/v2/`；`frontend-v2/dist` 作为 SPA；`frontend/` 仅 `MYTEAM_V1_UI=1` 时可访问 `/classic`。
+静态资源：`/` → 重定向 `/v2/`；`frontend/dist` 作为 SPA；`frontend/` 仅 `MYTEAM_V1_UI=1` 时可访问 `/classic`。
 
 ### 4.3 Hub 入口 lifespan（[server.py](../backend/hub/api/server.py)）
 
@@ -482,9 +482,9 @@ class AgentEvent:
 
 ---
 
-## 7. 前端架构（frontend-v2）
+## 7. 前端架构（frontend）
 
-生产 UI：[frontend-v2/](../frontend-v2/)（React 19 + Vite 8 + TypeScript + Tailwind 4 + React Router 7）。构建产物 `frontend-v2/dist/`（gitignore），Hub 在 `/v2` 提供 SPA。分层详见 [frontend-v2/ARCHITECTURE.md](../frontend-v2/ARCHITECTURE.md)。
+生产 UI：[frontend/](../frontend/)（React 19 + Vite 8 + TypeScript + Tailwind 4 + React Router 7）。构建产物 `frontend/dist/`（gitignore），Hub 在 `/v2` 提供 SPA。分层详见 [frontend/ARCHITECTURE.md](../frontend/ARCHITECTURE.md)。
 
 经典 UI：`frontend/`（纯静态），默认不对外；`MYTEAM_V1_UI=1` 后访问 `/classic`。
 
@@ -511,7 +511,7 @@ App.tsx (BrowserRouter basename=/v2)
 
 业务规则留在 Hub（Python），前端 API 层不做校验/编排。
 
-### 7.3 路由（[App.tsx](../frontend-v2/src/App.tsx)）
+### 7.3 路由（[App.tsx](../frontend/src/App.tsx)）
 
 | 路径 | Section / Page |
 |------|----------------|
@@ -526,41 +526,41 @@ App.tsx (BrowserRouter basename=/v2)
 | `/v2/mcp[/:serverId]` | MCP 库 |
 | `/v2/settings[/:section]` | 系统设置 |
 
-### 7.4 API 客户端（[src/lib/api/](../frontend-v2/src/lib/api/)）
+### 7.4 API 客户端（[src/lib/api/](../frontend/src/lib/api/)）
 
 | 文件 | 职责 |
 |------|------|
-| [client.ts](../frontend-v2/src/lib/api/client.ts) | `hubFetch`、`readStreamWithAbort`、`parseSseDataLines`、`parseSseLineBuffer`、`isAbortError` |
-| [projects.ts](../frontend-v2/src/lib/api/projects.ts) | 项目 + `/api/obs/projects`（`ProjectSummary`、`ProjectDetail`、`TaskDetail`） |
-| [agents.ts](../frontend-v2/src/lib/api/agents.ts) | Agent CRUD、sync skills/mcp |
-| [chat.ts](../frontend-v2/src/lib/api/chat.ts) | DM chat（`sendAgentChat`、`cancelAgentChat`） |
-| [groups.ts](../frontend-v2/src/lib/api/groups.ts) | 群组 |
-| [workflows.ts](../frontend-v2/src/lib/api/workflows.ts) | Workflow、task-types、delivery-templates |
-| [config.ts](../frontend-v2/src/lib/api/config.ts) | backends、obs summary |
-| [index.ts](../frontend-v2/src/lib/api/index.ts) | barrel 重导出 |
+| [client.ts](../frontend/src/lib/api/client.ts) | `hubFetch`、`readStreamWithAbort`、`parseSseDataLines`、`parseSseLineBuffer`、`isAbortError` |
+| [projects.ts](../frontend/src/lib/api/projects.ts) | 项目 + `/api/obs/projects`（`ProjectSummary`、`ProjectDetail`、`TaskDetail`） |
+| [agents.ts](../frontend/src/lib/api/agents.ts) | Agent CRUD、sync skills/mcp |
+| [chat.ts](../frontend/src/lib/api/chat.ts) | DM chat（`sendAgentChat`、`cancelAgentChat`） |
+| [groups.ts](../frontend/src/lib/api/groups.ts) | 群组 |
+| [workflows.ts](../frontend/src/lib/api/workflows.ts) | Workflow、task-types、delivery-templates |
+| [config.ts](../frontend/src/lib/api/config.ts) | backends、obs summary |
+| [index.ts](../frontend/src/lib/api/index.ts) | barrel 重导出 |
 
 ### 7.5 SSE 流式消费（两条链路）
 
 **(A) Agent 对话流 — fetch + 手写 SSE 解析**
-- [client.ts](../frontend-v2/src/lib/api/client.ts) `readStreamWithAbort`：从 `ReadableStream` 取 reader，注册 `signal.abort` → `reader.cancel()`（关键：Abort 时必须 `reader.cancel()`，否则 SSE 读循环不结束）；`parseSseLineBuffer` 按 `\n` / `\n\n` 切帧，剥 `data: ` 前缀，遇 `[DONE]` 终止。
-- [chat.ts](../frontend-v2/src/lib/api/chat.ts) `sendAgentChat`：`fetch(/api/chat/<agentId>?message=...)` → `TextDecoder` 累积 → `parseSseLineBuffer` → `JSON.parse` → `onChunk(event)`。
-- [agentChatStream.ts](../frontend-v2/src/lib/agentChatStream.ts) — **全局对话流状态机**：切页/换 Agent 不中断底层 CLI，仅用户点「停止」才取消。模块级 `sessions: Map<agentId, AgentChatSession>`、`agentListeners`、`globalListeners`、`settleListeners`（订阅模式，跨路由存活）。事件类型：`thinking`（累积文本与思考链）、`citations`、`error`、`done`。后台 `EventSource` 订阅 `/api/agents/<id>/events`（断线 3s 重连）。
+- [client.ts](../frontend/src/lib/api/client.ts) `readStreamWithAbort`：从 `ReadableStream` 取 reader，注册 `signal.abort` → `reader.cancel()`（关键：Abort 时必须 `reader.cancel()`，否则 SSE 读循环不结束）；`parseSseLineBuffer` 按 `\n` / `\n\n` 切帧，剥 `data: ` 前缀，遇 `[DONE]` 终止。
+- [chat.ts](../frontend/src/lib/api/chat.ts) `sendAgentChat`：`fetch(/api/chat/<agentId>?message=...)` → `TextDecoder` 累积 → `parseSseLineBuffer` → `JSON.parse` → `onChunk(event)`。
+- [agentChatStream.ts](../frontend/src/lib/agentChatStream.ts) — **全局对话流状态机**：切页/换 Agent 不中断底层 CLI，仅用户点「停止」才取消。模块级 `sessions: Map<agentId, AgentChatSession>`、`agentListeners`、`globalListeners`、`settleListeners`（订阅模式，跨路由存活）。事件类型：`thinking`（累积文本与思考链）、`citations`、`error`、`done`。后台 `EventSource` 订阅 `/api/agents/<id>/events`（断线 3s 重连）。
 
 **(B) 项目进度 / 群事件流 — EventSource**
 - `subscribeProjectStream`（`EventSource`）
 - `subscribeGroupEvents`（`EventSource`）
 
-### 7.6 Port 模式（[src/lib/ports/](../frontend-v2/src/lib/ports/)）
+### 7.6 Port 模式（[src/lib/ports/](../frontend/src/lib/ports/)）
 
 Port 镜像后端 adapter 抽象：hooks/features 依赖接口而非 `fetch`，可替换为 mock / 离线 / 备用后端。
 
-- [ChatPort.ts](../frontend-v2/src/lib/ports/ChatPort.ts)：`interface ChatPort { listMessages; streamChat; cancelChat }`
-- [ProjectsPort.ts](../frontend-v2/src/lib/ports/ProjectsPort.ts)：`interface ProjectsPort { listProjects; getProject; runProject }`
-- [hubChatPort.ts](../frontend-v2/src/lib/ports/hubChatPort.ts) / [hubProjectsPort.ts](../frontend-v2/src/lib/ports/hubProjectsPort.ts)：默认实现，委托 `@/lib/api/*`
+- [ChatPort.ts](../frontend/src/lib/ports/ChatPort.ts)：`interface ChatPort { listMessages; streamChat; cancelChat }`
+- [ProjectsPort.ts](../frontend/src/lib/ports/ProjectsPort.ts)：`interface ProjectsPort { listProjects; getProject; runProject }`
+- [hubChatPort.ts](../frontend/src/lib/ports/hubChatPort.ts) / [hubProjectsPort.ts](../frontend/src/lib/ports/hubProjectsPort.ts)：默认实现，委托 `@/lib/api/*`
 
 **FE/BE 边界规则**：改动影响产品行为或校验 → 落 Hub，而非 `src/lib/api/*`。前端只显示 + 订阅 SSE。
 
-**缓存失效**（[dataRefresh.ts](../frontend-v2/src/lib/dataRefresh.ts)）：mutation 后调 `invalidateResources("projects"|"agents"|...)`，`useResourceQuery` 订阅者重载。
+**缓存失效**（[dataRefresh.ts](../frontend/src/lib/dataRefresh.ts)）：mutation 后调 `invalidateResources("projects"|"agents"|...)`，`useResourceQuery` 订阅者重载。
 
 ---
 
@@ -816,7 +816,7 @@ class BudgetExceededError(Exception)     # 交互级 budget 硬停
 ### 11.1 模块依赖方向
 
 ```
-frontend-v2 ──HTTP/SSE──► hub/api ──► hub/services ──► base/agent_chat
+frontend ──HTTP/SSE──► hub/api ──► hub/services ──► base/agent_chat
                                               │
                                               ▼
                                           adapter/registry ──► adapters/<cli>
@@ -848,7 +848,7 @@ run_kernel.py ──► common/process ──► common/agent_port ──► com
 | `pydantic` | 契约校验 | 同上 |
 | `PyYAML` | workflow/templates 解析 | 同上 |
 | `python-pptx` | PPT 交付 | 同上 |
-| Node.js | 构建 frontend-v2 | 系统 |
+| Node.js | 构建 frontend | 系统 |
 | **OpenCode CLI** | 默认 CLI 后端 | 外部安装；默认 `~/.opencode/bin/opencode` |
 | **Claude CLI**（可选） | 备选 CLI 后端 | 外部安装 |
 
@@ -866,10 +866,10 @@ run_kernel.py ──► common/process ──► common/agent_port ──► com
 
 | 入库（随代码） | gitignore（本机运行态） |
 |----------------|-------------------------|
-| `business/templates/`、`business/skills/`、`business/workflows/`、`business/rules/`、`backend/`、`frontend-v2/src/`、`scripts/`、`docs/` | `config/*.json`（首次启动自动生成） |
+| `business/templates/`、`business/skills/`、`business/workflows/`、`business/rules/`、`backend/`、`frontend/src/`、`scripts/`、`docs/` | `config/*.json`（首次启动自动生成） |
 | | `business/config/*`（agents、groups、mcp_registry…） |
 | | `business/workspaces/`、`business/tasks/`（含 `state.db`） |
-| | `frontend-v2/dist/`、`**/node_modules/` |
+| | `frontend/dist/`、`**/node_modules/` |
 
 ### 12.2 关键配置文件
 
@@ -902,7 +902,7 @@ cd myteam
 python3.12 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 
-cd frontend-v2 && npm install && npm run build && cd ..
+cd frontend && npm install && npm run build && cd ..
 ```
 
 ### 13.2 启动 Hub
@@ -1038,7 +1038,7 @@ PYTHONPATH="$PWD/backend" venv/bin/python3 -m pytest \
 | `backend/common/store.py` | **SQLite** 项目真相库 |
 | `business/skills/` | Skill **源库**；Hub 同步到 `.opencode/skills/` |
 | `skill/`（`common/paths.py` 内 `TEAM_SKILL_DIR`） | 历史路径常量；当前仓库根下**无** `skill/` 目录 |
-| `frontend/` vs `frontend-v2/` | v1 经典静态页（默认关闭）vs v2 生产 SPA |
+| `frontend/` vs `frontend/` | v1 经典静态页（默认关闭）vs v2 生产 SPA |
 | 删除 MCP registry 条目 | 只取消 Hub 挂载与 workspace 同步；**不**卸载本机 npm 包 |
 | workflow `roster` 键 | **不存在**；roster 是独立 JSON，workflow 用 `agent_id` 引用 |
 | `outcome_kind` | `templates.yaml` 中显式声明者统一为 `artifact`；action 类由 evidence_url 配置触发 |
@@ -1050,11 +1050,11 @@ PYTHONPATH="$PWD/backend" venv/bin/python3 -m pytest \
 | 现象 | 处理 |
 |------|------|
 | OpenCode CLI 未找到 | 安装 opencode 或设 `OPENCODE_CLI_PATH` / `system_config.backends.opencode.cli_path` |
-| `/v2` 空白 | `cd frontend-v2 && npm run build` |
+| `/v2` 空白 | `cd frontend && npm run build` |
 | 看不到项目进度 | 确认 `business/tasks/state.db` 存在且 Hub 与 kernel 共用同一 `MYTEAM_ROOT` |
 | MCP 不生效 | MCP 页启用 → Agent 勾选 →「同步 MCP」→ 检查 workspace 内 `opencode.json` |
 | Agent 私聊无 Skill 摘要 | 检查 `agents_registry.json` 的 `skills`；Skill 的 `description` 在 SKILL.md frontmatter |
 
 ---
 
-**文档版本**：2026-06-26，与仓库源码同步。若发现与代码不符，以 `backend/`、`frontend-v2/src/`、`business/templates/` 为准。
+**文档版本**：2026-06-26，与仓库源码同步。若发现与代码不符，以 `backend/`、`frontend/src/`、`business/templates/` 为准。

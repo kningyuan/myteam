@@ -47,7 +47,7 @@ Use `--mode recurring` only for bounded iterative projects.
 ./run.sh start
 ```
 
-Open `http://localhost:8765` (redirects to `/v2/`). Build first: `cd frontend-v2 && npm run build`.
+Open `http://localhost:8765` (redirects to `/v2/`). Build first: `cd frontend && npm run build`.
 
 ### Inspect Progress
 

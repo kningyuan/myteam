@@ -10,13 +10,13 @@ from typing import Any, Optional
 import yaml
 
 from common.paths import MYTEAM_ROOT
-from common.skill_catalog import (
+from common.skill.skill_catalog import (
     SKILLS_DIR,
     _list_skill_tree,
     _read_skill_meta,
 )
-from common.skill_display_names import resolve_skill_display_description, resolve_skill_display_name
-from common.skill_link import resolve_skill_source_dir
+from common.skill.skill_display_names import resolve_skill_display_description, resolve_skill_display_name
+from common.skill.skill_link import resolve_skill_source_dir
 
 _CATEGORIES_FILE = "categories.yaml"
 _SLUG_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
@@ -219,7 +219,7 @@ def update_skill_category(
 
 def move_skill_to_category(skill_id: str, category_id: str | None) -> dict:
     """变更 skill 展示分类：只改 categories.yaml，不移动 business/skills/<id>/ 目录。"""
-    from common.skill_catalog import get_skill_entry
+    from common.skill.skill_catalog import get_skill_entry
 
     sid = (skill_id or "").strip()
     skill_dir = resolve_skill_source_dir(sid)
@@ -273,14 +273,14 @@ def resolve_library_entry(entry_id: str) -> Optional[dict]:
         return None
     if is_skill_category_dir(eid):
         return get_skill_category_entry(eid)
-    from common.skill_catalog import get_skill_entry
+    from common.skill.skill_catalog import get_skill_entry
 
     return get_skill_entry(eid)
 
 
 def get_category_file(category_id: str, file_path: str) -> Optional[dict]:
     """分类详情树中的文件：path 形如 memberId/relative/path。"""
-    from common.skill_catalog import get_skill_file
+    from common.skill.skill_catalog import get_skill_file
 
     rel = (file_path or "").strip().lstrip("/")
     if not rel or "/" not in rel:

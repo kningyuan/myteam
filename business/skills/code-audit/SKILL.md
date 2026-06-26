@@ -41,9 +41,9 @@ cd "$MYTEAM_ROOT"
 ```bash
 echo "=== 项目统计 ==="
 PY_FILES=$(find backend -name "*.py" -not -path "*/venv/*" -not -path "*/__pycache__/*" | wc -l)
-TS_FILES=$(find frontend-v2/src -name "*.ts" -o -name "*.tsx" | wc -l)
+TS_FILES=$(find frontend/src -name "*.ts" -o -name "*.tsx" | wc -l)
 PY_LINES=$(find backend -name "*.py" -not -path "*/venv/*" -not -path "*/__pycache__/*" -exec cat {} + | wc -l)
-TS_LINES=$(find frontend-v2/src \( -name "*.ts" -o -name "*.tsx" \) -exec cat {} + | wc -l)
+TS_LINES=$(find frontend/src \( -name "*.ts" -o -name "*.tsx" \) -exec cat {} + | wc -l)
 WF_FILES=$(ls business/workflows/*.yaml 2>/dev/null | wc -l)
 TEST_FILES=$(find backend -name "test_*.py" | wc -l)
 echo "Python 文件：$PY_FILES（${PY_LINES} 行）"
@@ -59,7 +59,7 @@ echo "测试文件数：$TEST_FILES"
 ### 1.1 TypeScript 编译检查
 
 ```bash
-cd frontend-v2 && npx tsc --noEmit 2>&1; TS_EXIT=$?
+cd frontend && npx tsc --noEmit 2>&1; TS_EXIT=$?
 echo "TS_EXIT=$TS_EXIT"
 ```
 

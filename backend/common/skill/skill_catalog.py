@@ -10,7 +10,7 @@ from typing import Any, Optional
 import yaml
 
 from common.paths import MYTEAM_ROOT
-from common.skill_display_names import (
+from common.skill.skill_display_names import (
     resolve_skill_display_description,
     resolve_skill_display_name,
 )
@@ -66,7 +66,7 @@ def _is_production_skill_dir(name: str) -> bool:
 
 
 def _skill_dir(skill_id: str) -> Optional[Path]:
-    from common.skill_link import resolve_skill_source_dir
+    from common.skill.skill_link import resolve_skill_source_dir
 
     return resolve_skill_source_dir(skill_id)
 
@@ -216,7 +216,7 @@ def _skill_anchor_meta(skill_id: str) -> dict:
     """business/skills 挂载锚点信息（外部 skill 为软链）。"""
     import os
 
-    from common.skill_link import business_skill_anchor
+    from common.skill.skill_link import business_skill_anchor
 
     anchor = business_skill_anchor((skill_id or "").strip())
     if anchor.is_symlink():
@@ -284,7 +284,7 @@ def _rel_to_myteam(path: Path) -> str:
 
 
 def _read_skill_meta(skill_dir: Path, text: str) -> dict:
-    from common.skill_categories import category_for_skill
+    from common.skill.skill_categories import category_for_skill
 
     meta = _parse_frontmatter(text)
     sid = skill_dir.name
@@ -328,7 +328,7 @@ def list_skill_library() -> list[dict]:
         text = skill_md.read_text(encoding="utf-8", errors="replace")
         meta = _parse_frontmatter(text)
         sid = p.name
-        from common.skill_categories import category_for_skill
+        from common.skill.skill_categories import category_for_skill
 
         gid = category_for_skill(sid)
         items.append({
@@ -370,7 +370,7 @@ def get_skill_library_entry(skill_id: str) -> Optional[dict]:
     sid = (skill_id or "").strip()
     if not sid or not _is_production_skill_dir(sid):
         return None
-    from common.skill_categories import is_skill_category_dir
+    from common.skill.skill_categories import is_skill_category_dir
 
     if is_skill_category_dir(sid):
         return None
@@ -433,7 +433,7 @@ def update_skill_name(skill_id: str, name: str) -> dict:
 
 def canonical_skill_mount_id(raw: str) -> str | None:
     """将 registry / 前端可能保存的路径式挂载（如 methodology/foo）规范为 skill id。"""
-    from common.skill_groups import is_skill_group
+    from common.skill.skill_groups import is_skill_group
 
     s = (raw or "").strip().strip("/")
     if not s:
@@ -472,7 +472,7 @@ def validate_skill_ids(skill_ids: list[str]) -> tuple[list[str], list[str]]:
 
 def delete_skill_library_entry(skill_id: str) -> dict:
     """删除 Skill 目录 business/skills 下挂载锚点（生产 Skill 与 auto-* 抽提均可删）。"""
-    from common.skill_link import business_skill_anchor, remove_skill_entry
+    from common.skill.skill_link import business_skill_anchor, remove_skill_entry
 
     sid = (skill_id or "").strip()
     if not sid:

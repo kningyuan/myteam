@@ -30,7 +30,7 @@ from base.agent_chat import (
     set_agent_backend_config,
 )
 from base.agent_factory import generate_agent, suggest_agent_id
-from hub.paths import FRONTEND_V2_DIST, resolve_workspace, to_relative_path
+from hub.paths import FRONTEND_DIST, resolve_workspace, to_relative_path
 from hub.services.project_launch import (
     resume_kernel_bg,
     run_kernel_bg,
@@ -190,7 +190,7 @@ from hub.services.kernel_run import (  # noqa: E402
 )
 
 
-_V2_UI_READY = FRONTEND_V2_DIST.is_dir() and (FRONTEND_V2_DIST / "index.html").is_file()
+_V2_UI_READY = FRONTEND_DIST.is_dir() and (FRONTEND_DIST / "index.html").is_file()
 
 
 @app.get("/")
@@ -199,13 +199,13 @@ async def index():
         return RedirectResponse(url="/v2/", status_code=302)
     raise HTTPException(
         status_code=503,
-        detail="Web UI 未就绪：请执行 cd frontend-v2 && npm install && npm run build",
+        detail="Web UI 未就绪：请执行 cd frontend && npm install && npm run build",
     )
 
 
-# SPA fallback for frontend-v2 — StaticFiles(html=True) does not serve index.html on deep links.
+# SPA fallback for frontend — StaticFiles(html=True) does not serve index.html on deep links.
 if _V2_UI_READY:
-    _V2_INDEX = FRONTEND_V2_DIST / "index.html"
+    _V2_INDEX = FRONTEND_DIST / "index.html"
 
     @app.get("/v2", include_in_schema=False)
     @app.get("/v2/", include_in_schema=False)
@@ -214,7 +214,7 @@ if _V2_UI_READY:
 
     @app.get("/v2/{rest_path:path}", include_in_schema=False)
     async def v2_spa(rest_path: str):
-        candidate = FRONTEND_V2_DIST / rest_path
+        candidate = FRONTEND_DIST / rest_path
         if candidate.is_file():
             return FileResponse(str(candidate))
         return FileResponse(str(_V2_INDEX))

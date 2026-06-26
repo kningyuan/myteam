@@ -39,8 +39,8 @@ MYTEAM_DIR = MYTEAM_ROOT
 CONTINUOUS_DIR = TASKS_DIR / "continuous"
 
 # ── hub-side paths (migrated from hub/paths.py — single source of truth) ──
-FRONTEND_V2_DIR = MYTEAM_ROOT / "frontend-v2"
-FRONTEND_V2_DIST = FRONTEND_V2_DIR / "dist"
+FRONTEND_DIR = MYTEAM_ROOT / "frontend"
+FRONTEND_DIST = FRONTEND_DIR / "dist"
 DATA_DIR = CONFIG_DIR  # config/ 的别名
 
 SKILL_CONFIG_FILE = CONFIG_DIR / "skill_config.json"

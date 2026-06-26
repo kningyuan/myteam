@@ -9,7 +9,7 @@ description: 前端实现方法论：最小 diff、契约对齐、组件实现�
 > - 组件测试 / 手验清单
 > - Hub UI 调试与 JS 静态扫描（myteam 专项）
 
-**myteam 红线**：改 `frontend/` 或 `frontend-v2/` 须读 `hub-ui-debug` skill；禁止改 Process/AgentPort；禁止未跑回归就 submit。
+**myteam 红线**：改 `frontend/` 须读 `hub-ui-debug` skill；禁止改 Process/AgentPort；禁止未跑回归就 submit。
 
 ---
 
@@ -46,8 +46,8 @@ description: 前端实现方法论：最小 diff、契约对齐、组件实现�
 ### Step 4 — 自测（保存前必跑）
 
 ```bash
-# frontend-v2
-cd frontend-v2 && npm run build
+# frontend
+cd frontend && npm run build
 
 # 若改 legacy frontend/*.js
 bash business/skills/hub-ui-debug/scripts/check_frontend_js.sh

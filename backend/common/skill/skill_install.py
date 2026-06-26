@@ -29,8 +29,8 @@ from typing import Optional
 import yaml
 
 from common.paths import MYTEAM_ROOT
-from common.skill_catalog import SKILLS_DIR
-from common.skill_catalog import get_skill_library_entry
+from common.skill.skill_catalog import SKILLS_DIR
+from common.skill.skill_catalog import get_skill_library_entry
 
 logger = logging.getLogger("common.skill_install")
 
@@ -66,7 +66,7 @@ def _validate_skill_dir(skill_dir: Path) -> Optional[str]:
         return None
     text = skill_md.read_text(encoding="utf-8", errors="replace")
     # 解析 frontmatter
-    from common.skill_catalog import _parse_frontmatter as parse_fm
+    from common.skill.skill_catalog import _parse_frontmatter as parse_fm
     meta = parse_fm(text)
     sid = meta.get("id") or meta.get("name") or skill_dir.name
     if not sid:
@@ -90,7 +90,7 @@ def _download_raw_skill(url: str) -> Optional[dict]:
         logger.warning("下载失败 %s: %s", url, e)
         return None
 
-    from common.skill_catalog import _parse_frontmatter as parse_fm
+    from common.skill.skill_catalog import _parse_frontmatter as parse_fm
     meta = parse_fm(text)
     sid = meta.get("id") or _slugify(Path(url).stem or "skill")
     body = re.sub(r"^---.*?---\s*", "", text, count=1, flags=re.DOTALL).strip()
@@ -146,7 +146,7 @@ def _add_to_catalog(skill_id: str, skill_dir: Path) -> bool:
 
     # 从 SKILL.md 读取描述
     skill_md = skill_dir / "SKILL.md"
-    from common.skill_catalog import _parse_frontmatter as parse_fm
+    from common.skill.skill_catalog import _parse_frontmatter as parse_fm
     meta = parse_fm(skill_md.read_text(encoding="utf-8"))
     description = meta.get("description", f"从网络安装的 Skill: {skill_id}")
     task_types = meta.get("task_types", "")
@@ -334,7 +334,7 @@ def search_and_install(
             continue
         text = skill_md.read_text(encoding="utf-8", errors="replace")
         if query.lower() in text.lower():
-            from common.skill_catalog import _parse_frontmatter as parse_fm
+            from common.skill.skill_catalog import _parse_frontmatter as parse_fm
             meta = parse_fm(text)
             name = meta.get("name") or p.name
             description = meta.get("description", "")
@@ -407,7 +407,7 @@ def list_available_skills() -> list[dict]:
         skill_md = p / "SKILL.md"
         if not skill_md.is_file():
             continue
-        from common.skill_catalog import get_skill_library_entry
+        from common.skill.skill_catalog import get_skill_library_entry
         entry = get_skill_library_entry(p.name)
         if entry:
             local.append(entry)
@@ -426,7 +426,7 @@ def list_pending_skills() -> list[dict]:
         if not skill_md.is_file():
             continue
         text = skill_md.read_text(encoding="utf-8", errors="replace")
-        from common.skill_catalog import _parse_frontmatter as parse_fm
+        from common.skill.skill_catalog import _parse_frontmatter as parse_fm
         meta = parse_fm(text)
         items.append({
             "id": p.name,

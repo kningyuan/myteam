@@ -628,7 +628,7 @@ UI-2 依赖：
 | common/ 85 个模块平铺 | P0 | 所有 .py 文件在一个目录 | 按功能领域拆分子目录 | P0 |
 | server.py 975 行 / 37 端点 | P0 | 端点散落在 server.py 中 | 全部迁移到 routes/ 下 | P0 |
 | adapter/ + adapters/ 命名混淆 | P1 | 两个目录只差一个 s | 合并为 adapters/base/ | P1 |
-| frontend-v2 命名误导 | P1 | v1 已移除仍叫 v2 | 改名为 frontend/ | P1 |
+| frontend-v2 命名误导 | P1 | v1 已移除仍叫 v2 | ~~已完成~~ 改名为 frontend/ | P1 |
 | base/ 定位不清 | P1 | 不知道是工具类还是业务层 | 移入 hub/domain/ | P1 |
 | agentic-workflows 悬停 | P1 | 无代码引用，与 workflows 并列 | 移入 playbooks/ | P1 |
 | store/ 目录尴尬 | P2 | 3 个文件分属不同关注点 | 拆分到 config/ + hub/services/ | P2 |
@@ -794,7 +794,7 @@ Phase 3（质量闭环）
 | 2.1 | 拆分 common/ 子目录 ⚠️ | 按 kernel/agent/skill/workflow/store/project/prompt/observability/config 分组 | 所有 import 通过 re-export 兼容，测试通过 | ~200 行（主要是 re-export） | 85+ 个文件（移动） | 2 天 | P0 |
 | 2.2 | 拆分 server.py 端点 | 37 个端点迁移到 routes/ 下，server.py 只保留初始化 | API 端点行为完全一致（用集成测试验证） | ~500 行（重构） | 10-15 个文件 | 2 天 | P0 |
 | 2.3 | 统一路径常量 | 合并 common/paths.py 和 hub/paths.py 到 backend/paths.py | 全局搜索无重复定义 | ~100 行 | 10-15 个文件 | 0.5 天 | P1 |
-| 2.4 | 重命名 frontend-v2 → frontend | 目录名 + 后端变量同步修改 | 前端正常构建和访问 | ~50 行 | 5-8 个文件 | 0.5 天 | P1 |
+| 2.4 | 重命名 frontend-v2 → frontend | 目录名 + 后端变量同步修改 | ~~已完成~~ 前端正常构建和访问 | ~50 行 | 5-8 个文件 | 0.5 天 | P1 |
 | 2.5 | 整理 Skill 功能结构 | 所有 skill_*.py 移入 common/skill/ 子目录 | Skill 功能统一组织 | ~100 行 | 8-10 个文件 | 0.5 天 | P1 |
 | 2.6 | 整理 MCP 功能结构 | 所有 mcp 相关统一组织 | MCP 功能统一组织 | ~100 行 | 5-7 个文件 | 0.5 天 | P1 |
 | 2.7 | 清理 agentic-workflows | 移入 playbooks/ 或删除 | 确认无代码引用 | ~0 行 | 1-2 个文件 | 0.5 天 | P2 |

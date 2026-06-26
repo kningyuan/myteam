@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""设置页 frontend-v2 ↔ /api/config、/api/skill-config 字段覆盖（防漂移）。"""
+"""设置页 frontend ↔ /api/config、/api/skill-config 字段覆盖（防漂移）。"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
-SETTINGS_PAGE = ROOT / "frontend-v2" / "src" / "pages" / "SettingsPage.tsx"
+SETTINGS_PAGE = ROOT / "frontend" / "src" / "pages" / "SettingsPage.tsx"
 
 SYSTEM_FIELDS = {
     "system.port",

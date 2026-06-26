@@ -325,7 +325,7 @@
 | 2.1 | common/ 子目录拆分 ⚠️🧪 | ~200 行 | 85+ 个文件 | 2 天 | 🟠 |
 | 2.2 | server.py 端点拆分 | ~500 行 | 10-15 | 2 天 | 🟡 |
 | 2.3 | 统一路径常量 | ~100 行 | 10-15 | 0.5 天 | 🟢 |
-| 2.4 | 重命名 frontend-v2 → frontend | ~50 行 | 5-8 | 0.5 天 | 🟢 |
+| 2.4 | 重命名 frontend-v2 → frontend | ~50 行 | 5-8 | 0.5 天 | ✅ |
 | 2.5 | 整理 Skill 功能结构 | ~100 行 | 8-10 | 0.5 天 | 🟢 |
 | 2.6 | 整理 MCP 功能结构 | ~100 行 | 5-7 | 0.5 天 | 🟢 |
 | 2.7 | 清理 agentic-workflows | ~0 行 | 1-2 | 0.5 天 | 🟢 |
@@ -363,12 +363,17 @@ backend/common/
 |------|------|
 | `backend/common/paths.py` + `backend/hub/paths.py` | 合并到 `backend/paths.py` |
 
-### 2.4 — 重命名 frontend-v2 → frontend
+### 2.4 — 重命名 frontend-v2 → frontend ✅ COMPLETED
 
 | 文件 | 操作 |
 |------|------|
 | `frontend-v2/` | 重命名为 `frontend/` |
 | 后端引用 | 同步修改变量名 |
+| `package.json` / `package-lock.json` | name 字段更新 |
+| `.gitignore` | 构建产物路径更新 |
+| `README.md` | 所有引用路径更新 |
+| `docs/CODE-WIKI.md` | 所有引用路径更新 |
+| `.cursor/skills/myteam-usage/SKILL.md` | 构建命令更新 |
 
 ### 2.5 — 整理 Skill 功能结构
 

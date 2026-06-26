@@ -4,7 +4,7 @@
 
 Agent 执行通过 **CLI 适配器**驱动（生产默认 **OpenCode**；另有 **Claude CLI** 适配器与 **stub** 测试后端）。
 
-> 深度设计文档见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)、[`docs/FRAMEWORK_BOUNDARY.md`](docs/FRAMEWORK_BOUNDARY.md)、[`frontend-v2/ARCHITECTURE.md`](frontend-v2/ARCHITECTURE.md)。文档索引 [`docs/README.md`](docs/README.md)。
+> 深度设计文档见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)、[`docs/FRAMEWORK_BOUNDARY.md`](docs/FRAMEWORK_BOUNDARY.md)、[`frontend/ARCHITECTURE.md`](frontend/ARCHITECTURE.md)。文档索引 [`docs/README.md`](docs/README.md)。
 
 ---
 
@@ -28,7 +28,7 @@ Agent 执行通过 **CLI 适配器**驱动（生产默认 **OpenCode**；另有 
 
 ```
 A) Hub 交互流（人 ↔ Agent / 群）
-   浏览器 frontend-v2 (/v2)
+   浏览器 frontend (/v2)
      → FastAPI backend/hub/api/server.py
      → hub/services/chat_service（或 groups / notify）
      → base/agent_chat + adapter/registry
@@ -168,7 +168,7 @@ common/           编排内核 + 共享领域（Process、AgentPort、Gate、Sto
 | `observability_api.py` | `/api/obs` | 项目/Agent 可观测、run_event SSE |
 | `server.py` 直连 | `/api/status`、`/api/task-types`、`/api/delivery-templates`、`/api/init` 等 | 杂项与遗留端点 |
 
-静态资源：`/` → 重定向 `/v2/`；`frontend-v2/dist` 作为 SPA；`frontend/` 仅 `MYTEAM_V1_UI=1` 时可访问 `/classic`。
+静态资源：`/` → 重定向 `/v2/`；`frontend/dist` 作为 SPA；`frontend/` 仅 `MYTEAM_V1_UI=1` 时可访问 `/classic`。
 
 ### 3.3 CLI 适配器
 
@@ -273,11 +273,11 @@ common/           编排内核 + 共享领域（Process、AgentPort、Gate、Sto
 
 ## 4. 前端架构
 
-生产 UI：**`frontend-v2/`**（React 19 + Vite 8 + TypeScript + Tailwind 4 + React Router 7）。构建产物 `frontend-v2/dist/`（gitignore），Hub 在 `/v2` 提供 SPA。
+生产 UI：**`frontend/`**（React 19 + Vite 8 + TypeScript + Tailwind 4 + React Router 7）。构建产物 `frontend/dist/`（gitignore），Hub 在 `/v2` 提供 SPA。
 
 经典 UI：**`frontend/`**（纯静态 HTML/JS），默认不对外；设置 `MYTEAM_V1_UI=1` 后访问 `/classic`。
 
-### 4.1 分层（详见 `frontend-v2/ARCHITECTURE.md`）
+### 4.1 分层（详见 `frontend/ARCHITECTURE.md`）
 
 ```
 App.tsx (BrowserRouter basename=/v2)
@@ -356,9 +356,9 @@ App.tsx (BrowserRouter basename=/v2)
 | 入库（随代码） | gitignore（本机运行态） |
 |----------------|-------------------------|
 | `config/` 模板逻辑、`business/templates/`、`business/skills/`、`business/workflows/`、`business/rules/` | `config/*.json`（首次启动自动生成） |
-| `backend/`、`frontend-v2/src/`、`scripts/`、`docs/` | `business/config/*`（agents、groups、mcp_registry…） |
+| `backend/`、`frontend/src/`、`scripts/`、`docs/` | `business/config/*`（agents、groups、mcp_registry…） |
 | | `business/workspaces/`、`business/tasks/`（含 `state.db`） |
-| | `frontend-v2/dist/`、`**/node_modules/` |
+| | `frontend/dist/`、`**/node_modules/` |
 
 ### 5.2 关键配置文件
 
@@ -390,7 +390,7 @@ python3 scripts/bootstrap_agent_roster.py      # 仅 Agent 相关 bootstrap
 |------|------|
 | Python 3.12+ | 推荐 venv：`.venv/` 或 `venv/` |
 | `requirements.txt` | fastapi、uvicorn、pydantic、PyYAML、python-pptx |
-| Node.js | 构建 `frontend-v2` |
+| Node.js | 构建 `frontend` |
 | **OpenCode CLI** | 外部安装；默认 `~/.opencode/bin/opencode` 或 `system_config.backends.opencode.cli_path` |
 
 ### 6.2 启动 Hub
@@ -400,7 +400,7 @@ cd myteam
 python3.12 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 
-cd frontend-v2 && npm install && npm run build && cd ..
+cd frontend && npm install && npm run build && cd ..
 
 ./run.sh start    # http://localhost:8765 → /v2/
 ./run.sh stop
@@ -479,7 +479,7 @@ myteam/
 │   ├── store/                # system_config、skill_config、sessions JSON
 │   └── common/               # 编排内核 + 共享域 + tests/
 │
-├── frontend-v2/              # 生产 Web UI（React SPA，见 §4）
+├── frontend/              # 生产 Web UI（React SPA，见 §4）
 │   ├── package.json
 │   ├── vite.config.ts
 │   ├── index.html
@@ -615,14 +615,14 @@ myteam/
 | `backend/common/store.py` | **SQLite** 项目真相库 |
 | `business/skills/` | Skill **源库**；Hub 同步到 `.opencode/skills/` |
 | `skill/`（`common/paths.py` 内 `TEAM_SKILL_DIR`） | 历史路径常量；**当前仓库根下无 `skill/` 目录** |
-| `frontend/` vs `frontend-v2/` | v1 经典静态页 vs v2 生产 SPA |
+| `frontend/` | 生产 SPA（原 `frontend-v2/`） |
 | 删除 MCP registry 条目 | 只取消 Hub 挂载与 workspace 同步；**不**卸载本机 npm 包 |
 
 ### 9.2 维护建议
 
 - **改 task_type / Gate**：先改 `business/templates/templates.yaml`，再改 Skill。
 - **改 Agent 能力边界**：`agents_registry.json` 的 `skills` / `mcp_servers` + UI 同步按钮。
-- **改 UI**：只动 `frontend-v2/src/`；改 API 契约时同步 `backend/hub/api` 与 `frontend-v2/src/lib/api`。
+- **改 UI**：只动 `frontend/src/`；改 API 契约时同步 `backend/hub/api` 与 `frontend/src/lib/api`。
 - **大段历史文档**：在 `docs/`，与代码不一致时以 **代码与 `business/templates/`** 为准。
 
 ---
@@ -632,11 +632,11 @@ myteam/
 | 现象 | 处理 |
 |------|------|
 | OpenCode CLI 未找到 | 安装 opencode 或设置 `OPENCODE_CLI_PATH` / `system_config.backends.opencode.cli_path` |
-| `/v2` 空白 | `cd frontend-v2 && npm run build` |
+| `/v2` 空白 | `cd frontend && npm run build` |
 | 看不到项目进度 | 确认 `business/tasks/state.db` 存在且 Hub 与 kernel 共用同一 `MYTEAM_ROOT` |
 | MCP 不生效 | MCP 页启用 → Agent 勾选 → 「同步 MCP」→ 检查 workspace 内 `opencode.json` |
 | Agent 私聊无 Skill 摘要 | 检查 `agents_registry.json` 的 `skills`；Skill 的 `description` 在 SKILL.md frontmatter |
 
 ---
 
-**文档版本**：与仓库源码同步维护（2026-06-16）。若发现与代码不符，请以 `backend/`、`frontend-v2/src/`、`business/templates/` 为准并更新本 README。
+**文档版本**：与仓库源码同步维护（2026-06-16）。若发现与代码不符，请以 `backend/`、`frontend/src/`、`business/templates/` 为准并更新本 README。

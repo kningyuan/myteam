@@ -1,4 +1,4 @@
-# frontend-v2 Architecture
+# frontend Architecture
 
 Layered React SPA for the MyTeam Agent Hub. Data flows **down** from pages; HTTP stays at the bottom. Business rules live in Hub (Python), not in the frontend API layer.
 
@@ -120,7 +120,7 @@ Global agent chat state (`agentChatStream.ts`) survives route changes; cancellat
 ## Build
 
 ```bash
-cd frontend-v2 && npm run build
+cd frontend && npm run build
 ```
 
 Typecheck: `tsc -b` (project references). Vite bundles `src/` to `dist/`.
