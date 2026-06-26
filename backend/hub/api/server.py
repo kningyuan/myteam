@@ -148,6 +148,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from hub.api.config_api import router as config_router
 from hub.api.observability_api import router as observability_router
 from hub.api.skills_api import router as skills_router
 from hub.api.mcp_api import router as mcp_router
@@ -164,6 +165,7 @@ app.include_router(rules_router)
 app.include_router(preferences_router)
 app.include_router(prompt_templates_router)
 app.include_router(prompt_injections_router)
+app.include_router(config_router)
 app.include_router(api_router)
 
 
