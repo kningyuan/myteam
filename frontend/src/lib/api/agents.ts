@@ -8,6 +8,7 @@ export type AgentSummary = {
   workspace_ok?: number
   role?: string
   description?: string
+  capabilities?: string[]
   backend?: string
   model?: string
   task_types?: string[]

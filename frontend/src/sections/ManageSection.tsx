@@ -33,6 +33,10 @@ import {
   type DeliveryTemplateSummary,
   type OutcomeKind,
   type TaskTypeSummary,
+  listDeliveryProfiles,
+  saveDeliveryProfile,
+  deleteDeliveryProfile,
+  type DeliveryProfileSummary,
 } from "@/lib/api/workflows"
 import { useResourceQuery, useOnResourceInvalidate } from "@/hooks/useResourceQuery"
 import { AgentEditDialog } from "@/components/manage/AgentEditDialog"
@@ -60,7 +64,7 @@ import { MarkdownBody } from "@/components/MarkdownBody"
 import { gateLabel } from "@/components/ui/page"
 import { cn } from "@/lib/utils"
 
-type ManageTab = "agents" | "preferences" | "task-types" | "templates" | "knowledge"
+type ManageTab = "agents" | "preferences" | "task-types" | "templates" | "delivery-profiles" | "knowledge"
 
 const AGENT_WORKSPACE_FILES = [
   "IDENTITY.md",
@@ -754,6 +758,17 @@ export function ManageSection() {
   const [syncBusy, setSyncBusy] = useState(false)
   const templateImportRef = useRef<HTMLInputElement>(null)
 
+  // ── Delivery Profiles state ──
+  const [profiles, setProfiles] = useState<DeliveryProfileSummary[]>([])
+  const [profileFormOpen, setProfileFormOpen] = useState(false)
+  const [profileFormMode, setProfileFormMode] = useState<"create" | "edit">("create")
+  const [profileFormId, setProfileFormId] = useState("")
+  const [profileFormName, setProfileFormName] = useState("")
+  const [profileFormDesc, setProfileFormDesc] = useState("")
+  const [profileFormArtifacts, setProfileFormArtifacts] = useState("")
+  const [profileFormScaffold, setProfileFormScaffold] = useState("")
+  const [profileFormBusy, setProfileFormBusy] = useState(false)
+
   useEffect(() => {
     if (!tab) navigate("/manage/agents", { replace: true })
   }, [tab, navigate])
@@ -768,6 +783,12 @@ export function ManageSection() {
         setKinds(k)
         if (k[0]) setTypeEditKind(k[0].id)
       })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    listDeliveryProfiles()
+      .then((p) => setProfiles(p))
       .catch(() => {})
   }, [])
 
@@ -840,6 +861,7 @@ export function ManageSection() {
   const selectedTemplate = templates.find((t) => t.id === itemId) ?? null
   const selectedType = types.find((t) => t.task_type === itemId) ?? null
   const selectedEntry = entries.find((e) => String(e.id) === itemId) ?? null
+  const selectedProfile = profiles.find((p) => p.id === itemId) ?? null
   const kindMap = Object.fromEntries(kinds.map((k) => [k.id, k]))
 
   useEffect(() => {
@@ -1096,6 +1118,62 @@ export function ManageSection() {
     }
   }
 
+  // ── Delivery Profile handlers ──
+  function openProfileForm(row: DeliveryProfileSummary | null) {
+    const isNew = !row
+    setProfileFormMode(isNew ? "create" : "edit")
+    setProfileFormId(row?.id || "")
+    setProfileFormName(row?.name || row?.id || "")
+    setProfileFormDesc(row?.description || "")
+    setProfileFormArtifacts((row?.process_artifacts || []).join(", "))
+    setProfileFormScaffold(row?.scaffold || "")
+    setProfileFormOpen(true)
+  }
+
+  async function handleSaveProfile() {
+    const id = profileFormId.trim()
+    if (!id) {
+      toast.error("Profile ID 不能为空")
+      return
+    }
+    const artifacts = profileFormArtifacts
+      .split(/[,，]/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+    const body: Record<string, unknown> = {
+      id,
+      name: profileFormName.trim() || id,
+      description: profileFormDesc.trim(),
+      process_artifacts: artifacts,
+      scaffold: profileFormScaffold.trim(),
+    }
+    setProfileFormBusy(true)
+    try {
+      await saveDeliveryProfile(profileFormMode === "edit" ? id : null, body)
+      toast.success("Profile 已保存")
+      setProfileFormOpen(false)
+      const allProfiles = await listDeliveryProfiles()
+      setProfiles(allProfiles)
+      navigate(`/manage/delivery-profiles/${encodeURIComponent(id)}`)
+    } catch (e) {
+      toast.error("保存失败", { description: e instanceof Error ? e.message : "" })
+    } finally {
+      setProfileFormBusy(false)
+    }
+  }
+
+  async function handleDeleteProfile(id: string) {
+    if (!window.confirm(`删除交付流程「${id}」？`)) return
+    try {
+      await deleteDeliveryProfile(id)
+      toast.success("已删除")
+      setProfiles((prev) => prev.filter((p) => p.id !== id))
+      navigate("/manage/delivery-profiles")
+    } catch (e) {
+      toast.error("删除失败", { description: e instanceof Error ? e.message : "" })
+    }
+  }
+
   const listAction =
     activeTab === "agents" ? (
       <Button size="sm" onClick={() => setAgentCreateOpen(true)}>
@@ -1121,6 +1199,10 @@ export function ManageSection() {
           onChange={(e) => void handleTemplateYamlImport(e.target.files?.[0] ?? null)}
         />
       </div>
+    ) : activeTab === "delivery-profiles" ? (
+      <Button size="sm" onClick={() => openProfileForm(null)}>
+        新建
+      </Button>
     ) : undefined
 
   const searchPlaceholder =
@@ -1130,6 +1212,8 @@ export function ManageSection() {
         ? ""
         : activeTab === "templates"
         ? "搜索模板…"
+        : activeTab === "delivery-profiles"
+        ? "搜索交付流程…"
         : activeTab === "task-types"
           ? "搜索任务类型…"
           : "搜索标题 / 项目 / 标签…"
@@ -1186,6 +1270,19 @@ export function ManageSection() {
                   avatar={t.display_name || t.id}
                   active={t.id === itemId}
                   onClick={() => navigate(`/manage/templates/${encodeURIComponent(t.id)}`)}
+                />
+              ))}
+
+            {activeTab === "delivery-profiles" &&
+              profiles.map((p) => (
+                <ListItemRow
+                  key={p.id}
+                  name={p.name || p.id}
+                  sub={p.description?.slice(0, 40) || p.id}
+                  avatar={p.id}
+                  active={p.id === itemId}
+                  onClick={() => navigate(`/manage/delivery-profiles/${encodeURIComponent(p.id)}`)}
+                  onDelete={() => handleDeleteProfile(p.id)}
                 />
               ))}
 
@@ -1289,6 +1386,65 @@ export function ManageSection() {
                 />
               ) : (
                 <WelcomePane title="选择模板" description="左侧已列出全部模板，点选一项查看或编辑。" />
+              )}
+            </>
+          )}
+
+          {activeTab === "delivery-profiles" && (
+            <>
+              <WorkspaceHeader
+                title="交付流程"
+                description="定义任务执行过程中的附加工件（process_artifacts）与脚手架。"
+              />
+              {selectedProfile ? (
+                <div className="workspace-panel">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-lg font-semibold">{selectedProfile.name || selectedProfile.id}</h2>
+                      <p className="mt-1 font-mono text-xs text-[var(--color-muted-foreground)]">{selectedProfile.id}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => openProfileForm(selectedProfile)}>
+                        编辑
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleDeleteProfile(selectedProfile.id)}>
+                        删除
+                      </Button>
+                    </div>
+                  </div>
+                  {selectedProfile.description && (
+                    <p className="mt-4 text-sm leading-relaxed text-[var(--color-muted-foreground)]">
+                      {selectedProfile.description}
+                    </p>
+                  )}
+                  <Separator className="my-5" />
+                  <dl className="detail-dl">
+                    <div className="agent-detail-span-full">
+                      <dt>过程工件</dt>
+                      <dd>
+                        {(selectedProfile.process_artifacts || []).length ? (
+                          <div className="flex flex-wrap gap-1.5">
+                            {selectedProfile.process_artifacts!.map((a) => (
+                              <Badge key={a} variant="secondary">
+                                {a}
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : (
+                          "无"
+                        )}
+                      </dd>
+                    </div>
+                    {selectedProfile.scaffold && (
+                      <div className="agent-detail-span-full">
+                        <dt>脚手架</dt>
+                        <dd className="font-mono text-xs">{selectedProfile.scaffold}</dd>
+                      </div>
+                    )}
+                  </dl>
+                </div>
+              ) : (
+                <WelcomePane title="选择交付流程" description="左侧已列出全部流程，点选一项查看详情。" />
               )}
             </>
           )}
@@ -1556,6 +1712,61 @@ export function ManageSection() {
             </Button>
             <Button disabled={kbCreateBusy} onClick={() => void handleCreateKnowledge()}>
               {kbCreateBusy ? "创建中…" : "创建"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delivery Profile form dialog */}
+      <Dialog open={profileFormOpen} onOpenChange={setProfileFormOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{profileFormMode === "create" ? "新建交付流程" : "编辑交付流程"}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label>Profile ID</Label>
+                <Input
+                  value={profileFormId}
+                  readOnly={profileFormMode === "edit"}
+                  onChange={(e) => setProfileFormId(e.target.value)}
+                  placeholder="例如：light_v1"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>显示名称</Label>
+                <Input value={profileFormName} onChange={(e) => setProfileFormName(e.target.value)} />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label>描述</Label>
+              <Textarea rows={2} value={profileFormDesc} onChange={(e) => setProfileFormDesc(e.target.value)} />
+            </div>
+            <div className="grid gap-2">
+              <Label>过程工件（逗号分隔）</Label>
+              <Textarea
+                rows={3}
+                value={profileFormArtifacts}
+                onChange={(e) => setProfileFormArtifacts(e.target.value)}
+                placeholder="例如：align.md, verify.log, plan.md"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>脚手架（scaffold）</Label>
+              <Input
+                value={profileFormScaffold}
+                onChange={(e) => setProfileFormScaffold(e.target.value)}
+                placeholder="例如：deliverable_guarantee.scaffold_markdown_deliverable"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setProfileFormOpen(false)}>
+              取消
+            </Button>
+            <Button disabled={profileFormBusy} onClick={() => void handleSaveProfile()}>
+              {profileFormBusy ? "保存中…" : "保存"}
             </Button>
           </DialogFooter>
         </DialogContent>
