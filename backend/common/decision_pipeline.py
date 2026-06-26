@@ -66,9 +66,35 @@ class DecisionPipeline:
         except Exception:
             return ""
 
+    @staticmethod
+    def _load_agent_capabilities() -> dict[str, list[str]]:
+        """从 agents_registry.json 加载每个 agent 允许的 task_types。"""
+        try:
+            from common.paths import BUSINESS_CONFIG_DIR
+            import json
+            path = BUSINESS_CONFIG_DIR / "agents_registry.json"
+            if not path.is_file():
+                return {}
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            agents = raw.get("agents") if isinstance(raw, dict) else raw
+            if isinstance(agents, dict):
+                return {
+                    aid: cfg.get("task_types", [])
+                    for aid, cfg in agents.items()
+                    if isinstance(cfg, dict) and cfg.get("task_types")
+                }
+            return {}
+        except Exception:
+            return {}
+
     def team_config(self, project_id: str, goal: str) -> list[str]:
         iid = f"{project_id}:team_config"
-        inp: dict = {"goal": goal}
+        # Inject all registered agent capabilities for team assembly
+        cap = self._load_agent_capabilities()
+        inp: dict = {
+            "goal": goal,
+            "available_agents": cap,
+        }
         # 路径 C：注入质量画像
         quality_hint = self._quality_team_hint()
         if quality_hint:
@@ -113,7 +139,15 @@ class DecisionPipeline:
         team = set(agents)
         feedback: list[str] = []
         base_iid = f"{project_id}:task_plan" + (f":c{cycle}" if cycle else "")
-        plan_input = {"goal": goal, "team": agents}
+
+        # Inject each agent's allowed task_types so main agent can plan correctly
+        cap = self._load_agent_capabilities()
+        task_type_map = {aid: caps for aid, caps in cap.items() if aid in team}
+        plan_input: dict = {
+            "goal": goal,
+            "team": agents,
+            "agent_task_types": task_type_map,
+        }
         if cycle:
             plan_input["cycle"] = cycle
             plan_input["prior_summary"] = prior_summary
