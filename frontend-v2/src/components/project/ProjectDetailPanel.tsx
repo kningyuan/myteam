@@ -114,7 +114,7 @@ function CostView({
   const pct = Math.min(100, Math.round(ratio * 100))
   const yuan = pricePerMtok ? ((total / 1_000_000) * pricePerMtok).toFixed(2) : null
   const maxTok = Math.max(...Object.values(byAgent), 1)
-  const colors = ["#5865f2", "#0891b2", "#059669", "#d97706", "#dc2626", "#7c3aed"]
+  const colors = ["#6f85ff", "#0891b2", "#059669", "#d97706", "#dc2626", "#7c3aed"]
 
   return (
     <div className="cost-view space-y-4">

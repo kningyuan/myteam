@@ -49,7 +49,7 @@ export function RailNav() {
       <div className="discord-rail-tabs">
         {mainNav.map(({ to, end, label, icon: Icon }) => (
           <NavLink key={to} to={to} end={end} className={railClass} title={label}>
-            <Icon size={21} strokeWidth={1.75} />
+            <Icon size={19} strokeWidth={1.75} />
           </NavLink>
         ))}
       </div>
@@ -60,10 +60,12 @@ export function RailNav() {
           title={theme === "dark" ? "切换浅色主题" : "切换深色主题"}
           onClick={toggleTheme}
         >
-          {theme === "dark" ? <Sun size={19} strokeWidth={1.75} /> : <Moon size={19} strokeWidth={1.75} />}
+          <span className="theme-toggle-icon" data-theme={theme}>
+            {theme === "dark" ? <Sun size={17} strokeWidth={1.75} /> : <Moon size={17} strokeWidth={1.75} />}
+          </span>
         </button>
         <NavLink to="/settings" className={railClass} title="设置">
-          <Settings size={19} strokeWidth={1.75} />
+          <Settings size={17} strokeWidth={1.75} />
         </NavLink>
       </div>
     </nav>
