@@ -1,0 +1,55 @@
+id: product-analysis
+name: 产品分析全流程
+version: "1.0"
+description: 四步复杂流程：竞品调研 → 对比分析 → 产品规划 → 质量评审，覆盖 research → research → product → qa 四个 agent
+tasks:
+  - id: step-collect
+    agent_id: research
+    task_type: research
+    template_id: research-report
+    name: 竞品信息收集
+    description: |
+      【范围】从官网、公开文档、应用商店收集 Cursor、Windsurf、GitHub Copilot 三个 AI 编程助手的功能、定价、用户评价信息。信息不完整时标注缺失，不跳过。
+      【输入】竞品列表、信息来源
+      【交付】竞品信息原始数据（Markdown）
+      【质量】每个竞品至少覆盖功能、定价、用户评价三个维度；缺失信息明确标注
+    dependencies: []
+
+  - id: step-compare
+    agent_id: research
+    task_type: competitive-analysis
+    template_id: competitive-analysis
+    name: 竞品对比分析
+    description: |
+      【范围】基于收集的原始数据，从功能、定价、用户体验三个维度建立对比矩阵，分析各竞品优劣势。
+      【输入】竞品信息原始数据
+      【交付】对比矩阵（Markdown 表格）
+      【质量】矩阵须覆盖功能、定价、用户体验三个维度；每项结论须有数据支撑
+    dependencies:
+      - step-collect
+
+  - id: step-plan
+    agent_id: product
+    task_type: product-planning
+    template_id: product-planning
+    name: 产品规划建议
+    description: |
+      【范围】基于竞品对比分析结果，提出产品定位、核心功能建议、优先级排序和实施路线图。
+      【输入】对比矩阵报告
+      【交付】产品规划建议（Markdown）
+      【质量】须包含产品定位、核心功能、优先级排序、实施路线图四个章节
+    dependencies:
+      - step-compare
+
+  - id: step-review
+    agent_id: qa
+    task_type: review
+    template_id: review-report
+    name: 质量评审
+    description: |
+      【范围】对产品规划建议进行质量评审，检查逻辑完整性、数据支撑、可执行性。
+      【输入】产品规划建议
+      【交付】评审报告（Markdown）
+      【质量】须包含评审范围、问题列表、改进建议三个章节
+    dependencies:
+      - step-plan
