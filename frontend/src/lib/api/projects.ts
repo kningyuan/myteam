@@ -436,3 +436,23 @@ export async function getMemory(memoryId: number): Promise<MemoryEntry> {
 export async function deleteMemory(memoryId: number): Promise<void> {
   await hubFetch(`/api/obs/memory/${memoryId}`, { method: "DELETE" })
 }
+
+export type SkillReviewEntry = {
+  project_id?: string
+  review_id?: string
+  task_id?: string
+  skill_id?: string
+  task_type?: string
+  status?: string
+  result?: Record<string, unknown>
+  error?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export async function listSkillReviews(projectId: string): Promise<SkillReviewEntry[]> {
+  const data = await hubFetch<{ skill_reviews?: SkillReviewEntry[] }>(
+    `/api/obs/projects/${encodeURIComponent(projectId)}/skill_reviews`,
+  )
+  return data.skill_reviews ?? []
+}

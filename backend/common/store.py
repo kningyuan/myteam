@@ -237,13 +237,22 @@ CREATE TABLE IF NOT EXISTS agent_config (
     updated_at      TEXT
 );
 
-CREATE TABLE IF NOT EXISTS workflow_version (
-    workflow_id     TEXT NOT NULL,
-    version         INTEGER NOT NULL,
-    body            TEXT NOT NULL,
-    updated_at      TEXT,
-    PRIMARY KEY (workflow_id, version)
+CREATE TABLE IF NOT EXISTS skill_review (
+    project_id  TEXT NOT NULL,
+    review_id   TEXT NOT NULL,
+    task_id     TEXT DEFAULT '',
+    skill_id    TEXT DEFAULT '',
+    task_type   TEXT DEFAULT '',
+    status      TEXT DEFAULT 'pending',   -- pending | running | completed | failed
+    result      TEXT DEFAULT 'null',      -- {action, skill_id, notes}
+    error       TEXT DEFAULT '',
+    created_at  TEXT,
+    updated_at  TEXT,
+    PRIMARY KEY (project_id, review_id),
+    FOREIGN KEY (project_id, task_id) REFERENCES task(project_id, task_id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_skill_review_project ON skill_review(project_id);
 """
 
 
@@ -575,6 +584,29 @@ class Store:
             "interaction_id": r["interaction_id"],
             "task_id": r["task_id"] or "", "agent_id": r["agent_id"] or "",
             "interaction_kind": r["interaction_kind"] or "",
+        } for r in rows]
+
+    def list_run_events_by_kind(self, project_id: str, kind_prefix: str) -> list[dict]:
+        """按 kind 前缀筛选项目级 run_event（skill_review 等后台 interaction 可见）。
+
+        skill_review 的 interaction_id 形如 ``{project_id}:{task_id}:skill_review``,
+        所以通过 project_id 前缀 + kind 前缀即可精准过滤。
+        """
+        rows = self._conn.execute(
+            "SELECT re.interaction_id, re.seq, re.kind, re.payload, re.ts, "
+            "       i.task_id, i.agent_id "
+            "FROM run_event re "
+            "LEFT JOIN interaction i ON re.interaction_id = i.interaction_id "
+            "WHERE (i.project_id = ? OR re.interaction_id LIKE ?) "
+            "  AND re.kind LIKE ? "
+            "ORDER BY re.ts, re.id",
+            (project_id, f"{project_id}:%", f"{kind_prefix}%"),
+        ).fetchall()
+        return [{
+            "ts": r["ts"], "kind": r["kind"], "payload": _loads(r["payload"]),
+            "interaction_id": r["interaction_id"],
+            "task_id": r["task_id"] or "", "agent_id": r["agent_id"] or "",
+            "seq": r["seq"],
         } for r in rows]
 
     # ── 投影轮询（R2-1a）──────────────
@@ -1118,6 +1150,50 @@ class Store:
             (project_id, limit),
         ).fetchall()
         return [self._row(r) for r in rows]
+
+    # ── skill_review（后台复盘）────────────────────────────────
+
+    def upsert_skill_review(
+        self, project_id: str, review_id: str, *, task_id: str = "",
+        skill_id: str = "", task_type: str = "", status: str = "pending",
+        result: Optional[dict] = None, error: str = "",
+    ) -> None:
+        now = _now()
+        with self._conn:
+            self._conn.execute(
+                """INSERT INTO skill_review
+                     (project_id, review_id, task_id, skill_id, task_type,
+                      status, result, error, created_at, updated_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?)
+                   ON CONFLICT(project_id, review_id) DO UPDATE SET
+                     task_id=excluded.task_id, skill_id=excluded.skill_id,
+                     task_type=excluded.task_type, status=excluded.status,
+                     result=excluded.result, error=excluded.error,
+                     updated_at=excluded.updated_at""",
+                (project_id, review_id, task_id, skill_id, task_type,
+                 status, _dumps(result), error, now, now),
+            )
+
+    def get_skill_review(self, project_id: str, review_id: str) -> Optional[dict]:
+        row = self._conn.execute(
+            "SELECT * FROM skill_review WHERE project_id=? AND review_id=?",
+            (project_id, review_id),
+        ).fetchone()
+        return self._skill_review_row(row) if row else None
+
+    def list_skill_reviews(self, project_id: str) -> list[dict]:
+        rows = self._conn.execute(
+            "SELECT * FROM skill_review WHERE project_id=? ORDER BY created_at DESC",
+            (project_id,),
+        ).fetchall()
+        return [self._skill_review_row(r) for r in rows]
+
+    @staticmethod
+    def _skill_review_row(row: sqlite3.Row) -> dict:
+        d = dict(row)
+        if "result" in d:
+            d["result"] = _loads(d["result"])
+        return d
 
     # ── agent_config / workflow_version（Phase 4 配置版本）──────
 

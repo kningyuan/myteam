@@ -430,6 +430,96 @@ async def api_suggest_id(description: str = Query("")):
     return {"suggested_id": suggest_agent_id(description)}
 
 
+# ── Agent Registry CRUD（直接编辑 agents_registry.json 元数据） ──────────
+
+
+@router.post("/registry")
+async def api_create_agent_registry(body: dict):
+    """在注册表中创建新 agent 条目（不创建 workspace）。"""
+    from hub.services.agent_registry import register_agent
+
+    agent_id = str(body.get("agent_id") or "").strip()
+    name = str(body.get("name") or agent_id).strip()
+    role = str(body.get("role") or "worker").strip()
+    description = str(body.get("description") or "").strip()
+    capabilities = body.get("capabilities") or []
+    if isinstance(capabilities, str):
+        capabilities = [x.strip() for x in capabilities.replace("，", ",").split(",") if x.strip()]
+    capabilities = [str(c).strip() for c in capabilities if c]
+    task_types = body.get("task_types") or []
+    if isinstance(task_types, str):
+        task_types = [x.strip() for x in task_types.replace("，", ",").split(",") if x.strip()]
+    task_types = [str(t).strip() for t in task_types if t]
+    skills = body.get("skills") or []
+    if isinstance(skills, str):
+        skills = [x.strip() for x in skills.replace("，", ",").split(",") if x.strip()]
+    skills = [str(s).strip() for s in skills if s]
+    mcp_servers = body.get("mcp_servers") or []
+    if isinstance(mcp_servers, str):
+        mcp_servers = [x.strip() for x in mcp_servers.replace("，", ",").split(",") if x.strip()]
+    mcp_servers = [str(m).strip() for m in mcp_servers if m]
+
+    result = register_agent(
+        agent_id, name=name, role=role, description=description,
+        capabilities=capabilities, task_types=task_types,
+        skills=skills, skills_explicit=bool(skills),
+        mcp_servers=mcp_servers, mcp_explicit=bool(mcp_servers),
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "创建失败"))
+    from common.hub_operation_meta import touch
+    touch("agent", agent_id)
+    return {"success": True, "agent_id": agent_id}
+
+
+@router.put("/registry/{agent_id}")
+async def api_update_agent_registry(agent_id: str, body: dict):
+    """更新注册表中 agent 的元数据（role / task_types / capabilities 等）。"""
+    from hub.services.agent_registry import register_agent
+
+    reg = get_agents_registry()["agents"].get(agent_id) or {}
+    name = str(body.get("name") or reg.get("name", agent_id)).strip()
+    role = str(body.get("role") or reg.get("role", "worker")).strip()
+    description = str(body.get("description") or reg.get("description", "")).strip()
+    capabilities = body.get("capabilities")
+    if capabilities is None:
+        capabilities = reg.get("capabilities") or []
+    if isinstance(capabilities, str):
+        capabilities = [x.strip() for x in capabilities.replace("，", ",").split(",") if x.strip()]
+    capabilities = [str(c).strip() for c in capabilities if c]
+    task_types = body.get("task_types")
+    if task_types is None:
+        task_types = reg.get("task_types") or []
+    if isinstance(task_types, str):
+        task_types = [x.strip() for x in task_types.replace("，", ",").split(",") if x.strip()]
+    task_types = [str(t).strip() for t in task_types if t]
+    skills = body.get("skills")
+    if skills is not None:
+        if isinstance(skills, str):
+            skills = [x.strip() for x in skills.replace("，", ",").split(",") if x.strip()]
+        skills = [str(s).strip() for s in skills if s]
+    mcp_servers = body.get("mcp_servers")
+    if mcp_servers is not None:
+        if isinstance(mcp_servers, str):
+            mcp_servers = [x.strip() for x in mcp_servers.replace("，", ",").split(",") if x.strip()]
+        mcp_servers = [str(m).strip() for m in mcp_servers if m]
+
+    kwargs: dict = dict(name=name, role=role, description=description, capabilities=capabilities, task_types=task_types)
+    if body.get("skills") is not None:
+        kwargs["skills"] = skills
+        kwargs["skills_explicit"] = True
+    if body.get("mcp_servers") is not None:
+        kwargs["mcp_servers"] = mcp_servers
+        kwargs["mcp_explicit"] = True
+
+    result = register_agent(agent_id, **kwargs)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "更新失败"))
+    from common.hub_operation_meta import touch
+    touch("agent", agent_id)
+    return {"success": True, "agent_id": agent_id}
+
+
 # ── Agent Runtime 可观测（/api/obs/agents） ──────────────────
 
 obs_router = APIRouter(tags=["obs-agents"])

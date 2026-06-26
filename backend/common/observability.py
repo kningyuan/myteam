@@ -234,6 +234,7 @@ def timeline(store: Store, interaction_id: str) -> list[dict]:
 _FEED_KINDS = {
     "plan_rejected", "gate_passed", "gate_failed",
     "review_done", "review_unreachable",
+    "skill_review_started", "skill_review_completed", "skill_review_failed", "skill_review_pending",
     "blocked", "budget_alert", "budget_over", "budget_degrade", "budget_exceeded",
     "budget_exceeded_pause", "cycle_done",
     "loop_round_done", "loop_finished", "loop_round_assess", "loop_transition", "branch_selected",

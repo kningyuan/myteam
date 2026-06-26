@@ -71,6 +71,7 @@ export function TaskTypesPage() {
                   <th className="px-4 py-3 font-medium">名称</th>
                   <th className="px-4 py-3 font-medium">产出形态</th>
                   <th className="px-4 py-3 font-medium">交付要求</th>
+                  <th className="px-4 py-3 font-medium">执行优先级</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--color-border)] bg-[var(--color-card)]">
@@ -88,6 +89,9 @@ export function TaskTypesPage() {
                       <td className="px-4 py-3 text-xs text-[var(--color-muted-foreground)]">
                         {gates.length > 0 ? gates.join(" · ") : gateLabel(t.gate_algorithm || meta?.gate_algorithm)}
                       </td>
+                      <td className="px-4 py-3">
+                        <ExecutionPriorityCell taskType={t} />
+                      </td>
                     </tr>
                   )
                 })}
@@ -97,5 +101,44 @@ export function TaskTypesPage() {
         )}
       </section>
     </div>
+  )
+}
+
+function ExecutionPriorityCell({ taskType }: { taskType: TaskTypeSummary }) {
+  // Execution priority is derived from:
+  // 1. outcome_kind order (artifact=1, discussion=2, decision=3)
+  // 2. presence of gate_checks (more checks = higher priority in DAG)
+  const kindOrder: Record<string, number> = { artifact: 1, discussion: 2, decision: 3 }
+  const basePriority = kindOrder[taskType.outcome_kind] || 99
+
+  const hasChecks = (taskType.gate_checks?.length ?? 0) > 0
+  const hasSections = (taskType.sections?.length ?? 0) > 0
+
+  let label = "标准"
+  let tone: "default" | "secondary" | "destructive" = "default"
+
+  if (basePriority <= 1 && hasChecks) {
+    label = "高（产出物驱动）"
+    tone = "destructive"
+  } else if (basePriority >= 3) {
+    label = "低（决策/讨论）"
+    tone = "secondary"
+  } else if (hasSections) {
+    label = "中（结构化交付）"
+    tone = "default"
+  }
+
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+        tone === "destructive"
+          ? "bg-red-500/10 text-red-300"
+          : tone === "secondary"
+            ? "bg-gray-500/10 text-gray-300"
+            : "bg-blue-500/10 text-blue-300"
+      }`}
+    >
+      {label}
+    </span>
   )
 }

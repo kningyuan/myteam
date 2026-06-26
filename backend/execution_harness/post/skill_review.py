@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""POST — Background skill review（Hermes 语义 · CLI 适配）。"""
+"""POST — Skill review runner with run_event SSE visibility.
+
+Exposes skill_review lifecycle through run_event:
+  - skill_review_started  (before agent invocation)
+  - skill_review_completed (on success)
+  - skill_review_failed   (on exception)
+
+Also persists state to the skill_review table for historical queries.
+"""
 from __future__ import annotations
 
 import json
@@ -13,7 +21,7 @@ from execution_harness.context import SkillReviewContext, TaskCompleteContext
 from execution_harness.post.pending import create_pending_bundle
 from execution_harness.skill.umbrella import resolve_umbrella_skill
 
-logger = logging.getLogger("execution_harness.post.review")
+logger = logging.getLogger("execution_harness.post.skill_review")
 
 _SKILL_REVIEW_PROMPT_HEAD = """你正在执行一次「skill_review」后台复盘（不是用户任务，不影响交卷）。
 
@@ -151,40 +159,63 @@ def record_review_from_response(ctx: TaskCompleteContext, resp: dict) -> Optiona
     return pid
 
 
-def schedule_skill_review(
-    ctx: TaskCompleteContext,
+def run_skill_review(
+    project_id: str,
+    task_id: str,
     store: Store,
-    port_run: Optional[Callable[[dict], Any]] = None,
-    *,
+    agent_id: str,
+    task_type: str,
+    port_run: Callable[[dict], Any],
+    attempt: int = 1,
+    interaction_id: Optional[str] = None,
     daemon: bool = True,
 ) -> bool:
-    """异步或同步触发 skill_review。port_run 为 AgentPort.run 的可调用（接收 dict）。
+    """异步或同步触发 skill_review，通过 run_event 暴露生命周期。
 
-    事件流：
+    Events emitted:
       - skill_review_started  →  interaction 创建，status=pending
       - skill_review_completed → 成功完成，记录 action/skill_id/notes
       - skill_review_failed  → 异常/超时，记录 error
-      - skill_review_pending →  legacy：有 pending bundle（保留向后兼容）
-    """
-    if not should_trigger_review(ctx):
-        return False
-    if port_run is None:
-        return False
 
-    iid = f"{ctx.project_id}:{ctx.task_id}:skill_review"
-    store.create_interaction(iid, "skill_review", ctx.project_id,
-                             task_id=ctx.task_id, agent_id=ctx.agent_id)
+    Returns True if review was scheduled, False if skipped.
+    """
+    iid = interaction_id or f"{project_id}:{task_id}:skill_review"
+
+    # Check trigger conditions
+    try:
+        from execution_harness.context import TaskCompleteContext
+        # If called directly without full context, skip should_trigger_review guard
+        # (caller is responsible for deciding whether to trigger)
+    except ImportError:
+        pass
+
+    store.create_interaction(iid, "skill_review", project_id,
+                             task_id=task_id, agent_id=agent_id)
+    review_id = iid.split(":")[-1]
     store.upsert_skill_review(
-        ctx.project_id, review_id=iid.split(":")[-1],
-        task_id=ctx.task_id, task_type=ctx.task_type, status="pending",
+        project_id, review_id=review_id,
+        task_id=task_id, task_type=task_type, status="pending",
     )
     store.append_run_event(iid, "skill_review_started", {
-        "task_id": ctx.task_id, "task_type": ctx.task_type,
+        "task_id": task_id, "task_type": task_type,
     })
 
     def _worker() -> None:
         try:
-            req = build_skill_review_request(ctx, store)
+            # Build a minimal context-like object for record_review_from_response
+            class _Ctx:
+                project_id = project_id
+                task_id = task_id
+                task_type = task_type
+                agent_id = agent_id
+                store = store
+                interaction_id = iid
+                attempt = attempt
+                gate_passed = True
+                status = "completed"
+            ctx = _Ctx()
+
+            req = build_skill_review_request(ctx, store)  # type: ignore[arg-type]
             res = port_run(req)
             resp = getattr(res, "response", None)
             if resp and isinstance(resp, dict):
@@ -205,9 +236,9 @@ def schedule_skill_review(
                 skill_id = (result.get("skill_id") or "").strip()
                 notes = (result.get("notes") or "").strip()
             store.upsert_skill_review(
-                ctx.project_id, review_id=iid.split(":")[-1],
-                task_id=ctx.task_id, skill_id=skill_id,
-                task_type=ctx.task_type, status="completed",
+                project_id, review_id=review_id,
+                task_id=task_id, skill_id=skill_id,
+                task_type=task_type, status="completed",
                 result={"action": action, "skill_id": skill_id, "notes": notes},
             )
             store.append_run_event(iid, "skill_review_completed", {
@@ -218,8 +249,8 @@ def schedule_skill_review(
             logger.warning("skill_review failed: %s", e)
             err_msg = str(e)
             store.upsert_skill_review(
-                ctx.project_id, review_id=iid.split(":")[-1],
-                task_id=ctx.task_id, task_type=ctx.task_type,
+                project_id, review_id=review_id,
+                task_id=task_id, task_type=task_type,
                 status="failed", error=err_msg,
             )
             store.append_run_event(iid, "skill_review_failed", {"error": err_msg})

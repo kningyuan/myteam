@@ -434,6 +434,7 @@ export function ProjectDetailPanel({
                 events={events}
                 selectedTaskId={selectedTaskId}
                 onSelectTask={(id) => selectTask(id, false, false)}
+                projectId={projectId}
               />
             </TabsContent>
 

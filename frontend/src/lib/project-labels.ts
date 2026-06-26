@@ -76,6 +76,10 @@ export const EVENT_LABELS: Record<string, string> = {
   text: "模型输出",
   step_finish: "Token 计量",
   error: "错误",
+  skill_review_started: "Skill 复盘开始",
+  skill_review_completed: "Skill 复盘完成",
+  skill_review_failed: "Skill 复盘失败",
+  skill_review_pending: "Skill 待审核",
 }
 
 export const EXEC_CHILD_LABELS: Record<string, string> = {
@@ -111,9 +115,10 @@ export function execContentTag(kind?: string): { label: string; tone: string } {
   const k = kind || ""
   if (k === "tool_use" || k === "tool_result") return { label: "Skill", tone: "skill" }
   if (k === "text" || k === "reasoning") return { label: "输出", tone: "text" }
-  if (k === "step_finish" || k === "step_start") return { label: "思考", tone: "think" }
+  if (k.startsWith("step_")) return { label: "思考", tone: "think" }
   if (k.startsWith("gate_")) return { label: "门禁", tone: "gate" }
   if (k.startsWith("review_")) return { label: "评审", tone: "review" }
+  if (k.startsWith("skill_review_")) return { label: "复盘", tone: "review" }
   if (k.startsWith("loop_") || k === "branch_selected") return { label: "循环", tone: "loop" }
   if (k === "task_split") return { label: "拆分", tone: "split" }
   if (k === "error" || k === "transport_error" || k === "watchdog_hard_kill") {
@@ -252,6 +257,20 @@ export function eventDetail(e: { kind?: string; payload?: Record<string, unknown
   if (kind === "request_snapshot") return String(p.request_path || "InteractionRequest")
   if (kind === "response_snapshot") return String(p.response_path || "response")
   if (kind === "tool_result") return String(p.content || "").slice(0, 160)
+  if (kind === "skill_review_completed") {
+    const action = p.action || "noop"
+    const skillId = p.skill_id || ""
+    return `action=${action}${skillId ? ` · skill=${skillId}` : ""}`
+  }
+  if (kind === "skill_review_failed") {
+    return `error: ${(p.error || "").slice(0, 120)}`
+  }
+  if (kind === "skill_review_started") {
+    return `task=${p.task_id || ""} · type=${p.task_type || ""}`
+  }
+  if (kind === "skill_review_pending") {
+    return `pending_id=${p.pending_id || ""}`
+  }
   return Object.keys(p).length ? JSON.stringify(p).slice(0, 160) : ""
 }
 

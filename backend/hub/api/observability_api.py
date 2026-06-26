@@ -463,3 +463,14 @@ async def interaction_events_stream(request: Request, interaction_id: str):
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.get("/projects/{project_id}/skill_reviews")
+async def project_skill_reviews(project_id: str):
+    """项目 skill_review run_event 列表（后台复盘状态可见于 SSE）。"""
+    store = _store()
+    try:
+        events = store.list_run_events_by_kind(project_id, "skill_review")
+        return {"skill_reviews": events}
+    finally:
+        store.close()

@@ -3,7 +3,9 @@ import { ThinkingStream } from "@/components/chat/ThinkingStream"
 import {
   getInteractionTimeline,
   subscribeInteractionEvents,
+  listSkillReviews,
   type ProjectEvent,
+  type SkillReviewEntry,
   type TimelineEvent,
 } from "@/lib/api/projects"
 import {
@@ -236,6 +238,50 @@ function SplitBanner({ events }: { events: ProjectEvent[] }) {
   )
 }
 
+function SkillReviewStrip({ reviews }: { reviews: SkillReviewEntry[] }) {
+  if (!reviews.length) return null
+  const latest = reviews[0]
+  const statusColor = latest.status === "completed" ? "status-completed"
+    : latest.status === "failed" ? "status-failed"
+    : "status-running"
+
+  return (
+    <div className={`exec-step exec-step--skill-review ${statusColor}`}>
+      <header className="exec-step-head">
+        <ExecTag label="复盘" tone="review" />
+        <span className="exec-step-title">Skill 复盘</span>
+        <span className={`exec-status-badge s-${latest.status || "pending"}`}>
+          {latest.status === "completed" ? "已完成"
+            : latest.status === "failed" ? "失败"
+            : latest.status === "running" ? "运行中"
+            : "等待中"}
+        </span>
+      </header>
+      <div className="exec-step-body">
+        {reviews.map((r, idx) => {
+          const result = (r.result as Record<string, unknown>) || {}
+          const action = String(result.action || "noop")
+          const skillId = String(result.skill_id || "")
+          const notes = String(result.notes || "")
+          const error = String(r.error || "")
+          return (
+            <div key={`${r.review_id ?? idx}`} className="exec-feed-row exec-feed-row--inline">
+              <ExecTag label={EVENT_LABELS[`skill_review_${r.status}`] || "复盘"} tone="review" />
+              <span className="exec-feed-title">
+                {action === "noop" ? "无需修改" : `action=${action}`}
+                {skillId && <span className="exec-feed-summary"> · skill={skillId}</span>}
+              </span>
+              {notes && <span className="exec-feed-summary">{truncateText(notes, 80)}</span>}
+              {error && <span className="exec-feed-summary" style={{ color: "var(--color-error)" }}>Error: {truncateText(error, 60)}</span>}
+              <span className="exec-node-ts">{fmtExecTs(r.created_at)}</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function TaskFold({
   task,
   allTasks,
@@ -377,16 +423,20 @@ export function ProjectExecTree({
   events,
   selectedTaskId,
   onSelectTask,
+  projectId: propProjectId,
 }: {
   tasks?: ExecTask[]
   events: ProjectEvent[]
   selectedTaskId?: string
   onSelectTask?: (taskId: string) => void
+  projectId?: string
 }) {
   const [openTasks, setOpenTasks] = useState<Record<string, boolean>>({})
   const [openChildren, setOpenChildren] = useState<Record<string, boolean>>({})
   const [timelines, setTimelines] = useState<Record<string, TimelineEvent[]>>({})
   const [loading, setLoading] = useState<Record<string, boolean>>({})
+  const [skillReviews, setSkillReviews] = useState<SkillReviewEntry[]>([])
+  const [skillReviewLoading, setSkillReviewLoading] = useState(false)
 
   const interactionsByTask = useMemo(() => groupInteractionsByTask(events), [events])
   const rootTasks = useMemo(() => listExecRootTasks(tasks, events), [tasks, events])
@@ -473,6 +523,15 @@ export function ProjectExecTree({
     })
   }, [rootTasks, selectedTaskId])
 
+  useEffect(() => {
+    if (!propProjectId) return
+    setSkillReviewLoading(true)
+    listSkillReviews(propProjectId)
+      .then(setSkillReviews)
+      .catch(() => setSkillReviews([]))
+      .finally(() => setSkillReviewLoading(false))
+  }, [propProjectId])
+
   if (!rootTasks.length && !activityEvents.length && !projectLevelInteractions.length) {
     return <span className="hint">暂无执行事件</span>
   }
@@ -526,6 +585,20 @@ export function ProjectExecTree({
             ]}
           />
         </details>
+      )}
+      {skillReviews.length > 0 && (
+        <SkillReviewStrip reviews={skillReviews} />
+      )}
+      {skillReviewLoading && skillReviews.length === 0 && (
+        <div className="exec-step exec-step--skill-review">
+          <header className="exec-step-head">
+            <ExecTag label="复盘" tone="review" />
+            <span className="exec-step-title">Skill 复盘</span>
+          </header>
+          <div className="exec-step-body">
+            <p className="hint">加载中...</p>
+          </div>
+        </div>
       )}
     </div>
   )

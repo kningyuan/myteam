@@ -211,3 +211,38 @@ export async function syncAgentMcp(): Promise<{
   invalidateResources("agents")
   return data
 }
+
+export async function createAgentRegistry(body: {
+  agent_id: string
+  name?: string
+  role?: string
+  description?: string
+  capabilities?: string[]
+  task_types?: string[]
+  skills?: string[]
+  mcp_servers?: string[]
+}): Promise<{ success?: boolean }> {
+  const res = await hubFetch<{ success?: boolean }>("/api/agents/registry", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+  invalidateResources("agents")
+  return res
+}
+
+export async function updateAgentRegistry(
+  agentId: string,
+  body: Record<string, unknown>,
+): Promise<{ success?: boolean }> {
+  const res = await hubFetch<{ success?: boolean }>(
+    `/api/agents/registry/${encodeURIComponent(agentId)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  )
+  invalidateResources("agents")
+  return res
+}

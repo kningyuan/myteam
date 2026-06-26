@@ -492,9 +492,41 @@ export type SkillReferenceItem = {
   updated_at?: number
 }
 
-export async function listSkillReferences(skillId: string): Promise<SkillReferenceItem[]> {
-  const data = await hubFetch<{ references?: SkillReferenceItem[] }>(
-    `/api/skills/library/${encodeURIComponent(skillId)}/references`,
-  )
-  return data.references ?? []
+export type DeliveryProfileSummary = {
+  id: string
+  name?: string
+  description?: string
+  process_artifacts?: string[]
+  process_checks?: Record<string, unknown>
+  scaffold?: string
+}
+
+export async function listDeliveryProfiles(): Promise<DeliveryProfileSummary[]> {
+  const data = await hubFetch<{ profiles: DeliveryProfileSummary[] }>("/api/delivery-profiles/")
+  return data.profiles ?? []
+}
+
+export async function saveDeliveryProfile(
+  profileId: string | null,
+  body: Record<string, unknown>,
+): Promise<void> {
+  if (profileId) {
+    await hubFetch(`/api/delivery-profiles/${encodeURIComponent(profileId)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+  } else {
+    await hubFetch("/api/delivery-profiles/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+  }
+  invalidateResources("delivery-profiles")
+}
+
+export async function deleteDeliveryProfile(profileId: string): Promise<void> {
+  await hubFetch(`/api/delivery-profiles/${encodeURIComponent(profileId)}`, { method: "DELETE" })
+  invalidateResources("delivery-profiles")
 }

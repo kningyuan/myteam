@@ -153,6 +153,8 @@ from hub.api.skills_api import router as skills_router
 from hub.api.mcp_api import router as mcp_router
 from hub.api.preferences_api import router as preferences_router
 from hub.api.rules_api import router as rules_router
+from hub.api.prompt_templates_api import router as prompt_templates_router
+from hub.api.prompt_injections_api import router as prompt_injections_router
 from hub.api.routes import api_router
 
 app.include_router(observability_router)
@@ -160,6 +162,8 @@ app.include_router(skills_router)
 app.include_router(mcp_router)
 app.include_router(rules_router)
 app.include_router(preferences_router)
+app.include_router(prompt_templates_router)
+app.include_router(prompt_injections_router)
 app.include_router(api_router)
 
 

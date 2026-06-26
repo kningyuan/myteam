@@ -67,6 +67,20 @@ class DecisionPipeline:
         except Exception:
             return ""
 
+    def _suggest_best_agent(self, task_type: str, agents: list[str]) -> str:
+        """为指定 task_type 推荐质量最高的 agent。
+
+        从 quality_suggest 拉取所有候选 agent 的历史评分，返回排名最高的 agent_id。
+        当没有质量数据或入参为空时返回空串。
+        """
+        if not agents:
+            return ""
+        try:
+            from common.quality_suggest import suggest_agent_for_task
+            return suggest_agent_for_task(self.store, task_type, agents)
+        except Exception:
+            return ""
+
     @staticmethod
     def _load_agent_capabilities() -> dict[str, list[str]]:
         """从 agents_registry.json 加载每个 agent 允许的 task_types。"""
@@ -100,6 +114,28 @@ class DecisionPipeline:
         quality_hint = self._quality_team_hint()
         if quality_hint:
             inp["quality_summary"] = quality_hint
+
+        # 质量推荐：为每个已知的 task_type 找出评分最高的 agent，供 coordinator 参考
+        try:
+            from common.quality_suggest import get_agent_quality_score
+            coordinator = self.config.coordinator_agent_id
+            all_agents = sorted({
+                aid for aid in _list_agent_ids(self.store) if aid != coordinator
+            })
+            if all_agents and quality_hint:
+                task_types = set()
+                for cfg in cap.values():
+                    task_types.update(cfg)
+                best_by_type: dict[str, str] = {}
+                for tt in sorted(task_types):
+                    best = self._suggest_best_agent(tt, all_agents)
+                    if best:
+                        best_by_type[tt] = best
+                if best_by_type:
+                    inp["quality_agent_suggestions"] = best_by_type
+        except Exception:
+            pass
+
         coordinator = self.config.coordinator_agent_id
         req = {
             "interaction_id": iid,

@@ -7,6 +7,7 @@ export type ResourceKey =
   | "workflows"
   | "task-types"
   | "delivery-templates"
+  | "delivery-profiles"
   | "skill-library"
   | "skill-groups"
   | "skill-categories"

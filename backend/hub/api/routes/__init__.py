@@ -7,6 +7,7 @@ from hub.api.routes.agents import obs_router as agents_obs_router
 from hub.api.routes.chat import router as chat_router
 from hub.api.routes.config import router as config_router
 from hub.api.routes.delivery_templates import router as delivery_templates_router
+from hub.api.delivery_profiles_api import router as delivery_profiles_router
 from hub.api.routes.groups import router as groups_router
 from hub.api.routes.projects import router as projects_router
 from hub.api.routes.projects import _extra_router as projects_extra_router
@@ -27,4 +28,5 @@ api_router.include_router(workflows_router)
 api_router.include_router(single_execute_router)
 api_router.include_router(task_types_router)
 api_router.include_router(delivery_templates_router)
+api_router.include_router(delivery_profiles_router)
 api_router.include_router(system_router)
