@@ -1,5 +1,7 @@
 custom-survey:
   display_name: 自定义调研
+  recommended_skills:
+    - product-research
   deliverable_template:
     required_heading_level: 2
     sections:
@@ -19,6 +21,8 @@ custom-survey:
   - 结论
 my-type:
   display_name: 我的类型
+  recommended_skills:
+    - product-research
   deliverable_template:
     required_heading_level: 2
     sections:
@@ -31,6 +35,8 @@ my-type:
     min_length: 200
 data-analysis:
   display_name: 数据分析
+  recommended_skills:
+    - data-analysis-kernel
   deliverable_template:
     required_heading_level: 2
     sections:
@@ -47,6 +53,9 @@ data-analysis:
   outcome_kind: artifact
 research:
   display_name: 调研
+  recommended_skills:
+    - research
+    - product-research
   deliverable_template:
     required_heading_level: 2
     sections:
@@ -73,6 +82,10 @@ research:
   outcome_kind: artifact
 coding:
   display_name: 编码
+  recommended_skills:
+    - code-writing
+    - code-testing
+    - code-deliverable
   deliverable_template:
     required_heading_level: 2
     sections:
@@ -99,6 +112,9 @@ coding:
   outcome_kind: artifact
 review:
   display_name: 评审
+  recommended_skills:
+    - code-review
+    - section-review
   deliverable_template:
     required_heading_level: 2
     sections:
@@ -118,4 +134,176 @@ review:
     - 改进建议
     min_length: 200
   task_type: review
+  outcome_kind: artifact
+competitive-analysis:
+  display_name: 竞品分析
+  recommended_skills:
+    - product-research
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 竞品概览
+      description: 填写「竞品概览」章节，包含各竞品的定位、核心能力、定价
+      required: true
+    - name: 能力对比矩阵
+      description: 填写「能力对比矩阵」章节，表格形式对比各竞品
+      required: true
+    - name: 优劣势分析
+      description: 填写「优劣势分析」章节，每个竞品 3-5 个优势/劣势
+      required: true
+    - name: 差异化机会
+      description: 填写「差异化机会」章节，基于对比分析提出差异化建议
+      required: true
+  check_rules:
+    required_sections:
+    - 竞品概览
+    - 能力对比矩阵
+    - 优劣势分析
+    - 差异化机会
+    min_length: 300
+  task_type: competitive-analysis
+  outcome_kind: artifact
+product-planning:
+  display_name: 产品规划
+  recommended_skills:
+    - product-planning
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 产品定位
+      description: 填写「产品定位」章节，明确产品核心价值和目标用户
+      required: true
+    - name: 核心功能
+      description: 填写「核心功能」章节，列出 3-5 个核心功能
+      required: true
+    - name: 优先级排序
+      description: 填写「优先级排序」章节，基于价值/成本矩阵排序
+      required: true
+    - name: 实施路线图
+      description: 填写「实施路线图」章节，分阶段规划
+      required: true
+  check_rules:
+    required_sections:
+    - 产品定位
+    - 核心功能
+    - 优先级排序
+    - 实施路线图
+    min_length: 300
+  task_type: product-planning
+  outcome_kind: artifact
+acceptance-report:
+  display_name: 验收报告
+  recommended_skills:
+    - acceptance-report
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 验收范围
+      description: 填写「验收范围」章节，明确验收对象和标准
+      required: true
+    - name: 验收结果
+      description: 填写「验收结果」章节，逐项说明通过/不通过
+      required: true
+    - name: 问题清单
+      description: 填写「问题清单」章节，列出发现的问题
+      required: true
+    - name: 结论与建议
+      description: 填写「结论与建议」章节，给出最终结论
+      required: true
+  check_rules:
+    required_sections:
+    - 验收范围
+    - 验收结果
+    - 问题清单
+    - 结论与建议
+    min_length: 300
+  task_type: acceptance-report
+  outcome_kind: artifact
+product-research:
+  display_name: 产品调研
+  recommended_skills:
+    - product-research
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 调研目标
+      description: 填写「调研目标」章节
+      required: true
+    - name: 市场概况
+      description: 填写「市场概况」章节，包含市场规模、趋势、用户需求
+      required: true
+    - name: 竞品分析
+      description: 填写「竞品分析」章节
+      required: true
+    - name: 用户洞察
+      description: 填写「用户洞察」章节，基于访谈或调研数据
+      required: true
+    - name: 机会与建议
+      description: 填写「机会与建议」章节
+      required: true
+  check_rules:
+    required_sections:
+    - 调研目标
+    - 市场概况
+    - 竞品分析
+    - 用户洞察
+    - 机会与建议
+    min_length: 400
+  task_type: product-research
+  outcome_kind: artifact
+business-diagnosis:
+  display_name: 业务诊断
+  recommended_skills:
+    - product-research
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+      - name: 诊断背景
+        description: 填写「诊断背景」章节，描述业务现状和问题
+        required: true
+      - name: 问题分析
+        description: 填写「问题分析」章节，根因分析
+        required: true
+      - name: 改进建议
+        description: 填写「改进建议」章节，具体可执行的建议
+        required: true
+      - name: 实施计划
+        description: 填写「实施计划」章节，分步骤和时间线
+        required: true
+  check_rules:
+    required_sections:
+      - 诊断背景
+      - 问题分析
+      - 改进建议
+      - 实施计划
+    min_length: 300
+  task_type: business-diagnosis
+  outcome_kind: artifact
+code-deployment:
+  display_name: 部署上线
+  recommended_skills:
+    - code-deliverable
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+      - name: 部署范围
+        description: 填写「部署范围」章节，明确部署目标、环境、版本
+        required: true
+      - name: 部署步骤
+        description: 填写「部署步骤」章节，详细记录部署操作
+        required: true
+      - name: 健康检查
+        description: 填写「健康检查」章节，记录验证结果
+        required: true
+      - name: 回滚预案
+        description: 填写「回滚预案」章节，说明回滚条件和步骤
+        required: true
+  check_rules:
+    required_sections:
+      - 部署范围
+      - 部署步骤
+      - 健康检查
+      - 回滚预案
+    min_length: 300
+  task_type: code-deployment
   outcome_kind: artifact

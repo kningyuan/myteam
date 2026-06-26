@@ -107,15 +107,18 @@ def build_skill_review_prompt(req: dict) -> str:
 
 
 def record_review_from_response(ctx: TaskCompleteContext, resp: dict) -> Optional[str]:
-    """解析 skill_review 响应并写 pending。"""
+    """解析 skill_review 响应并写 pending + KB lesson。"""
     result = resp.get("result") or {}
     action = (result.get("action") or "noop").strip().lower()
-    if action in ("noop", "", "none"):
-        return None
     skill_id = (result.get("skill_id") or resolve_umbrella_skill(ctx.task_type) or "").strip()
     notes = (result.get("notes") or resp.get("notes") or "").strip()
     content = (result.get("pending_content") or notes).strip()
-    return create_pending_bundle(
+
+    if action in ("noop", "", "none"):
+        return None
+
+    # 1. Write pending bundle
+    pid = create_pending_bundle(
         project_id=ctx.project_id,
         task_id=ctx.task_id,
         task_type=ctx.task_type,
@@ -125,6 +128,27 @@ def record_review_from_response(ctx: TaskCompleteContext, resp: dict) -> Optiona
         notes=notes,
         content=content,
     )
+
+    # 2. Also persist lesson to KB for future injections
+    if action != "noop" and content and notes:
+        try:
+            lesson_text = f"【{action}】{skill_id}\n\n{notes}"
+            if content and content != notes:
+                lesson_text += f"\n\n---\n{content[:500]}"
+            ctx.store.memory_write(
+                ctx.project_id,
+                f"review:{ctx.agent_id}/{skill_id}:{ctx.task_id}",
+                lesson_text,
+                tags=["review", "lesson", ctx.task_type, ctx.agent_id, skill_id],
+            )
+            logger.info(
+                "review lesson persisted to kb for %s/%s (action=%s skill=%s)",
+                ctx.project_id, ctx.task_id, action, skill_id,
+            )
+        except Exception as e:
+            logger.warning("review lesson kb write failed: %s", e)
+
+    return pid
 
 
 def schedule_skill_review(

@@ -159,3 +159,35 @@ skills:
     description: Prompt 质量评估与自动改写 — 使用 LLM 进行结构化评估和多轮迭代优化
     router: business/skills/prompt_optimizer/SKILL.md
     execution: business/skills/prompt_optimizer/SKILL.md
+
+  - id: evaluation-rubric
+    task_types: [evaluation-rubric]
+    description: Evaluation rubric 生成器 — 交互式引导，为 goal prompt 产出评分标准
+    router: business/skills/evaluation-rubric/SKILL.md
+
+  - id: sop-to-workflow
+    task_types: [workflow-design]
+    description: 将人类SOP通过多轮对话转换为Agentic Workflow YAML
+    router: business/skills/sop-to-workflow/SKILL.md
+    means: []
+
+  - id: workflow-creator
+    task_types: [workflow-design]
+    description: 将Agentic Workflow YAML转换为myteam完整配置
+    router: business/skills/workflow-creator/SKILL.md
+    means: []
+
+  - id: competitive-analysis
+    task_types: [competitive-analysis]
+    description: 竞品分析 — 能力对比矩阵、优劣势、差异化机会
+    router: business/skills/product-methodology/SKILL.md
+
+  - id: business-diagnosis
+    task_types: [business-diagnosis]
+    description: 业务诊断 — 根因分析、改进建议、实施计划
+    router: business/skills/product-methodology/SKILL.md
+
+  - id: code-deployment
+    task_types: [code-deployment]
+    description: 部署上线 — 部署步骤、健康检查、回滚预案
+    router: business/skills/backend-engineering-methodology/SKILL.md
