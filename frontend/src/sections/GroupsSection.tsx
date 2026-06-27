@@ -242,6 +242,17 @@ function GroupChatPanel({ groupId }: { groupId: string }) {
     [allAgents, agentRegistry, group?.agent_names],
   )
 
+  const nameLookupRef = useRef<Map<string, string>>(new Map())
+  useEffect(() => {
+    nameLookupRef.current = nameLookup
+  }, [nameLookup])
+
+  const nameForInternal = useCallback((id: string) => {
+    const name = nameLookupRef.current.get(id)
+    if (name) return name
+    return id
+  }, [])
+
   const effectiveMaxRounds = useMemo(
     () => effectiveGroupMaxRounds(group?.roundtable_max_rounds, gdSettings),
     [group?.roundtable_max_rounds, gdSettings],
@@ -369,7 +380,7 @@ function GroupChatPanel({ groupId }: { groupId: string }) {
       const agentId = String(data.agent_id || "")
       const phase = String(data.phase || "")
       const message = String(data.message || data.error_code || "发言失败")
-      toast.error(`圆桌发言失败：${nameFor(agentId || "agent")}`, {
+      toast.error(`圆桌发言失败：${nameForInternal(agentId || "agent")}`, {
         description: `${phase} · ${message}`.slice(0, 240),
       })
       reload()
@@ -486,7 +497,7 @@ function GroupChatPanel({ groupId }: { groupId: string }) {
       setReadReceipt(null)
       activeTurnRef.current = { userMsgId: "", targets: [] }
     }
-  }, [reload, nameFor])
+  }, [reload, nameForInternal])
 
   useEffect(() => {
     return subscribeGroupEvents(groupId, (payload) => {
