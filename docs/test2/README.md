@@ -99,34 +99,37 @@
 
 ### ✅ 已修复问题
 
-1. **群聊消息重复渲染** ✅ FIXED
+1. **群聊消息记录级重复** ✅ FIXED
    - 修复日期：2026-06-27
    - 根因：SSE subscription useEffect 依赖链导致多次创建 EventSource 连接
    - 修复：引入 nameLookupRef + 稳定回调，确保 SSE 连接只在 mount 时创建一次
    - 文件：frontend/src/sections/GroupsSection.tsx
-   - 验证：API 测试 12/12 全部通过，页面路由 11/11 正常
+   - 验证：所有消息 id 均唯一，无同一条记录被重复入库
 
-### ⚠️ 待深度验证项
+### ⚠️ 未修复问题
+
+1. **群聊消息内容级重复** ❌ NOT FIXED
+   - 严重度：中
+   - 现象：同一任务完成通知被反复推入群消息（1-2秒内连发3-6条）
+   - p_demo 群 50 条消息内容全部相同，p_wf 群 47 条消息内容全部相同
+   - 根因：通知发送端缺少按 (group_id, task_id, 事件类型) 的短时幂等去重
+   - 建议：在 persist_group_message / 通知发送处加幂等闸门
+
+2. **Hub层项目列表返回空** ❌ NOT FIXED
+   - 严重度：低（可观测层API正常）
+   - 现象：GET /api/projects 返回空列表，但 GET /api/obs/projects 返回2个项目
+   - 根因：config/system_config.json 中 system.use_sqlite_project_store = false
+   - 建议：将该配置设为 true，或统一使用 /api/obs/* 端点
+
+### ⏳ 待深度验证项
 
 1. **DAG/执行过程/交付物 Tab 深度功能**
    - 可视化效果需人工确认
    - 交互细节需确认
 
 2. **圆桌讨论完整流程**
-   - 配置入口已就绪，参数完整
-   - 端到端流程待验证
-
-3. **知识沉淀闭环效果**
-   - 知识库功能完整，沉淀路径可追溯
-   - 复用率、质量提升等长期指标需验证
-
-1. **DAG/执行过程/交付物 Tab 深度功能**
-   - 可视化效果需人工确认
-   - 交互细节需确认
-
-2. **圆桌讨论完整流程**
-   - 配置入口已就绪，参数完整
-   - 端到端流程需在消息问题修复后验证
+   - 配置入口已就绪，8项参数完整验证通过
+   - 端到端流程需在消息重复问题修复后验证
 
 3. **知识沉淀闭环效果**
    - 知识库功能完整，沉淀路径可追溯
@@ -233,13 +236,48 @@ Skill 抽提 → 待审批队列（46个）
 - **后端服务**：uvicorn + FastAPI
 - **前端框架**：React
 - **数据存储**：SQLite (business/tasks/state.db)
-- **Agent 数量**：13 个
+- **Agent 数量**：13 个（12 opencode + 1 claude）
 - **工作流数量**：8 个
 - **交付模板**：10 个
-- **知识条目**：327 条（API 验证）
+- **知识条目**：50+ 条（API 分页返回）
+- **Skill 数量**：33 个（含 7 个自动抽提草案）
 - **待审批 Skill**：46 个
-- **任务类型**：15 种（API 验证）
+- **任务类型**：15 种
+- **MCP 服务**：1 个（Playwright）
+- **CLI 后端**：4 个（opencode/claude/codex/cursor）
 - **设置子模块**：6 个
+- **项目数量**：2 个（1 failed / 1 paused）
+- **总 Token 消耗**：1,280,758
+
+---
+
+## API 测试汇总（2026-06-27 二次验证）
+
+| 端点 | 状态码 | 数据量 | 关键结果 |
+|------|--------|--------|---------|
+| GET /api/agents | 200 | 7122 B | 13 个 Agent |
+| GET /api/agents/registry | 200 | 6139 B | 13 个注册 Agent |
+| GET /api/workflows | 200 | 2481 B | 8 个工作流 |
+| GET /api/workflows/{id} | 200 | 2241 B | 详情含 4 步 DAG |
+| GET /api/obs/projects | 200 | 459 B | 2 个项目 |
+| GET /api/obs/projects/{id}/overview | 200 | 3242 B | 项目详情+任务DAG |
+| GET /api/obs/projects/{id}/deliverables | 200 | 3305 B | 5 个交付物 |
+| GET /api/obs/projects/{id}/cost | 200 | 144 B | 成本明细 |
+| GET /api/obs/projects/{id}/events | 200 | — | 919 条事件 |
+| GET /api/obs/projects/{id}/fleet | 200 | 43 B | 舰队状态 |
+| GET /api/obs/projects/{id}/skill_reviews | 200 | 4680 B | 18 条评审 |
+| GET /api/obs/task-types | 200 | 15052 B | 15 种任务类型 |
+| GET /api/obs/memory | 200 | 21150 B | 50 条知识记录 |
+| GET /api/obs/summary | 200 | — | 全局总览 |
+| GET /api/delivery-templates | 200 | 3704 B | 10 个交付模板 |
+| GET /api/config | 200 | 321 B | 系统配置 |
+| GET /api/backends | 200 | 2818 B | 4 个 CLI 后端 |
+| GET /api/skills/library | 200 | 11414 B | 33 个 Skill |
+| GET /api/skills/categories | 200 | 1250 B | 6 个分类 |
+| GET /api/skills/matrix | 200 | 992 B | 矩阵诊断 |
+| GET /api/mcp/library | 200 | 354 B | 1 个 MCP |
+| GET /api/groups | 200 | — | 3 个群组 |
+| GET /api/groups/{id} | 200 | — | 群组详情+消息 |
 
 ---
 
@@ -247,35 +285,37 @@ Skill 抽提 → 待审批队列（46个）
 
 ### 功能完整度：★★★★☆ (4/5)
 
-核心功能（工作流、项目编排、管理中心、知识库、Skill、Agent对话）均已实现且可用。群组消息重复问题影响体验，需修复。
+核心功能（工作流、项目编排、管理中心、知识库、Skill、Agent对话）均已实现且可用。群组消息内容级重复问题影响体验，需修复。Hub层项目列表返回空需配置调整。
 
 ### 产品设计符合度：★★★★☆ (4/5)
 
 与 PRODUCT-DESIGN.md 的设计目标高度吻合：
-- ✅ 多 Agent 协作框架
-- ✅ 工作流编排与 DAG 调度
-- ✅ Gate 门禁与质量保障
-- ✅ 知识沉淀与 Skill 体系
-- ✅ 配置 UI 全覆盖
-- ✅ Agent 对话（搜索激活机制
-- ⚠️ 群组消息体验需优化
-- ⚠️ 圆桌讨论需深度验证
+- ✅ 多 Agent 协作框架（13 个角色）
+- ✅ 工作流编排与 DAG 调度（8 个工作流）
+- ✅ Gate 门禁与质量保障（15 种任务类型，3 种产出形态）
+- ✅ 知识沉淀与 Skill 体系（33 个 Skill，46 个待审批）
+- ✅ 配置 UI 全覆盖（6 个设置子模块，40+ 配置项）
+- ✅ Agent 对话（搜索激活机制，对话+发送+回复）
+- ✅ Execute 单任务执行（4 Tab + Ledger + KB 沉淀）
+- ⚠️ 群组消息内容级重复需修复
+- ⚠️ Hub层项目列表需配置 use_sqlite_project_store=true
 
 ### 工业级就绪度：★★★☆☆ (3.5/5)
 
 基础框架扎实，但以下方面需要加强：
-1. 前端 Bug 修复（群聊消息重复）
-2. 异常处理与错误恢复
-3. 性能优化（大量消息时的渲染）
-4. 完整的 E2E 测试覆盖
+1. 群聊消息内容级去重（通知发送端幂等闸门）
+2. Hub层与可观测层数据一致性（use_sqlite_project_store 配置）
+3. 异常处理与错误恢复
+4. 性能优化（大量消息时的渲染）
+5. 完整的 E2E 测试覆盖（圆桌讨论完整流程）
 
 ---
 
 ## 后续建议
 
-1. **优先修复**：群聊消息重复渲染问题
-2. **深度验证**：DAG 可视化、执行过程、交付物 Tab 详细功能
-3. **场景测试**：圆桌讨论完整流程、知识复用效果验证
-4. **设置验证**：其他 5 个子模块的详细配置项和保存功能
+1. **优先修复**：群聊消息内容级重复（在通知发送处加幂等去重）
+2. **配置调整**：将 system.use_sqlite_project_store 设为 true
+3. **深度验证**：DAG 可视化、执行过程、交付物 Tab 详细功能
+4. **场景测试**：圆桌讨论完整流程、知识复用效果验证
 5. **性能测试**：大量项目/任务/消息时的系统表现
 6. **安全审计**：配置项权限、数据隔离
