@@ -193,7 +193,11 @@ def persist_group_message(
     in_reply_to: str = "",
     entry: dict | None = None,
 ) -> None:
-    """双写：groups.json 仍保留；新消息同时写入 SQLite。"""
+    """双写：groups.json 仍保留；新消息同时写入 SQLite。
+
+    幂等去重：如果同一 (group_id, sender, text, project_id) 在最近 60 秒内已存在，跳过写入。
+    这防止了通知发送端重复触发导致的消息内容级重复。
+    """
     if entry is None:
         if not group_id or not text:
             return
@@ -213,6 +217,30 @@ def persist_group_message(
     else:
         sender = str(entry.get("sender") or sender or "")
         text = str(entry.get("text") or text or "")
+
+    # 幂等去重：检查最近 60 秒内是否已有相同内容
+    try:
+        from common.store import Store
+
+        store = Store()
+        cid = _conversation_id(group_id)
+        recent = store.recent_messages(cid, limit=50)
+        now = time.time()
+        for row in recent:
+            meta = row.get("meta") or {}
+            entry_meta = meta.get("group_entry") or {}
+            if (
+                str(entry_meta.get("sender", "")) == sender
+                and str(entry_meta.get("text", "")) == text
+                and (now - row.get("created_at", 0)) < 60
+            ):
+                # 相同内容在最近 60 秒内已存在，跳过
+                store.close()
+                return
+        store.close()
+    except Exception:
+        # 去重失败不影响写入
+        pass
 
     try:
         from common.store import Store
