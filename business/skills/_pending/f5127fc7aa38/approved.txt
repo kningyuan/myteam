@@ -1,1 +1,1 @@
-approved
+approved: reference | 建议在 product-methodology 下新增 references/deliverable

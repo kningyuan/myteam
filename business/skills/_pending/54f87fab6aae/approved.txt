@@ -1,1 +1,3 @@
-approved
+approved: patch | ## Procedure
+在质量评审开始前，添加「交付物可访问性检查」步骤：
+1. 确认前置任务交付

@@ -1,1 +1,1 @@
-approved
+approved: reference | 本次 execute 暴露了一个常见场景：上游交付物文件不在项目目录中，仅能通过元数据摘要推断。qu

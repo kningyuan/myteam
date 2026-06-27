@@ -1,1 +1,1 @@
-approved
+approved: reference | 本次 execute 的教训：Agent 在撰写交付物前未对照 rubric 检查必需章节，导致交付
