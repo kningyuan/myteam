@@ -729,6 +729,8 @@ export function ManageSection() {
   const [kbCreateTitle, setKbCreateTitle] = useState("")
   const [kbCreateProject, setKbCreateProject] = useState("")
   const [kbCreateContent, setKbCreateContent] = useState("")
+  const [kbCreateTags, setKbCreateTags] = useState("")
+  const [kbCreateKind, setKbCreateKind] = useState<"global" | "project" | "l1">("global")
   const [kbCreateBusy, setKbCreateBusy] = useState(false)
 
   // ── Prompt Templates state ──
@@ -979,19 +981,29 @@ export function ManageSection() {
 
   async function handleCreateKnowledge() {
     const title = kbCreateTitle.trim()
-    const project_id = kbCreateProject.trim()
-    if (!title || !project_id) {
-      toast.error("标题与项目 ID 必填")
+    const project_id = kbCreateKind === "global" ? "__global__" : kbCreateProject.trim()
+    if (!title) {
+      toast.error("标题必填")
       return
     }
+    if (kbCreateKind !== "global" && !project_id) {
+      toast.error("按项目类型需要填写项目 ID")
+      return
+    }
+    const tags = kbCreateTags
+      .split(/[,，]/)
+      .map((t) => t.trim())
+      .filter(Boolean)
     setKbCreateBusy(true)
     try {
-      const row = await createMemory({ project_id, title, content: kbCreateContent })
+      const row = await createMemory({ project_id, title, content: kbCreateContent, tags })
       setEntries((prev) => [row, ...prev])
       setKbCreateOpen(false)
       setKbCreateTitle("")
       setKbCreateProject("")
       setKbCreateContent("")
+      setKbCreateTags("")
+      setKbCreateKind("global")
       if (row.id) navigate(`/manage/knowledge/${row.id}`)
       toast.success("已创建知识条目")
     } catch (e) {
@@ -1841,12 +1853,30 @@ export function ManageSection() {
           </DialogHeader>
           <div className="grid gap-3 py-2">
             <div className="grid gap-2">
-              <Label>项目 ID *</Label>
-              <Input value={kbCreateProject} onChange={(e) => setKbCreateProject(e.target.value)} placeholder="__global__ 或 sa-human" />
+              <Label>类型</Label>
+              <select
+                className="h-9 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-sm"
+                value={kbCreateKind}
+                onChange={(e) => setKbCreateKind(e.target.value as "global" | "project" | "l1")}
+              >
+                <option value="global">团队通用</option>
+                <option value="project">按项目</option>
+                <option value="l1">L1 工作记忆</option>
+              </select>
             </div>
+            {kbCreateKind !== "global" && (
+              <div className="grid gap-2">
+                <Label>项目 ID *</Label>
+                <Input value={kbCreateProject} onChange={(e) => setKbCreateProject(e.target.value)} placeholder="例如: sa-human" />
+              </div>
+            )}
             <div className="grid gap-2">
               <Label>标题 *</Label>
               <Input value={kbCreateTitle} onChange={(e) => setKbCreateTitle(e.target.value)} />
+            </div>
+            <div className="grid gap-2">
+              <Label>标签（逗号分隔）</Label>
+              <Input value={kbCreateTags} onChange={(e) => setKbCreateTags(e.target.value)} placeholder="例如: 方法论, 竞品, v2" />
             </div>
             <div className="grid gap-2">
               <Label>正文</Label>
