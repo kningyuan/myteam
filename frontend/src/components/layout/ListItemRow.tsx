@@ -1,5 +1,29 @@
 import { cn } from "@/lib/utils"
 
+// Badge color map for role/kind tags
+function tagClass(tag?: string): string {
+  if (!tag) return ""
+  const colors: Record<string, string> = {
+    // Agent roles
+    architect: "badge-purple",
+    researcher: "badge-blue",
+    engineer: "badge-green",
+    reviewer: "badge-orange",
+    // Knowledge kinds
+    global: "badge-green",
+    project: "badge-blue",
+    l1: "badge-purple",
+    // Task type kinds
+    artifact: "badge-blue",
+    action: "badge-orange",
+    code_project: "badge-purple",
+    // Prompt template kinds
+    kind: "badge-blue",
+    task_type: "badge-orange",
+  }
+  return colors[tag] || "badge-gray"
+}
+
 export function ListItemRow({
   name,
   sub,
@@ -29,7 +53,7 @@ export function ListItemRow({
       <div className="list-item-main">
         <div className="list-item-name-row">
           <div className="list-item-name">{name}</div>
-          {tag ? <span className="skill-category-tag skill-category-tag--static list-item-tag">{tag}</span> : null}
+          {tag ? <span className={cn("skill-category-tag skill-category-tag--static list-item-tag", tagClass(tag))}>{tag}</span> : null}
         </div>
         {sub && <div className="list-item-sub">{sub}</div>}
       </div>

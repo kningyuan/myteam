@@ -2797,6 +2797,19 @@ body.col-resizing * {
   font-variant-numeric: tabular-nums;
 }
 
+/* ── Filter Tags (管理 Tab 筛选标签) ── */
+  background: var(--color-brand-muted);
+  color: var(--color-brand);
+  border-color: color-mix(in srgb, var(--color-brand) 35%, var(--color-border));
+}
+
+/* ── Tag badge colors for list items (matching design spec) ── */
+.badge-purple { background: rgba(188,140,255,0.15) !important; color: #bc8cff !important; border-color: rgba(188,140,255,0.3) !important; }
+.badge-blue { background: rgba(88,166,255,0.15) !important; color: #58a6ff !important; border-color: rgba(88,166,255,0.3) !important; }
+.badge-green { background: rgba(63,185,80,0.15) !important; color: #3fb950 !important; border-color: rgba(63,185,80,0.3) !important; }
+.badge-orange { background: rgba(240,136,62,0.15) !important; color: #f0883e !important; border-color: rgba(240,136,62,0.3) !important; }
+.badge-gray { background: rgba(139,148,158,0.15) !important; color: #8b949e !important; border-color: rgba(139,148,158,0.3) !important; }
+
 /* Exec tree */
 .exec-panel {
   display: flex;

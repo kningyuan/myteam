@@ -1345,19 +1345,20 @@ export function ManageSection() {
                 <ListItemRow
                   key={a.id}
                   name={a.name || a.id}
-                  sub={a.backend || a.role}
+                  sub={`${a.backend || ""} · ${a.model || ""}`}
+                  tag={a.role || "other"}
                   avatar={a.name || a.id}
                   active={a.id === itemId}
                   onClick={() => navigate(`/manage/agents/${encodeURIComponent(a.id)}`)}
                 />
               ))}
-
             {activeTab === "task-types" &&
               filteredTypes.map((t) => (
                 <ListItemRow
                   key={t.task_type}
                   name={t.display_name || t.task_type}
                   sub={t.outcome_form_label || kindMap[t.outcome_kind]?.form_label_zh}
+                  tag={t.outcome_kind}
                   avatar={t.display_name || t.task_type}
                   active={t.task_type === itemId}
                   onClick={() => navigate(`/manage/task-types/${encodeURIComponent(t.task_type)}`)}
@@ -1424,6 +1425,7 @@ export function ManageSection() {
                     key={e.id}
                     name={e.title || `条目 #${e.id}`}
                     sub={e.project_id || e.preview?.slice(0, 40)}
+                    tag={e.project_id === "__global__" ? "global" : (e.project_id ? "project" : "kb")}
                     avatar={e.title || "KB"}
                     active={String(e.id) === itemId}
                     onClick={() => navigate(`/manage/knowledge/${e.id}`)}
