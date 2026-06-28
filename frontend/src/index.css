@@ -744,6 +744,12 @@ h1, h2, h3, .stat-card-value {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  min-width: 0;
+}
+
+.list-item-row1 .list-item-name {
+  flex: 1;
+  min-width: 0;
 }
 
 .list-item-row2 {
@@ -752,6 +758,12 @@ h1, h2, h3, .stat-card-value {
   justify-content: space-between;
   gap: 6px;
   margin-top: 1px;
+  min-width: 0;
+}
+
+.list-item-row2 .list-item-sub {
+  flex: 1;
+  min-width: 0;
 }
 
 .list-item-pct {
@@ -769,17 +781,18 @@ h1, h2, h3, .stat-card-value {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   border-radius: 6px;
   color: var(--color-muted-foreground);
-  opacity: 0;
+  opacity: 1;
   transition: opacity 0.12s, background 0.12s, color 0.12s;
   flex-shrink: 0;
+  border: 1px solid var(--color-border);
 }
 
-.project-list-item:hover .list-item-del,
-.project-list-item:focus-within .list-item-del {
+.list-item:hover .list-item-del,
+.list-item:focus-within .list-item-del {
   opacity: 1;
 }
 
@@ -1171,6 +1184,8 @@ body.col-resizing * {
   flex-shrink: 0;
   backdrop-filter: blur(8px);
   background: color-mix(in srgb, var(--color-card) 94%, transparent);
+  position: relative;
+  z-index: 10;
 }
 
 .chat-messages-wrap {
@@ -1963,7 +1978,7 @@ body.col-resizing * {
   position: absolute;
   right: 0;
   top: calc(100% + 4px);
-  z-index: 50;
+  z-index: 100;
   min-width: 160px;
   padding: 4px;
   border-radius: 8px;

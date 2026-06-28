@@ -14,6 +14,8 @@ export type ResourceKey =
   | "skill-matrix"
   | "skill-drafts"
   | "mcp-library"
+  | "prompt-templates"
+  | "prompt-injections"
   | "dashboard"
   | "config"
 

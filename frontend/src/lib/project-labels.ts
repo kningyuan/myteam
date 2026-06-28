@@ -263,7 +263,7 @@ export function eventDetail(e: { kind?: string; payload?: Record<string, unknown
     return `action=${action}${skillId ? ` · skill=${skillId}` : ""}`
   }
   if (kind === "skill_review_failed") {
-    return `error: ${(p.error || "").slice(0, 120)}`
+    return `error: ${String(p.error || "").slice(0, 120)}`
   }
   if (kind === "skill_review_started") {
     return `task=${p.task_id || ""} · type=${p.task_type || ""}`

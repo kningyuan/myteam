@@ -266,6 +266,20 @@ def move_skill_to_category(skill_id: str, category_id: str | None) -> dict:
     }
 
 
+def delete_skill_category(category_id: str) -> dict:
+    """删除分类标签：只从 categories.yaml 移除条目，不删除 skill 目录。"""
+    cid = (category_id or "").strip()
+    if not cid:
+        return {"success": False, "error": "分类 id 不能为空"}
+    if not is_skill_category_dir(cid):
+        return {"success": False, "error": f"分类不存在：{cid}"}
+    data = _load_registry()
+    cats: dict[str, Any] = data.setdefault("categories", {})
+    cats.pop(cid, None)
+    _save_registry(data)
+    return {"success": True, "deleted_id": cid}
+
+
 def resolve_library_entry(entry_id: str) -> Optional[dict]:
     """Skill 页统一入口：分类或叶子 skill。"""
     eid = (entry_id or "").strip()

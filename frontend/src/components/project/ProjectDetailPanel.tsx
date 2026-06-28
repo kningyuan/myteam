@@ -7,12 +7,14 @@ import {
   LayoutGrid,
   Play,
   ScrollText,
+  Trash2,
   Users,
   X,
 } from "lucide-react"
 import { toast } from "sonner"
 import {
   cancelProject,
+  deleteProject,
   getProjectCost,
   getProjectEvents,
   getProjectFleet,
@@ -323,6 +325,24 @@ export function ProjectDetailPanel({
                 取消
               </Button>
             )}
+            <Button
+              size="sm"
+              variant="outline"
+              className="!border-red-500/40 !text-red-500 hover:!bg-red-500/10"
+              onClick={async () => {
+                if (!window.confirm(`确定删除项目「${ov.title || projectId}」？\n该操作会删除项目的所有数据，不可恢复。`)) return
+                try {
+                  await deleteProject(projectId)
+                  toast.success("项目已删除")
+                  navigate("/projects")
+                } catch (e) {
+                  toast.error("删除失败", { description: e instanceof Error ? e.message : "" })
+                }
+              }}
+            >
+              <Trash2 className="h-4 w-4" />
+              删除
+            </Button>
           </div>
         </div>
 

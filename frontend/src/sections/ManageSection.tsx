@@ -16,6 +16,7 @@ import {
   type AgentSummary,
 } from "@/lib/api/agents"
 import { listMemory, getMemory, deleteMemory, createMemory, updateMemory, type MemoryEntry } from "@/lib/api/projects"
+import { listPromptTemplates, getPromptTemplate, updatePromptTemplate, deletePromptTemplate, type PromptTemplateEntry, type PromptTemplateList } from "@/lib/api/prompts"
 import { listMcpLibrary } from "@/lib/api/mcp"
 import {
   createTaskType,
@@ -64,7 +65,7 @@ import { MarkdownBody } from "@/components/MarkdownBody"
 import { gateLabel } from "@/components/ui/page"
 import { cn } from "@/lib/utils"
 
-type ManageTab = "agents" | "preferences" | "task-types" | "templates" | "delivery-profiles" | "knowledge"
+type ManageTab = "agents" | "preferences" | "task-types" | "templates" | "prompt-templates" | "delivery-profiles" | "knowledge"
 
 const AGENT_WORKSPACE_FILES = [
   "IDENTITY.md",
@@ -731,6 +732,15 @@ export function ManageSection() {
   const [kbCreateContent, setKbCreateContent] = useState("")
   const [kbCreateBusy, setKbCreateBusy] = useState(false)
 
+  // ── Prompt Templates state ──
+  const [promptList, setPromptList] = useState<PromptTemplateList | null>(null)
+  const [promptLoading, setPromptLoading] = useState(false)
+  const [promptDetail, setPromptDetail] = useState<PromptTemplateEntry | null>(null)
+  const [promptDetailLoading, setPromptDetailLoading] = useState(false)
+  const [promptEditContent, setPromptEditContent] = useState("")
+  const [promptEditing, setPromptEditing] = useState(false)
+  const [promptSaving, setPromptSaving] = useState(false)
+
   const [agentEditOpen, setAgentEditOpen] = useState(false)
   const [agentCreateOpen, setAgentCreateOpen] = useState(false)
   const [newAgentId, setNewAgentId] = useState("")
@@ -813,6 +823,97 @@ export function ManageSection() {
       window.clearTimeout(timer)
     }
   }, [activeTab, search, kbKind])
+
+  // ── Prompt Templates loading ──
+  useEffect(() => {
+    if (activeTab !== "prompt-templates") return
+    let cancelled = false
+    setPromptLoading(true)
+    listPromptTemplates()
+      .then((data) => {
+        if (!cancelled) setPromptList(data)
+      })
+      .catch(() => {
+        if (!cancelled) setPromptList(null)
+      })
+      .finally(() => {
+        if (!cancelled) setPromptLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [activeTab])
+
+  useEffect(() => {
+    if (activeTab !== "prompt-templates" || !itemId) {
+      setPromptDetail(null)
+      setPromptEditing(false)
+      return
+    }
+    let cancelled = false
+    setPromptDetailLoading(true)
+    getPromptTemplate(itemId)
+      .then((entry) => {
+        if (!cancelled) {
+          setPromptDetail(entry)
+          setPromptEditContent(typeof entry.content === "string" ? entry.content : JSON.stringify(entry.content, null, 2))
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setPromptDetail(null)
+      })
+      .finally(() => {
+        if (!cancelled) setPromptDetailLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [activeTab, itemId])
+
+  const promptEntries = useMemo(() => {
+    if (!promptList) return []
+    const merged: { id: string; entry: PromptTemplateEntry }[] = []
+    for (const [id, entry] of Object.entries(promptList.kinds || {})) {
+      merged.push({ id, entry })
+    }
+    for (const [id, entry] of Object.entries(promptList.task_types || {})) {
+      merged.push({ id, entry })
+    }
+    return merged
+  }, [promptList])
+
+  const filteredPromptEntries = useMemo(() => {
+    if (!search.trim()) return promptEntries
+    const q = search.trim().toLowerCase()
+    return promptEntries.filter((e) => e.id.toLowerCase().includes(q))
+  }, [promptEntries, search])
+
+  async function handleSavePromptTemplate() {
+    if (!itemId) return
+    setPromptSaving(true)
+    try {
+      await updatePromptTemplate(itemId, { content: promptEditContent })
+      toast.success("Prompt 模板已保存")
+      setPromptEditing(false)
+      // reload detail
+      const entry = await getPromptTemplate(itemId)
+      setPromptDetail(entry)
+      setPromptEditContent(typeof entry.content === "string" ? entry.content : JSON.stringify(entry.content, null, 2))
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "保存失败")
+    } finally {
+      setPromptSaving(false)
+    }
+  }
+
+  async function handleDeletePromptTemplate(id: string) {
+    if (!confirm(`确定要删除 Prompt 模板「${id}」吗？`)) return
+    try {
+      await deletePromptTemplate(id)
+      toast.success("Prompt 模板已删除")
+      setPromptList(null)
+      navigate("/manage/prompt-templates", { replace: true })
+      listPromptTemplates().then(setPromptList).catch(() => {})
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "删除失败")
+    }
+  }
 
   const filteredAgents = useMemo(
     () =>
@@ -1212,6 +1313,8 @@ export function ManageSection() {
         ? ""
         : activeTab === "templates"
         ? "搜索模板…"
+        : activeTab === "prompt-templates"
+        ? "搜索 Prompt 模板…"
         : activeTab === "delivery-profiles"
         ? "搜索交付流程…"
         : activeTab === "task-types"
@@ -1273,6 +1376,26 @@ export function ManageSection() {
                 />
               ))}
 
+            {activeTab === "prompt-templates" &&
+              (promptLoading ? (
+                <p className="px-4 py-6 text-center text-xs text-[var(--color-muted-foreground)]">加载中…</p>
+              ) : filteredPromptEntries.length ? (
+                filteredPromptEntries.map(({ id, entry }) => (
+                  <ListItemRow
+                    key={id}
+                    name={id}
+                    sub={entry.kind === "kind" ? "交互类型" : "任务类型"}
+                    tag={entry.kind === "kind" ? "kind" : "task_type"}
+                    avatar={id}
+                    active={id === itemId}
+                    onClick={() => navigate(`/manage/prompt-templates/${encodeURIComponent(id)}`)}
+                    onDelete={() => handleDeletePromptTemplate(id)}
+                  />
+                ))
+              ) : (
+                <p className="px-4 py-6 text-center text-xs text-[var(--color-muted-foreground)]">暂无 Prompt 模板</p>
+              ))}
+
             {activeTab === "delivery-profiles" &&
               profiles.map((p) => (
                 <ListItemRow
@@ -1306,7 +1429,7 @@ export function ManageSection() {
                     onClick={() => navigate(`/manage/knowledge/${e.id}`)}
                     onDelete={() => {
                       if (!window.confirm(`删除知识条目「${e.title || e.id}」？\n\n此操作不可恢复。`)) return
-                      deleteMemory(e.id)
+                      deleteMemory(e.id ?? 0)
                         .then(() => {
                           setEntries((prev) => prev.filter((x) => x.id !== e.id))
                           toast.success("已删除")
@@ -1386,6 +1509,66 @@ export function ManageSection() {
                 />
               ) : (
                 <WelcomePane title="选择模板" description="左侧已列出全部模板，点选一项查看或编辑。" />
+              )}
+            </>
+          )}
+
+          {activeTab === "prompt-templates" && (
+            <>
+              <WorkspaceHeader
+                title="Prompt 模板"
+                description="框架与 Agent 交互的 Prompt 模板（kinds + task_types），结构在代码中，内容在此编辑。"
+              />
+              {promptDetailLoading ? (
+                <p className="px-4 py-6 text-center text-xs text-[var(--color-muted-foreground)]">加载中…</p>
+              ) : promptDetail ? (
+                <div className="workspace-panel">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-lg font-semibold">{itemId}</h2>
+                      <p className="mt-1 text-xs text-[var(--color-muted-foreground)]">
+                        类型：{promptDetail.kind === "kind" ? "交互类型" : "任务类型"} · 路径：{promptDetail.path}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      {promptEditing ? (
+                        <>
+                          <Button size="sm" disabled={promptSaving} onClick={() => void handleSavePromptTemplate()}>
+                            {promptSaving ? "保存中…" : "保存"}
+                          </Button>
+                          <Button size="sm" variant="ghost" disabled={promptSaving} onClick={() => setPromptEditing(false)}>
+                            取消
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button size="sm" variant="outline" onClick={() => setPromptEditing(true)}>
+                            编辑
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => handleDeletePromptTemplate(itemId!)}>
+                            删除
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <Separator className="my-5" />
+                  {promptEditing ? (
+                    <Textarea
+                      value={promptEditContent}
+                      onChange={(e) => setPromptEditContent(e.target.value)}
+                      className="min-h-[400px] font-mono text-xs"
+                    />
+                  ) : (
+                    <pre className="max-h-[60vh] overflow-auto rounded-md bg-[var(--color-muted)] p-4 text-xs leading-relaxed">
+                      {typeof promptDetail.content === "string"
+                        ? promptDetail.content
+                        : JSON.stringify(promptDetail.content, null, 2)}
+                    </pre>
+                  )}
+                </div>
+              ) : (
+                <WelcomePane title="选择 Prompt 模板" description="左侧已列出全部模板，点选一项查看或编辑。" />
               )}
             </>
           )}

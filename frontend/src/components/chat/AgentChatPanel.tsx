@@ -45,6 +45,17 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
+function fmtChatTime(ts?: string): string {
+  if (!ts) return ""
+  const d = new Date(ts)
+  if (isNaN(d.getTime())) return ""
+  const mm = String(d.getMonth() + 1).padStart(2, "0")
+  const dd = String(d.getDate()).padStart(2, "0")
+  const hh = String(d.getHours()).padStart(2, "0")
+  const mi = String(d.getMinutes()).padStart(2, "0")
+  return `${mm}/${dd} ${hh}:${mi}`
+}
+
 function ContextIndicator({ used }: { used: number }) {
   const budget = getContextTokenBudget()
   if (!used) return null
@@ -267,7 +278,17 @@ export function AgentChatPanel({
               }`}
             >
               {m.role === "agent" && (
-                <div className="mb-1 text-xs font-medium text-[var(--color-brand-light)]">@{agent.id}</div>
+                <div className="mb-1 flex items-center gap-2 text-xs">
+                  <span className="font-medium text-[var(--color-brand-light)]">@{agent.id}</span>
+                  {m.created_at && (
+                    <span className="text-[var(--color-muted-foreground)]">{fmtChatTime(m.created_at)}</span>
+                  )}
+                </div>
+              )}
+              {m.role === "user" && m.created_at && (
+                <div className="mb-1 flex items-center justify-end text-xs text-[var(--color-muted-foreground)]">
+                  {fmtChatTime(m.created_at)}
+                </div>
               )}
               {m.role === "agent" && (m.thinking?.length || m.streaming) ? (
                 <ThinkingStream

@@ -3,6 +3,12 @@
 version: "0.2"
 
 skills:
+  - id: myteam-user-manual
+    task_types: []
+    description: myteam 平台完整使用指南（设计方案/代码实现/功能操作/编排内核流程）
+    router: business/skills/myteam-user-manual/SKILL.md
+    means: []
+
   - id: arch-research
     task_types: [arch-research]
     description: 架构向桌面调研

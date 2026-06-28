@@ -85,6 +85,7 @@ function toUiMessages(msgs: ChatMessage[]): AgentUiMessage[] {
     role: m.role === "user" ? "user" : "agent",
     text: m.text || "",
     thinking: m.thinking?.length ? [...m.thinking] : undefined,
+    created_at: m.created_at,
   }))
 }
 

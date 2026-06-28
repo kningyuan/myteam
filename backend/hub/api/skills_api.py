@@ -119,6 +119,16 @@ async def patch_skill_category_api(category_id: str, body: SkillCategoryUpdate):
     return result
 
 
+@router.delete("/categories/{category_id}")
+async def delete_skill_category_api(category_id: str):
+    from common.skill_categories import delete_skill_category
+
+    result = delete_skill_category(category_id)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "删除失败"))
+    return result
+
+
 @router.get("/groups")
 async def list_skill_groups_api():
     """Skill 组（vendor 套件），Agent 可挂整组或组内单个 skill。"""

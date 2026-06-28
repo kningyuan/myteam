@@ -4,6 +4,8 @@ import { Plus } from "lucide-react"
 import { toast } from "sonner"
 import {
   createSkillCategory,
+  deleteSkillCategory,
+  deleteSkillLibraryItem,
   getSkillLibraryItem,
   listSkillCategories,
   listSkillLibrary,
@@ -276,6 +278,32 @@ export function SkillsSection() {
     }
   }
 
+  async function handleDeleteSkill(sid: string, name?: string) {
+    if (!confirm(`确定要删除 Skill「${name || sid}」吗？将同时从所有 Agent 卸载。`)) return
+    try {
+      await deleteSkillLibraryItem(sid)
+      toast.success(`已删除 Skill「${name || sid}」`)
+      void reloadLibrary()
+      void reloadCategories()
+      if (skillId === sid) navigate("/skills")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "删除失败")
+    }
+  }
+
+  async function handleDeleteCategory(cid: string, name?: string) {
+    if (!confirm(`确定要删除分类「${name || cid}」吗？\n分类下的 Skill 不会被删除，仅移除分类标签。`)) return
+    try {
+      await deleteSkillCategory(cid)
+      toast.success(`已删除分类「${name || cid}」`)
+      void reloadLibrary()
+      void reloadCategories()
+      if (skillId === cid) navigate("/skills")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "删除失败")
+    }
+  }
+
   return (
     <DiscordShell
       list={
@@ -348,6 +376,11 @@ export function SkillsSection() {
                 avatar={e.kind === "category" ? "类" : e.isDraft ? "↑" : "SK"}
                 active={e.id === skillId}
                 onClick={() => navigate(`/skills/${encodeURIComponent(e.id)}`)}
+                onDelete={
+                  e.kind === "skill"
+                    ? () => handleDeleteSkill(e.id, e.name)
+                    : () => handleDeleteCategory(e.id, e.name)
+                }
               />
             ))
           ) : (

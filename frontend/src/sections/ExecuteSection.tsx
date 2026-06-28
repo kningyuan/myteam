@@ -9,6 +9,7 @@ import {
   type SingleExecuteProject,
   type SingleExecuteTaskDetail,
 } from "@/lib/api/execute"
+import { deleteProject } from "@/lib/api/projects"
 import { listAgents, type AgentSummary } from "@/lib/api/agents"
 import { listTaskTypes, type TaskTypeSummary } from "@/lib/api/workflows"
 import { DiscordShell, ListColumn, WelcomePane } from "@/components/layout/DiscordShell"
@@ -209,6 +210,18 @@ export function ExecuteSection() {
     }
   }
 
+  async function handleDeleteTask(pid: string, tid: string) {
+    if (!confirm(`确定要删除独立任务「${tid}」吗？同项目下的其他任务也将被删除。`)) return
+    try {
+      await deleteProject(pid)
+      toast.success("任务已删除")
+      if (projectId === pid) navigate("/execute")
+      void loadProjects()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "删除失败")
+    }
+  }
+
   return (
     <>
       <DiscordShell
@@ -231,6 +244,7 @@ export function ExecuteSection() {
                   tag={row.finished ? "done" : undefined}
                   active={projectId === row.project_id && taskId === row.task_id}
                   onClick={() => navigate(`/execute/${row.project_id}/${row.task_id}`)}
+                  onDelete={() => handleDeleteTask(row.project_id, row.task_id)}
                 />
               ))
             ) : (

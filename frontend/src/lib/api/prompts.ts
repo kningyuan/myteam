@@ -35,7 +35,7 @@ export async function createPromptTemplate(body: {
   content: string | Record<string, unknown>
   kind?: "kind" | "task_type"
 }): Promise<{ success: boolean; id: string }> {
-  const data = await hubFetch("/api/prompt-templates", {
+  const data = await hubFetch<{ success: boolean; id: string }>("/api/prompt-templates", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -48,7 +48,7 @@ export async function updatePromptTemplate(
   templateId: string,
   body: { content?: string | Record<string, unknown>; kind?: string },
 ): Promise<{ success: boolean; id: string }> {
-  const data = await hubFetch(`/api/prompt-templates/${encodeURIComponent(templateId)}`, {
+  const data = await hubFetch<{ success: boolean; id: string }>(`/api/prompt-templates/${encodeURIComponent(templateId)}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -58,7 +58,7 @@ export async function updatePromptTemplate(
 }
 
 export async function deletePromptTemplate(templateId: string): Promise<{ success: boolean; id: string }> {
-  const data = await hubFetch(`/api/prompt-templates/${encodeURIComponent(templateId)}`, {
+  const data = await hubFetch<{ success: boolean; id: string }>(`/api/prompt-templates/${encodeURIComponent(templateId)}`, {
     method: "DELETE",
   })
   invalidateResources("prompt-templates")
@@ -92,7 +92,7 @@ export async function createPromptInjection(body: {
   id: string
   content: Record<string, unknown>
 }): Promise<{ success: boolean; id: string }> {
-  const data = await hubFetch("/api/prompt-injections", {
+  const data = await hubFetch<{ success: boolean; id: string }>("/api/prompt-injections", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -105,7 +105,7 @@ export async function updatePromptInjection(
   injectionId: string,
   body: { content?: Record<string, unknown> },
 ): Promise<{ success: boolean; id: string }> {
-  const data = await hubFetch(`/api/prompt-injections/${encodeURIComponent(injectionId)}`, {
+  const data = await hubFetch<{ success: boolean; id: string }>(`/api/prompt-injections/${encodeURIComponent(injectionId)}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -115,7 +115,7 @@ export async function updatePromptInjection(
 }
 
 export async function deletePromptInjection(injectionId: string): Promise<{ success: boolean; id: string }> {
-  const data = await hubFetch(`/api/prompt-injections/${encodeURIComponent(injectionId)}`, {
+  const data = await hubFetch<{ success: boolean; id: string }>(`/api/prompt-injections/${encodeURIComponent(injectionId)}`, {
     method: "DELETE",
   })
   invalidateResources("prompt-injections")

@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { toast } from "sonner"
-import { createMcpServer, listMcpLibrary, type McpServerSummary } from "@/lib/api/mcp"
+import { createMcpServer, deleteMcpServer, listMcpLibrary, type McpServerSummary } from "@/lib/api/mcp"
 import { useResourceQuery, useOnResourceInvalidate } from "@/hooks/useResourceQuery"
 import { McpDetailPanel } from "@/components/mcp/McpDetailPanel"
 import { DiscordShell, ListColumn, WelcomePane } from "@/components/layout/DiscordShell"
@@ -127,6 +127,18 @@ export function McpSection() {
     }
   }, [newId, newName, navigate, reloadLibrary])
 
+  const handleDeleteMcp = useCallback(async (id: string, name?: string) => {
+    if (!confirm(`确定要删除 MCP「${name || id}」吗？`)) return
+    try {
+      await deleteMcpServer(id)
+      toast.success("MCP 已删除")
+      if (serverId === id) navigate("/mcp")
+      reloadLibrary()
+    } catch (e) {
+      toast.error("删除失败", { description: e instanceof Error ? e.message : "" })
+    }
+  }, [serverId, navigate, reloadLibrary])
+
   return (
     <>
       <DiscordShell
@@ -156,6 +168,7 @@ export function McpSection() {
                   sub={s.enabled ? "已启用" : "已停用"}
                   avatar="MC"
                   onClick={() => navigate(`/mcp/${encodeURIComponent(s.id)}`)}
+                  onDelete={() => handleDeleteMcp(s.id, s.name)}
                 />
               ))
             ) : (

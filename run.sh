@@ -7,6 +7,13 @@ cd "$SCRIPT_DIR"
 export PYTHONPATH="$SCRIPT_DIR/backend:${PYTHONPATH:-}"
 export MYTEAM_ROOT="$SCRIPT_DIR"
 
+# 确保 UTF-8 编码，避免中文输出乱码
+export LANG="${LANG:-en_US.UTF-8}"
+export LC_ALL="${LC_ALL:-en_US.UTF-8}"
+
+# 清除可能干扰 venv 的 PYTHONHOME
+unset PYTHONHOME
+
 export NO_PROXY="localhost,127.0.0.1,::1"
 export no_proxy="${NO_PROXY}"
 
@@ -84,7 +91,7 @@ start_server() {
   fi
 
   if [ -n "$(find_server_pids)" ]; then
-    echo "Agent Hub 已在运行（端口 $PORT）"
+    echo "Agent Hub 已在运行 (端口 $PORT)"
     exit 1
   fi
 

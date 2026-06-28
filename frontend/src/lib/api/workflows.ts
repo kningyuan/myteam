@@ -370,6 +370,11 @@ export async function updateSkillCategory(
   return data.category
 }
 
+export async function deleteSkillCategory(categoryId: string): Promise<void> {
+  await hubFetch(`/api/skills/categories/${encodeURIComponent(categoryId)}`, { method: "DELETE" })
+  invalidateResources("skill-library", "skill-groups", "skill-categories")
+}
+
 export async function moveSkillToCategory(
   skillId: string,
   categoryId: string | null,
@@ -490,6 +495,11 @@ export type SkillReferenceItem = {
   name: string
   size?: number
   updated_at?: number
+}
+
+export async function listSkillReferences(skillId: string): Promise<SkillReferenceItem[]> {
+  const data = await hubFetch<{ references?: SkillReferenceItem[] }>(`/api/skills/library/${encodeURIComponent(skillId)}/references`)
+  return data.references || []
 }
 
 export type DeliveryProfileSummary = {

@@ -39,25 +39,25 @@ export function ProjectListItem({
           <div className="list-item-sub">
             {statusLabel(status || "unknown")} · {taskCount} 任务
           </div>
-          {onDelete && (
-            <button
-              type="button"
-              className="list-item-del"
-              title="删除项目"
-              aria-label="删除项目"
-              onClick={(e) => {
-                e.stopPropagation()
-                onDelete()
-              }}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          )}
         </div>
         <div className="list-item-progress">
           <i style={{ width: `${pct}%` }} />
         </div>
       </div>
+      {onDelete && (
+        <button
+          type="button"
+          className="list-item-del"
+          title="删除项目"
+          aria-label="删除项目"
+          onClick={(e) => {
+            e.stopPropagation()
+            onDelete()
+          }}
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      )}
     </div>
   )
 }

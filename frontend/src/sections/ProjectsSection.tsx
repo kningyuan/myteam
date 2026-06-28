@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { toast } from "sonner"
 import { getConfig, getSkillConfig } from "@/lib/api/config"
-import { deleteProject, listProjects, runProject } from "@/lib/api/projects"
+import { listProjects, runProject } from "@/lib/api/projects"
 import { listWorkflows, type WorkflowSummary, workflowDisplayName } from "@/lib/api/workflows"
 import { useResourceQuery } from "@/hooks/useResourceQuery"
 import { matchQuery } from "@/components/manage/ManageSearchBar"
@@ -234,23 +234,6 @@ export function ProjectsSection() {
     [projects, search],
   )
 
-  async function handleDeleteProject(id: string) {
-    if (
-      !window.confirm(
-        `确认彻底删除项目「${id}」？将清除其数据库记录、交付物目录与 agent 临时文件，不可恢复。`,
-      )
-    ) {
-      return
-    }
-    try {
-      await deleteProject(id)
-      toast.success(`已删除项目「${id}」`)
-      if (projectId === id) navigate("/projects")
-    } catch (e) {
-      toast.error("删除失败", { description: e instanceof Error ? e.message : "" })
-    }
-  }
-
   return (
     <>
       <DiscordShell
@@ -280,7 +263,6 @@ export function ProjectsSection() {
                 taskCount={p.task_count}
                 active={p.id === projectId}
                 onClick={() => navigate(`/projects/${encodeURIComponent(p.id)}`)}
-                onDelete={() => handleDeleteProject(p.id)}
               />
             ))}
           </ListColumn>
