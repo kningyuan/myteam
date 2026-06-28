@@ -2810,6 +2810,14 @@ body.col-resizing * {
 .badge-orange { background: rgba(240,136,62,0.15) !important; color: #f0883e !important; border-color: rgba(240,136,62,0.3) !important; }
 .badge-gray { background: rgba(139,148,158,0.15) !important; color: #8b949e !important; border-color: rgba(139,148,158,0.3) !important; }
 
+/* ── Skill missing warning badge ── */
+.badge-skill-missing {
+  background: rgba(240,136,62,0.12) !important;
+  color: #f0883e !important;
+  border-color: rgba(240,136,62,0.4) !important;
+  font-weight: 600 !important;
+}
+
 /* Exec tree */
 .exec-panel {
   display: flex;

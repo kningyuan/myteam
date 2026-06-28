@@ -393,9 +393,10 @@ function AgentDetailPanel({
                         key={s.skill_id}
                         variant={s.available === false ? "outline" : "default"}
                         title={s.skill_id}
+                        className={s.available === false ? "badge-skill-missing" : ""}
                       >
                         {skillLabel(s)}
-                        {s.available === false ? "（文件缺失）" : ""}
+                        {s.available === false ? " 源缺失" : ""}
                       </Badge>
                     ))}
                   </div>
