@@ -1,0 +1,1 @@
+Session demonstrated a detailed pre-submission self-check procedure (structure verification, data integrity, language quality, completeness, calibration) that is more granular than current umbrella skill coverage. Created references/pre-submission-checklist.md to capture this actionable checklist.

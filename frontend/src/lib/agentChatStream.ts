@@ -28,6 +28,7 @@ export type AgentUiMessage = {
   thinking?: ThinkingEvent[]
   citations?: CitationPart[]
   streaming?: boolean
+  created_at?: string
 }
 
 type ActiveTurn = { userId: string; agentMsgId: string }

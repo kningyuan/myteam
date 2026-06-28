@@ -1,0 +1,12 @@
+{
+  "pending_id": "16f2a53d0ab1",
+  "project_id": "pro_recurring_20260628",
+  "task_id": "step-collect.step-collect.copilot",
+  "task_type": "research",
+  "agent_id": "",
+  "action": "patch",
+  "skill_id": "product-methodology",
+  "notes": "## Pitfall: 交付物中的模糊表述\n\n**Problem**: 交付物中出现「提升效率」「优化体验」「改善」「更好」「有潜力」「建议完善」「逐步优化」等模糊表述，缺乏可验证的具体数据支撑，导致 Gate 判定为 needs_review。\n\n**Solution**:\n- 提交前用 grep 扫描模糊表述：`grep -nE '(提升效率|优化体验|改善|更好|有潜力|建议完善|逐步优化)' <deliverable>`\n- 区分引用语（用户评价原文）与自身论断：引用语可保留，自身论断必须替换为具体数据\n- 将模糊表述替换为可量化指标（如「4.5/5 星」而非「用户评价很好」）\n\n**Verification**:\n- 提交前执行模糊表述扫描，确保无自身论断类模糊词\n- 质量自评应保守（0.92 仍可能触发 needs_review）",
+  "created_at": "2026-06-28T00:38:57.674351+00:00",
+  "write_approval": true
+}
