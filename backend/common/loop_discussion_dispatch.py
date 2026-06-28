@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from common.coordinator import get_coordinator_id
 """Loop 单轮结束调度 — Kernel 入口，按 workflow profile 委托 business hook。"""
 from __future__ import annotations
 
@@ -55,7 +56,7 @@ def dispatch_loop_round_done(
         pid = workflow_discussion_profile_id(project_id)
         profile = load_loop_discussion_profile(pid) if pid else None
 
-    review_agent = (profile.review_agent if profile else "") or "main"
+    review_agent = (profile.review_agent if profile else "") or get_coordinator_id()
     label = (profile.round_summary_label if profile else "") or "评审"
 
     review_text = read_deliverable(project_id, assess_tid)

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 from common.paths import BUSINESS_CONFIG_DIR, MYTEAM_ROOT, WORKSPACES_DIR, WORKSPACE_PREFIX
+from common.coordinator import get_coordinator_id
 
 REGISTRY_FILE = BUSINESS_CONFIG_DIR / "agents_registry.json"
 _ROSTER_FILE = MYTEAM_ROOT / "business" / "templates" / "business-roster.json"
@@ -56,7 +57,7 @@ def format_registry_for_prompt(*, workers_only: bool = False) -> str:
         if aid not in available:
             continue
         info = static[aid]
-        if workers_only and aid in ("main", "deputy"):
+        if workers_only and aid in (get_coordinator_id(), "deputy"):
             continue
         name = info.get("name", aid)
         desc = info.get("description", "")

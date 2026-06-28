@@ -11,6 +11,7 @@ from typing import Any, Optional
 import yaml
 
 from common.agent_id_policy import normalize_agent_ids, normalize_plan_tasks
+from common.coordinator import get_coordinator_id
 from common.loop_runtime import LoopSpec, iter_loop_body_tasks, parse_loop_specs, validate_loop_specs
 from common.paths import BUSINESS_DIR
 from common.plan_gate import check_plan
@@ -59,8 +60,9 @@ def roster_from_tasks(tasks: list[dict], loops: Optional[list[LoopSpec]] = None)
             aid = str(t.get("agent") or "").strip()
             if aid and aid not in roster:
                 roster.append(aid)
-    if "main" not in roster:
-        roster.insert(0, "main")
+    cid = get_coordinator_id()
+    if cid not in roster:
+        roster.insert(0, cid)
     return roster
 
 

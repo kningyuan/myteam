@@ -1,4 +1,5 @@
 """项目协作群 — team_config 后自动建群、进度通报。"""
+from common.coordinator import get_coordinator_id
 
 from __future__ import annotations
 
@@ -73,7 +74,7 @@ def setup_project_group(
 
     members = set(team or [])
     if collab.include_main:
-        members.add("main")
+        members.add(get_coordinator_id())
 
     display = _resolve_project_display_name(project_id, project_name)
     group_name = _group_title(project_id, project_name, name_prefix=collab.name_prefix)
@@ -89,7 +90,7 @@ def setup_project_group(
         for aid in members - current:
             add_member(group_id, aid)
         for aid in current - members:
-            if aid != "main":
+            if aid != get_coordinator_id():
                 remove_member(group_id, aid)
         bind_group_project(group_id, project_id)
         return True, f"群组已同步: {group_id}", group_id

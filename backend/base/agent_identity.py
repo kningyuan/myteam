@@ -1,4 +1,5 @@
 """Agent 身份识别 — 读取 team/workspaces 中的身份文件。"""
+from common.coordinator import get_coordinator_id
 
 import re
 import sys
@@ -63,7 +64,7 @@ class AgentIdentityBuilder:
         if self.chinese_name:
             return self.chinese_name
         agent_names = {
-            "main": "项目协调专家",
+            get_coordinator_id(): "项目协调专家",
             "product": "产品经理",
             "developer": "开发工程师",
             "designer": "UI设计师",

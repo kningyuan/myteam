@@ -1,4 +1,5 @@
 """
+from common.coordinator import get_coordinator_id
 Agent Factory - 一键创建 Agent
 根据描述自动生成工作目录和能力文件
 """
@@ -133,7 +134,7 @@ Agent ID: {agent_id}
 
     try:
         content_buffer = ""
-        for sse_json in stream_chat("main", prompt):
+        for sse_json in stream_chat(get_coordinator_id(), prompt):
             evt = json.loads(sse_json)
             if evt["event"] == "thinking" and evt["data"].get("type") == "text":
                 content_buffer += evt["data"].get("content", "")

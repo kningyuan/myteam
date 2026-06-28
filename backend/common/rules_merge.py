@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Literal, Optional
 
 from store.system_config import system_config
+from common.coordinator import get_coordinator_id
 
 RulesProfile = Literal["interactive", "discussion", "workflow_execute", "conversation"]
 
@@ -77,7 +78,7 @@ def merge_rules_file(
                 if fp.exists():
                     f.write(fp.read_text(encoding="utf-8"))
                     f.write("\n\n---\n\n")
-            elif profile == "workflow_execute" and agent_id != "main":
+            elif profile == "workflow_execute" and agent_id != get_coordinator_id():
                 fp = rules_dir / _get_rule_filename("workflow_execute")
                 if fp.exists():
                     f.write(fp.read_text(encoding="utf-8"))

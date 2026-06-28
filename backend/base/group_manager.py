@@ -1,4 +1,5 @@
 """
+from common.coordinator import get_coordinator_id
 Group Manager - 群组管理 + @mention 路由
 """
 
@@ -525,7 +526,7 @@ ROLE_HINTS: dict[str, str] = {
     "product": "从产品需求、验收标准、用户价值角度发言。",
     "arch": "从系统架构、技术可行性、模块边界角度发言。",
     "research": "从调研、竞品、数据与事实依据角度发言。",
-    "main": "从项目规划、优先级编排、跨角色协调角度发言。",
+    get_coordinator_id(): "从项目规划、优先级编排、跨角色协调角度发言。",
     "docs": "从文档结构、交付物规范角度发言。",
     "geo": "从 GEO/SEO 持续优化角度发言。",
     "frontend": "从前端架构、Hub/UI 实现角度发言。",

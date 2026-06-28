@@ -8,6 +8,7 @@ from typing import Optional
 
 from hub.paths import AGENTS_REGISTRY_FILE, WORKSPACES_DIR, WORKSPACE_PREFIX
 from base.agent_chat import scan_agents
+from common.coordinator import get_coordinator_id
 
 
 def _load_registry_file() -> dict:
@@ -73,9 +74,9 @@ def format_registry_for_prompt(*, role_filter: Optional[str] = None) -> str:
     lines = ["可用 Agent（仅能从下列 id 中选择，须为英文小写 id）：", ""]
     for aid, info in reg["agents"].items():
         if role_filter and info.get("role") != role_filter:
-            if role_filter == "worker" and info.get("role") == "coordinator" and aid == "main":
-                pass  # main 单独说明
-            elif role_filter == "worker" and aid in ("main", "deputy"):
+            if role_filter == "worker" and info.get("role") == "coordinator" and aid == get_coordinator_id():
+                pass  # coordinator 单独说明
+            elif role_filter == "worker" and aid in (get_coordinator_id(), "deputy"):
                 continue
         if not info.get("available"):
             continue

@@ -1,11 +1,12 @@
 """项目进度通报格式 — 与 notify-telegram 统一（myteam 项目群 / Telegram 共用模板）。"""
+from common.coordinator import get_coordinator_id
 
 from __future__ import annotations
 
 from typing import Optional
 
 AGENT_NAME_MAP = {
-    "main": "项目协调专家",
+    get_coordinator_id(): "项目协调专家",
     "product": "产品经理",
     "developer": "开发工程师",
     "designer": "UI设计师",
