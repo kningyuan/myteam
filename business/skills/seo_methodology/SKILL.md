@@ -1,4 +1,8 @@
-# SEO Methodology
+---
+name: SEO方法论
+description: SEO方法论：关键词研究、内容优化、技术SEO、外链建设与效果追踪。
+---
+# SEO方法论
 
 ## 任务描述
 进行 SEO 相关的关键词研究、内容优化、外链建设等工作，提升网站搜索排名。

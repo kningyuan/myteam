@@ -179,8 +179,8 @@ skills:
 
   - id: competitive-analysis
     task_types: [competitive-analysis]
-    description: 竞品分析 — 能力对比矩阵、优劣势、差异化机会
-    router: business/skills/product-methodology/SKILL.md
+    description: 竞品分析 — 六步闭环流程，能力对比矩阵、优劣势、差异化机会
+    router: business/skills/competitive-analysis-methodology/SKILL.md
 
   - id: business-diagnosis
     task_types: [business-diagnosis]

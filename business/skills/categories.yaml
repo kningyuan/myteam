@@ -6,20 +6,46 @@ categories:
     members:
     - backend-engineering-methodology
     - coordination-methodology
-    - diagram-build
     - frontend-architecture-methodology
     - frontend-engineering-methodology
     - product-methodology
     - qa-methodology
     - system-architecture-methodology
     - workflow-design
-    - evaluation-rubric
+    - research_methodology
+    - data_analysis_methodology
+    - ops_methodology
+    - content_methodology
+    - seo_methodology
+    - operations-methodology
+    - proposal-writing-methodology
+    - web-crawling-methodology
+    - prompt_optimizer
+    - api-design-methodology
+    - data-visualization-methodology
+    - competitive-analysis-methodology
+    - devops-cicd-methodology
+    - design-system-methodology
+    - tech-debt-management
   code-project:
     name: 代码工程
     description: 代码工程相关技能
     members:
     - code-audit
     - quality-review
+    - code-quality-methodology
+    - diagram-build
+    - evaluation-rubric
+    - debugging-methodology
+    - git-workflow-methodology
+  design-doc:
+    name: 设计与文档
+    description: 前端设计、演示文稿与文档创作技能
+    members:
+    - frontend-design-aesthetics
+    - presentation-design-methodology
+    - publish_post_methodology
+    - technical-writing-methodology
   officecli:
     name: Office 文档套件
     description: OfficeCLI 上游 skills 全套，含 docx/pptx/xlsx 及场景化子 skill。
@@ -44,7 +70,7 @@ categories:
     - workflow-design
   tools:
     name: 工具箱
-    description: test
+    description: 辅助工具与杂项技能
     members: []
     updated_at: 1782500787.96811
   suite:

@@ -1,4 +1,8 @@
-# Prompt Optimizer
+---
+name: Prompt优化方法论
+description: Prompt优化方法论：意图明确、结构化约束、示例引导、渐进复杂度与效果度量。
+---
+# Prompt优化方法论
 
 ## 任务描述
 优化 Agent 的 worker prompt，提升任务执行质量和交付物水平。

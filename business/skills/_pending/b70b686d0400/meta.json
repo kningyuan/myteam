@@ -1,0 +1,12 @@
+{
+  "pending_id": "b70b686d0400",
+  "project_id": "ui_对当前主流AI编程助手CursorWindsur_20260627_222548",
+  "task_id": "step-collect",
+  "task_type": "research",
+  "agent_id": "",
+  "action": "reference",
+  "skill_id": "product-methodology",
+  "notes": "本次任务为 AI 编程助手竞品分析（Cursor / Windsurf / Copilot），属于 product-methodology 覆盖范围。复盘发现：(1) 一手来源采集（官网、定价页、文档）是基础，但缺乏第三方评测、应用商店评分、实际运营数据；(2) 交付物结构（调研目标→信息来源→关键发现→结论）合理，Gate 通过但标记 needs_review；(3) 信息缺口应显式标注而非留白。建议在 product-methodology 下新增 references/competitive-analysis.md，补充竞品分析的源数据三角验证方法、信息缺口标注规范、以及 AI 产品特有的评测维度（如模型能力、IDE 集成深度、定价策略）。",
+  "created_at": "2026-06-27T14:34:37.495553+00:00",
+  "write_approval": true
+}
