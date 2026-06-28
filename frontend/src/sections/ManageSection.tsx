@@ -1345,7 +1345,7 @@ export function ManageSection() {
                 <ListItemRow
                   key={a.id}
                   name={a.name || a.id}
-                  sub={`${a.backend || ""} · ${a.model || ""}`}
+                  sub={`${a.role || ""} · ${a.backend || ""} · ${a.model || ""} · ${a.skills?.length ?? 0} skills`}
                   tag={a.role || "other"}
                   avatar={a.name || a.id}
                   active={a.id === itemId}
