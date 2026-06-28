@@ -58,6 +58,15 @@ class PlanExpander:
         if parent is None:
             return
         depth = self._split_depth(project_id, parent_id, parent)
+        if depth >= self.config.max_split_depth:
+            # 超过最大深度，改为 abort 而非 split
+            self.store.set_task_status(project_id, parent_id, "failed")
+            self.store.append_run_event(
+                f"{project_id}:{parent_id}:split_depth_exceeded",
+                "task_split_blocked",
+                {"parent": parent_id, "depth": depth, "max": self.config.max_split_depth},
+            )
+            return
         result = dict(by_id)
         splice_subtasks(result, parent, subs)
         for s in subs:
