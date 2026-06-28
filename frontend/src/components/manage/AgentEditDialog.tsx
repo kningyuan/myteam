@@ -5,6 +5,7 @@ import { getAgentDetail, updateAgentManage, type AgentSummary } from "@/lib/api/
 import { listBackends, listBackendModels, type BackendModel, type BackendSummary } from "@/lib/api/config"
 import { listMcpLibrary, type McpServerSummary } from "@/lib/api/mcp"
 import { listSkillGroups, listSkillLibrary, type SkillGroup, type SkillLibraryItem } from "@/lib/api/workflows"
+import { listTaskTypes, type TaskTypeSummary } from "@/lib/api/workflows"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -71,6 +72,8 @@ export function AgentEditDialog({
   const [workspace, setWorkspace] = useState("")
   const [skillIds, setSkillIds] = useState<string[]>([])
   const [mcpIds, setMcpIds] = useState<string[]>([])
+  const [taskTypeIds, setTaskTypeIds] = useState<string[]>([])
+  const [allTaskTypes, setAllTaskTypes] = useState<TaskTypeSummary[]>([])
   const [allSkills, setAllSkills] = useState<SkillLibraryItem[]>([])
   const [skillGroups, setSkillGroups] = useState<SkillGroup[]>([])
   const [allMcps, setAllMcps] = useState<McpServerSummary[]>([])
@@ -88,16 +91,19 @@ export function AgentEditDialog({
     setWorkspace("")
     setSkillIds(agent.skills ?? [])
     setMcpIds(agent.mcp_servers ?? [])
+    setTaskTypeIds(agent.task_types ?? [])
     listSkillLibrary().then(setAllSkills).catch(() => setAllSkills([]))
     listSkillGroups().then(setSkillGroups).catch(() => setSkillGroups([]))
     listMcpLibrary(false).then(setAllMcps).catch(() => setAllMcps([]))
     listBackends().then(setBackends).catch(() => setBackends([]))
+    listTaskTypes().then(setAllTaskTypes).catch(() => setAllTaskTypes([]))
     setLoadingDetail(true)
     getAgentDetail(agent.id)
       .then((d) => {
         const ids = d.registry_skills ?? d.skills?.map((s) => s.skill_id) ?? []
         setSkillIds(ids)
         setMcpIds(d.registry_mcp_servers ?? d.mcp_servers?.map((m) => m.server_id) ?? agent.mcp_servers ?? [])
+        setTaskTypeIds(d.task_types ?? agent.task_types ?? [])
         setWorkspace(d.workspace || "")
         setBackend(d.backend || agent.backend || "opencode")
         setModel(d.model || agent.model || "")
@@ -201,6 +207,7 @@ export function AgentEditDialog({
         workspace: workspace.trim(),
         skills: skillIds,
         mcp_servers: mcpIds,
+        task_types: taskTypeIds,
       })
       toast.success("Agent 已保存")
       onOpenChange(false)
@@ -261,6 +268,34 @@ export function AgentEditDialog({
           <div className="grid gap-2">
             <Label>工作目录（可选）</Label>
             <Input value={workspace} onChange={(e) => setWorkspace(e.target.value)} placeholder="留空使用默认" />
+          </div>
+          <div className="grid gap-2">
+            <Label>任务类型</Label>
+            <p className="hint text-xs">控制 Agent 可响应的 task_type；不选则接受全部。</p>
+            {allTaskTypes.length ? (
+              <div className="max-h-32 space-y-1 overflow-y-auto rounded-md border border-[var(--color-border)] p-2">
+                {allTaskTypes.map((t) => {
+                  const isSelected = taskTypeIds.includes(t.task_type)
+                  return (
+                    <label key={t.task_type} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        className="shrink-0"
+                        checked={isSelected}
+                        onChange={(e) => {
+                          setTaskTypeIds((prev) =>
+                            e.target.checked ? [...prev, t.task_type] : prev.filter((x) => x !== t.task_type),
+                          )
+                        }}
+                      />
+                      <span>{t.display_name || t.task_type}</span>
+                    </label>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-[var(--color-muted-foreground)]">加载任务类型…</p>
+            )}
           </div>
           <div className="grid gap-2">
             <Label>挂载 Skill</Label>
