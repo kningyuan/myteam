@@ -258,7 +258,7 @@ def sync_missing_agent_task_types(*, only_empty: bool = True) -> dict:
 
         meta = roster.get(aid) or pgd.get(aid) or existing
         tts = list(meta.get("task_types") or [])
-        sks = list(meta.get("skills") or existing.get("skills") or [])
+        sks = list(existing.get("skills") or [])
         source = "roster" if aid in roster else ("pgd" if aid in pgd else "")
 
         if not tts:

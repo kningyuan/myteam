@@ -98,9 +98,22 @@ def is_skill_category_dir(category_id: str) -> bool:
     return (category_id or "").strip() in _categories_map()
 
 
+_AUTO_EXTRACTED_CATEGORY = "auto-extracted"
+
+
 def category_for_skill(skill_id: str) -> str | None:
-    """skill 所属展示分类；目录始终在 business/skills/<id>/ 顶层。"""
-    return _skill_to_category_index().get((skill_id or "").strip())
+    """skill 所属展示分类；目录始终在 business/skills/<id>/ 顶层。
+
+    auto-* 前缀的 Skill 草稿默认归入 "auto-extracted" 分类，
+    除非已在 categories.yaml 中手动指定了其他分类。
+    """
+    sid = (skill_id or "").strip()
+    manual = _skill_to_category_index().get(sid)
+    if manual:
+        return manual
+    if sid.startswith("auto-") and is_skill_category_dir(_AUTO_EXTRACTED_CATEGORY):
+        return _AUTO_EXTRACTED_CATEGORY
+    return None
 
 
 def _rel_to_myteam(path: Path) -> str:
@@ -115,7 +128,15 @@ def list_category_member_ids(category_id: str) -> list[str]:
     meta = _categories_map().get(cid)
     if not meta:
         return []
-    return list(meta.get("members") or [])
+    members = list(meta.get("members") or [])
+    # auto-extracted 分类：补充所有 auto-* 草稿（代码逻辑自动归入）
+    if cid == _AUTO_EXTRACTED_CATEGORY:
+        from common.skill.skill_catalog import _iter_skill_dirs
+
+        for p in _iter_skill_dirs():
+            if p.name.startswith("auto-") and p.name not in members:
+                members.append(p.name)
+    return members
 
 
 def list_skill_categories() -> list[dict]:

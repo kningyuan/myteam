@@ -450,21 +450,28 @@ async def api_create_agent_registry(body: dict):
     if isinstance(task_types, str):
         task_types = [x.strip() for x in task_types.replace("，", ",").split(",") if x.strip()]
     task_types = [str(t).strip() for t in task_types if t]
-    skills = body.get("skills") or []
-    if isinstance(skills, str):
-        skills = [x.strip() for x in skills.replace("，", ",").split(",") if x.strip()]
-    skills = [str(s).strip() for s in skills if s]
-    mcp_servers = body.get("mcp_servers") or []
-    if isinstance(mcp_servers, str):
-        mcp_servers = [x.strip() for x in mcp_servers.replace("，", ",").split(",") if x.strip()]
-    mcp_servers = [str(m).strip() for m in mcp_servers if m]
+    skills = body.get("skills")
+    if skills is not None:
+        if isinstance(skills, str):
+            skills = [x.strip() for x in skills.replace("，", ",").split(",") if x.strip()]
+        skills = [str(s).strip() for s in skills if s]
+    mcp_servers = body.get("mcp_servers")
+    if mcp_servers is not None:
+        if isinstance(mcp_servers, str):
+            mcp_servers = [x.strip() for x in mcp_servers.replace("，", ",").split(",") if x.strip()]
+        mcp_servers = [str(m).strip() for m in mcp_servers if m]
 
-    result = register_agent(
-        agent_id, name=name, role=role, description=description,
+    kwargs = dict(
+        agent_id=agent_id, name=name, role=role, description=description,
         capabilities=capabilities, task_types=task_types,
-        skills=skills, skills_explicit=bool(skills),
-        mcp_servers=mcp_servers, mcp_explicit=bool(mcp_servers),
     )
+    if skills is not None:
+        kwargs["skills"] = skills
+        kwargs["skills_explicit"] = bool(skills)
+    if mcp_servers is not None:
+        kwargs["mcp_servers"] = mcp_servers
+        kwargs["mcp_explicit"] = bool(mcp_servers)
+    result = register_agent(**kwargs)
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "创建失败"))
     from common.hub_operation_meta import touch
