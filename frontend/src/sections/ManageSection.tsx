@@ -9,8 +9,6 @@ import {
   saveAgentWorkspaceFile,
   saveSharedRuleFile,
   suggestAgentId,
-  syncAgentSkills,
-  syncAgentMcp,
   type AgentDetail,
   type AgentSkillRef,
   type AgentSummary,
@@ -766,7 +764,6 @@ export function ManageSection() {
   const [templateFormDefaultFor, setTemplateFormDefaultFor] = useState("")
   const [templateFormSections, setTemplateFormSections] = useState("")
   const [templateFormYaml, setTemplateFormYaml] = useState("")
-  const [syncBusy, setSyncBusy] = useState(false)
   const templateImportRef = useRef<HTMLInputElement>(null)
 
   // ── Delivery Profiles state ──
@@ -1008,32 +1005,6 @@ export function ManageSection() {
     if (!entry.id) return
     setEntries((prev) => prev.filter((e) => e.id !== entry.id))
     navigate("/manage/knowledge")
-  }
-
-  async function handleSyncSkills() {
-    setSyncBusy(true)
-    try {
-      const res = await syncAgentSkills()
-      const n = res.count ?? 0
-      toast.success(n ? `已为 ${n} 个 Agent 同步 Skill` : "Skill 已是最新")
-    } catch (e) {
-      toast.error("同步失败", { description: e instanceof Error ? e.message : "" })
-    } finally {
-      setSyncBusy(false)
-    }
-  }
-
-  async function handleSyncMcp() {
-    setSyncBusy(true)
-    try {
-      const res = await syncAgentMcp()
-      const n = res.cli?.count ?? 0
-      toast.success(res.success ? `已同步 ${n} 个 Agent 的 MCP 挂载` : "MCP 同步完成（部分失败见日志）")
-    } catch (e) {
-      toast.error("MCP 同步失败", { description: e instanceof Error ? e.message : "" })
-    } finally {
-      setSyncBusy(false)
-    }
   }
 
   function openTaskTypeEdit(row: TaskTypeSummary | null) {
@@ -1452,17 +1423,7 @@ export function ManageSection() {
             <>
               <WorkspaceHeader
                 title="Agent"
-                description="团队成员的后端、模型、Skill/MCP 与 Markdown 配置。"
-                action={
-                  <div className="flex flex-wrap gap-2">
-                    <Button size="sm" variant="outline" disabled={syncBusy} onClick={() => void handleSyncSkills()}>
-                      同步 Skill
-                    </Button>
-                    <Button size="sm" variant="outline" disabled={syncBusy} onClick={() => void handleSyncMcp()}>
-                      同步 MCP
-                    </Button>
-                  </div>
-                }
+                description="团队成员的后端、模型、Skill/MCP 与 Markdown 配置（修改 skill/mcp 挂载后自动同步）。"
               />
               {selectedAgent ? (
                 <AgentDetailPanel
