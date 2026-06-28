@@ -43,14 +43,16 @@ def _sqlite_list_projects() -> list[dict]:
             out = []
             for p in projects:
                 pid = p["project_id"]
+                tasks = store.list_tasks(pid) if hasattr(store, "list_tasks") else []
+                stats = _task_stats(tasks)
                 out.append({
                     "id": pid,
                     "name": p.get("title") or pid,
                     "status": p.get("status", "unknown"),
                     "path": to_relative_path(_project_dir(pid)),
-                    "task_count": 0,
-                    "progress": 0,
-                    "current_task_id": None,
+                    "task_count": stats.get("total", 0),
+                    "progress": stats.get("progress", 0),
+                    "current_task_id": stats.get("current_task_id"),
                     "executor_pid": None,
                 })
             return sorted(out, key=lambda x: x["id"], reverse=True)
@@ -68,18 +70,20 @@ def _sqlite_get_project(project_id: str) -> Optional[dict]:
             p = store.get_project(project_id)
             if not p:
                 return None
+            tasks = store.list_tasks(project_id) if hasattr(store, "list_tasks") else []
+            stats = _task_stats(tasks)
             return {
                 "id": project_id,
                 "name": p.get("title") or project_id,
                 "description": p.get("description", ""),
                 "status": p.get("status", "unknown"),
                 "path": to_relative_path(_project_dir(project_id)),
-                "task_count": 0,
-                "progress": 0,
-                "current_task_id": None,
+                "task_count": stats.get("total", 0),
+                "progress": stats.get("progress", 0),
+                "current_task_id": stats.get("current_task_id"),
                 "executor_pid": None,
                 "task_data": {},
-                "stats": {},
+                "stats": stats,
                 "journal": [],
             }
         finally:
