@@ -51,3 +51,15 @@ frontend/dist/
 
 # Regression forensics (large, reproducible locally)
 business/regression/artifacts/
+
+# Cursor auto-generated symlinks
+.cursor/skills/
+.cursor/hooks.json
+
+# 一次性生成的 HTML 报告
+myteam-test-report/
+myteam-user-manual/
+agent-upgrade-report/
+
+# 运行时任务状态
+tasks/
