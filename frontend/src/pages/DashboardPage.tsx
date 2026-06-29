@@ -1,6 +1,5 @@
 import { useResourceQuery } from "@/hooks/useResourceQuery"
 import { hubFetch } from "@/lib/api/client"
-import { DiscordShell } from "@/components/layout/DiscordShell"
 import { StatCard } from "@/components/manage/StatCard"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
@@ -122,8 +121,7 @@ export function DashboardPage() {
   ]
 
   return (
-    <DiscordShell>
-      <div className="discord-main-scroll">
+    <>
         {/* 欢迎区 */}
         <div className="dashboard-hero">
           <h1 className="dashboard-hero-title">myteam Agent Hub</h1>
@@ -279,7 +277,6 @@ export function DashboardPage() {
             </section>
           </div>
         </div>
-      </div>
-    </DiscordShell>
+    </>
   )
 }
