@@ -1,0 +1,242 @@
+# Rubric 评估模板 — 按 task_type family 分组
+# 被 backend/execution_harness/post/rubric_eval.py 加载
+# family 映射见 rubric_eval.py 的 _TASK_TYPE_FAMILIES
+# product family 使用内置 legacy 逻辑（无需在此定义）
+
+templates:
+  # ── code family: code-deliverable / coding / code-writing / code-review ──
+  code:
+    pass_threshold: 0.70
+    dimensions:
+      - name: 需求分析
+        weight: 0.15
+        checks:
+          - type: section
+            required: ["需求分析", "设计方案", "代码实现"]
+      - name: 设计方案
+        weight: 0.15
+        checks:
+          - type: keyword
+            keywords: ["接口", "函数", "模块", "类", "架构", "分层", "组件"]
+            min_match: 2
+          - type: neg_keyword
+            forbidden: ["TBD", "TODO", "稍后实现", "待补充"]
+            max_match: 0
+      - name: 代码实现
+        weight: 0.30
+        checks:
+          - type: pattern
+            regex: '```(?:python|typescript|javascript|go|java|rust|c\+\+)'
+            min_matches: 1
+          - type: content_length
+            min_chars: 200
+      - name: 测试验证
+        weight: 0.25
+        checks:
+          - type: keyword
+            keywords: ["测试", "pytest", "assert", "expect", "test_", "describe", "it("]
+            min_match: 1
+          - type: pattern
+            regex: '(?:运行|run|执行)[^\n]*(?:pytest|jest|npm test|go test)'
+            min_matches: 1
+      - name: 质量约束
+        weight: 0.15
+        checks:
+          - type: keyword
+            keywords: ["圈复杂度", "覆盖率", "行数", "嵌套", "复杂度", "coverage"]
+            min_match: 1
+          - type: neg_keyword
+            forbidden: ["stub", "占位", "placeholder", "pass  # TODO"]
+            max_match: 0
+    redlines:
+      - "未经验证"
+      - "应该通过"
+      - "大概"
+
+  # ── testing family: code-testing / test / qa ──
+  testing:
+    pass_threshold: 0.70
+    dimensions:
+      - name: 测试设计
+        weight: 0.25
+        checks:
+          - type: section
+            required: ["测试"]
+          - type: keyword
+            keywords: ["正常", "边界", "异常", "空数据", "重复", "错误处理"]
+            min_match: 2
+      - name: 测试覆盖
+        weight: 0.30
+        checks:
+          - type: pattern
+            regex: '```(?:python|typescript|javascript)'
+            min_matches: 1
+          - type: keyword
+            keywords: ["parametrize", "fixture", "describe", "it(", "test_", "assert", "expect"]
+            min_match: 2
+      - name: 可执行性
+        weight: 0.25
+        checks:
+          - type: pattern
+            regex: '(?:运行|run|执行)[^\n]*(?:pytest|jest|npm test|go test)'
+            min_matches: 1
+          - type: keyword
+            keywords: ["预期", "PASS", "FAIL", "通过", "失败"]
+            min_match: 1
+      - name: 缺陷分析
+        weight: 0.20
+        checks:
+          - type: keyword
+            keywords: ["根因", "原因", "分析", "复现", "reproduce", "root cause"]
+            min_match: 1
+    redlines:
+      - "stub"
+      - "占位"
+      - "手动验证就行"
+
+  # ── research family: research / product-research / competitive-analysis ──
+  research:
+    pass_threshold: 0.70
+    dimensions:
+      - name: 调研框架
+        weight: 0.20
+        checks:
+          - type: section
+            required: ["结论"]
+          - type: keyword
+            keywords: ["目标", "方法", "来源", "发现", "结论"]
+            min_match: 3
+      - name: 数据来源
+        weight: 0.30
+        checks:
+          - type: data_source
+            markers: ["来源", "数据源", "报告", "官网", "引自", "来源于", "数据来自", "URL", "http"]
+      - name: 分析深度
+        weight: 0.25
+        checks:
+          - type: keyword
+            keywords: ["对比", "优势", "劣势", "差异", "趋势", "机会", "风险"]
+            min_match: 2
+          - type: neg_keyword
+            forbidden: ["提升体验", "更加便捷", "更高效", "更友好"]
+            max_match: 0
+      - name: 结论可执行
+        weight: 0.25
+        checks:
+          - type: keyword
+            keywords: ["建议", "行动", "下一步", "优先级", "P0", "P1", "P2"]
+            min_match: 1
+          - type: content_length
+            min_chars: 500
+    redlines:
+      - "编造数据"
+      - "无来源"
+
+  # ── architecture family: architecture / system-design / arch-review ──
+  architecture:
+    pass_threshold: 0.70
+    dimensions:
+      - name: 架构设计
+        weight: 0.25
+        checks:
+          - type: section
+            required: ["架构", "设计"]
+          - type: keyword
+            keywords: ["分层", "模块", "组件", "接口", "依赖", "数据流", "部署"]
+            min_match: 3
+      - name: 方案对比
+        weight: 0.20
+        checks:
+          - type: keyword
+            keywords: ["方案", "对比", "权衡", "替代", "选型", "trade-off", "优劣"]
+            min_match: 2
+      - name: 结构化图表
+        weight: 0.20
+        checks:
+          - type: pattern
+            regex: '```(?:mermaid|plantuml|puml|graphviz|dot)'
+            min_matches: 1
+      - name: 风险评估
+        weight: 0.20
+        checks:
+          - type: keyword
+            keywords: ["风险", "概率", "影响", "应对", "降级", "容错", "回滚"]
+            min_match: 2
+      - name: 技术决策
+        weight: 0.15
+        checks:
+          - type: keyword
+            keywords: ["决策", "ADR", "理由", "因为", "考虑到", "基于"]
+            min_match: 1
+    redlines:
+      - "TBD"
+      - "待定"
+
+  # ── documentation family: documentation / docs / api-docs ──
+  documentation:
+    pass_threshold: 0.70
+    dimensions:
+      - name: 文档结构
+        weight: 0.25
+        checks:
+          - type: structure
+            min_headings: 3
+          - type: section
+            required: ["概述", "安装", "使用"]
+      - name: 内容完整
+        weight: 0.30
+        checks:
+          - type: content_length
+            min_chars: 500
+          - type: pattern
+            regex: '```'
+            min_matches: 1
+      - name: 示例代码
+        weight: 0.25
+        checks:
+          - type: pattern
+            regex: '```(?:python|typescript|javascript|bash|shell|yaml|json)'
+            min_matches: 1
+      - name: 可读性
+        weight: 0.20
+        checks:
+          - type: neg_keyword
+            forbidden: ["TBD", "TODO", "待补充", "稍后"]
+            max_match: 0
+    redlines:
+      - "占位"
+      - "placeholder"
+
+  # ── publish family: publish-post / publish / social-post ──
+  publish:
+    pass_threshold: 0.65
+    dimensions:
+      - name: 内容质量
+        weight: 0.30
+        checks:
+          - type: content_length
+            min_chars: 300
+          - type: neg_keyword
+            forbidden: ["提升体验", "更加便捷", "更高效"]
+            max_match: 0
+      - name: 发布规范
+        weight: 0.25
+        checks:
+          - type: keyword
+            keywords: ["标题", "标签", "摘要", "封面", "话题", "hashtag"]
+            min_match: 2
+      - name: 平台适配
+        weight: 0.25
+        checks:
+          - type: keyword
+            keywords: ["小红书", "知乎", "公众号", "平台", "字数", "排版"]
+            min_match: 1
+      - name: 留痕验证
+        weight: 0.20
+        checks:
+          - type: keyword
+            keywords: ["URL", "链接", "截图", "发布成功", "已发布"]
+            min_match: 1
+    redlines:
+      - "编造数据"
+      - "未发布"
