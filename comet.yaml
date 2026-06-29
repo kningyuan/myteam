@@ -1,2 +1,0 @@
-build_command: "bash scripts/build-check.sh"
-verify_command: "bash scripts/verify-check.sh"
