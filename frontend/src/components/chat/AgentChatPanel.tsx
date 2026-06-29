@@ -32,6 +32,7 @@ import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -157,6 +158,7 @@ export function AgentChatPanel({
   const [model, setModel] = useState("")
   const [backends, setBackends] = useState<BackendSummary[]>([])
   const [models, setModels] = useState<BackendModel[]>([])
+  const [confirmAction, setConfirmAction] = useState<{title: string; message: string; onConfirm: () => void} | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const { compositionProps, isImeComposing } = useImeCompositionGuard()
 
@@ -200,38 +202,36 @@ export function AgentChatPanel({
   }
 
   async function handleClear() {
-    if (
-      !window.confirm(
-        "清空后将删除本页对话记录与 Agent 多轮上下文，下次对话 Agent 不会记得之前聊过什么。",
-      )
-    ) {
-      return
-    }
-    if (busy) cancelAgentChatStream(agent.id)
-    resetAgentChatSession(agent.id)
-    try {
-      await clearAgentChat(agent.id)
-      await syncAgentChatFromServer(agent.id)
-      toast.success("对话已清空")
-    } catch (e) {
-      toast.error("清空失败", { description: e instanceof Error ? e.message : "" })
-    }
+    setConfirmAction({
+      title: "清空对话",
+      message: "清空后将删除本页对话记录与 Agent 多轮上下文，下次对话 Agent 不会记得之前聊过什么。",
+      onConfirm: async () => {
+        setConfirmAction(null)
+        if (busy) cancelAgentChatStream(agent.id)
+        resetAgentChatSession(agent.id)
+        try {
+          await clearAgentChat(agent.id)
+          await syncAgentChatFromServer(agent.id)
+          toast.success("对话已清空")
+        } catch (e) {
+          toast.error("清空失败", { description: e instanceof Error ? e.message : "" })
+        }
+      },
+    })
   }
 
   async function handleArchive() {
-    if (
-      !window.confirm(
-        `删除与「${agent.name || agent.id}」的对话窗口？\n侧栏隐藏，可用搜索找回；不会删除 Agent 配置。`,
-      )
-    ) {
-      return
-    }
-    try {
-      await archiveAgentChat(agent.id, {
-        label: agent.name || agent.id,
-        messages: messages.map((m) => ({ role: m.role, text: m.text })),
-      })
-      resetAgentChatSession(agent.id)
+    setConfirmAction({
+      title: "删除对话窗口",
+      message: `删除与「${agent.name || agent.id}」的对话窗口？侧栏隐藏，可用搜索找回；不会删除 Agent 配置。`,
+      onConfirm: async () => {
+        setConfirmAction(null)
+        try {
+          await archiveAgentChat(agent.id, {
+            label: agent.name || agent.id,
+            messages: messages.map((m) => ({ role: m.role, text: m.text })),
+          })
+          resetAgentChatSession(agent.id)
       toast.success("对话已归档")
       onArchived?.()
     } catch (e) {
@@ -327,6 +327,12 @@ export function AgentChatPanel({
       </div>
       <form className="chat-input-bar" onSubmit={handleSend}>
         <textarea
+          ref={(el) => {
+            if (el) {
+              el.style.height = "auto"
+              el.style.height = `${Math.min(el.scrollHeight, 180)}px`
+            }
+          }}
           rows={1}
           placeholder="输入消息… Enter 发送，Shift+Enter 换行"
           value={draft}
@@ -354,6 +360,7 @@ export function AgentChatPanel({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Agent 配置</DialogTitle>
+            <DialogDescription>修改 Agent 后端与模型</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="grid gap-2">
@@ -393,6 +400,23 @@ export function AgentChatPanel({
               取消
             </Button>
             <Button onClick={saveConfig}>保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!confirmAction} onOpenChange={(v) => { if (!v) setConfirmAction(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{confirmAction?.title}</DialogTitle>
+            <DialogDescription>{confirmAction?.message}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmAction(null)}>
+              取消
+            </Button>
+            <Button onClick={() => confirmAction?.onConfirm()}>
+              确认
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

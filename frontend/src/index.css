@@ -6,7 +6,7 @@
   --color-background: #191b21;
   --color-foreground: #edeff2;
   --color-muted: #181a20;
-  --color-muted-foreground: #8b939f;
+  --color-muted-foreground: #747b89;
   --color-border: rgba(255, 255, 255, 0.06);
   --color-primary: #6f85ff;
   --color-primary-foreground: #ffffff;
@@ -47,7 +47,7 @@
   --color-background: #f4f5f9;
   --color-foreground: #0e0f13;
   --color-muted: #ecedf2;
-  --color-muted-foreground: #63697a;
+  --color-muted-foreground: #51576d;
   --color-border: rgba(14, 15, 19, 0.08);
   --color-card: #ffffff;
   --color-accent: #e6e8ef;
@@ -203,8 +203,8 @@ h1, h2, h3, .stat-card-value {
 
 .discord-rail-btn {
   position: relative;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border-radius: 10px;
   display: flex;
   align-items: center;
@@ -607,7 +607,7 @@ h1, h2, h3, .stat-card-value {
   padding: 18px 16px 12px;
   font-family: var(--font-display);
   font-size: 15px;
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: -0.02em;
   flex-shrink: 0;
   display: flex;
@@ -818,7 +818,7 @@ h1, h2, h3, .stat-card-value {
   height: 100%;
   border-radius: 999px;
   background: var(--color-brand-light);
-  transition: width 0.3s ease;
+  transition: width 0.3s ease, opacity 0.3s ease;
 }
 
 .list-item.active .list-item-progress i {
@@ -1067,13 +1067,10 @@ body.col-resizing * {
 
 .stat-card-value {
   font-size: 2rem;
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
-  background: linear-gradient(135deg, var(--color-foreground) 40%, var(--color-brand-light));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--color-foreground);
 }
 
 .stat-card-label {
@@ -1151,7 +1148,7 @@ body.col-resizing * {
 .page-title {
   font-family: var(--font-display);
   font-size: 1.75rem;
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: -0.03em;
   line-height: 1.2;
   color: var(--color-foreground);
@@ -1916,7 +1913,7 @@ body.col-resizing * {
   flex-shrink: 0;
   align-self: flex-end;
   min-height: 44px;
-  background: #ec5b59;
+  background: var(--color-danger);
   color: #fff;
 }
 
@@ -1932,6 +1929,11 @@ body.col-resizing * {
   background: var(--color-muted-foreground);
   opacity: 0.4;
   border-radius: 999px;
+}
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-muted-foreground) transparent;
 }
 
 /* Global readability & overflow */
@@ -2798,6 +2800,15 @@ body.col-resizing * {
 }
 
 /* ── Filter Tags (管理 Tab 筛选标签) ── */
+.filter-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--color-border);
   background: var(--color-brand-muted);
   color: var(--color-brand);
   border-color: color-mix(in srgb, var(--color-brand) 35%, var(--color-border));
@@ -2923,8 +2934,7 @@ body.col-resizing * {
   border-radius: 12px;
   background: var(--color-card);
   overflow: hidden;
-  border-left: 4px solid var(--color-brand);
-  transition: box-shadow 0.15s var(--ease-ui);
+  transition: box-shadow 0.15s var(--ease-ui), background 0.15s var(--ease-ui);
 }
 
 .exec-node:hover {
@@ -2932,16 +2942,16 @@ body.col-resizing * {
 }
 
 .exec-node.status-completed {
-  border-left-color: var(--color-success);
+  background: color-mix(in srgb, var(--color-success) 8%, var(--color-card));
 }
 
 .exec-node.status-running {
-  border-left-color: var(--color-warning);
+  background: color-mix(in srgb, var(--color-warning) 8%, var(--color-card));
 }
 
 .exec-node.status-failed,
 .exec-node.status-timed_out {
-  border-left-color: var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 8%, var(--color-card));
 }
 
 .exec-node-head {
@@ -3310,23 +3320,23 @@ body.col-resizing * {
 }
 
 .exec-child-tool {
-  border-left: 3px solid var(--color-success);
+  background: color-mix(in srgb, var(--color-success) 6%, var(--color-card));
 }
 
 .exec-child-text {
-  border-left: 3px solid var(--color-brand);
+  background: color-mix(in srgb, var(--color-brand) 6%, var(--color-card));
 }
 
 .exec-child-error {
-  border-left: 3px solid var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 6%, var(--color-card));
 }
 
 .exec-child-mile {
-  border-left: 3px solid var(--color-warning);
+  background: color-mix(in srgb, var(--color-warning) 6%, var(--color-card));
 }
 
 .exec-standalone {
-  border-left: 3px solid #00a8fc;
+  background: color-mix(in srgb, #00a8fc 6%, var(--color-card));
 }
 
 .exec-child-head {
@@ -3872,6 +3882,52 @@ body.col-resizing * {
   }
   .exec-node-ts {
     margin-left: 0;
+  }
+}
+
+/* Mobile responsive: collapse 3-column shell to single column */
+@media (max-width: 768px) {
+  .discord-rail {
+    flex-direction: row;
+    width: 100%;
+    min-width: 0;
+    height: 56px;
+    padding: 0 8px;
+    border-right: none;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .discord-rail-logo {
+    display: none;
+  }
+  .discord-rail-tabs {
+    flex-direction: row;
+    flex: 1;
+    gap: 0;
+    justify-content: space-around;
+  }
+  .discord-rail-bottom {
+    flex-direction: row;
+    padding-bottom: 0;
+  }
+  .discord-body {
+    flex-direction: column;
+  }
+  .discord-list {
+    width: 100% !important;
+    min-width: 0;
+    max-height: 40vh;
+    border-right: none;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .discord-detail {
+    width: 100% !important;
+    min-width: 0;
+    border-left: none;
+    border-top: 1px solid var(--color-border);
+    max-height: 40vh;
+  }
+  .discord-main-scroll {
+    padding: 16px;
   }
 }
 
