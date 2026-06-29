@@ -1,5 +1,4 @@
 """
-from common.coordinator import get_coordinator_id
 Group Manager - 群组管理 + @mention 路由
 """
 
@@ -12,6 +11,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Callable, Generator, Optional
 
+from common.coordinator import get_coordinator_id
 from base.agent_chat import (
     get_agent_backend_config,
     scan_agents,

@@ -197,3 +197,18 @@ skills:
     task_types: [code-deployment]
     description: 部署上线 — 部署步骤、健康检查、回滚预案
     router: business/skills/backend-engineering-methodology/SKILL.md
+
+  - id: coding
+    task_types: [coding]
+    description: 编码执行 — 需求分析、设计方案、代码实现、测试验证
+    router: business/skills/coding/SKILL.md
+
+  - id: review
+    task_types: [review]
+    description: 评审执行 — 结构化评审，问题列表与改进建议
+    router: business/skills/review/SKILL.md
+
+  - id: custom-survey
+    task_types: [custom-survey]
+    description: 自定义调研 — 桌面调研，背景分析和结论
+    router: business/skills/custom-survey/SKILL.md
