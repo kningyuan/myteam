@@ -44,6 +44,9 @@ def env(tmp_path, monkeypatch):
         (ws / ".response").mkdir(exist_ok=True)
     store = Store(tmp_path / "state.db")
     cfg = WatchdogConfig(soft_idle_sec=5, hard_idle_sec=10, poll_interval=0.02, max_attempts=1)
+    # 禁用 skill_review 后台复盘（本测试只验证 loop 轮次/转移语义，不涉及复盘）
+    import execution_harness.facade as _facade
+    monkeypatch.setattr(_facade, "schedule_skill_review", lambda *a, **k: None)
     yield store, cfg
     store.close()
 
@@ -52,7 +55,8 @@ def _valid(tt: str) -> str:
     spec = get_spec(tt)
     lines = ["# T\n"]
     for s in spec.required_sections:
-        lines.append(f"## {s}\n内容足够长，用于通过 Gate 校验，包含具体细节与说明。\n")
+        # 内容需 ≥ stub_floor（部分 task_type 的 min_length=300）以通过 is_stub 门禁
+        lines.append(f"## {s}\n" + "内容足够长，用于通过 Gate 校验，包含具体细节与说明。" * 4 + "\n")
     return "\n".join(lines)
 
 
@@ -112,7 +116,7 @@ def test_loop_passes_on_first_round(env):
         ],
         until=[{"type": "deliverable_marker", "task": "review", "marker": "REVIEW: PASS"}],
     )
-    proc = Process(store, AgentPort(transport, store=store, config=wcfg), ProcessConfig())
+    proc = Process(store, AgentPort(transport, store=store, config=wcfg), ProcessConfig(plan_enabled=False))
     tasks = [
         {"id": "t-loop", "name": "loop", "loop": "unit", "dependencies": []},
     ]
@@ -144,7 +148,7 @@ def test_loop_exhausts_after_max_rounds(env):
         ],
         until=[{"type": "deliverable_marker", "task": "review", "marker": "REVIEW: PASS"}],
     )
-    proc = Process(store, AgentPort(transport, store=store, config=wcfg), ProcessConfig())
+    proc = Process(store, AgentPort(transport, store=store, config=wcfg), ProcessConfig(plan_enabled=False))
     tasks = [{"id": "t-loop", "name": "loop", "loop": "unit", "dependencies": []}]
     out = proc.run("p_ex", tasks=tasks, agents=["main", "product", "arch"], loops=[loop])
     assert out.tasks["t-loop"].status == "needs_review"
@@ -174,7 +178,7 @@ def test_loop_passes_on_third_round(env):
         ],
         until=[{"type": "deliverable_marker", "task": "review", "marker": "REVIEW: PASS"}],
     )
-    proc = Process(store, AgentPort(transport, store=store, config=wcfg), ProcessConfig())
+    proc = Process(store, AgentPort(transport, store=store, config=wcfg), ProcessConfig(plan_enabled=False))
     out = proc.run("p_r3", tasks=[{"id": "t-loop", "loop": "unit", "dependencies": []}],
                    agents=["main", "product", "arch"], loops=[loop])
     assert out.tasks["t-loop"].status == "completed"
@@ -219,7 +223,7 @@ def test_v2_assess_stop_blocked_by_min_rounds(env):
             ),
         ],
     )
-    proc = Process(store, AgentPort(transport, store=store, config=wcfg), ProcessConfig())
+    proc = Process(store, AgentPort(transport, store=store, config=wcfg), ProcessConfig(plan_enabled=False))
     out = proc.run(
         "p_v2min",
         tasks=[{"id": "t-loop", "loop": "v2min", "dependencies": []}],
@@ -268,7 +272,7 @@ def test_v2_assess_continue_multi_round(env):
             ),
         ],
     )
-    proc = Process(store, AgentPort(transport, store=store, config=wcfg), ProcessConfig())
+    proc = Process(store, AgentPort(transport, store=store, config=wcfg), ProcessConfig(plan_enabled=False))
     out = proc.run(
         "p_v2cont",
         tasks=[{"id": "t-loop", "loop": "v2cont", "dependencies": []}],
@@ -329,7 +333,7 @@ def test_v2_next_body_patch_branch(env):
             ),
         ],
     )
-    proc = Process(store, AgentPort(transport, store=store, config=wcfg), ProcessConfig())
+    proc = Process(store, AgentPort(transport, store=store, config=wcfg), ProcessConfig(plan_enabled=False))
     out = proc.run(
         "p_geobr",
         tasks=[{"id": "t-loop", "loop": "geobr", "dependencies": []}],

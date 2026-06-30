@@ -237,6 +237,14 @@ CREATE TABLE IF NOT EXISTS agent_config (
     updated_at      TEXT
 );
 
+CREATE TABLE IF NOT EXISTS workflow_version (
+    workflow_id     TEXT NOT NULL,
+    version         INTEGER NOT NULL,
+    body            TEXT NOT NULL DEFAULT '{}',
+    updated_at      TEXT,
+    PRIMARY KEY (workflow_id, version)
+);
+
 CREATE TABLE IF NOT EXISTS skill_review (
     project_id  TEXT NOT NULL,
     review_id   TEXT NOT NULL,

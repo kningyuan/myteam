@@ -75,6 +75,8 @@ def _profile() -> LoopDiscussionProfile:
 def test_loop_extracts_review_sections(tmp_path, monkeypatch):
     """loop_discussion_runtime 能从交付物读出三段评审摘要（roundtable 上游输入）。"""
     monkeypatch.setattr(paths, "PROJECTS_DIR", tmp_path / "project")
+    # 直接绑定到模块命名空间（from import 不受 paths 层 patch 影响）
+    monkeypatch.setattr("common.loop.loop_discussion_runtime.PROJECTS_DIR", tmp_path / "project")
     _make_review_deliverable(tmp_path / "project" / "pro_lr", "rv-task")
 
     text = read_deliverable("pro_lr", "rv-task")
@@ -89,6 +91,8 @@ def test_dispatch_publishes_body_consumable_by_roundtable(tmp_path, monkeypatch,
     """dispatch 把 loop 提取的摘要拼成 body 发布；roundtable 能净化该 body。"""
     sent, fake_publish = dispatched_messages
     monkeypatch.setattr(paths, "PROJECTS_DIR", tmp_path / "project")
+    # 直接绑定到模块命名空间（from import 不受 paths 层 patch 影响）
+    monkeypatch.setattr("common.loop.loop_discussion_runtime.PROJECTS_DIR", tmp_path / "project")
     _make_review_deliverable(tmp_path / "project" / "pro_lr", "rv-task")
 
     # 桩掉 dispatch 依赖的外部入口，保留 read_deliverable/extract_section 真实逻辑

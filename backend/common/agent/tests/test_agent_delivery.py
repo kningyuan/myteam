@@ -41,7 +41,7 @@ def test_scaffold_does_not_overwrite_filled_align(tmp_path):
 def test_process_gate_rejects_template_align(tmp_path):
     spec = get_spec("product-research")
     tpl = (
-        Path(__file__).resolve().parents[3] / "business/playbooks/templates/align.md"
+        Path(__file__).resolve().parents[4] / "business/playbooks/templates/align.md"
     )
     (tmp_path / "align.md").write_text(tpl.read_text(encoding="utf-8"), encoding="utf-8")
     (tmp_path / "verify.log").write_text("PASS: sections ok\n", encoding="utf-8")

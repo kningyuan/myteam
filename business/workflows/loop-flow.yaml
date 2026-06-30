@@ -20,7 +20,7 @@ loops:
     until:
       - type: deliverable_marker
         task: review
-        marker: REVIEW: PASS
+        marker: "REVIEW: PASS"
     body:
       - id: work
         agent: research

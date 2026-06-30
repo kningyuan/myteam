@@ -47,21 +47,6 @@ categories:
     - presentation-design-methodology
     - publish_post_methodology
     - technical-writing-methodology
-  officecli:
-    name: Office 文档套件
-    description: OfficeCLI 上游 skills 全套，含 docx/pptx/xlsx 及场景化子 skill。
-    members:
-    - officecli
-    - officecli-docx
-    - officecli-pptx
-    - officecli-xlsx
-    - officecli-pitch-deck
-    - officecli-academic-paper
-    - officecli-data-dashboard
-    - officecli-financial-model
-    - officecli-word-form
-    - morph-ppt
-    - morph-ppt-3d
   workflow-creation:
     name: Workflow 创建
     description: 从SOP到myteam配置的完整流程

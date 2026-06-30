@@ -1,0 +1,13 @@
+id: 区块链产品规划-完善
+version: "1.0"
+name: 区块链产品规划-完善
+description: 区块链产品规划文档迭代完善工作流（静态多章样例）
+options:
+  review_enabled: false
+tasks:
+  - id: t-blockchain-plan
+    name: 区块链产品规划
+    agent: main
+    task_type: strategy
+    dependencies: []
+    description: 完善区块链产品规划 Word 文档

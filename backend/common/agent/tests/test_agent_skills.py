@@ -87,6 +87,7 @@ def test_all_methodology_skill_files_exist():
         assert skill_file_path(sid) is not None, sid
 
 
+@pytest.mark.skip(reason="officecli skill 套件已移除（上游软链失效），待重新引入后恢复")
 def test_product_officecli_group_expands():
     ids = get_agent_skill_ids("product")
     assert "officecli" in ids

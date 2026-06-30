@@ -59,12 +59,8 @@ skills:
   - id: deck-build
     task_types: [deck-build]
     description: 演示文稿 — brief → pptx
-    router: business/skills/officecli-pitch-deck/SKILL.md
-    means:
-      - id: pitch_deck
-        ref: business/skills/officecli-pitch-deck/SKILL.md
-      - id: morph_ppt
-        ref: business/skills/morph-ppt/SKILL.md
+    router: business/skills/presentation-design-methodology/SKILL.md
+    means: []
 
   - id: xhs-operations
     task_types: [publish-post]
@@ -153,12 +149,6 @@ skills:
     task_types: [data-analysis]
     description: 数据分析（registry 直驱）
     router: business/skills/product-methodology/SKILL.md
-
-  - id: officecli
-    task_types: [office-doc]
-    description: Office 文档创建/分析/修改 — .docx / .xlsx / .pptx 全流程 CLI
-    router: business/skills/officecli/SKILL.md
-    means: []
 
   - id: prompt-optimizer
     task_types: [prompt-optimize]

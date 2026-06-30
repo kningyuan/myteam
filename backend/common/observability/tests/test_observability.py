@@ -159,6 +159,9 @@ def penv(tmp_path, monkeypatch):
     monkeypatch.setattr(paths, "PROJECTS_DIR", tmp_path / "project")
     s = Store(tmp_path / "state.db")
     wcfg = WatchdogConfig(soft_idle_sec=5, hard_idle_sec=10, poll_interval=0.02, max_attempts=1)
+    # 禁用 skill_review 后台复盘（本测试只验证预算/降级语义，不涉及复盘）
+    import execution_harness.facade as _facade
+    monkeypatch.setattr(_facade, "schedule_skill_review", lambda *a, **k: None)
     yield s, wcfg
     s.close()
 
@@ -212,7 +215,7 @@ def test_over_budget_pauses_project(penv):
         }, paths.response_dir(ctx.request.agent_id) / f"{ctx.request.interaction_id}.response")
 
     proc = Process(store, AgentPort(transport, store=store, config=wcfg),
-                   ProcessConfig(token_budget=1000))
+                   ProcessConfig(token_budget=1000, plan_enabled=False))
     tasks = [
         {"id": "t1", "agent": "research", "task_type": "research", "dependencies": []},
         {"id": "t2", "agent": "research", "task_type": "research", "dependencies": ["t1"]},
@@ -250,6 +253,7 @@ def test_budget_degrade_fires_before_pause(penv, tmp_path, monkeypatch):
             budget_degrade_threshold=0.8,
             budget_degrade_backend="opencode",
             budget_degrade_model="cheap-model",
+            plan_enabled=False,
         ),
     )
     tasks = [

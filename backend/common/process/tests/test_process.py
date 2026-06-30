@@ -221,7 +221,8 @@ def test_gate_retry_reuses_session(env):
         request_factory=lambda **kw: types.SimpleNamespace(**kw),
         session_resolver=make_gate_session_resolver(store),
     )
-    proc = Process(store, _port(store, wcfg, transport), ProcessConfig(max_gate_retries=3))
+    proc = Process(store, _port(store, wcfg, transport),
+                   ProcessConfig(max_gate_retries=3, plan_enabled=False))
     out = proc.run("pro_x", agents=["research"],
                    tasks=[{"id": "t1", "agent": "research", "task_type": "research",
                            "dependencies": []}])
@@ -1230,7 +1231,7 @@ def test_kernel_triage_k7_measurable(env, tmp_path, monkeypatch):
 
     monkeypatch.setattr("common.agent.agent_port.audit_enabled", lambda: True)
 
-    _REG = Path(__file__).resolve().parents[3] / "scripts" / "regression"
+    _REG = Path(__file__).resolve().parents[4] / "scripts" / "regression"
     sys.path.insert(0, str(_REG))
     from check_kpis import check_k7  # noqa: E402
 

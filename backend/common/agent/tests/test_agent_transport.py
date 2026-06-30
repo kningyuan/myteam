@@ -155,7 +155,7 @@ def test_transport_injects_rules_file(env, tmp_path, monkeypatch):
     assert adapter.last_request.rules_file
     merged = Path(adapter.last_request.rules_file).read_text(encoding="utf-8")
     assert "UNIVERSAL_RULE_XYZ" in merged
-    assert "AGENTS_MD_XYZ" in merged
+    # AGENTS.md 由 CLI 自身从 workspace cwd 读取，不并入 rules_file（与 test_rules_merge 一致）
 
 
 def test_transport_forwards_events_and_meters_tokens(env):

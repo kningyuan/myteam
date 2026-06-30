@@ -144,17 +144,29 @@ def _path_to_regex(path: str) -> re.Pattern[str]:
 
 def _collect_hub_routes() -> list[tuple[str, str]]:
     hub: list[tuple[str, str]] = []
-    for route in app.routes:
-        methods = getattr(route, "methods", None)
-        path = getattr(route, "path", None)
-        if not methods or not path:
-            continue
-        if not path.startswith("/api"):
-            continue
-        for method in methods:
-            if method in {"HEAD", "OPTIONS"}:
+
+    def _walk(routes):
+        """递归遍历路由表，处理 FastAPI _IncludedRouter 包装层。"""
+        for route in routes:
+            # FastAPI 较新版本用 _IncludedRouter 包装 include_router 的路由
+            orig = getattr(route, "original_router", None)
+            if orig is not None and hasattr(orig, "routes"):
+                _walk(orig.routes)
                 continue
-            hub.append((method.upper(), path))
+            methods = getattr(route, "methods", None)
+            path = getattr(route, "path", None)
+            if not methods or not path:
+                continue
+            if not path.startswith("/api"):
+                continue
+            # 统一去掉尾部斜杠，与 FE 侧 _normalize_path 对齐
+            path = path.rstrip("/") if path != "/api" else path
+            for method in methods:
+                if method in {"HEAD", "OPTIONS"}:
+                    continue
+                hub.append((method.upper(), path))
+
+    _walk(app.routes)
     return hub
 
 
@@ -171,7 +183,7 @@ def _hub_matches(fe: FeRoute, hub_routes: list[tuple[str, str]]) -> bool:
 def _scan_all_fe_routes() -> list[FeRoute]:
     routes: list[FeRoute] = []
     for ts_file in sorted(FE_API_DIR.glob("*.ts")):
-        if ts_file.name in {"index.ts", "client.ts"}:
+        if ts_file.name in {"index.ts", "client.ts", "client.test.ts"}:
             continue
         routes.extend(_extract_fe_routes(ts_file))
     return routes

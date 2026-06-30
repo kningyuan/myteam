@@ -23,6 +23,9 @@ from common.delivery.submit_result import submit  # noqa: E402
 def env(tmp_path, monkeypatch):
     monkeypatch.setattr(paths, "WORKSPACES_DIR", tmp_path / "workspaces")
     monkeypatch.setattr(paths, "PROJECTS_DIR", tmp_path / "project")
+    # 预建 research workspace，避免 auto_create_agent 写入空 task_types 到 registry
+    # 导致 check_plan 能力边界校验失败
+    paths.workspace_dir("research").mkdir(parents=True, exist_ok=True)
     store = Store(tmp_path / "state.db")
     wcfg = WatchdogConfig(soft_idle_sec=5, hard_idle_sec=10, poll_interval=0.02, max_attempts=1)
     yield store, wcfg

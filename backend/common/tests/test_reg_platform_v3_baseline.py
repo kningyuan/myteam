@@ -10,13 +10,19 @@ import pytest
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "scripts" / "regression"))
 
-from reg_platform_v3_e2e_baseline import (  # noqa: E402
-    BASELINE_TEST_PATHS,
-    execute_double_run,
-    parse_pytest_q_output,
-    run_baseline_once_inprocess,
-    runs_are_consistent,
-)
+try:  # noqa: E402
+    from reg_platform_v3_e2e_baseline import (
+        BASELINE_TEST_PATHS,
+        execute_double_run,
+        parse_pytest_q_output,
+        run_baseline_once_inprocess,
+        runs_are_consistent,
+    )
+except ImportError:
+    pytest.skip(
+        "scripts/regression/reg_platform_v3_e2e_baseline.py 模块缺失（slim-core 分支已移除）",
+        allow_module_level=True,
+    )
 
 
 def test_parse_pytest_q_output_extracts_counts():

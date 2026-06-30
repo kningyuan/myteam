@@ -162,7 +162,9 @@ def test_workflow_loops_handoff_to_process(env):
     """workflow 含 loop 时，profile.loops 能被 Process 注册并参与调度。"""
     store, wcfg = env
     # 写带 loop 的 workflow：loop body 含 work+review 两步，直到 marker 出现
-    wf_dir = workflows_dir()
+    # 通过模块属性调用 workflows_dir（env fixture 已 monkeypatch 模块层）
+    import common.workflow.workflow_loader as _wfl
+    wf_dir = _wfl.workflows_dir()
     (wf_dir / "loop-flow.yaml").write_text(
         """
 id: loop-flow
@@ -186,7 +188,7 @@ loops:
     until:
       - type: deliverable_marker
         task: review
-        marker: REVIEW: PASS
+        marker: "REVIEW: PASS"
     body:
       - id: work
         agent: research

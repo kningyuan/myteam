@@ -15,22 +15,32 @@ class StaticPreferenceBackend:
     name = "static"
 
     def __init__(self):
-        self._text_cache: Optional[str] = None
+        # 缓存按 owner_id 隔离，避免多 owner 串读
+        self._text_cache: dict[str, str] = {}
 
-    def _read_user_md(self) -> str:
-        if self._text_cache is not None:
-            return self._text_cache
+    def _read_user_md(self, owner_id: str = "") -> str:
+        key = owner_id or "__global__"
+        if key in self._text_cache:
+            return self._text_cache[key]
+        # 优先 per-user 路径，回退全局 USER.md
+        if owner_id:
+            per_user = self._user_md_path(owner_id)
+            if per_user.is_file():
+                text = per_user.read_text(encoding="utf-8", errors="replace").strip()
+                self._text_cache[key] = text
+                return text
         path = CONFIG_DIR / "USER.md"
         if not path.is_file():
             return ""
-        self._text_cache = path.read_text(encoding="utf-8", errors="replace").strip()
-        return self._text_cache
+        text = path.read_text(encoding="utf-8", errors="replace").strip()
+        self._text_cache[key] = text
+        return text
 
     def _clear_cache(self):
-        self._text_cache = None
+        self._text_cache.clear()
 
     def _user_md_path(self, owner_id: str) -> Path:
-        return CONFIG_DIR / "USER.md"
+        return CONFIG_DIR / "users" / owner_id / "USER.md"
 
     def get_preferences(
         self,
@@ -44,7 +54,7 @@ class StaticPreferenceBackend:
         sections=None 返回全部记录（分节模式）。
         无分节的旧格式 USER.md 仍返回 key=USER.md 的单条记录（兼容）。
         """
-        text = self._read_user_md()
+        text = self._read_user_md(owner_id)
         if not text:
             return []
         records = to_records(text, owner_id=owner_id, agent_id=agent_id)

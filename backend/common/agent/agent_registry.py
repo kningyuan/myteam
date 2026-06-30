@@ -6,10 +6,13 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from common.paths import BUSINESS_CONFIG_DIR, MYTEAM_ROOT, WORKSPACES_DIR, WORKSPACE_PREFIX
+from common import paths
+from common.paths import MYTEAM_ROOT, WORKSPACES_DIR, WORKSPACE_PREFIX
 from common.coordinator import get_coordinator_id
 
-REGISTRY_FILE = BUSINESS_CONFIG_DIR / "agents_registry.json"
+# 兼容旧测试：仍可被 monkeypatch.setattr(agent_registry, "REGISTRY_FILE", ...) 覆盖。
+# _load_registry 优先读 paths.AGENTS_REGISTRY_FILE（动态，可被 paths 层 monkeypatch）。
+REGISTRY_FILE = paths.AGENTS_REGISTRY_FILE
 _ROSTER_FILE = MYTEAM_ROOT / "business" / "templates" / "business-roster.json"
 
 
@@ -27,9 +30,14 @@ def _load_business_roster_agent(agent_id: str) -> dict:
 
 
 def _load_registry() -> dict:
-    if REGISTRY_FILE.exists():
+    # 动态读取 paths.AGENTS_REGISTRY_FILE，使 monkeypatch(paths.AGENTS_REGISTRY_FILE) 生效。
+    # 若测试单独 monkeypatch 了 agent_registry.REGISTRY_FILE 且 paths 未隔离，则回退使用它。
+    path = paths.AGENTS_REGISTRY_FILE
+    if not path.exists() and REGISTRY_FILE.exists():
+        path = REGISTRY_FILE
+    if path.exists():
         try:
-            with open(REGISTRY_FILE, encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
             pass

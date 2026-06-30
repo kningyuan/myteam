@@ -75,7 +75,9 @@ def test_downstream_gets_direct_upstream_summary(env):
     def transport(ctx):
         ctx.emit("step_start")
         req = ctx.request
-        seen_contexts[req.task_id] = req.context
+        # 只捕获 execute 交互的 context（skill_review 等后台交互会覆盖）
+        if req.kind == "execute":
+            seen_contexts[req.task_id] = req.context
         rel = f"{req.task_id}_deliverable.md"
         (paths.deliverables_dir(req.project_id) / rel).write_text(_valid("research"), "utf-8")
         # 上游 agent 在响应里写摘要（notes）
@@ -96,7 +98,7 @@ def test_downstream_gets_direct_upstream_summary(env):
     out = proc.run("pro_x", agents=["research"], tasks=tasks)
     assert out.status == "completed"
     # t1 无上游 → 无 upstream；t2 拿到 t1 的摘要 + 引用，而非全文
-    assert seen_contexts["t1"] == {}
+    assert "upstream" not in seen_contexts.get("t1", {})
     up = seen_contexts["t2"]["upstream"]
     assert len(up) == 1
     assert up[0]["task_id"] == "t1"

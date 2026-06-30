@@ -26,6 +26,7 @@ def cap_env(tmp_path, monkeypatch):
     monkeypatch.setattr(paths, "AGENTS_REGISTRY_FILE", reg)
     monkeypatch.setattr(paths, "WORKSPACES_DIR", ws)
     monkeypatch.setattr(paths, "WORKSPACE_PREFIX", "workspace-")
+    monkeypatch.setattr("common.agent.agent_registry.REGISTRY_FILE", reg)
     return tmp_path
 
 

@@ -81,6 +81,9 @@ injections:
     )
     monkeypatch.setattr(paths, "delivery_profiles_file", lambda: dp_file)
     monkeypatch.setattr(paths, "prompt_injections_file", lambda: pi_file)
+    # 直接绑定到模块命名空间（from import 不受 paths 层 patch 影响）
+    monkeypatch.setattr("common.delivery.delivery_profiles.delivery_profiles_file", lambda: dp_file)
+    monkeypatch.setattr("common.prompt.prompt_injections.prompt_injections_file", lambda: pi_file)
     invalidate_delivery_profiles_cache()
     invalidate_injections_cache()
     yield tmp_path

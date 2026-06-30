@@ -1,0 +1,38 @@
+id: 方案完善
+version: "1.0"
+name: 方案完善
+description: 方案文档迭代完善工作流（plan-improve 循环）
+options:
+  collaboration:
+    project_group:
+      enabled: true
+    notifications:
+      enabled: true
+    group_discussion:
+      enabled: true
+      profile: work-review-alignment
+loops:
+  - id: plan_improve_round
+    max_rounds: 3
+    min_rounds: 1
+    default_body: default
+    bodies:
+      default:
+        - { id: work, agent: main, task_type: section-review, dependencies: [] }
+        - { id: assess, agent: main, task_type: section-review, dependencies: [work] }
+    assess:
+      ref: assess
+      inputs:
+        - { kind: goal }
+        - { kind: phase.deliverable, phase: work }
+    transition:
+      - { when: deliverable_marker, task: assess, marker: "ITERATION: PASS", action: exit, outcome: complete }
+      - { when: deliverable_marker, task: assess, marker: "ITERATION: STOP", action: exit }
+      - { when: deliverable_marker, task: assess, marker: "ITERATION: CONTINUE", action: continue }
+      - { when: exhausted, action: exit, outcome: needs_review }
+tasks:
+  - id: t-plan-improve
+    name: 方案完善
+    loop: plan_improve_round
+    dependencies: []
+    description: 完善某系统建设方案 Word 文档

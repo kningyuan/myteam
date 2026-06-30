@@ -160,9 +160,9 @@ def test_load_plan_improve_workflow_v2_with_loops():
     assert profile.loops[0].id == "plan_improve_round"
     assert profile.loops[0].is_v2 is True
     assert profile.loops[0].assess is not None
-    assert profile.loops[0].assess.ref == "step-3"
+    assert profile.loops[0].assess.ref == "assess"
     loop_task = next(t for t in profile.tasks if t.get("loop"))
-    assert loop_task["id"] == "task-1"
+    assert loop_task["id"] == "t-plan-improve"
     assert loop_task.get("loop") == "plan_improve_round"
 
 

@@ -9,7 +9,13 @@ import pytest
 REPO = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO / "scripts" / "regression"))
 
-import regression_archive as arch  # noqa: E402
+try:  # noqa: E402
+    import regression_archive as arch
+except ImportError:
+    pytest.skip(
+        "scripts/regression/regression_archive.py 模块缺失（slim-core 分支已移除）",
+        allow_module_level=True,
+    )
 
 
 @pytest.fixture()
