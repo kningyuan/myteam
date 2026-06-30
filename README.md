@@ -356,7 +356,7 @@ App.tsx (BrowserRouter basename=/v2)
 | 入库（随代码） | gitignore（本机运行态） |
 |----------------|-------------------------|
 | `config/` 模板逻辑、`business/templates/`、`business/skills/`、`business/workflows/`、`business/rules/` | `config/*.json`（首次启动自动生成） |
-| `backend/`、`frontend/src/`、`scripts/`、`docs/` | `business/config/*`（agents、groups、mcp_registry…） |
+| `backend/`、`frontend/src/`、`docs/` | `business/config/*`（agents、groups、mcp_registry…） |
 | | `business/workspaces/`、`business/tasks/`（含 `state.db`） |
 | | `frontend/dist/`、`**/node_modules/` |
 
@@ -372,13 +372,6 @@ App.tsx (BrowserRouter basename=/v2)
 | `business/config/groups.json` | 群组 |
 | `business/config/session_map.json` | CLI session 映射 |
 | `business/tasks/state.db` | 项目/任务/run 真相（SQLite） |
-
-模板/bootstrap：
-
-```bash
-python3 scripts/bootstrap_business_roster.py   # business-roster → registry + workspace
-python3 scripts/bootstrap_agent_roster.py      # 仅 Agent 相关 bootstrap
-```
 
 ---
 
