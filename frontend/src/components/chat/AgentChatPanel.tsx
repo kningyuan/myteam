@@ -232,11 +232,13 @@ export function AgentChatPanel({
             messages: messages.map((m) => ({ role: m.role, text: m.text })),
           })
           resetAgentChatSession(agent.id)
-      toast.success("对话已归档")
-      onArchived?.()
-    } catch (e) {
-      toast.error("归档失败", { description: e instanceof Error ? e.message : "" })
-    }
+          toast.success("对话已归档")
+          onArchived?.()
+        } catch (e) {
+          toast.error("归档失败", { description: e instanceof Error ? e.message : "" })
+        }
+      }
+    })
   }
 
   async function saveConfig() {
