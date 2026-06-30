@@ -58,9 +58,13 @@ skills:
 
   - id: deck-build
     task_types: [deck-build]
-    description: 演示文稿 — brief → pptx（officecli套件已移除断链）
-    router: business/skills/presentation-design-methodology/SKILL.md
-    means: []
+    description: 演示文稿 — brief → pptx
+    router: business/skills/officecli-pitch-deck/SKILL.md
+    means:
+      - id: pitch_deck
+        ref: business/skills/officecli-pitch-deck/SKILL.md
+      - id: morph_ppt
+        ref: business/skills/morph-ppt/SKILL.md
 
   - id: xhs-operations
     task_types: [publish-post]
@@ -152,8 +156,8 @@ skills:
 
   - id: officecli
     task_types: [office-doc]
-    description: Office 文档创建/分析/修改（上游套件已移除，回退到 presentation-design-methodology）
-    router: business/skills/presentation-design-methodology/SKILL.md
+    description: Office 文档创建/分析/修改 — .docx / .xlsx / .pptx 全流程 CLI
+    router: business/skills/officecli/SKILL.md
     means: []
 
   - id: prompt-optimizer
@@ -193,53 +197,3 @@ skills:
     task_types: [code-deployment]
     description: 部署上线 — 部署步骤、健康检查、回滚预案
     router: business/skills/backend-engineering-methodology/SKILL.md
-
-  - id: coding
-    task_types: [coding]
-    description: 编码执行 — 需求分析、设计方案、代码实现、测试验证
-    router: business/skills/coding/SKILL.md
-
-  - id: review
-    task_types: [review]
-    description: 评审执行 — 结构化评审，问题列表与改进建议
-    router: business/skills/review/SKILL.md
-
-  - id: custom-survey
-    task_types: [custom-survey]
-    description: 自定义调研 — 桌面调研，背景分析和结论
-    router: business/skills/custom-survey/SKILL.md
-
-  - id: test-driven-development
-    task_types: [coding, code-deliverable]
-    description: TDD 测试驱动开发 — RED-GREEN-REFACTOR 循环
-    router: business/skills/test-driven-development/SKILL.md
-
-  - id: systematic-debugging
-    task_types: [coding, review]
-    description: 系统化调试 — 四阶段根因定位流程
-    router: business/skills/systematic-debugging/SKILL.md
-
-  - id: verification-before-completion
-    task_types: []
-    description: 完成前验证 — 证据先于断言，禁止未验证声称
-    router: business/skills/verification-before-completion/SKILL.md
-
-  - id: brainstorming
-    task_types: [product-planning, product-research, competitive-analysis]
-    description: 头脑风暴 — 协作对话探索需求与设计，实现前先产出设计方案
-    router: business/skills/brainstorming/SKILL.md
-
-  - id: writing-plans
-    task_types: [coding, code-deliverable, product-planning]
-    description: 编写计划 — 精确到文件路径和验证步骤的实施计划
-    router: business/skills/writing-plans/SKILL.md
-
-  - id: requesting-code-review
-    task_types: [review, code-deliverable]
-    description: 请求代码审查 — 派发审查子agent，问题级联前捕获
-    router: business/skills/requesting-code-review/SKILL.md
-
-  - id: receiving-code-review
-    task_types: [review, coding]
-    description: 接收代码审查 — 实现建议前验证，技术严谨而非表演性认同
-    router: business/skills/receiving-code-review/SKILL.md

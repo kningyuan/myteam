@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
+from common.coordinator import get_coordinator_id
 """Loop 单轮结束调度 — Kernel 入口，按 workflow profile 委托 business hook。"""
 from __future__ import annotations
 
 import logging
-
-from common.coordinator import get_coordinator_id
 
 from common.business_hook_loader import load_business_hook
 from common.loop_discussion_runtime import (

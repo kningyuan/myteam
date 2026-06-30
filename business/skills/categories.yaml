@@ -39,12 +39,6 @@ categories:
     - evaluation-rubric
     - debugging-methodology
     - git-workflow-methodology
-    - test-driven-development
-    - systematic-debugging
-    - verification-before-completion
-    - writing-plans
-    - requesting-code-review
-    - receiving-code-review
   design-doc:
     name: 设计与文档
     description: 前端设计、演示文稿与文档创作技能
@@ -54,10 +48,20 @@ categories:
     - publish_post_methodology
     - technical-writing-methodology
   officecli:
-    name: Office 文档套件（已停用）
-    description: 上游 OfficeCLI 软链已断开移除，相关 task_type 回退到 presentation-design-methodology。
-    members: []
-    updated_at: 1782741672.0
+    name: Office 文档套件
+    description: OfficeCLI 上游 skills 全套，含 docx/pptx/xlsx 及场景化子 skill。
+    members:
+    - officecli
+    - officecli-docx
+    - officecli-pptx
+    - officecli-xlsx
+    - officecli-pitch-deck
+    - officecli-academic-paper
+    - officecli-data-dashboard
+    - officecli-financial-model
+    - officecli-word-form
+    - morph-ppt
+    - morph-ppt-3d
   workflow-creation:
     name: Workflow 创建
     description: 从SOP到myteam配置的完整流程

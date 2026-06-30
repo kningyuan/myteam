@@ -216,43 +216,14 @@ if _V2_UI_READY:
     @app.get("/v2", include_in_schema=False)
     @app.get("/v2/", include_in_schema=False)
     async def v2_index():
-        from starlette.responses import Response
-
-        resp = FileResponse(str(_V2_INDEX), media_type="text/html; charset=utf-8")
-        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-        return resp
-
-    # MIME 类型映射 — 静态资源必须返回正确 Content-Type，否则浏览器拒绝执行
-    _MIME_MAP = {
-        ".js": "application/javascript",
-        ".mjs": "application/javascript",
-        ".css": "text/css",
-        ".html": "text/html; charset=utf-8",
-        ".json": "application/json",
-        ".svg": "image/svg+xml",
-        ".png": "image/png",
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".gif": "image/gif",
-        ".webp": "image/webp",
-        ".ico": "image/x-icon",
-        ".woff": "font/woff",
-        ".woff2": "font/woff2",
-        ".ttf": "font/ttf",
-        ".eot": "application/vnd.ms-fontobject",
-        ".map": "application/json",
-    }
+        return FileResponse(str(_V2_INDEX))
 
     @app.get("/v2/{rest_path:path}", include_in_schema=False)
     async def v2_spa(rest_path: str):
         candidate = FRONTEND_DIST / rest_path
         if candidate.is_file():
-            suffix = candidate.suffix.lower()
-            return FileResponse(
-                str(candidate),
-                media_type=_MIME_MAP.get(suffix, "application/octet-stream"),
-            )
-        return FileResponse(str(_V2_INDEX), media_type="text/html; charset=utf-8")
+            return FileResponse(str(candidate))
+        return FileResponse(str(_V2_INDEX))
 
 
 def main():
