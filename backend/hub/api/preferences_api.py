@@ -40,7 +40,7 @@ async def get_preferences_library():
 @router.put("/library")
 async def put_preferences_library(body: PreferencesBody):
     path = write_global_user_md(body.content)
-    from common.hub_operation_meta import touch
+    from common.observability.hub_operation_meta import touch
 
     touch("preferences", "library")
     return {

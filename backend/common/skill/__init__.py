@@ -1,6 +1,6 @@
 """Skill 功能模块 — 统一入口。
 
-向后兼容: from common.skill_catalog import * 仍可通过 common/__init__.py re-export 工作。
+调用方请使用显式路径: from common.skill.skill_catalog import X
 """
 from common.skill.skill_catalog import *  # noqa: F401,F403
 from common.skill.skill_categories import *  # noqa: F401,F403

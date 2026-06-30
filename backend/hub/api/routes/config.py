@@ -11,8 +11,8 @@ from base.agent_chat import (
     list_all_backends_with_models,
     set_agent_backend_config,
 )
-from store.skill_config import skill_config
-from store.system_config import system_config
+from config_store.skill_config import skill_config
+from config_store.system_config import system_config
 
 router = APIRouter(tags=["config"])
 
@@ -86,7 +86,7 @@ async def update_skill_config_api(body: dict):
     config_data = body.get("config", {})
     if config_data:
         skill_config.update_all(config_data)
-        from common.skill_settings import reload_skill_settings
+        from common.skill.skill_settings import reload_skill_settings
 
         reload_skill_settings()
     return {"success": True, "config": skill_config.get_all()}
@@ -111,7 +111,7 @@ async def api_sync_agent_task_types():
 async def api_sync_agent_skills():
     """为未配置 skills 的 Agent 从名册/PGD 补全挂载，并同步到 CLI skill 注册表。"""
     from hub.services.agent_registry import sync_missing_agent_skills
-    from common.adapter_skill_registry import sync_all_agent_skill_mounts
+    from common.agent.adapter_skill_registry import sync_all_agent_skill_mounts
 
     roster_result = sync_missing_agent_skills(only_empty=True)
     mount_result = sync_all_agent_skill_mounts()
@@ -125,14 +125,14 @@ async def api_sync_agent_skills():
 @router.post("/api/agents/sync-mcp")
 async def api_sync_agent_mcp():
     """同步所有 Agent 的 MCP 挂载到各 CLI 后端，并清理 AGENTS.md 历史 MCP 节。"""
-    from common.adapter_mcp_registry import sync_all_agent_mcp_mounts
+    from common.agent.adapter_mcp_registry import sync_all_agent_mcp_mounts
 
     return sync_all_agent_mcp_mounts()
 
 
 @router.post("/api/agents/suggest-task-types")
 async def api_suggest_agent_task_types(body: dict):
-    from common.agent_task_type_suggest import suggest_task_types_for_agent
+    from common.agent.agent_task_type_suggest import suggest_task_types_for_agent
 
     desc = (body.get("description") or "").strip()
     if not desc:

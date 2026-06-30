@@ -10,7 +10,7 @@ _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from hub.paths import IDENTITY_FILES, WORKSPACE_PREFIX, WORKSPACES_DIR
+from common.paths import IDENTITY_FILES, WORKSPACE_PREFIX, WORKSPACES_DIR
 
 
 class AgentIdentityBuilder:

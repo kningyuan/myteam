@@ -15,8 +15,8 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from common.kernel_config import process_from_defaults  # noqa: E402
-from common.skill_settings import reload_skill_settings  # noqa: E402
+from common.runtime.kernel_config import process_from_defaults  # noqa: E402
+from common.skill.skill_settings import reload_skill_settings  # noqa: E402
 
 
 # ============ B1: 空串短路 ============
@@ -86,12 +86,12 @@ class TestModelsFieldStripped:
 
     def test_default_config_no_models_key(self):
         """DEFAULT_CONFIG 不应包含 'models' 键。"""
-        from store.system_config import DEFAULT_CONFIG
+        from config_store.system_config import DEFAULT_CONFIG
         assert "models" not in DEFAULT_CONFIG
 
     def test_get_all_excludes_models(self, tmp_path, monkeypatch):
         """get_all() 返回的数据中不包含 models 键。"""
-        from store import system_config as sc
+        from config_store import system_config as sc
 
         cfg_path = tmp_path / "system_config.json"
         # 写入包含 models 的旧配置文件
@@ -111,7 +111,7 @@ class TestModelsFieldStripped:
 
     def test_get_all_no_models_on_fresh_config(self, tmp_path, monkeypatch):
         """新生成的配置中也不包含 models。"""
-        from store import system_config as sc
+        from config_store import system_config as sc
 
         cfg_path = tmp_path / "system_config.json"
         # 不创建文件，让 _load() 使用 DEFAULT_CONFIG
@@ -125,7 +125,7 @@ class TestModelsFieldStripped:
 
     def test_get_models_still_works_backward_compat(self, tmp_path, monkeypatch):
         """get_models() 仍应从 _data 中读取旧文件中的 models（向后兼容）。"""
-        from store import system_config as sc
+        from config_store import system_config as sc
 
         cfg_path = tmp_path / "system_config.json"
         cfg_path.write_text(json.dumps({
@@ -148,7 +148,7 @@ class TestModelsFieldStripped:
 
     def test_get_models_returns_empty_for_new_config(self, tmp_path, monkeypatch):
         """新配置中 get_models() 返回空列表。"""
-        from store import system_config as sc
+        from config_store import system_config as sc
 
         cfg_path = tmp_path / "system_config.json"
         if cfg_path.exists():
@@ -163,7 +163,7 @@ class TestModelsFieldStripped:
 
     def test_get_default_model_fallback(self, tmp_path, monkeypatch):
         """没有 models 时 get_default_model 回退到 system.default_model。"""
-        from store import system_config as sc
+        from config_store import system_config as sc
 
         cfg_path = tmp_path / "system_config.json"
         cfg_path.write_text(json.dumps({
@@ -178,7 +178,7 @@ class TestModelsFieldStripped:
 
     def test_update_all_ignores_models_from_client(self, tmp_path, monkeypatch):
         """PUT 中的 models 被忽略；get_all() 仍剥离。"""
-        from store import system_config as sc
+        from config_store import system_config as sc
 
         cfg_path = tmp_path / "system_config.json"
         cfg_path.write_text(json.dumps({
@@ -200,7 +200,7 @@ class TestModelsFieldStripped:
 
     def test_update_all_preserves_legacy_models_when_omitted(self, tmp_path, monkeypatch):
         """设置页 PUT 不含 models 时，磁盘上已有 legacy models 仍保留。"""
-        from store import system_config as sc
+        from config_store import system_config as sc
 
         legacy = [{"id": "legacy-model-1", "name": "Legacy 1", "default": True}]
         cfg_path = tmp_path / "system_config.json"
@@ -223,7 +223,7 @@ class TestModelsFieldStripped:
 
     def test_other_fields_unaffected(self, tmp_path, monkeypatch):
         """剥离 models 不应影响 system/backends 字段。"""
-        from store import system_config as sc
+        from config_store import system_config as sc
 
         cfg_path = tmp_path / "system_config.json"
         cfg_path.write_text(json.dumps({

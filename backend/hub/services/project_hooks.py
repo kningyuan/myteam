@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import logging
 
-from common.kernel_project_hooks import kernel_project_hooks
-from common.project_hooks import ProjectHooks
+from common.runtime.kernel_project_hooks import kernel_project_hooks
+from common.project.project_hooks import ProjectHooks
 
 logger = logging.getLogger("project_hooks")
 

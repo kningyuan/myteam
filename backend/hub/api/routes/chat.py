@@ -68,7 +68,7 @@ async def api_chat_status(agent_id: str):
 @router.get("/{agent_id}/messages")
 async def api_chat_messages(agent_id: str, limit: int = Query(200, ge=1, le=2000)):
     """DM 会话历史（P0 记忆地基）——从 Store 的 message 表读，前端据此渲染对话流。"""
-    from common.store import Store
+    from common.store.store import Store
 
     store = Store()
     try:

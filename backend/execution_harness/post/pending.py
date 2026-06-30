@@ -13,7 +13,7 @@ from execution_harness.config import PENDING_SKILLS_DIR, skills_write_approval
 
 import shutil
 
-from common.skill_catalog import SKILLS_DIR
+from common.skill.skill_catalog import SKILLS_DIR
 
 __all__ = [
     "PENDING_SKILLS_DIR",

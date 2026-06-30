@@ -3,7 +3,7 @@
 所有需要引用协调者 agent_id 的模块统一从这里导入，
 避免代码中硬编码"main"。
 """
-from store.system_config import system_config
+from config_store.system_config import system_config
 
 
 def get_coordinator_id() -> str:

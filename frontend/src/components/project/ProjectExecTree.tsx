@@ -21,7 +21,7 @@ import {
   isExecThinkingKind,
   payloadPre,
   truncateText,
-} from "@/lib/project-labels"
+} from "@/lib/project/project-labels"
 import {
   groupInteractionsByTask,
   listExecChildTasks,
@@ -30,7 +30,7 @@ import {
   taskActivityEvents,
   taskSplitEventsFor,
   type ExecTask,
-} from "@/lib/project-exec"
+} from "@/lib/project/project-exec"
 import { timelineToThinkingEvents } from "@/lib/thinking"
 import { GateFailureList } from "@/components/project/GateFailureList"
 import { ProjectActivityFeed } from "@/components/project/ProjectActivityFeed"

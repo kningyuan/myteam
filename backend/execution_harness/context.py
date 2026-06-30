@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from common.store import Store
+from common.store.store import Store
 
 
 @dataclass

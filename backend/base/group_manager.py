@@ -1,7 +1,4 @@
-"""
-from common.coordinator import get_coordinator_id
-Group Manager - 群组管理 + @mention 路由
-"""
+"""Group Manager - 群组管理 + @mention 路由。"""
 
 import json
 import math
@@ -17,8 +14,9 @@ from base.agent_chat import (
     scan_agents,
     stream_chat,
 )
+from common.coordinator import get_coordinator_id
 
-from hub.paths import GROUPS_FILE, TASKS_DIR, to_relative_path
+from common.paths import GROUPS_FILE, TASKS_DIR, to_relative_path
 from hub.services.stream_fanout import fanout_stream_event
 
 _lock = threading.Lock()
@@ -139,7 +137,7 @@ def restore_group(group_id: str) -> tuple[bool, str]:
 
 
 def _append_group_archive(entry: dict):
-    from hub.paths import GROUP_ARCHIVES_FILE
+    from common.paths import GROUP_ARCHIVES_FILE
 
     archives = []
     try:
@@ -212,7 +210,7 @@ def clear_group_messages(group_id: str) -> tuple[bool, str]:
         groups[group_id]["messages"] = []
         _save_groups(groups)
     try:
-        from common.agent_memory import clear_group_agent_memory
+        from memstack.l1 import clear_group_agent_memory
 
         clear_group_agent_memory(group_id, member_ids)
     except Exception as e:
@@ -337,7 +335,7 @@ def get_group(group_id: str) -> Optional[dict]:
     g = groups.get(group_id)
     if g:
         members = g.get("members", [])
-        from common.group_message_store import resolve_group_messages_for_api
+        from common.roundtable.group_message_store import resolve_group_messages_for_api
 
         messages = resolve_group_messages_for_api(
             group_id,
@@ -423,7 +421,7 @@ MAX_CONSENSUS_CONFIRM_ATTEMPTS = 6  # 共识确认轮上限，防止死循环
 
 def _default_roundtable_max_rounds() -> int:
     try:
-        from common.skill_settings import group_discussion_default_max_rounds
+        from common.skill.skill_settings import group_discussion_default_max_rounds
 
         return group_discussion_default_max_rounds(DEFAULT_ROUNDTABLE_MAX_ROUNDS)
     except Exception:
@@ -432,7 +430,7 @@ def _default_roundtable_max_rounds() -> int:
 
 def max_roundtable_rounds_cap() -> int:
     try:
-        from common.skill_settings import roundtable_max_rounds_cap
+        from common.skill.skill_settings import roundtable_max_rounds_cap
 
         return roundtable_max_rounds_cap(50)
     except Exception:
@@ -441,7 +439,7 @@ def max_roundtable_rounds_cap() -> int:
 
 def _roundtable_quorum_ratio() -> float:
     try:
-        from common.skill_settings import roundtable_quorum_ratio
+        from common.skill.skill_settings import roundtable_quorum_ratio
 
         return roundtable_quorum_ratio(2 / 3)
     except Exception:
@@ -462,7 +460,7 @@ def _strip_command_prefix(text: str) -> str:
 def is_roundtable_terminate_command(text: str) -> bool:
     """用户终止讨论命令（无需 @mention）。"""
     try:
-        from common.skill_settings import roundtable_terminate_commands
+        from common.skill.skill_settings import roundtable_terminate_commands
 
         commands = roundtable_terminate_commands()
     except Exception:
@@ -712,7 +710,7 @@ def should_extend_roundtable_cycles(
     if effective_max >= cap:
         return False
     try:
-        from common.skill_settings import group_discussion_allow_round_extension
+        from common.skill.skill_settings import group_discussion_allow_round_extension
 
         if not group_discussion_allow_round_extension():
             return False
@@ -796,7 +794,7 @@ def parse_facilitator_draft_status(text: str) -> str:
 
 def parse_consensus_vote(text: str) -> str:
     """共识确认表态：agree | object | abstain | unknown。"""
-    from common.roundtable_runtime import sanitize_roundtable_public_text
+    from common.roundtable.roundtable_runtime import sanitize_roundtable_public_text
 
     text = sanitize_roundtable_public_text(text or "")
     if _CONSENSUS_VOTE_OBJECT_RE.search(text):
@@ -910,7 +908,7 @@ def _roundtable_prior(
     max_chars: int = 12000,
     mode: str = "digest",
 ) -> str:
-    from common.roundtable_context import (
+    from common.roundtable.roundtable_context import (
         compress_transcript_prior,
         extract_conflict_digest_from_transcript,
     )
@@ -958,7 +956,7 @@ def _build_roundtable_opening_prompt(
     group_context: str,
     prior_thinking: str,
 ) -> str:
-    from common.roundtable_context import digest_for_prompt
+    from common.roundtable.roundtable_context import digest_for_prompt
 
     prior = transcript.strip() or "（暂无，你是第一位发言者）"
     thinking_block = digest_for_prompt(
@@ -1001,7 +999,7 @@ def _build_roundtable_alignment_prompt(
     *,
     round_num: int,
 ) -> str:
-    from common.roundtable_context import digest_for_prompt
+    from common.roundtable.roundtable_context import digest_for_prompt
 
     fac_block = digest_for_prompt(facilitator_summary, max_chars=2200)
     conflicts = conflict_digest.strip() or "（暂无）"
@@ -1217,7 +1215,7 @@ def _record_roundtable_turn_failure(
     project_id: str,
     emit: Callable[[dict], None] | None,
 ) -> None:
-    from common.roundtable_runtime import append_turn_failure_message
+    from common.roundtable.roundtable_runtime import append_turn_failure_message
 
     append_turn_failure_message(
         _append_group_message,
@@ -1293,7 +1291,7 @@ def _append_group_message(
             _save_groups(groups)
     if persist:
         try:
-            from common.group_message_store import persist_group_message_entry
+            from common.roundtable.group_message_store import persist_group_message_entry
 
             persist_group_message_entry(group_id, entry, project_id=project_id)
         except Exception:
@@ -1346,7 +1344,7 @@ def _execute_roundtable_agent_turn(
         "phase": phase,
     }})
 
-    from common.roundtable_runtime import collect_roundtable_reply
+    from common.roundtable.roundtable_runtime import collect_roundtable_reply
 
     result = collect_roundtable_reply(
         agent_id,
@@ -1406,7 +1404,7 @@ def _execute_roundtable_agent_turn(
         }})
         return False, result.error_message or result.text
 
-    from common.roundtable_runtime import sanitize_roundtable_public_text
+    from common.roundtable.roundtable_runtime import sanitize_roundtable_public_text
 
     reply = sanitize_roundtable_public_text(result.text)
     _append_group_message(
@@ -1537,7 +1535,7 @@ def _handle_roundtable_turn_result(
             reply=reply,
         )
         return True
-    from common.roundtable_runtime import format_failure_transcript_line
+    from common.roundtable.roundtable_runtime import format_failure_transcript_line
 
     transcript_lines.append(
         format_failure_transcript_line(
@@ -1562,7 +1560,7 @@ def _fresh_group_context(
         g = groups.get(group_id) or {}
     ctx = format_group_context(g, exclude_msg_id=exclude_msg_id)
     if compress:
-        from common.roundtable_context import compress_group_context_text
+        from common.roundtable.roundtable_context import compress_group_context_text
 
         return compress_group_context_text(ctx)
     return ctx
@@ -1603,7 +1601,7 @@ def _run_group_roundtable(
         "规则: 并行思考 · 顺序立论 · 主持汇总 · 对齐交锋 · 最佳实践草案 · 交叉确认投票 · 产出本题最佳实践\n",
     ]
     speakers = roundtable_speaker_order(participants, members)
-    from common.roundtable_runtime import (
+    from common.roundtable.roundtable_runtime import (
         classify_turn_error,
         flush_roundtable_transcript,
         roundtable_session_timeout_seconds,
@@ -1795,7 +1793,7 @@ def _run_group_roundtable(
 
         if is_final:
             try:
-                from common.skill_settings import group_discussion_auto_finalize_on_max_rounds
+                from common.skill.skill_settings import group_discussion_auto_finalize_on_max_rounds
 
                 auto_finalize = group_discussion_auto_finalize_on_max_rounds()
             except Exception:
@@ -2070,7 +2068,7 @@ def _run_group_roundtable(
 
     assessment_rel_path = ""
     if consensus_status == "yes" and last_consensus_draft:
-        from common.roundtable_runtime import write_best_practice_assessment
+        from common.roundtable.roundtable_runtime import write_best_practice_assessment
 
         assessment_agenda = agenda
         if _CONTINUE_AGENDA_RE.match(agenda.strip()):
@@ -2174,7 +2172,7 @@ def _run_group_roundtable(
 def _group_reply_preview_limit() -> int:
     """群消息 Agent 回复预览长度；0 表示不截断。"""
     try:
-        from store.skill_config import skill_config
+        from config_store.skill_config import skill_config
         raw = skill_config.get("groups", "reply_preview_limit", default=0)
         return max(0, int(raw or 0))
     except Exception:
@@ -2237,7 +2235,7 @@ def send_group_message(
                 groups[group_id].setdefault("messages", []).append(msg_entry)
                 _save_groups(groups)
         try:
-            from common.group_message_store import persist_group_message
+            from common.roundtable.group_message_store import persist_group_message
             persist_group_message(group_id, sender, text, project_id=project_id)
         except Exception:
             pass
@@ -2295,7 +2293,7 @@ def send_group_message(
                 groups[group_id].setdefault("messages", []).append(msg_entry)
                 _save_groups(groups)
         try:
-            from common.group_message_store import persist_group_message
+            from common.roundtable.group_message_store import persist_group_message
             persist_group_message(
                 group_id, sender, text,
                 project_id=str(g.get("project_id") or ""),
@@ -2317,7 +2315,7 @@ def send_group_message(
             groups[group_id].setdefault("messages", []).append(msg_entry)
             _save_groups(groups)
     try:
-        from common.group_message_store import persist_group_message
+        from common.roundtable.group_message_store import persist_group_message
         persist_group_message(
             group_id, sender, text,
             project_id=str(g.get("project_id") or ""),
@@ -2452,7 +2450,7 @@ def _stream_agent_in_group(
     as_generator: bool = False,
 ):
     """在群组上下文中运行 Agent 流；as_generator=True 时 yield 事件。"""
-    from common.thinking_trace import append_thinking_sse
+    from common.observability.thinking_trace import append_thinking_sse
 
     reply_parts: list[str] = []
     trace_parts: list[dict] = []

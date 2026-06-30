@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from common.paths import BUSINESS_DIR, MYTEAM_ROOT, to_relative_path
-from common.store import Store
+from common.store.store import Store
 
 SKILLS_DIR = BUSINESS_DIR / "skills"
 

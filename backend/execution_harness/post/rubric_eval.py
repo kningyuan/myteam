@@ -23,7 +23,7 @@ from typing import Any, Optional
 
 import yaml
 
-from common.store import Store
+from common.store.store import Store
 
 logger = logging.getLogger("execution_harness.post.rubric_eval")
 

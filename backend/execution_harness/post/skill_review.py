@@ -15,7 +15,7 @@ import logging
 import threading
 from typing import Any, Callable, Optional
 
-from common.store import Store
+from common.store.store import Store
 from execution_harness.config import skill_review_enabled, skill_review_min_attempts
 from execution_harness.context import SkillReviewContext, TaskCompleteContext
 from execution_harness.post.pending import create_pending_bundle

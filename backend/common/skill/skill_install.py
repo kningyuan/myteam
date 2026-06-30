@@ -32,7 +32,7 @@ from common.paths import MYTEAM_ROOT
 from common.skill.skill_catalog import SKILLS_DIR
 from common.skill.skill_catalog import get_skill_library_entry
 
-logger = logging.getLogger("common.skill_install")
+logger = logging.getLogger("common.skill.skill_install")
 
 PENDING_DIR = SKILLS_DIR / "_pending"
 CATALOG_PATH = SKILLS_DIR / "catalog.yaml"

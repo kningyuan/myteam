@@ -138,7 +138,7 @@ def cancel_group_roundtable(
     cancelled = cancel_chat(key)
     killed: list[int] = []
     try:
-        from common.skill_settings import group_discussion_kill_cli_on_cancel
+        from common.skill.skill_settings import group_discussion_kill_cli_on_cancel
 
         if group_discussion_kill_cli_on_cancel() and member_ids:
             killed = kill_group_cli_processes(member_ids)

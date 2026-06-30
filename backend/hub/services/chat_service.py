@@ -12,19 +12,19 @@ _ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-import adapters  # noqa: F401 — 注册 CLI 实例
-from adapter.events import EventKind
-from adapter.protocol import RunRequest
-from adapter.registry import registry
-from adapter.sse import encode_done, encode_error, encode_event
-from common.agent_execution import agent_execution_lock
-from common.rules_merge import RulesProfile, merge_rules_file, normalize_rules_profile
-from hub.paths import RULES_DIR, resolve_workspace
-from store.sessions import session_store
+import adapter  # noqa: F401  — side-effect CLI 注册 — 注册 CLI 实例
+from adapter.core.events import EventKind
+from adapter.core.protocol import RunRequest
+from adapter.core.registry import registry
+from adapter.core.sse import encode_done, encode_error, encode_event
+from common.agent.agent_execution import agent_execution_lock
+from common.gate.rules_merge import RulesProfile, merge_rules_file, normalize_rules_profile
+from common.paths import RULES_DIR, resolve_workspace
+from config_store.sessions import session_store
 from base.agent_identity import AgentIdentityBuilder, multi_agent_manager
 from base.agent_chat import get_agent_backend_config, _load_agents_config
-from common.agent_skills import build_skill_context
-from common.agent_mcp import build_mcp_context
+from common.agent.agent_skills import build_skill_context
+from common.agent.agent_mcp import build_mcp_context
 
 
 class ChatService:
@@ -165,8 +165,8 @@ class ChatService:
         rules_profile: str = "interactive",
     ) -> Generator[str, None, None]:
         """DM 记忆路径：消息落库 + Context Assembler 组装上下文 + own-history（无 -s）。"""
-        from common.store import Store
-        from common.context_assembler import assemble_context, maybe_update_summary
+        from common.store.store import Store
+        from common.prompt.context_assembler import assemble_context, maybe_update_summary
 
         agent_cfg = _load_agents_config().get(agent_id, {})
         workspace = resolve_workspace(agent_id, agent_cfg.get("workspace"))
@@ -200,7 +200,7 @@ class ChatService:
 
             # 引用闭环：先把本轮依据的召回来源推给 UI（落库见下方 parts）
             if citations:
-                from adapter.sse import encode_citations
+                from adapter.core.sse import encode_citations
                 yield encode_citations(citations)
 
             req = RunRequest(
@@ -212,7 +212,7 @@ class ChatService:
                 agent_id=agent_id,
                 cancel_event=cancel_event,
             )
-            from common.thinking_trace import append_thinking_payload
+            from common.observability.thinking_trace import append_thinking_payload
 
             buf: list[str] = []
             trace_parts: list[dict] = []
@@ -312,7 +312,7 @@ class ChatService:
         identity = builder.get_identity_context(rules_profile=profile)
         if identity:
             sections.append(f"<core_instructions>\n{identity}\n</core_instructions>")
-        from common.agent_registry import build_registry_capability_context
+        from common.agent.agent_registry import build_registry_capability_context
 
         registry_block = build_registry_capability_context(agent_id)
         if registry_block:

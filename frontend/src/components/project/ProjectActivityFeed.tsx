@@ -1,5 +1,5 @@
 import type { ProjectEvent } from "@/lib/api/projects"
-import { EVENT_LABELS, eventDetail, fmtExecTs, truncateText } from "@/lib/project-labels"
+import { EVENT_LABELS, eventDetail, fmtExecTs, truncateText } from "@/lib/project/project-labels"
 
 /** 项目级 loop 里程碑事件（在 ProjectExecTree 项目动态区展示） */
 const LOOP_ACTIVITY_KINDS = new Set([

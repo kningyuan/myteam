@@ -4,7 +4,7 @@ import {
   ensureAgentChatLoaded,
   getAgentChatSnapshot,
   subscribeAgentChat,
-} from "@/lib/agentChatStream"
+} from "@/lib/chat/agentChatStream"
 
 export function useAgentChat(agentId: string) {
   const [, bump] = useReducer((x: number) => x + 1, 0)

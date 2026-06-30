@@ -16,14 +16,14 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import common.paths as paths  # noqa: E402
-import common.agent_registry as agent_registry_mod  # noqa: E402
-from common.agent_port import AgentPort, WatchdogConfig  # noqa: E402
-from common.observability import cost, project_overview  # noqa: E402
-from common.agent_transport import AdapterTransport  # noqa: E402
-from common.process import Process, ProcessConfig  # noqa: E402
-from common.registry import get_spec  # noqa: E402
-from common.store import Store  # noqa: E402
-from common.submit_result import submit  # noqa: E402
+import common.agent.agent_registry as agent_registry_mod  # noqa: E402
+from common.agent.agent_port import AgentPort, WatchdogConfig  # noqa: E402
+from common.observability.observability import cost, project_overview  # noqa: E402
+from common.agent.agent_transport import AdapterTransport  # noqa: E402
+from common.process.process import Process, ProcessConfig  # noqa: E402
+from common.gate.registry import get_spec  # noqa: E402
+from common.store.store import Store  # noqa: E402
+from common.delivery.submit_result import submit  # noqa: E402
 
 
 class FakeEvent:

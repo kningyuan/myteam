@@ -28,7 +28,7 @@ class SqliteStoreAdapter:
     """Wraps common.store.Store into MemoryStore protocol."""
 
     def __init__(self):
-        from common.store import Store
+        from common.store.store import Store
 
         self._store = Store()
 

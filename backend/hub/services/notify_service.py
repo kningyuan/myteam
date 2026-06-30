@@ -76,7 +76,7 @@ def _collect_text_and_write_file(agent_id: str, message: str, response_file: str
     # 持久化私聊记录：写 .chat 文件，前端可通过 API 获取
     chat_text = "".join(parts).strip()
     if chat_text:
-        from hub.paths import WORKSPACES_DIR
+        from common.paths import WORKSPACES_DIR
         chat_dir = WORKSPACES_DIR / f"workspace-{agent_id}" / ".chats"
         chat_dir.mkdir(parents=True, exist_ok=True)
         chat_file = chat_dir / f"{Path(response_file).stem}.chat"
@@ -138,7 +138,7 @@ def notify_agent_sync(
 ) -> tuple[bool, str]:
     """同步通知 Agent。wait_response=False 时仅投递消息。"""
     if timeout is None:
-        from common.skill_settings import agent_msg_timeout
+        from common.skill.skill_settings import agent_msg_timeout
         timeout = agent_msg_timeout()
     if not wait_response:
         cancel = Event()

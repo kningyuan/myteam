@@ -12,7 +12,7 @@ router = APIRouter(tags=["workflows"])
 @router.get("/api/workflows")
 async def api_list_workflows():
     """列出 PGD workflow profile（阶段闸门项目模板）。"""
-    from common.workflow_bootstrap import list_workflow_summaries
+    from common.workflow.workflow_bootstrap import list_workflow_summaries
 
     return {"workflows": list_workflow_summaries()}
 
@@ -20,7 +20,7 @@ async def api_list_workflows():
 @router.post("/api/workflows/suggest")
 async def api_suggest_workflow(body: dict):
     """根据描述确定性推导任务 DAG（供 Workflow 编辑页「自动推导」）。"""
-    from common.workflow_suggest import suggest_workflow_from_description
+    from common.workflow.workflow_suggest import suggest_workflow_from_description
     from hub.services.agent_registry import sync_missing_agent_task_types
 
     desc = (body.get("description") or "").strip()
@@ -35,7 +35,7 @@ async def api_suggest_workflow(body: dict):
 
 @router.get("/api/workflows/{workflow_id}")
 async def api_get_workflow(workflow_id: str):
-    from common.workflow_loader import read_workflow_raw
+    from common.workflow.workflow_loader import read_workflow_raw
 
     try:
         return {"workflow": read_workflow_raw(workflow_id)}
@@ -47,8 +47,8 @@ async def api_get_workflow(workflow_id: str):
 
 @router.post("/api/workflows")
 async def api_create_workflow(body: dict):
-    from common.workflow_loader import allocate_workflow_id, list_workflows, write_workflow_raw
-    from common.workflow_validate import validate_workflow_payload
+    from common.workflow.workflow_loader import allocate_workflow_id, list_workflows, write_workflow_raw
+    from common.workflow.workflow_validate import validate_workflow_payload
 
     data = body.get("workflow") if isinstance(body.get("workflow"), dict) else body
     if not isinstance(data, dict):
@@ -71,7 +71,7 @@ async def api_create_workflow(body: dict):
         write_workflow_raw(data)
     except ValueError as e:
         raise APIError("INVALID_WORKFLOW", str(e))
-    from common.hub_operation_meta import touch
+    from common.observability.hub_operation_meta import touch
 
     touch("workflow", wid)
     return {"success": True, "id": wid}
@@ -79,8 +79,8 @@ async def api_create_workflow(body: dict):
 
 @router.put("/api/workflows/{workflow_id}")
 async def api_update_workflow(workflow_id: str, body: dict):
-    from common.workflow_loader import delete_workflow, write_workflow_raw
-    from common.workflow_validate import validate_workflow_payload
+    from common.workflow.workflow_loader import delete_workflow, write_workflow_raw
+    from common.workflow.workflow_validate import validate_workflow_payload
 
     data = body.get("workflow") if isinstance(body.get("workflow"), dict) else body
     if not isinstance(data, dict):
@@ -104,7 +104,7 @@ async def api_update_workflow(workflow_id: str, body: dict):
         raise HTTPException(status_code=404, detail=f"未找到 workflow「{workflow_id}」")
     except ValueError as e:
         raise APIError("INVALID_WORKFLOW", str(e))
-    from common.hub_operation_meta import remove, touch
+    from common.observability.hub_operation_meta import remove, touch
 
     touch("workflow", new_id)
     if new_id != workflow_id:
@@ -114,13 +114,13 @@ async def api_update_workflow(workflow_id: str, body: dict):
 
 @router.delete("/api/workflows/{workflow_id}")
 async def api_delete_workflow(workflow_id: str):
-    from common.workflow_loader import delete_workflow
+    from common.workflow.workflow_loader import delete_workflow
 
     try:
         delete_workflow(workflow_id)
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    from common.hub_operation_meta import remove
+    from common.observability.hub_operation_meta import remove
 
     remove("workflow", workflow_id)
     return {"success": True}

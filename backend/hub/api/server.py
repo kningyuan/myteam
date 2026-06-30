@@ -30,7 +30,7 @@ from base.agent_chat import (
     set_agent_backend_config,
 )
 from base.agent_factory import generate_agent, suggest_agent_id
-from hub.paths import FRONTEND_DIST, resolve_workspace, to_relative_path
+from common.paths import FRONTEND_DIST, resolve_workspace, to_relative_path
 from hub.services.project_launch import (
     resume_kernel_bg,
     run_kernel_bg,
@@ -38,7 +38,7 @@ from hub.services.project_launch import (
 )
 from hub.api.deps import we_store as _we_store
 from hub.api.errors import APIError
-from store.system_config import system_config
+from config_store.system_config import system_config
 
 
 @asynccontextmanager
@@ -50,7 +50,7 @@ async def lifespan(app: FastAPI):
         logging.getLogger().setLevel(logging.DEBUG)
         logging.getLogger("uvicorn").setLevel(logging.DEBUG)
     try:
-        from common.agent_model import ensure_agents_config_entries
+        from common.agent.agent_model import ensure_agents_config_entries
 
         touched = ensure_agents_config_entries(persist=True)
         if touched:
@@ -58,7 +58,7 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         print(f"[myteam] agents_config 补全跳过：{exc}")
     try:
-        from common.adapter_skill_registry import sync_all_agent_skill_mounts
+        from common.agent.adapter_skill_registry import sync_all_agent_skill_mounts
 
         mount = sync_all_agent_skill_mounts()
         n_cli = mount.get("cli", {}).get("count", 0)
@@ -68,7 +68,7 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         print(f"[myteam] Skill 挂载同步跳过：{exc}")
     try:
-        from common.adapter_mcp_registry import sync_all_agent_mcp_mounts
+        from common.agent.adapter_mcp_registry import sync_all_agent_mcp_mounts
 
         mcp_mount = sync_all_agent_mcp_mounts()
         n_mcp = mcp_mount.get("cli", {}).get("count", 0)
@@ -86,10 +86,10 @@ def _auto_resume_on_startup() -> None:
         n_stale = _reconcile_stale_kernel_runs()
         if n_stale:
             print(f"[myteam] 清除 {n_stale} 个 Hub 重启残留的 kernel 运行标记")
-        from common.agent_port import reconcile_on_start
-        from common.project_runtime import get_project_runtime
-        from common.store import Store
-        from common.workspace_gc import gc_workspace
+        from common.agent.agent_port import reconcile_on_start
+        from common.project.project_runtime import get_project_runtime
+        from common.store.store import Store
+        from common.runtime.workspace_gc import gc_workspace
         store = Store()
         try:
             reconcile_on_start(store)  # 先对账再 gc，避免误删可采纳孤儿 .response
@@ -116,7 +116,7 @@ def _auto_resume_on_startup() -> None:
             print(f"[myteam] 自动续跑 {len(resumed)} 个中断项目: {', '.join(resumed)}")
         # 扫描 orphan job
         try:
-            from common.job_supervisor import JobSupervisor
+            from common.project.job_supervisor import JobSupervisor
 
             orphan_store = Store()
             try:

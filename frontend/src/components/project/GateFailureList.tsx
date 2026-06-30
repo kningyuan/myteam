@@ -1,4 +1,4 @@
-import { formatGateFailures, type GateFailureLike } from "@/lib/project-labels"
+import { formatGateFailures, type GateFailureLike } from "@/lib/project/project-labels"
 
 export function GateFailureList({ failures }: { failures: (GateFailureLike | string)[] }) {
   const lines = formatGateFailures(failures)

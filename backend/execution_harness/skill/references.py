@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Optional
 
 from common.paths import MYTEAM_ROOT
-from common.registry import is_stub
-from common.skill_catalog import SKILLS_DIR
+from common.gate.registry import is_stub
+from common.skill.skill_catalog import SKILLS_DIR
 
 _COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 

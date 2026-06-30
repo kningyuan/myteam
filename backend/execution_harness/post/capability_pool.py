@@ -7,7 +7,7 @@ import logging
 import time
 from typing import Optional
 
-from common.store import Store
+from common.store.store import Store
 
 logger = logging.getLogger("execution_harness.post.capability_pool")
 

@@ -7,8 +7,8 @@ import warnings
 from pathlib import Path
 from typing import Optional
 
-from hub.paths import PROJECTS_DIR, to_relative_path
-from common.store import Store
+from common.paths import PROJECTS_DIR, to_relative_path
+from common.store.store import Store
 
 
 # P0 边界澄清：是否使用 SQLite 替代 task_data.json（0.6）
@@ -24,7 +24,7 @@ def _init_sqlite_flag() -> None:
     if _USE_SQLITE_FLAG_INITED:
         return
     try:
-        from store.system_config import system_config
+        from config_store.system_config import system_config
         _use_sqlite_store = bool(system_config.get("system", "use_sqlite_project_store", default=False))
     except Exception:
         _use_sqlite_store = False

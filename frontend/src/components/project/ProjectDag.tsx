@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import type { ProjectTask } from "@/lib/api/projects"
-import { DAG_COLORS, DAG_LABELS } from "@/lib/project-labels"
+import { DAG_COLORS, DAG_LABELS } from "@/lib/project/project-labels"
 import { Button } from "@/components/ui/button"
 
 const SCALE_MIN = 0.35

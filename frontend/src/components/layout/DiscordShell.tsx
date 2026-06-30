@@ -16,7 +16,7 @@ import {
 } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ResizableColumn } from "@/components/ui/ResizableColumn"
-import { useColumnWidth } from "@/lib/use-column-width"
+import { useColumnWidth } from "@/hooks/use-column-width"
 import { useTheme } from "@/lib/theme"
 import { cn } from "@/lib/utils"
 

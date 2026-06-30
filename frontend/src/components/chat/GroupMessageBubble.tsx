@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { MarkdownBody } from "@/components/MarkdownBody"
 import { ThinkingStream } from "@/components/chat/ThinkingStream"
 import type { GroupMessage } from "@/lib/api/groups"
-import type { LiveAgentReply } from "@/lib/groupChatLive"
+import type { LiveAgentReply } from "@/lib/chat/groupChatLive"
 import type { ThinkingEvent } from "@/lib/thinking"
 
 /** 超过此长度才显示折叠控件 */

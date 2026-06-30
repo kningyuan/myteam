@@ -1,6 +1,6 @@
 """Hub API 共享依赖（Store 单例等）。"""
 
-from common.store import Store
+from common.store.store import Store
 
 _WE_STORE: Store | None = None
 

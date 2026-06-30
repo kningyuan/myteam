@@ -26,8 +26,8 @@ from hub.services.project_launch import (
     start_kernel_job,
 )
 from hub.services.project_service import get_project, get_project_log, list_projects
-from store.skill_config import skill_config
-from store.system_config import system_config
+from config_store.skill_config import skill_config
+from config_store.system_config import system_config
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
@@ -64,7 +64,7 @@ async def api_project_run(body: dict):
             max_cycles = None
     process_defaults = skill_config.get_all().get("process_defaults") or {}
     if workflow:
-        from common.workflow_loader import load_workflow
+        from common.workflow.workflow_loader import load_workflow
 
         try:
             load_workflow(workflow)
@@ -156,7 +156,7 @@ async def api_project_dispatch(project_id: str, body: dict):
 @router.post("/{project_id}/resume")
 async def api_project_resume(project_id: str):
     """断点续跑：回收孤儿响应后继续 DAG，无需重发项目。"""
-    from common.store import Store
+    from common.store.store import Store
 
     store = Store()
     try:
@@ -186,8 +186,8 @@ async def api_project_deliverable(project_id: str, task_id: str):
         raise HTTPException(status_code=400, detail="task_id 非法")
     if "/" in project_id or "\\" in project_id or ".." in project_id:
         raise HTTPException(status_code=400, detail="project_id 非法")
-    from common.project_artifacts import get_task_deliverable_bundle
-    from common.store import Store
+    from common.project.project_artifacts import get_task_deliverable_bundle
+    from common.store.store import Store
 
     bundle = get_task_deliverable_bundle(Store(), project_id, task_id)
     primary = bundle.get("primary") or {}
@@ -206,8 +206,8 @@ async def api_project_deliverable_file(project_id: str, task_id: str, path: str 
         raise APIError("INVALID_PROJECT_ID", "project_id 非法", status_code=400)
     if not path or ".." in path:
         raise APIError("INVALID_PATH", "path 非法", status_code=400)
-    from common.project_artifacts import read_task_artifact_file
-    from common.store import Store
+    from common.project.project_artifacts import read_task_artifact_file
+    from common.store.store import Store
 
     return read_task_artifact_file(Store(), project_id, task_id, path)
 
@@ -215,7 +215,7 @@ async def api_project_deliverable_file(project_id: str, task_id: str, path: str 
 @router.post("/{project_id}/cancel")
 async def api_project_cancel(project_id: str):
     """取消项目：Store 置 cancelled + cancel_event 终止当前 CLI 子进程 + 停止后续派发。"""
-    from common.project_runtime import get_project_runtime
+    from common.project.project_runtime import get_project_runtime
 
     ok, msg = get_project_runtime().cancel(project_id)
     if not ok:
@@ -236,7 +236,7 @@ async def api_project_delete(project_id: str):
         raise APIError("INVALID_PROJECT_ID", "project_id 非法")
     if _is_kernel_running(project_id):
         raise APIError("PROJECT_RUNNING", "项目运行中，请先取消再删除", status_code=409)
-    from common.store import Store
+    from common.store.store import Store
 
     store = Store()
     try:
@@ -244,7 +244,7 @@ async def api_project_delete(project_id: str):
             raise APIError("PROJECT_NOT_FOUND", "项目不存在", status_code=404)
     finally:
         store.close()
-    from common.project_admin import delete_project
+    from common.project.project_admin import delete_project
 
     summary = delete_project(project_id)
     _clear_kernel_run(project_id)
@@ -260,7 +260,7 @@ _extra_router = APIRouter(tags=["projects-extra"])
 async def api_init():
     """初始化所有 Agent 工作空间（幂等）。"""
     try:
-        from common.run_kernel import cmd_init
+        from common.runtime.run_kernel import cmd_init
 
         count = cmd_init()
         return {"success": True, "message": f"已完成 {count} 个 Agent 工作空间初始化"}
@@ -271,7 +271,7 @@ async def api_init():
 @_extra_router.post("/api/demo")
 async def api_demo():
     """在后台线程运行 demo 项目。"""
-    from common.run_kernel import _read_demo_goal, _system_default_backend
+    from common.runtime.run_kernel import _read_demo_goal, _system_default_backend
 
     project_id = f"demo-ui-{int(time.time())}"
     if _is_kernel_running(project_id):
@@ -295,8 +295,8 @@ async def api_project_deliverables(project_id: str):
     """项目级交付物聚合列表：合并所有任务的 deliverable 文件树。"""
     if "/" in project_id or "\\" in project_id or ".." in project_id:
         raise APIError("INVALID_PROJECT_ID", "project_id 非法")
-    from common.project_artifacts import get_task_deliverable_bundle
-    from common.store import Store
+    from common.project.project_artifacts import get_task_deliverable_bundle
+    from common.store.store import Store
 
     store = Store()
     try:

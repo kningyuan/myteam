@@ -275,7 +275,7 @@ def move_skill_to_category(skill_id: str, category_id: str | None) -> dict:
 
     _save_registry(data)
 
-    from common.adapter_skill_registry import remount_skill_after_library_move
+    from common.agent.adapter_skill_registry import remount_skill_after_library_move
 
     remount = remount_skill_after_library_move(sid)
     entry = get_skill_entry(sid)

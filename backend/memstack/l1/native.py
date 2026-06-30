@@ -20,7 +20,7 @@ def default_session_key(scope: MemoryScope) -> str:
 
 
 def _clear_opencode_sessions(agent_id: str, workspace_key: str) -> None:
-    from store.sessions import session_store
+    from config_store.sessions import session_store
 
     session_store.remove_for_agent_workspace(agent_id, workspace_key)
 
@@ -29,7 +29,7 @@ def clear_group_store_conversation(group_id: str) -> None:
     if not group_id:
         return
     try:
-        from common.store import Store
+        from common.store.store import Store
 
         store = Store()
         try:

@@ -16,7 +16,7 @@ def _test_task_type_registry(monkeypatch):
         yield
         return
     from common import paths
-    from common.registry import invalidate_registry_cache
+    from common.gate.registry import invalidate_registry_cache
 
     monkeypatch.setattr(paths, "templates_file", lambda: _TEST_TASK_TYPES)
     invalidate_registry_cache()
@@ -26,7 +26,7 @@ def _test_task_type_registry(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _framework_submit_bypass(monkeypatch):
-    from common import submit_result
+    from common.delivery import submit_result
 
     _orig = submit_result.submit
 

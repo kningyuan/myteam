@@ -17,9 +17,9 @@ from base.group_manager import (
     send_group_message,
     update_group_meta,
 )
-from hub.paths import PROJECTS_DIR
+from common.paths import PROJECTS_DIR
 from hub.services.group_broadcast import publish
-from store.skill_config import skill_config
+from config_store.skill_config import skill_config
 
 
 def _resolve_project_display_name(project_id: str, hint: str = "") -> str:
@@ -66,7 +66,7 @@ def setup_project_group(
     project_name: str = "",
 ) -> tuple[bool, str, Optional[str]]:
     """为项目创建/同步协作群并绑定 project_id。返回 (ok, message, group_id)。"""
-    from common.workflow_collaboration import collaboration_for_project
+    from common.workflow.workflow_collaboration import collaboration_for_project
 
     collab = collaboration_for_project(project_id)
     if not collab.project_group_enabled:
@@ -119,13 +119,13 @@ def post_project_progress(
     sender: str = "system",
 ) -> tuple[bool, str]:
     """向绑定项目的群组发送进度通报（无 @ 时不触发 Agent 路由）。"""
-    from common.workflow_collaboration import notifications_enabled
+    from common.workflow.workflow_collaboration import notifications_enabled
 
     if not notifications_enabled(project_id):
         return False, "project group notifications disabled by workflow"
 
     try:
-        from common.skill_settings import hub_base_url
+        from common.skill.skill_settings import hub_base_url
 
         base = hub_base_url()
         if base and project_id and base not in text:
@@ -156,7 +156,7 @@ def _record_message_event(project_id: str, sender: str, text: str) -> None:
         backend = Path(__file__).resolve().parents[2]
         if str(backend) not in sys.path:
             sys.path.insert(0, str(backend))
-        from common.store import Store
+        from common.store.store import Store
 
         store = Store()
         try:
@@ -219,12 +219,12 @@ def format_progress_message(
     """统一多行通报（对齐 notify-telegram format_notification）。"""
     import sys
 
-    from hub.paths import BACKEND_DIR
+    from common.paths import BACKEND_DIR
 
     p = str(BACKEND_DIR)
     if p not in sys.path:
         sys.path.insert(0, p)
-    from common.notify_format import format_event_message
+    from common.process.notify_format import format_event_message
 
     project_name, task_name, deliverables = _load_task_context(project_id, task_id, agent_id)
     subtask_name = ""

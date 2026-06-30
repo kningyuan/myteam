@@ -7,7 +7,7 @@ import {
   type ChatArchiveEntry,
 } from "@/lib/api/chat"
 import { useResourceQuery } from "@/hooks/useResourceQuery"
-import { isAgentStreamBusy, resetAgentChatSession, subscribeAgentChatGlobal } from "@/lib/agentChatStream"
+import { isAgentStreamBusy, resetAgentChatSession, subscribeAgentChatGlobal } from "@/lib/chat/agentChatStream"
 import { formatRelativeTime } from "@/lib/thinking"
 import { sortByModifiedDesc } from "@/lib/sortByModified"
 import { AgentChatPanel } from "@/components/chat/AgentChatPanel"

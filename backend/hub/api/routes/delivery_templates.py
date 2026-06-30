@@ -10,15 +10,15 @@ router = APIRouter(prefix="/api/delivery-templates", tags=["delivery-templates"]
 @router.get("")
 async def api_list_delivery_templates():
     """列出交付模板（含 task_types 绑定；按 Hub 操作时间排序）。"""
-    from common.delivery_template_store import list_templates_for_api
+    from common.delivery.delivery_template_store import list_templates_for_api
 
     return {"templates": list_templates_for_api()}
 
 
 @router.get("/{template_id}")
 async def api_get_delivery_template(template_id: str):
-    from common.delivery_template_store import format_template_api, read_template_raw
-    from common.delivery_templates import load_delivery_template
+    from common.delivery.delivery_template_store import format_template_api, read_template_raw
+    from common.delivery.delivery_templates import load_delivery_template
 
     import yaml
 
@@ -37,9 +37,9 @@ async def api_get_delivery_template(template_id: str):
 
 @router.post("")
 async def api_create_delivery_template(body: dict):
-    from common.delivery_template_store import save_template, validate_template_id
-    from common.delivery_templates import DeliveryTemplateError, load_delivery_template
-    from common.hub_operation_meta import touch
+    from common.delivery.delivery_template_store import save_template, validate_template_id
+    from common.delivery.delivery_templates import DeliveryTemplateError, load_delivery_template
+    from common.observability.hub_operation_meta import touch
 
     import yaml
 
@@ -65,8 +65,8 @@ async def api_create_delivery_template(body: dict):
 
 @router.put("/{template_id}")
 async def api_update_delivery_template(template_id: str, body: dict):
-    from common.delivery_template_store import read_template_raw, save_template
-    from common.hub_operation_meta import touch
+    from common.delivery.delivery_template_store import read_template_raw, save_template
+    from common.observability.hub_operation_meta import touch
 
     try:
         read_template_raw(template_id)
@@ -79,7 +79,7 @@ async def api_update_delivery_template(template_id: str, body: dict):
         raise HTTPException(status_code=400, detail=str(e))
     touch("delivery_template", new_id)
     if new_id != template_id:
-        from common.hub_operation_meta import remove
+        from common.observability.hub_operation_meta import remove
 
         remove("delivery_template", template_id)
     return {"success": True, "template": item}
@@ -87,8 +87,8 @@ async def api_update_delivery_template(template_id: str, body: dict):
 
 @router.delete("/{template_id}")
 async def api_delete_delivery_template(template_id: str):
-    from common.delivery_template_store import delete_template
-    from common.hub_operation_meta import remove
+    from common.delivery.delivery_template_store import delete_template
+    from common.observability.hub_operation_meta import remove
 
     try:
         delete_template(template_id)

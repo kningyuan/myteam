@@ -11,8 +11,8 @@ from hub.services.kernel_run import (
     _is_kernel_running,
     _set_kernel_run,
 )
-from store.skill_config import skill_config
-from store.system_config import system_config
+from config_store.skill_config import skill_config
+from config_store.system_config import system_config
 
 
 def slug(text: str, limit: int = 24) -> str:
@@ -34,7 +34,7 @@ def persist_project_launch(
     max_cycles: Optional[int] = None,
 ) -> None:
     """发起瞬间写入 SQLite，避免仅后台线程落库导致刷新后项目列表为空。"""
-    from common.store import Store
+    from common.store.store import Store
 
     meta: dict = {
         "goal": goal,
@@ -68,7 +68,7 @@ def persist_project_launch(
 
 
 def mark_project_kernel_failed(project_id: str, error: str) -> None:
-    from common.store import Store
+    from common.store.store import Store
 
     store = Store()
     try:
@@ -92,8 +92,8 @@ def run_kernel_bg(
     max_cycles: Optional[int] = None,
 ) -> None:
     try:
-        from common.kernel_config import kernel_configs_for_run
-        from common.run_kernel import run_project
+        from common.runtime.kernel_config import kernel_configs_for_run
+        from common.runtime.run_kernel import run_project
         from hub.services.project_hooks import hub_project_hooks
 
         defaults = process_defaults or {}
@@ -130,9 +130,9 @@ def run_kernel_bg(
 
 def resume_kernel_bg(project_id: str) -> None:
     try:
-        from common.kernel_config import kernel_configs_for_run
-        from common.run_kernel import resume_project
-        from common.store import Store
+        from common.runtime.kernel_config import kernel_configs_for_run
+        from common.runtime.run_kernel import resume_project
+        from common.store.store import Store
         from hub.services.project_hooks import hub_project_hooks
 
         defaults = skill_config.get_all().get("process_defaults") or {}
@@ -163,7 +163,7 @@ def resume_kernel_bg(project_id: str) -> None:
 
 def start_kernel_job(project_id: str, runner: Callable, *args, **kwargs) -> None:
     """经 ProjectRuntime 调度后台内核（JobSupervisor + 并发槽 + 取消注册）。"""
-    from common.project_runtime import get_project_runtime
+    from common.project.project_runtime import get_project_runtime
 
     def _on_end(pid: str, _err: Optional[BaseException]) -> None:
         _clear_kernel_run(pid)

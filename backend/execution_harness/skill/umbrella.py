@@ -8,7 +8,7 @@ from typing import Optional
 
 import yaml
 
-from common.agent_skills import skill_file_path
+from common.agent.agent_skills import skill_file_path
 from execution_harness.config import task_type_skills_path
 
 

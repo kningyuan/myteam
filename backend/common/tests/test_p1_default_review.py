@@ -25,14 +25,14 @@ class TestDefaultReviewConsistency:
 
     def test_default_config_has_default_review(self, tmp_path, monkeypatch):
         """DEFAULT_CONFIG 中必须声明 default_review。"""
-        from store.system_config import DEFAULT_CONFIG
+        from config_store.system_config import DEFAULT_CONFIG
 
         assert "default_review" in DEFAULT_CONFIG["system"]
         assert isinstance(DEFAULT_CONFIG["system"]["default_review"], bool)
 
     def test_get_returns_default_review(self, tmp_path, monkeypatch):
         """system_config.get("system", "default_review") 应返回正确值。"""
-        from store import system_config as sc
+        from config_store import system_config as sc
 
         cfg_path = tmp_path / "system_config.json"
         cfg_path.write_text(json.dumps({}), encoding="utf-8")
@@ -44,7 +44,7 @@ class TestDefaultReviewConsistency:
 
     def test_get_all_includes_default_review(self, tmp_path, monkeypatch):
         """get_all() 返回的 system.default_review 与默认值一致。"""
-        from store import system_config as sc
+        from config_store import system_config as sc
 
         cfg_path = tmp_path / "system_config.json"
         cfg_path.write_text(json.dumps({}), encoding="utf-8")
@@ -58,7 +58,7 @@ class TestDefaultReviewConsistency:
 
     def test_update_preserves_default_review(self, tmp_path, monkeypatch):
         """update_all 不修改 default_review 时保持原值。"""
-        from store import system_config as sc
+        from config_store import system_config as sc
 
         cfg_path = tmp_path / "system_config.json"
         cfg_path.write_text(
@@ -79,7 +79,7 @@ class TestDefaultReviewConsistency:
 
     def test_update_can_flip_default_review(self, tmp_path, monkeypatch):
         """update_all 应允许将 default_review 从 False 改为 True。"""
-        from store import system_config as sc
+        from config_store import system_config as sc
 
         cfg_path = tmp_path / "system_config.json"
         cfg_path.write_text(
@@ -101,7 +101,7 @@ class TestDefaultReviewConsistency:
 
     def test_default_review_survives_deep_merge(self, tmp_path, monkeypatch):
         """深合并时默认值不应被覆盖为用户值。"""
-        from store import system_config as sc
+        from config_store import system_config as sc
 
         # 先写入包含 user 设置的文件
         cfg_path = tmp_path / "system_config.json"
@@ -135,7 +135,7 @@ class TestDefaultReviewConsistency:
 
     def test_default_review_persists_to_disk(self, tmp_path, monkeypatch):
         """default_review 写入后应在 JSON 文件中持久化。"""
-        from store import system_config as sc
+        from config_store import system_config as sc
 
         cfg_path = tmp_path / "system_config.json"
         # 空文件，使用 DEFAULT_CONFIG
@@ -154,7 +154,7 @@ class TestDefaultReviewConsistency:
 
     def test_get_all_does_not_include_default_review_as_missing(self, tmp_path, monkeypatch):
         """get_all() 不应返回 default_review 缺失的情况。"""
-        from store import system_config as sc
+        from config_store import system_config as sc
 
         # 写入不包含 default_review 的文件
         cfg_path = tmp_path / "system_config.json"

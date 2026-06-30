@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from common.store import Store
+from common.store.store import Store
 from memstack.facade import after_chat_turn, inject_for_execute, on_chat_turn, on_task_success
 from memstack.kb import get_kb_backend
 from memstack.l1.protocol import memory_scope_dm

@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from common.store import Store
+from common.store.store import Store
 from memstack.l1.protocol import MemoryScope
 
 

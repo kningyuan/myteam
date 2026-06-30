@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from common.store import Store
+from common.store.store import Store
 from execution_harness.context import TaskCompleteContext
 from execution_harness.skill.references import write_reference_from_ledger
 from execution_harness.skill.umbrella import resolve_umbrella_skill

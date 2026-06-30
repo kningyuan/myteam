@@ -32,7 +32,7 @@ import {
   buildAgentNameLookup,
   formatMemberList,
   roundtablePhaseLabel,
-} from "@/lib/agentLabels"
+} from "@/lib/chat/agentLabels"
 import {
   GroupLiveAgentBubble,
   GroupMessageBubble,
@@ -47,7 +47,7 @@ import {
   parseGroupDiscussionSettings,
   primaryTerminateCommand,
   type GroupDiscussionSettings,
-} from "@/lib/groupDiscussionSettings"
+} from "@/lib/chat/groupDiscussionSettings"
 import {
   applyThinkingChunk,
   buildInflightGroupState,
@@ -60,8 +60,8 @@ import {
   shouldShowLiveReply,
   type GroupReadReceipt,
   type LiveAgentReply,
-} from "@/lib/groupChatLive"
-import { useImeCompositionGuard } from "@/lib/ime"
+} from "@/lib/chat/groupChatLive"
+import { useImeCompositionGuard } from "@/hooks/ime"
 import { DiscordShell, ListColumn, WelcomePane } from "@/components/layout/DiscordShell"
 import { ListItemRow } from "@/components/layout/ListItemRow"
 import { Button } from "@/components/ui/button"

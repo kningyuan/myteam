@@ -6,8 +6,8 @@ import re
 from pathlib import Path
 from typing import Optional
 
-from common.registry import is_stub
-from common.store import Store
+from common.gate.registry import is_stub
+from common.store.store import Store
 from memstack.kb import get_kb_backend
 
 _COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)

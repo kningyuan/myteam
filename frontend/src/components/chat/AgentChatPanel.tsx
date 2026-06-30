@@ -23,8 +23,8 @@ import {
   sendAgentChatMessage,
   syncAgentChatFromServer,
   type CitationPart,
-} from "@/lib/agentChatStream"
-import { useImeCompositionGuard } from "@/lib/ime"
+} from "@/lib/chat/agentChatStream"
+import { useImeCompositionGuard } from "@/hooks/ime"
 import { useAgentChat, useRestoreDraft } from "@/hooks/useAgentChat"
 import { MarkdownBody } from "@/components/MarkdownBody"
 import { ThinkingStream } from "@/components/chat/ThinkingStream"

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional, Type
 
-from common.store import Store
+from common.store.store import Store
 
 from memstack.config import kb_backend_name
 from memstack.kb.gbrain import GbrainKnowledgeBackend

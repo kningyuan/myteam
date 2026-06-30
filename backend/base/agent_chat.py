@@ -15,7 +15,7 @@ _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from hub.paths import (
+from common.paths import (
     AGENTS_CONFIG_FILE,
     AGENTS_REGISTRY_FILE,
     GROUPS_FILE,
@@ -26,7 +26,7 @@ from hub.paths import (
     resolve_workspace,
     to_relative_path,
 )
-from store.system_config import system_config
+from config_store.system_config import system_config
 from base.agent_identity import AgentIdentityBuilder, multi_agent_manager
 
 
@@ -59,7 +59,7 @@ def _save_agents_config(config: dict):
 
 def get_agent_backend_config(agent_id: str) -> BackendConfig:
     """获取 Agent 的后端配置：显式 agents_config 覆盖，否则跟随设置页默认。"""
-    from common.agent_model import (
+    from common.agent.agent_model import (
         agent_model_override,
         resolve_agent_backend,
         resolve_agent_model,
@@ -187,7 +187,7 @@ def _adapter_models_payload(adapter, *, refresh: bool = False) -> list[dict]:
     """单后端模型列表；refresh 时绕过 OpenCode CLI 缓存。"""
     list_models = adapter.list_models
     if refresh and adapter.id == "opencode":
-        from adapters.opencode.adapter import OpenCodeAdapter
+        from adapter.opencode.adapter import OpenCodeAdapter
         OpenCodeAdapter.invalidate_models_cache()
         models = list_models(refresh=True)
     else:
@@ -200,8 +200,8 @@ def _adapter_models_payload(adapter, *, refresh: bool = False) -> list[dict]:
 
 def get_backend_models(backend_id: str, *, refresh: bool = False) -> list[dict]:
     """按 backend_id 返回模型列表；不存在则抛 ValueError。"""
-    import adapters  # noqa: F401
-    from adapter.registry import registry as adapter_registry
+    import adapter  # noqa: F401  — side-effect CLI 注册
+    from adapter.core.registry import registry as adapter_registry
 
     adapter = adapter_registry.get(backend_id)
     if adapter is None:
@@ -211,8 +211,8 @@ def get_backend_models(backend_id: str, *, refresh: bool = False) -> list[dict]:
 
 def list_all_backends_with_models() -> list[dict]:
     """列出所有 Adapter 及其模型。"""
-    import adapters  # noqa: F401
-    from adapter.registry import registry as adapter_registry
+    import adapter  # noqa: F401  — side-effect CLI 注册
+    from adapter.core.registry import registry as adapter_registry
 
     result = []
     for adapter in adapter_registry.list_all():
@@ -269,9 +269,9 @@ def scan_agents() -> list[dict]:
 # ============ 系统提示和规则文件 ============
 
 def build_system_prompt(agent_id: str, workspace: str, *, profile: str = "interactive") -> str:
-    from common.agent_registry import build_registry_capability_context
-    from common.agent_skills import build_skill_context
-    from common.agent_mcp import build_mcp_context
+    from common.agent.agent_registry import build_registry_capability_context
+    from common.agent.agent_skills import build_skill_context
+    from common.agent.agent_mcp import build_mcp_context
 
     builder = AgentIdentityBuilder(agent_id, workspace)
     sections = []
@@ -308,7 +308,7 @@ def create_merged_rules_file(
     profile: str = "interactive",
 ) -> Optional[str]:
     """动态合并规则文件（默认交互模式；圆桌 discussion；execute 传 workflow_execute）。"""
-    from common.rules_merge import RulesProfile, merge_rules_file, normalize_rules_profile
+    from common.gate.rules_merge import RulesProfile, merge_rules_file, normalize_rules_profile
 
     profile = normalize_rules_profile(profile)
     builder = AgentIdentityBuilder(agent_id, workspace)
@@ -326,7 +326,7 @@ def create_merged_rules_file(
 
 
 def _clear_agent_sessions(agent_id: str, backend_id: str | None = None):
-    from store.sessions import session_store
+    from config_store.sessions import session_store
 
     ws_key = f"workspace-{agent_id}"
     adapter_ids = [backend_id] if backend_id else ["opencode", "claude"]
@@ -368,7 +368,7 @@ def clear_agent_chat_context(agent_id: str) -> tuple[bool, str]:
     _clear_agent_sessions(agent_id, backend_cfg.backend_id)
     # P0：DM 记忆路径的历史在 Store，清空时一并清掉（消息 + 摘要/pins）
     try:
-        from common.store import Store
+        from common.store.store import Store
         s = Store()
         try:
             s.clear_conversation(f"dm:{agent_id}")
@@ -402,13 +402,13 @@ def stream_chat(
     group_id/project_id：群或圆桌场景下用于 memory scope 隔离（与 workspace_key 二选一传入）。
     """
     from hub.services.chat_service import chat_service
-    from common.agent_memory import (
+    from memstack.l1 import (
         MemoryScope,
         memory_scope_dm,
         memory_scope_group,
         memory_scope_roundtable,
     )
-    from common.rules_merge import normalize_rules_profile
+    from common.gate.rules_merge import normalize_rules_profile
 
     profile = normalize_rules_profile(rules_profile)
     if discuss_only is True:

@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from common.job_supervisor import JobSupervisor
-from common.store import Store
+from common.project.job_supervisor import JobSupervisor
+from common.store.store import Store
 
 
 @pytest.fixture()

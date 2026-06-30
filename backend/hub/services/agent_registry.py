@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from hub.paths import AGENTS_REGISTRY_FILE, WORKSPACES_DIR, WORKSPACE_PREFIX
+from common.paths import AGENTS_REGISTRY_FILE, WORKSPACES_DIR, WORKSPACE_PREFIX
 from base.agent_chat import scan_agents
 from common.coordinator import get_coordinator_id
 
@@ -80,7 +80,7 @@ def format_registry_for_prompt(*, role_filter: Optional[str] = None) -> str:
                 continue
         if not info.get("available"):
             continue
-        from common.registry import task_type_label
+        from common.gate.registry import task_type_label
 
         caps = "、".join(info.get("capabilities") or [])[:80]
         tts_raw = info.get("task_types") or []
@@ -139,17 +139,17 @@ def register_agent(agent_id: str, *, name: str = "", role: str = "worker",
     raw["agents"][agent_id] = entry
     _save_registry_file(raw)
     if skills is not None or skills_explicit:
-        from common.agent_skills import strip_agents_md_skills_section
+        from common.agent.agent_skills import strip_agents_md_skills_section
 
         strip_agents_md_skills_section(agent_id)
-        from common.adapter_skill_registry import sync_agent_skills_to_cli
+        from common.agent.adapter_skill_registry import sync_agent_skills_to_cli
 
         sync_agent_skills_to_cli(agent_id)
     if mcp_servers is not None or mcp_explicit:
-        from common.agent_mcp import strip_agents_md_mcp_section
+        from common.agent.agent_mcp import strip_agents_md_mcp_section
 
         strip_agents_md_mcp_section(agent_id)
-        from common.adapter_mcp_registry import sync_agent_mcp_to_cli
+        from common.agent.adapter_mcp_registry import sync_agent_mcp_to_cli
 
         sync_agent_mcp_to_cli(agent_id)
     return {"success": True, "agent_id": agent_id}
@@ -157,7 +157,7 @@ def register_agent(agent_id: str, *, name: str = "", role: str = "worker",
 
 def update_agent_skills(agent_id: str, skills: list[str]) -> dict:
     """更新 Agent 挂载的 skill id 列表（严格：仅列表内 Skill 对 Agent 可见）。"""
-    from common.skill_catalog import validate_skill_ids
+    from common.skill.skill_catalog import validate_skill_ids
 
     valid, unknown = validate_skill_ids(skills)
     if unknown:
@@ -204,7 +204,7 @@ def update_agent_mcp_servers(agent_id: str, mcp_servers: list[str]) -> dict:
 
 def update_agent_task_types(agent_id: str, task_types: list[str]) -> dict:
     """更新 Agent 可执行的 task_type 列表（须在 templates.yaml 已注册）。"""
-    from common.registry import get_spec
+    from common.gate.registry import get_spec
 
     unknown = [t for t in task_types if get_spec(t) is None]
     if unknown:
@@ -236,14 +236,14 @@ def _load_business_roster() -> dict:
 
 
 def _load_pgd_template() -> dict:
-    from common.workflow_bootstrap import load_pgd_agent_template
+    from common.workflow.workflow_bootstrap import load_pgd_agent_template
 
     return load_pgd_agent_template()
 
 
 def sync_missing_agent_task_types(*, only_empty: bool = True) -> dict:
     """为 workspace 存在但 task_types 为空的 Agent 补全能力（名册 → PGD → 描述推导）。"""
-    from common.agent_task_type_suggest import suggest_task_types_for_agent
+    from common.agent.agent_task_type_suggest import suggest_task_types_for_agent
 
     roster = _load_business_roster()
     pgd = _load_pgd_template()
@@ -331,7 +331,7 @@ def sync_missing_agent_skills(*, only_empty: bool = True) -> dict:
 
 def list_agents_mounting_skill(skill_id: str) -> list[str]:
     """返回 skills[] 中挂载了该 skill（含路径式引用）的 agent_id。"""
-    from common.skill_catalog import canonical_skill_mount_id
+    from common.skill.skill_catalog import canonical_skill_mount_id
 
     sid = (skill_id or "").strip()
     if not sid:
@@ -350,7 +350,7 @@ def list_agents_mounting_skill(skill_id: str) -> list[str]:
 
 def normalize_agent_skill_mounts(*, skill_id: str | None = None) -> list[str]:
     """将 agents_registry skills[] 中的路径式引用改写为规范 skill id；返回被更新的 agent_id。"""
-    from common.skill_catalog import canonical_skill_mount_id
+    from common.skill.skill_catalog import canonical_skill_mount_id
 
     sid_filter = (skill_id or "").strip() or None
     raw = _load_registry_file()

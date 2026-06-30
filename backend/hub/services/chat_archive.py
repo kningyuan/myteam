@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from hub.paths import CHAT_ARCHIVES_DIR
+from common.paths import CHAT_ARCHIVES_DIR
 
 _lock = threading.Lock()
 _INDEX_FILE = CHAT_ARCHIVES_DIR / "index.json"

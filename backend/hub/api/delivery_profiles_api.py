@@ -47,7 +47,7 @@ def _validate_profile_id(profile_id: str) -> str:
 @router.get("/")
 def list_profiles():
     """列出所有 delivery profiles。"""
-    from common.delivery_profiles import invalidate_delivery_profiles_cache
+    from common.delivery.delivery_profiles import invalidate_delivery_profiles_cache
 
     invalidate_delivery_profiles_cache()
     raw = _load_profiles_file()
@@ -147,7 +147,7 @@ def delete_profile(profile_id: str):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    from common.delivery_profiles import invalidate_delivery_profiles_cache
+    from common.delivery.delivery_profiles import invalidate_delivery_profiles_cache
 
     raw = _load_profiles_file()
     profiles = raw.get("profiles") or {}

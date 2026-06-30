@@ -15,7 +15,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Optional
 
-from common.store import Store
+from common.store.store import Store
 from execution_harness.post.rubric_eval import evaluate_deliverable
 from execution_harness.post.data_collector import TaskTrace
 

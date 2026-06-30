@@ -13,8 +13,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import Optional
 
-from common.store import Store
-from common.skill_catalog import list_all_skills, get_skill_library_entry
+from common.store.store import Store
+from common.skill.skill_catalog import list_all_skills, get_skill_library_entry
 
 logger = logging.getLogger("execution_harness.post.self_improve")
 

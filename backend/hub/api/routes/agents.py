@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
 from base.agent_chat import scan_agents
-from common.hub_operation_meta import attach_operated_at
+from common.observability.hub_operation_meta import attach_operated_at
 from hub.api.deps import we_store
 from hub.services.agent_registry import get_agents_registry
 
@@ -90,7 +90,7 @@ async def list_agents():
 
 @router.get("/{agent_id}/detail")
 async def agent_detail(agent_id: str):
-    from hub.paths import AGENT_WORKSPACE_FILES, resolve_workspace, to_relative_path
+    from common.paths import AGENT_WORKSPACE_FILES, resolve_workspace, to_relative_path
 
     from base.agent_chat import _load_agents_config, get_agent_backend_config
 
@@ -113,14 +113,14 @@ async def agent_detail(agent_id: str):
         task_types = [task_types] if task_types else []
     task_types = [str(t).strip() for t in task_types if str(t).strip()]
 
-    from common.agent_registry import get_agent_info, get_agent_task_types
-    from common.agent_skills import get_agent_skill_ids, skill_file_path
-    from common.skill_groups import get_skill_group, group_member_ids, is_skill_group
-    from common.agent_mcp import get_agent_mcp_ids
+    from common.agent.agent_registry import get_agent_info, get_agent_task_types
+    from common.agent.agent_skills import get_agent_skill_ids, skill_file_path
+    from common.skill.skill_groups import get_skill_group, group_member_ids, is_skill_group
+    from common.agent.agent_mcp import get_agent_mcp_ids
     from common.mcp_catalog import get_mcp_server
-    from common.registry import get_spec
-    from common.skill_catalog import get_skill_library_entry
-    from common.shared_rules import list_shared_rule_files, read_all_shared_rules
+    from common.gate.registry import get_spec
+    from common.skill.skill_catalog import get_skill_library_entry
+    from common.gate.shared_rules import list_shared_rule_files, read_all_shared_rules
 
     reg_info = get_agent_info(agent_id)
     if not task_types:
@@ -159,7 +159,7 @@ async def agent_detail(agent_id: str):
         )
 
     deliverable_skills = []
-    from common.skill_extract import SKILLS_DIR
+    from common.skill.skill_extract import SKILLS_DIR
 
     for tt in task_types:
         sp = SKILLS_DIR / tt / "SKILL.md"
@@ -204,7 +204,7 @@ async def agent_detail(agent_id: str):
 
 @router.put("/{agent_id}/files/{filename}")
 async def update_agent_workspace_file(agent_id: str, filename: str, body: dict):
-    from hub.paths import AGENT_WORKSPACE_FILES
+    from common.paths import AGENT_WORKSPACE_FILES
     from base.agent_chat import _load_agents_config
 
     if filename not in AGENT_WORKSPACE_FILES:
@@ -227,7 +227,7 @@ async def update_agent_workspace_file(agent_id: str, filename: str, body: dict):
     fp.parent.mkdir(parents=True, exist_ok=True)
     fp.write_text(content, encoding="utf-8")
 
-    from common.hub_operation_meta import touch
+    from common.observability.hub_operation_meta import touch
 
     touch("agent", agent_id)
     return {"success": True, "agent_id": agent_id, "filename": filename}
@@ -240,7 +240,7 @@ async def api_delete_agent(agent_id: str):
     ok, msg = delete_agent(agent_id)
     if not ok:
         raise HTTPException(status_code=400, detail=msg)
-    from common.hub_operation_meta import remove
+    from common.observability.hub_operation_meta import remove
 
     remove("agent", agent_id)
     return {"success": True, "message": msg}
@@ -281,7 +281,7 @@ async def manage_agent_config(agent_id: str, body: dict):
         result = update_agent_mcp_servers(agent_id, [str(m).strip() for m in mcps if str(m).strip()])
         if not result.get("success"):
             raise HTTPException(status_code=400, detail=result.get("error", "更新 MCP 失败"))
-    from common.hub_operation_meta import touch
+    from common.observability.hub_operation_meta import touch
 
     touch("agent", agent_id)
     return {"success": True, "agent_id": agent_id, "backend": backend, "model": model}
@@ -381,7 +381,7 @@ async def api_agent_background_chats(agent_id: str):
     """获取 Agent 的后台执行私聊记录（持久化的 .chat 文件）。"""
     import json
 
-    from hub.paths import WORKSPACES_DIR
+    from common.paths import WORKSPACES_DIR
 
     chat_dir = WORKSPACES_DIR / f"workspace-{agent_id}" / ".chats"
     msgs = []
@@ -398,7 +398,7 @@ async def api_agent_background_chats(agent_id: str):
 @router.post("/create")
 async def api_create_agent(body: dict):
     from base.agent_factory import generate_agent, suggest_agent_id
-    from store.system_config import system_config
+    from config_store.system_config import system_config
 
     description = body.get("description", "").strip()
     if not description:
@@ -417,7 +417,7 @@ async def api_create_agent(body: dict):
     )
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "创建失败"))
-    from common.hub_operation_meta import touch
+    from common.observability.hub_operation_meta import touch
 
     touch("agent", agent_id)
     return {"success": True, "agent": result}
@@ -474,7 +474,7 @@ async def api_create_agent_registry(body: dict):
     result = register_agent(**kwargs)
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "创建失败"))
-    from common.hub_operation_meta import touch
+    from common.observability.hub_operation_meta import touch
     touch("agent", agent_id)
     return {"success": True, "agent_id": agent_id}
 
@@ -522,7 +522,7 @@ async def api_update_agent_registry(agent_id: str, body: dict):
     result = register_agent(agent_id, **kwargs)
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "更新失败"))
-    from common.hub_operation_meta import touch
+    from common.observability.hub_operation_meta import touch
     touch("agent", agent_id)
     return {"success": True, "agent_id": agent_id}
 

@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from common.store import Store
+from common.store.store import Store
 
 logger = logging.getLogger("execution_harness.post.quality")
 

@@ -15,7 +15,7 @@ from common.contracts import (  # noqa: E402
     response_json_schema,
     validate_response_dict,
 )
-from common.submit_result import SubmitError, submit  # noqa: E402
+from common.delivery.submit_result import SubmitError, submit  # noqa: E402
 
 
 def _quality():

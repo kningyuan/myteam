@@ -33,20 +33,20 @@ def _ensure_common_importable() -> None:
 
 def _obs():
     _ensure_common_importable()
-    from common import observability  # noqa: WPS433
+    from common.observability import observability  # noqa: WPS433
     return observability
 
 
 def _store():
     _ensure_common_importable()
-    from common.store import Store  # noqa: WPS433
+    from common.store.store import Store  # noqa: WPS433
     return Store()
 
 
 def _use_kb_backend() -> bool:
     """P0 边界澄清：observability memory 操作是否走 KnowledgeBackend（0.5）。"""
     try:
-        from store.system_config import system_config
+        from config_store.system_config import system_config
         return bool(system_config.get("system", "use_kb_backend_for_observability", default=False))
     except Exception:
         return False
@@ -98,7 +98,7 @@ async def summary():
 async def list_task_types():
     """只读：业务任务类型注册表（与 /api/task-types 同源）。"""
     _ensure_common_importable()
-    from common.task_type_store import list_task_types_for_api  # noqa: WPS433
+    from common.gate.task_type_store import list_task_types_for_api  # noqa: WPS433
 
     return {"task_types": list_task_types_for_api()}
 

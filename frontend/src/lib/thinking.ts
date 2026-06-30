@@ -1,5 +1,5 @@
 import type { TimelineEvent } from "@/lib/api/projects"
-import { isExecThinkingKind } from "@/lib/project-labels"
+import { isExecThinkingKind } from "@/lib/project/project-labels"
 
 export type ThinkingEvent = {
   type: string

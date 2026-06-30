@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { getTaskDetail, type TaskDetail } from "@/lib/api/projects"
-import { DAG_LABELS, formatGateFailures } from "@/lib/project-labels"
+import { DAG_LABELS, formatGateFailures } from "@/lib/project/project-labels"
 import { StatusBadge, statusLabel } from "@/components/ui/page"
 import { Badge } from "@/components/ui/badge"
 

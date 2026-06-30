@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from common.store import Store
+from common.store.store import Store
 from execution_harness.config import inject_top_k, kb_enabled, l1_on_execute
 
 

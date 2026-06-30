@@ -15,7 +15,7 @@ pytest.importorskip("fastapi")
 pytest.importorskip("httpx")
 from fastapi.testclient import TestClient  # noqa: E402
 
-from common.store import Store  # noqa: E402
+from common.store.store import Store  # noqa: E402
 
 
 @pytest.fixture()
@@ -64,7 +64,7 @@ def test_store_roundtrip_tokens_total(tmp_path):
 
 def test_roundtable_extract_correction_items():
     """Test 3: parse correction items from Workflow v3 sample draft."""
-    from common.roundtable_runtime import extract_correction_items
+    from common.roundtable.roundtable_runtime import extract_correction_items
 
     draft = """
 ## 推荐做法（本题最佳实践）
@@ -88,7 +88,7 @@ def test_roundtable_extract_correction_items():
 
 def test_kernel_run_meta_get_set(tmp_path, monkeypatch):
     """Test 4: hub_kernel_run persisted in project.meta; _get_kernel_run reads it."""
-    import common.store as cstore
+    import common.store.store as cstore
     from hub.services import kernel_run
 
     db = tmp_path / "state.db"

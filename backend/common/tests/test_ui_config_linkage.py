@@ -11,8 +11,8 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from common.kernel_config import kernel_configs_for_run, watchdog_from_defaults  # noqa: E402
-from common.skill_settings import (  # noqa: E402
+from common.runtime.kernel_config import kernel_configs_for_run, watchdog_from_defaults  # noqa: E402
+from common.skill.skill_settings import (  # noqa: E402
     agent_msg_timeout,
     hub_base_url,
     is_auto_group_enabled,
@@ -47,7 +47,7 @@ def skill_cfg(tmp_path, monkeypatch):
     }
     path = tmp_path / "skill_config.json"
     path.write_text(json.dumps(cfg), encoding="utf-8")
-    monkeypatch.setattr("common.skill_settings.CONFIG_DIR", tmp_path)
+    monkeypatch.setattr("common.skill.skill_settings.CONFIG_DIR", tmp_path)
     monkeypatch.setattr("common.paths.CONFIG_DIR", tmp_path)
     reload_skill_settings()
     yield cfg
@@ -101,14 +101,14 @@ def test_max_concurrent_projects_in_process_defaults(skill_cfg):
 
 
 def test_max_concurrent_from_settings(skill_cfg, monkeypatch):
-    from common.project_runtime import _max_concurrent
+    from common.project.project_runtime import _max_concurrent
 
     assert _max_concurrent() == 3
 
 
 def test_audit_log_reads_system_config(tmp_path, monkeypatch):
-    from common.audit_log import audit_enabled
-    from store import system_config as sc
+    from common.observability.audit_log import audit_enabled
+    from config_store import system_config as sc
 
     cfg_path = tmp_path / "system_config.json"
     cfg_path.write_text(json.dumps({"system": {"audit_log": True}}), encoding="utf-8")

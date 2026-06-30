@@ -108,7 +108,7 @@ def test_pending_reject(tmp_path, monkeypatch):
 
 
 def test_memory_update(tmp_path):
-    from common.store import Store
+    from common.store.store import Store
 
     store = Store(tmp_path / "mem.db")
     store.upsert_project("sa-test", title="test", status="active")

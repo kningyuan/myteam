@@ -22,11 +22,11 @@ from pathlib import Path
 from typing import Optional
 
 # ── 包级 re-export ──────────────────────────────────────────────
-from common import project_admin
-from common import project_artifacts
-from common import project_cancel
-from common import project_hooks
-from common import project_runtime
+from common.project import project_admin
+from common.project import project_artifacts
+from common.project import project_cancel
+from common.project import project_hooks
+from common.project import project_runtime
 
 __all__ = [
     "project_admin",
@@ -85,7 +85,7 @@ class ProjectLib:
         cancel_registry 通知活跃 DeliveryContext。
         返回 (ok, message)。
         """
-        from common.project_runtime import _PROJECT_TERMINAL as terminal_states
+        from common.project.project_runtime import _PROJECT_TERMINAL as terminal_states
 
         proj = store.get_project(project_id)
         if not proj:

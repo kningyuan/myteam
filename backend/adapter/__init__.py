@@ -1,21 +1,15 @@
-"""Agent CLI 抽象层 — 与具体 CLI（OpenCode / Claude 等）无关。"""
+"""adapter 包 — CLI 适配层。
 
-from adapter.events import AgentEvent, EventKind
-from adapter.protocol import AdapterCapabilities, CLIAdapter, ModelInfo, RunRequest
-from adapter.subprocess_cli import SubprocessCLIAdapter
-from adapter.registry import registry
-from adapter.sse import encode_done, encode_error, encode_event
-
-__all__ = [
-    "AgentEvent",
-    "EventKind",
-    "AdapterCapabilities",
-    "CLIAdapter",
-    "SubprocessCLIAdapter",
-    "ModelInfo",
-    "RunRequest",
-    "registry",
-    "encode_event",
-    "encode_error",
-    "encode_done",
-]
+core/: 抽象层(events/protocol/registry/sse/subprocess_cli)
+opencode/: opencode 实现
+claude/: claude 实现
+"""
+# 触发 CLI 实例注册(side-effect import)
+import adapter.opencode.adapter  # noqa: F401
+import adapter.claude.adapter  # noqa: F401
+from adapter.core.events import AgentEvent, EventKind
+from adapter.core.protocol import AdapterCapabilities, CLIAdapter, ModelInfo, RunRequest
+from adapter.core.subprocess_cli import SubprocessCLIAdapter
+from adapter.core.registry import registry
+from adapter.core.sse import encode_done, encode_error, encode_event
+from adapter.stub_cli import PlannedCLIAdapter  # noqa: F401

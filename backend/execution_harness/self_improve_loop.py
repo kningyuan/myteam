@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
 
-from common.store import Store
+from common.store.store import Store
 from execution_harness.pre.self_improve import merge_constraints
 from execution_harness.post.data_collector import DataCollector, TaskTrace
 from execution_harness.post.self_eval import evaluate, EvalReport, report_to_json, fetch_baseline, update_baseline

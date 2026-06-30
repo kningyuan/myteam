@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from common.store import Store
+from common.store.store import Store
 from memstack.l1.native import NativeAgentMemory, clear_group_store_conversation, default_session_key
 from memstack.l1.protocol import MemoryScope
 

@@ -30,7 +30,7 @@ def build_interactive_harness_block(agent_id: str) -> str:
         return ""
     lines: list[str] = []
     try:
-        from common.agent_registry import get_agent_info
+        from common.agent.agent_registry import get_agent_info
 
         info = get_agent_info(agent_id)
         task_types = list(info.get("task_types") or [])

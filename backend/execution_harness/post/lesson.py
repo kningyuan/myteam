@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from common.store import Store
+from common.store.store import Store
 from execution_harness.post._yaml_util import parse_simple_yaml
 
 logger = logging.getLogger("execution_harness.post.lesson")

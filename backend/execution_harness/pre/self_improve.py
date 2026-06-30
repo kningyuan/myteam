@@ -7,9 +7,9 @@ import re
 from pathlib import Path
 from typing import Optional
 
-from common.store import Store
-from common.agent_registry import get_agent_info
-from common.skill_catalog import list_all_skills
+from common.store.store import Store
+from common.agent.agent_registry import get_agent_info
+from common.skill.skill_catalog import list_all_skills
 from common.paths import MYTEAM_ROOT
 
 logger = logging.getLogger("execution_harness.pre.self_improve")

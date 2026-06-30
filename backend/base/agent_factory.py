@@ -14,7 +14,7 @@ _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from hub.paths import WORKSPACE_PREFIX, WORKSPACES_DIR, resolve_workspace, to_relative_path
+from common.paths import WORKSPACE_PREFIX, WORKSPACES_DIR, resolve_workspace, to_relative_path
 from base.agent_chat import (
     get_agent_backend_config,
     set_agent_backend_config,
@@ -24,8 +24,8 @@ from hub.services.agent_registry import register_agent
 
 
 def _default_model(backend_id: str) -> str:
-    import adapters  # noqa: F401
-    from adapter.registry import registry
+    import adapter  # noqa: F401  — side-effect CLI 注册
+    from adapter.core.registry import registry
 
     adapter = registry.get(backend_id)
     return adapter.get_default_model() if adapter else ""
@@ -77,7 +77,7 @@ def generate_agent(
 
     resolved_tts = list(task_types or [])
     if not resolved_tts:
-        from common.agent_task_type_suggest import suggest_task_types_for_agent
+        from common.agent.agent_task_type_suggest import suggest_task_types_for_agent
 
         try:
             resolved_tts = suggest_task_types_for_agent(
