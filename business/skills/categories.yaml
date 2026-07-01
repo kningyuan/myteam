@@ -1,67 +1,86 @@
 version: '1'
 categories:
   methodology:
-    name: 方法论
-    description: 专业领域方法论
+    name: 通用方法论
+    description: 跨领域通用的工程与协作方法论
     members:
-    - frontend-engineering-methodology
-    - product-methodology
-    - qa-methodology
-    - system-architecture-methodology
-    - workflow-design
+    - coordination-methodology
+    - prompt_optimizer
     - research_methodology
-    - data_analysis_methodology
-    - ops_methodology
+    - writing-plans
+    - brainstorming
+    - evaluation-rubric
+    - quality-review
+    - review
+    - tech-debt-management
+    - myteam-user-manual
+    - agent-collaboration-patterns
+  engineering:
+    name: 工程实践
+    description: 编码、调试、测试、审查与 Git 工作流
+    members:
+    - coding
+    - code-audit
+    - code-quality-methodology
+    - debugging-methodology
+    - systematic-debugging
+    - test-driven-development
+    - verification-before-completion
+    - receiving-code-review
+    - requesting-code-review
+    - git-workflow-methodology
+    - frontend-engineering-methodology
+    - backend-engineering-methodology
+    - qa-methodology
+    - engineering-best-practices
+  architecture-design:
+    name: 架构与设计
+    description: 系统架构、前端架构、API 设计、设计系统与审美
+    members:
+    - system-architecture-methodology
+    - frontend-architecture-methodology
+    - api-design-methodology
+    - design-system-methodology
+    - frontend-design-aesthetics
+    - diagram-build
+  product-business:
+    name: 产品与业务
+    description: 产品规划、运营、内容、竞品与方案撰写
+    members:
+    - product-methodology
+    - competitive-analysis-methodology
     - content_methodology
     - seo_methodology
     - operations-methodology
+    - publish_post_methodology
     - proposal-writing-methodology
-    - web-crawling-methodology
-    - prompt_optimizer
-    - api-design-methodology
-    - data-visualization-methodology
-    - competitive-analysis-methodology
-    - devops-cicd-methodology
-    - design-system-methodology
-    - tech-debt-management
-    - myteam-user-manual
-    - backend-engineering-methodology
-    - coordination-methodology
-    - frontend-architecture-methodology
-    updated_at: 1782888601.599342
-  code-project:
-    name: 代码工程
-    description: 代码工程相关技能
+    - custom-survey
+    - product-discovery
+  data-ops:
+    name: 数据与运维
+    description: 数据分析、可视化、DevOps、运维与爬虫
     members:
-    - code-audit
-    - quality-review
-    - code-quality-methodology
-    - diagram-build
-    - evaluation-rubric
-    - debugging-methodology
-    - git-workflow-methodology
+    - data_analysis_methodology
+    - data-visualization-methodology
+    - devops-cicd-methodology
+    - ops_methodology
+    - web-crawling-methodology
   design-doc:
     name: 设计与文档
-    description: 前端设计、演示文稿与文档创作技能
+    description: 演示文稿、技术写作与排版规范
     members:
-    - frontend-design-aesthetics
     - presentation-design-methodology
-    - publish_post_methodology
     - technical-writing-methodology
   workflow-creation:
     name: Workflow 创建
-    description: 从SOP到myteam配置的完整流程
+    description: 从 SOP 到 myteam 配置的完整流程
     members:
     - sop-to-workflow
     - workflow-creator
     - workflow-design
   tools:
-    name: 工具箱
-    description: 辅助工具与杂项技能
-    members: []
-    updated_at: 1782500787.96811
-  suite:
-    name: 套件
-    description: ''
-    members: []
-    updated_at: 1782500787.994992
+    name: 工具与归档
+    description: 辅助工具与自动抽提归档
+    members:
+    - auto-p_demo-t1
+    - auto-p_wf-t1
