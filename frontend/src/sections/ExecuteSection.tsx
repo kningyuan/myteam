@@ -123,6 +123,24 @@ function TaskDetailView({
   )
 }
 
+function ExecuteInfoCard() {
+  return (
+    <div className="rounded-md border border-[var(--color-border)] bg-[var(--color-card)] p-3 text-sm">
+      <h3 className="text-sm font-semibold">独立任务（单 Agent 调试）</h3>
+      <ul className="mt-1.5 space-y-0.5 text-xs text-[var(--color-muted-foreground)]">
+        <li>不走编排内核，手动 prepare → 执行 → finish</li>
+        <li>调试单 Agent 的 harness 注入与交付质量</li>
+      </ul>
+      <details className="mt-1.5 text-xs text-[var(--color-muted-foreground)]">
+        <summary className="cursor-pointer">与 Workflow Loop 的区别</summary>
+        <p className="mt-1">
+          Workflow Loop：自动 DAG 调度 + Gate 验收 + 重试；独立任务：手动单步，可视化 prompt 与 harness 注入。
+        </p>
+      </details>
+    </div>
+  )
+}
+
 export function ExecuteSection() {
   const { projectId, taskId } = useParams()
   const navigate = useNavigate()
@@ -232,6 +250,9 @@ export function ExecuteSection() {
                 新建任务
               </Button>
             </div>
+            <div className="px-3 pb-2">
+              <ExecuteInfoCard />
+            </div>
             {loading ? (
               <p className="px-4 py-6 text-center text-xs text-[var(--color-muted-foreground)]">加载中…</p>
             ) : flatTasks.length ? (
@@ -263,10 +284,15 @@ export function ExecuteSection() {
               <WelcomePane title="任务不存在" description="请从左侧选择或新建 prepare。" />
             )
           ) : (
-            <WelcomePane
-              title="独立任务（Layer B）"
-              description="无 Workflow：prepare 看 harness 注入 → Agent 写交付物/ledger → finish 沉淀 KB/references。"
-            />
+            <>
+              <div className="mb-3">
+                <ExecuteInfoCard />
+              </div>
+              <WelcomePane
+                title="独立任务（Layer B）"
+                description="无 Workflow：prepare 看 harness 注入 → Agent 写交付物/ledger → finish 沉淀 KB/references。"
+              />
+            </>
           )}
         </div>
       </DiscordShell>

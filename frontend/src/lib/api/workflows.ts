@@ -424,6 +424,43 @@ export async function updateSkillName(skillId: string, name: string): Promise<{ 
   return data
 }
 
+export async function createSkillLibraryItem(payload: {
+  id: string
+  name: string
+  description?: string
+  task_types?: string[]
+  content?: string
+}): Promise<SkillLibraryItem> {
+  const data = await hubFetch<{ success: boolean; skill?: SkillLibraryItem; error?: string }>(
+    "/api/skills/library",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  )
+  if (!data.success || !data.skill) throw new Error(data.error || "创建 Skill 失败")
+  invalidateResources("skill-library", "skill-groups", "skill-categories")
+  return data.skill
+}
+
+export async function updateSkillContent(
+  skillId: string,
+  content: string,
+): Promise<SkillLibraryItem> {
+  const data = await hubFetch<{ success: boolean; skill?: SkillLibraryItem; error?: string }>(
+    `/api/skills/library/${encodeURIComponent(skillId)}/content`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content }),
+    },
+  )
+  if (!data.success || !data.skill) throw new Error(data.error || "更新内容失败")
+  invalidateResources("skill-library")
+  return data.skill
+}
+
 export type DeleteSkillLibraryResult = {
   success: boolean
   skill_id: string

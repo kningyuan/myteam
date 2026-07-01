@@ -4,6 +4,7 @@ import { Plus } from "lucide-react"
 import { toast } from "sonner"
 import {
   createSkillCategory,
+  createSkillLibraryItem,
   deleteSkillCategory,
   deleteSkillLibraryItem,
   getSkillLibraryItem,
@@ -30,6 +31,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import { sortByModifiedDesc } from "@/lib/sortByModified"
 
@@ -140,6 +142,12 @@ export function SkillsSection() {
   const [newCatId, setNewCatId] = useState("")
   const [newCatName, setNewCatName] = useState("")
   const [creating, setCreating] = useState(false)
+  const [createSkillOpen, setCreateSkillOpen] = useState(false)
+  const [newSkillId, setNewSkillId] = useState("")
+  const [newSkillName, setNewSkillName] = useState("")
+  const [newSkillDesc, setNewSkillDesc] = useState("")
+  const [newSkillContent, setNewSkillContent] = useState("")
+  const [creatingSkill, setCreatingSkill] = useState(false)
   const [pendingItems, setPendingItems] = useState<SkillPendingItem[]>([])
   const [pendingOpen, setPendingOpen] = useState(false)
   const [pendingBusy, setPendingBusy] = useState<string | null>(null)
@@ -251,6 +259,41 @@ export function SkillsSection() {
     }
   }
 
+  async function handleCreateSkill() {
+    const id = newSkillId.trim().toLowerCase()
+    const name = newSkillName.trim()
+    if (!id || !name) {
+      toast.error("请填写 Skill id 与名称")
+      return
+    }
+    if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(id)) {
+      toast.error("Skill id 仅允许小写字母数字连字符，1-64 字符")
+      return
+    }
+    setCreatingSkill(true)
+    try {
+      const skill = await createSkillLibraryItem({
+        id,
+        name,
+        description: newSkillDesc.trim(),
+        content: newSkillContent,
+      })
+      toast.success("Skill 已创建")
+      setCreateSkillOpen(false)
+      setNewSkillId("")
+      setNewSkillName("")
+      setNewSkillDesc("")
+      setNewSkillContent("")
+      void reloadLibrary()
+      void reloadCategories()
+      navigate(`/skills/${encodeURIComponent(skill.id)}`)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "创建失败")
+    } finally {
+      setCreatingSkill(false)
+    }
+  }
+
   async function handleApprovePending(id: string) {
     setPendingBusy(id)
     try {
@@ -340,7 +383,18 @@ export function SkillsSection() {
               type="button"
               size="sm"
               variant="outline"
-              className="ml-auto h-6 w-6 p-0"
+              className="ml-auto h-6 px-2 text-[11px]"
+              onClick={() => setCreateSkillOpen(true)}
+              title="创建 Skill（写入 business/skills/<id>/SKILL.md）"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              创建 Skill
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-6 w-6 p-0"
               onClick={() => setCreateOpen(true)}
               title="新建 Skill 分类"
             >
@@ -501,6 +555,61 @@ export function SkillsSection() {
             </Button>
             <Button disabled={creating} onClick={() => void handleCreateCategory()}>
               {creating ? "创建中…" : "创建"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={createSkillOpen} onOpenChange={setCreateSkillOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>创建 Skill</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            <div className="grid gap-2">
+              <Label>Skill id（英文目录名，仅小写字母数字连字符）</Label>
+              <Input
+                value={newSkillId}
+                onChange={(e) => setNewSkillId(e.target.value)}
+                placeholder="例如 my-new-skill"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>显示名称</Label>
+              <Input
+                value={newSkillName}
+                onChange={(e) => setNewSkillName(e.target.value)}
+                placeholder="例如 我的 Skill"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>简介（可选）</Label>
+              <Input
+                value={newSkillDesc}
+                onChange={(e) => setNewSkillDesc(e.target.value)}
+                placeholder="一句话描述 Skill 的用途"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>SKILL.md 正文（可选，留空将自动生成标题）</Label>
+              <Textarea
+                value={newSkillContent}
+                onChange={(e) => setNewSkillContent(e.target.value)}
+                rows={8}
+                placeholder={"可用 Markdown 书写，例如：\n\n## 何时使用\n\n## 工作流\n\n## 约束"}
+                className="font-mono text-xs"
+              />
+            </div>
+            <p className="hint text-xs">
+              将在 business/skills/&lt;id&gt;/ 下创建 SKILL.md，frontmatter 自动写入 name/description/updated_at。
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateSkillOpen(false)}>
+              取消
+            </Button>
+            <Button disabled={creatingSkill} onClick={() => void handleCreateSkill()}>
+              {creatingSkill ? "创建中…" : "创建"}
             </Button>
           </DialogFooter>
         </DialogContent>

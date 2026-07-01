@@ -4,7 +4,7 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 myteam is a lightweight **multi-agent collaboration platform**: a Web Hub (chat / agent management / groups / observability) plus a declarative **orchestration kernel** that decomposes a `goal` into a task DAG, runs it across agents with deterministic gating, retries, and triage. Agents are driven through the **opencode CLI** via an adapter layer (extensible to other CLIs like Codex).
 
-Codebase comments, docstrings, and commit messages are in Chinese. Design rationale lives in `docs/ARCHITECTURE.md` and `docs/framework-decisions.md` (decisions are referenced throughout the code as `D1`–`D19`, `F1`). **Framework freeze** (L1/L2 kernel + Hub): `docs/FRAMEWORK-FREEZE.md` — new capability goes to `business/workflows/` and `business/skills/`, not kernel refactors.
+Codebase comments, docstrings, and commit messages are in Chinese. Design rationale lives in `docs/ARCHITECTURE.md` and `docs/framework-decisions.md` (decisions are referenced throughout the code as `D1`–`D19`, `F1`). **Framework freeze** (L1/L2 kernel + Hub): `docs/FRAMEWORK-FREEZE.md` — new capability goes to `business/workflows/` and `business/skills/`, not kernel refactors. **文件归属行为规范**：`CONTRIBUTING.md` — 什么文件放什么目录、提交前检查清单，所有改动必须遵守。
 
 ## Commands
 

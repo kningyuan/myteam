@@ -431,6 +431,68 @@ def update_skill_name(skill_id: str, name: str) -> dict:
     return {"success": True, "skill_id": skill_dir.name, "name": new_name}
 
 
+_SKILL_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
+
+
+def create_skill(
+    skill_id: str,
+    name: str,
+    description: str = "",
+    task_types: list[str] | None = None,
+    content: str = "",
+) -> dict:
+    """创建新 skill 目录 + SKILL.md。
+
+    skill_id 仅允许小写字母数字连字符（1-64 字符）；不能以 auto- 开头（保留给抽提草案）。
+    若目录已存在或为保留名则返回错误。
+    """
+    sid = (skill_id or "").strip()
+    if not sid or not _SKILL_ID_RE.match(sid):
+        return {"success": False, "error": "skill_id 格式非法（仅小写字母数字连字符，1-64 字符）"}
+    if sid.startswith("auto-"):
+        return {"success": False, "error": "skill_id 不能以 auto- 开头（保留给抽提草案）"}
+    if sid in {"categories", "catalog"}:
+        return {"success": False, "error": f"skill_id 不能为保留名：{sid}"}
+    skill_dir = SKILLS_DIR / sid
+    if skill_dir.exists() or skill_dir.is_symlink():
+        return {"success": False, "error": f"Skill 已存在：{sid}"}
+    clean_name = (name or "").strip() or sid
+    clean_desc = (description or "").strip()
+    tt_list = [str(t).strip() for t in (task_types or []) if str(t).strip()]
+    now = str(time.time())
+    fm_lines = [
+        f'name: "{clean_name}"',
+        f'description: "{clean_desc}"',
+    ]
+    if tt_list:
+        fm_lines.append(f"task_types: {', '.join(tt_list)}")
+    fm_lines.append(f"updated_at: {now}")
+    body = (content or "").strip()
+    if not body:
+        body = f"# {clean_name}\n"
+    text = "---\n" + "\n".join(fm_lines) + "\n---\n" + body + "\n"
+    skill_dir.mkdir(parents=True, exist_ok=False)
+    (skill_dir / "SKILL.md").write_text(text, encoding="utf-8")
+    entry = get_skill_entry(sid)
+    return {"success": True, "skill_id": sid, "skill": entry}
+
+
+def update_skill_content(skill_id: str, content: str) -> dict:
+    """覆盖写入 SKILL.md 全文内容。若 skill 不存在返回错误。"""
+    sid = (skill_id or "").strip()
+    if not sid:
+        return {"success": False, "error": "skill_id 不能为空"}
+    skill_dir = _skill_dir(sid)
+    if not skill_dir:
+        return {"success": False, "error": f"Skill 不存在：{sid}"}
+    skill_md = skill_dir / "SKILL.md"
+    if not skill_md.is_file():
+        return {"success": False, "error": f"SKILL.md 不存在：{sid}"}
+    skill_md.write_text(content or "", encoding="utf-8")
+    entry = get_skill_entry(sid)
+    return {"success": True, "skill_id": sid, "skill": entry}
+
+
 def canonical_skill_mount_id(raw: str) -> str | None:
     """将 registry / 前端可能保存的路径式挂载（如 methodology/foo）规范为 skill id。"""
     from common.skill.skill_groups import is_skill_group

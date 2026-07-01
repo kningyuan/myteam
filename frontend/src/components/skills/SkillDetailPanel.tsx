@@ -6,6 +6,7 @@ import {
   getSkillFile,
   moveSkillToCategory,
   updateSkillCategory,
+  updateSkillContent,
   updateSkillName,
   listSkillReferences,
   type SkillLibraryItem,
@@ -74,6 +75,9 @@ export function SkillDetailPanel({
   const [descDraft, setDescDraft] = useState("")
   const [savingDesc, setSavingDesc] = useState(false)
   const [references, setReferences] = useState<SkillReferenceItem[]>([])
+  const [editingContent, setEditingContent] = useState(false)
+  const [contentDraft, setContentDraft] = useState("")
+  const [savingContent, setSavingContent] = useState(false)
 
   const isCategory = item?.kind === "category"
   const tree = item?.tree ?? []
@@ -132,6 +136,11 @@ export function SkillDetailPanel({
       .then(setReferences)
       .catch(() => setReferences([]))
   }, [item?.id, isCategory])
+
+  useEffect(() => {
+    setEditingContent(false)
+    setContentDraft("")
+  }, [activePath, item?.id])
 
   async function saveName() {
     if (!item?.id) return
@@ -224,6 +233,32 @@ export function SkillDetailPanel({
       () => toast.success("已复制"),
       () => toast.error("复制失败"),
     )
+  }
+
+  function startEditContent() {
+    setContentDraft(content || "")
+    setEditingContent(true)
+  }
+
+  function cancelEditContent() {
+    setEditingContent(false)
+    setContentDraft("")
+  }
+
+  async function saveContent() {
+    if (!item?.id) return
+    setSavingContent(true)
+    try {
+      const skill = await updateSkillContent(item.id, contentDraft)
+      setContent(contentDraft)
+      setEditingContent(false)
+      onUpdated(skill)
+      toast.success("SKILL.md 已保存")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "保存失败")
+    } finally {
+      setSavingContent(false)
+    }
   }
 
   const activeKind = useMemo(() => {
@@ -391,7 +426,13 @@ export function SkillDetailPanel({
           ) : null}
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
-          <Button size="sm" variant="outline" disabled={!content} onClick={copyContent}>
+          {!isCategory && activePath === "SKILL.md" && !editingContent ? (
+            <Button size="sm" variant="outline" disabled={busy} onClick={startEditContent}>
+              <Pencil className="h-3.5 w-3.5" />
+              编辑
+            </Button>
+          ) : null}
+          <Button size="sm" variant="outline" disabled={!content || editingContent} onClick={copyContent}>
             <Copy className="h-3.5 w-3.5" />
             复制
           </Button>
@@ -445,7 +486,27 @@ export function SkillDetailPanel({
         </aside>
         <ScrollArea className="deliverable-body-wrap flex-1 min-h-0">
           <div className="deliverable-body markdown-body">
-            {busy ? (
+            {editingContent ? (
+              <div className="grid gap-2">
+                <Textarea
+                  value={contentDraft}
+                  onChange={(e) => setContentDraft(e.target.value)}
+                  rows={24}
+                  className="font-mono text-xs"
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <Button size="sm" disabled={savingContent} onClick={() => void saveContent()}>
+                    <Save className="h-3.5 w-3.5" />
+                    {savingContent ? "保存中…" : "保存"}
+                  </Button>
+                  <Button size="sm" variant="ghost" disabled={savingContent} onClick={cancelEditContent}>
+                    <X className="h-3.5 w-3.5" />
+                    取消
+                  </Button>
+                </div>
+              </div>
+            ) : busy ? (
               <p className="hint">加载中…</p>
             ) : content ? (
               isMarkdown ? (

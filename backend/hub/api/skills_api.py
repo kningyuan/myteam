@@ -9,11 +9,13 @@ from pydantic import BaseModel
 
 from common.paths import MYTEAM_ROOT
 from common.skill.skill_catalog import (
+    create_skill,
     delete_skill_library_entry,
     get_skill_entry,
     get_skill_file,
     get_skill_library_entry,
     list_all_skills,
+    update_skill_content,
     update_skill_name,
 )
 from common.skill.skill_extract import SKILLS_DIR, list_skill_drafts
@@ -70,6 +72,18 @@ def _summarize_draft(path: Path) -> dict:
 
 class SkillNameUpdate(BaseModel):
     name: str
+
+
+class SkillCreate(BaseModel):
+    id: str
+    name: str
+    description: str = ""
+    task_types: list[str] = []
+    content: str = ""
+
+
+class SkillContentUpdate(BaseModel):
+    content: str
 
 
 class SkillCategoryCreate(BaseModel):
@@ -145,6 +159,21 @@ async def list_skill_library_api():
     return {"skills": items, "count": len(items)}
 
 
+@router.post("/library")
+async def create_skill_api(body: SkillCreate):
+    """创建新 Skill 目录 + SKILL.md。"""
+    result = create_skill(
+        body.id,
+        name=body.name,
+        description=body.description,
+        task_types=body.task_types,
+        content=body.content,
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "创建失败"))
+    return result
+
+
 @router.get("/library/{skill_id}")
 async def get_skill_library_item(skill_id: str):
     from common.skill.skill_categories import resolve_library_entry
@@ -185,6 +214,15 @@ async def patch_skill_library_item(skill_id: str, body: SkillNameUpdate):
         raise HTTPException(status_code=400, detail=result.get("error", "更新失败"))
     entry = get_skill_entry(skill_id)
     return {"success": True, "skill": entry}
+
+
+@router.put("/library/{skill_id}/content")
+async def update_skill_content_api(skill_id: str, body: SkillContentUpdate):
+    """覆盖写入 SKILL.md 全文内容。"""
+    result = update_skill_content(skill_id, body.content)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "更新失败"))
+    return result
 
 
 @router.delete("/library/{skill_id}")
