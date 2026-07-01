@@ -23,6 +23,10 @@ business/workspaces/
 business/tasks/
 business/config/
 
+# Skill 运行态产物（agent 自动提取草案 + skill review 待审批包，运行时生成）
+business/skills/auto-*/
+business/skills/_pending/
+
 # SQLite 运行态真相库（D13）— 运行时生成，不入库
 business/tasks/state.db
 business/tasks/state.db-wal
