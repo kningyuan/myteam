@@ -1,0 +1,17 @@
+{
+  "rules": [
+    {"keywords": ["调研", "竞品", "行业研究"], "task_types": ["research"]},
+    {"keywords": ["需求", "PRD", "用户故事"], "task_types": ["requirements"]},
+    {"keywords": ["代码", "开发", "编程", "实现"], "task_types": ["code-writing"]},
+    {"keywords": ["测试", "用例", "回归"], "task_types": ["test-plan"]},
+    {"keywords": ["部署", "上线", "回滚"], "task_types": ["code-deployment"]},
+    {"keywords": ["SEO", "关键词", "搜索引擎优化"], "task_types": ["seo-plan"]},
+    {"keywords": ["发布", "知乎", "小红书", "社媒"], "task_types": ["publish-post"]},
+    {"keywords": ["数据分析", "SQL", "报表", "指标"], "task_types": ["data-analysis"]},
+    {"keywords": ["GEO", "Perplexity", "AI搜索", "可见性"], "task_types": ["geo-plan"]},
+    {"keywords": ["架构", "系统设计", "接口契约"], "task_types": ["system-design"]},
+    {"keywords": ["策略", "方案分析"], "task_types": ["strategy"]},
+    {"keywords": ["内容", "写作", "成稿"], "task_types": ["content"]}
+  ],
+  "fallback_task_types": ["research"]
+}

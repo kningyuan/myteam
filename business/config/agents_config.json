@@ -1,0 +1,40 @@
+{
+  "arch": {
+    "name": "架构师",
+    "backend": "opencode",
+    "extra": {}
+  },
+  "developer": {
+    "name": "后端研发",
+    "backend": "opencode",
+    "extra": {}
+  },
+  "main": {
+    "name": "项目经理",
+    "backend": "opencode",
+    "model": "",
+    "extra": {},
+    "workspace": "business/workspaces/workspace-main"
+  },
+  "product": {
+    "name": "产品专家",
+    "backend": "opencode",
+    "extra": {}
+  },
+  "research": {
+    "name": "研究员",
+    "backend": "opencode",
+    "model": "",
+    "extra": {}
+  },
+  "test-harness-agent": {
+    "name": "测试护栏",
+    "backend": "opencode",
+    "extra": {}
+  },
+  "tester": {
+    "name": "测试专家",
+    "backend": "opencode",
+    "extra": {}
+  }
+}

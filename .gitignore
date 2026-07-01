@@ -9,23 +9,26 @@ venv/
 env/
 ENV/
 
-# Runtime data
-config/*.json
-config/**/*.json
+# Runtime data — 程序缓存与运行态
 data/*.json
 data/*.lock
 *.log
 *.lock
 .agent-hub.pid
 
-# 业务运行态数据（用户业务数据，统一在 business/，不入库）
-business/workspaces/
+# 业务运行态数据（任务执行产物、并行临时目录，不入库）
 business/tasks/
-business/config/
+business/workspaces/*/_parallel/
+business/workspaces/*/.opencode/
+business/regression/artifacts/
+business/regression/forensics/
 
 # Skill 运行态产物（agent 自动提取草案 + skill review 待审批包，运行时生成）
 business/skills/auto-*/
 business/skills/_pending/
+
+# Hub 运行时操作元数据（运行时生成，不入库）
+business/config/hub_operation_meta.json
 
 # SQLite 运行态真相库（D13）— 运行时生成，不入库
 business/tasks/state.db

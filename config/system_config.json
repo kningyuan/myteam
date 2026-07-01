@@ -1,0 +1,71 @@
+{
+  "system": {
+    "port": 8765,
+    "default_backend": "opencode",
+    "default_model": "SenseNova/sensenova-6.7-flash-lite",
+    "debug": false,
+    "price_per_mtok": 0,
+    "default_review": false,
+    "audit_log": false,
+    "audit_log_max_bytes": 500000,
+    "coordinator_agent_id": "main",
+    "deputy_agent_id": "deputy",
+    "use_sqlite_project_store": false,
+    "use_outcome_kind_detection": false,
+    "use_strict_must_include_config": false,
+    "use_kb_backend_for_observability": false,
+    "placeholder_markers": [
+      "待补充",
+      "待填写",
+      "todo",
+      "tbd",
+      "tbd",
+      "xxx",
+      "lorem ipsum",
+      "占位"
+    ],
+    "blocked_markers": [
+      "signin",
+      "unhuman",
+      "/account/",
+      "captcha",
+      "verify",
+      "登录知乎",
+      "网络环境存在异常"
+    ],
+    "code_extensions": [
+      ".py",
+      ".sh",
+      ".js",
+      ".ts",
+      ".java",
+      ".go",
+      ".rs",
+      ".cpp",
+      ".h",
+      ".c",
+      ".rb",
+      ".php",
+      ".swift"
+    ],
+    "rules": {
+      "profile_filenames": {
+        "interactive": "interactive-guide.md",
+        "discussion": "brainstorming-guide.md",
+        "workflow_execute": "worker-template.md",
+        "ethos": "ethos.md"
+      }
+    }
+  },
+  "backends": {
+    "opencode": {
+      "enabled": true,
+      "cli_path": "",
+      "model_aliases": {}
+    },
+    "claude": {
+      "enabled": true,
+      "cli_path": ""
+    }
+  }
+}

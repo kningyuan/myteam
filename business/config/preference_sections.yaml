@@ -1,0 +1,16 @@
+# 偏好库分段定义
+# sectioned.py 读取此文件确定已注册的 section key 列表
+# USER.md 中以 ## <section_key> 作为分节头
+sections:
+  engineering:
+    name: 工程偏好
+    description: 编码、测试、代码审查的团队约定
+  product:
+    name: 产品偏好
+    description: 产品规划、需求分析的工作方式
+  communication:
+    name: 沟通偏好
+    description: 输出语言、汇报格式、文档风格
+  collaboration:
+    name: 协作偏好
+    description: 多 Agent 协作与任务交接约定

@@ -1,0 +1,171 @@
+{
+  "version": "1.0",
+  "agents": {
+    "research": {
+      "name": "研究员",
+      "role": "worker",
+      "description": "行业/竞品/受众/选题调研，为方案与内容提供证据",
+      "capabilities": [
+        "桌面调研",
+        "竞品分析",
+        "受众洞察",
+        "证据整理",
+        "信息源标注",
+        "产品发现与验证"
+      ],
+      "task_types": [
+        "research",
+        "product-research",
+        "competitive-analysis",
+        "custom-survey",
+        "data-analysis"
+      ],
+      "skills": [
+        "research_methodology",
+        "competitive-analysis-methodology",
+        "product-discovery",
+        "data_analysis_methodology"
+      ]
+    },
+    "product": {
+      "name": "产品专家",
+      "role": "worker",
+      "description": "产品规划、需求分析与方案设计",
+      "capabilities": [
+        "产品规划",
+        "需求分析",
+        "优先级排序",
+        "验收标准定义",
+        "方案撰写"
+      ],
+      "task_types": [
+        "product-research",
+        "product-planning",
+        "requirements",
+        "section-authoring",
+        "strategy"
+      ],
+      "skills": [
+        "product-methodology",
+        "product-discovery",
+        "proposal-writing-methodology"
+      ]
+    },
+    "arch": {
+      "name": "架构师",
+      "role": "worker",
+      "description": "系统架构设计、技术选型与架构评审",
+      "capabilities": [
+        "系统架构设计",
+        "技术选型",
+        "架构评审",
+        "C4 建模",
+        "ADR 记录"
+      ],
+      "task_types": [
+        "system-design",
+        "architecture-review",
+        "section-review"
+      ],
+      "skills": [
+        "system-architecture-methodology",
+        "api-design-methodology",
+        "agent-collaboration-patterns",
+        "diagram-build"
+      ]
+    },
+    "developer": {
+      "name": "后端研发",
+      "role": "worker",
+      "description": "后端代码实现、测试与交付",
+      "capabilities": [
+        "代码实现",
+        "单元测试",
+        "集成测试",
+        "代码审查",
+        "调试修复"
+      ],
+      "task_types": [
+        "coding",
+        "code-writing",
+        "code-deliverable",
+        "code-testing"
+      ],
+      "skills": [
+        "coding",
+        "engineering-best-practices",
+        "backend-engineering-methodology",
+        "test-driven-development",
+        "debugging-methodology",
+        "git-workflow-methodology"
+      ]
+    },
+    "tester": {
+      "name": "测试专家",
+      "role": "worker",
+      "description": "测试计划、质量保障与验收",
+      "capabilities": [
+        "测试计划设计",
+        "用例编写",
+        "回归测试",
+        "质量评审",
+        "验收报告"
+      ],
+      "task_types": [
+        "test-plan",
+        "code-testing",
+        "acceptance-report",
+        "section-review"
+      ],
+      "skills": [
+        "qa-methodology",
+        "test-driven-development",
+        "verification-before-completion",
+        "quality-review"
+      ]
+    },
+    "test-harness-agent": {
+      "name": "测试护栏",
+      "role": "worker",
+      "description": "执行测试护栏注入与质量检查",
+      "capabilities": [
+        "护栏注入",
+        "质量检查",
+        "验证执行"
+      ],
+      "task_types": [
+        "code-testing"
+      ],
+      "skills": [
+        "verification-before-completion",
+        "qa-methodology"
+      ]
+    },
+    "main": {
+      "name": "项目经理",
+      "role": "coordinator",
+      "description": "项目协调与阶段仲裁；任务分解、Gate 闸门与决策记录",
+      "capabilities": [
+        "内容评审",
+        "决策",
+        "协调",
+        "部署记录",
+        "阶段闸门",
+        "任务分解",
+        "多 Agent 编排"
+      ],
+      "task_types": [
+        "decision-record",
+        "section-review",
+        "strategy",
+        "iteration-assess"
+      ],
+      "skills": [
+        "coordination-methodology",
+        "agent-collaboration-patterns",
+        "myteam-user-manual",
+        "writing-plans"
+      ]
+    }
+  }
+}

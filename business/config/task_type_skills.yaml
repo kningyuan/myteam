@@ -1,0 +1,22 @@
+# task_type → umbrella methodology skill 映射
+# 用于 execution_harness 在 execute 前注入方法论 Skill 推荐
+defaults:
+  research: research_methodology
+  product-research: product-discovery
+  product-planning: product-methodology
+  requirements: product-methodology
+  strategy: agent-collaboration-patterns
+  competitive-analysis: competitive-analysis-methodology
+  business-diagnosis: product-methodology
+  coding: engineering-best-practices
+  code-writing: engineering-best-practices
+  code-deliverable: engineering-best-practices
+  code-testing: qa-methodology
+  system-design: system-architecture-methodology
+  architecture-review: system-architecture-methodology
+  data-analysis: data_analysis_methodology
+  review: review
+  section-review: review
+  decision-record: agent-collaboration-patterns
+  test-plan: qa-methodology
+  custom-survey: research_methodology
