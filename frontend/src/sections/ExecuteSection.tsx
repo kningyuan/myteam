@@ -44,7 +44,6 @@ function TaskDetailView({
   onRefresh: () => void
   onDeleted: () => void
 }) {
-  const navigate = useNavigate()
   const [tab, setTab] = useState<"prompt" | "harness" | "deliverable" | "ledger">("harness")
   const [finishing, setFinishing] = useState(false)
   const [editing, setEditing] = useState(false)
