@@ -211,3 +211,91 @@ def finish_single_execute(
     )
     store.close()
     return {"success": True, **summary}
+
+
+def update_single_execute(
+    *,
+    project_id: str,
+    task_id: str,
+    intent: str | None = None,
+    agent_id: str | None = None,
+    task_type: str | None = None,
+) -> dict[str, Any]:
+    """编辑独立任务元数据（intent / agent_id / task_type），重新生成 prompt 与 harness 块。"""
+    import re
+    td = _task_dir(project_id, task_id)
+    meta_path = td / "run.meta.json"
+    if not meta_path.is_file():
+        return {"success": False, "error": "任务不存在，请先 prepare"}
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    # 仅允许在未 finish 时编辑
+    if (td / "finish.summary.json").is_file():
+        return {"success": False, "error": "已 finish 的任务不可编辑"}
+    new_intent = intent.strip() if intent is not None else meta.get("intent", "")
+    new_agent = (agent_id or meta.get("agent_id") or "product").strip()
+    new_type = (task_type or meta.get("task_type") or "research").strip()
+    meta["intent"] = new_intent
+    meta["agent_id"] = new_agent
+    meta["task_type"] = new_type
+    (td / "run.meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+    # 更新 ledger.entry.yaml 中的 intent/task_type（保留其余字段）
+    ledger = td / "ledger.entry.yaml"
+    if ledger.is_file():
+        text = ledger.read_text(encoding="utf-8")
+        text = re.sub(r"^intent:.*$", f"intent: {new_intent}", text, count=1, flags=re.MULTILINE)
+        text = re.sub(r"^task_type:.*$", f"task_type: {new_type}", text, count=1, flags=re.MULTILINE)
+        ledger.write_text(text, encoding="utf-8")
+    # 重新生成 worker.prompt.txt 与 harness.blocks.txt
+    deliv_base = deliverables_dir(project_id)
+    deliv_base.mkdir(parents=True, exist_ok=True)
+    deliv = _deliverable_path(project_id, task_id, new_type)
+    if not deliv.is_file():
+        deliv.write_text(_skeleton_deliverable(new_type, new_intent), encoding="utf-8")
+    req = _build_request(
+        project_id=project_id,
+        task_id=task_id,
+        agent_id=new_agent,
+        task_type=new_type,
+        intent=new_intent,
+        deliv_base=deliv_base,
+        deliv_rel=deliv.name,
+    )
+    req.context["store_path"] = str(default_db_path())
+    resp_path = response_dir(new_agent) / f"{req.interaction_id}.response"
+    prompt = build_worker_prompt(req, resp_path, deliv_base)
+    (td / "worker.prompt.txt").write_text(prompt, encoding="utf-8")
+    harness_blocks = [
+        ln for ln in prompt.splitlines()
+        if ln.startswith("【") and any(
+            k in ln for k in ("方法论", "经验", "偏好", "工作记忆", "相关知识", "references")
+        )
+    ]
+    (td / "harness.blocks.txt").write_text("\n".join(harness_blocks), encoding="utf-8")
+    return {
+        "success": True,
+        "project_id": project_id,
+        "task_id": task_id,
+        "harness_block_count": len(harness_blocks),
+    }
+
+
+def delete_single_execute(*, project_id: str, task_id: str | None = None) -> dict[str, Any]:
+    """删除独立任务；task_id 为空时删除整个项目目录。"""
+    import shutil
+    root = _run_root(project_id)
+    if not root.is_dir():
+        return {"success": False, "error": "项目不存在"}
+    if task_id:
+        td = root / task_id
+        if not td.is_dir():
+            return {"success": False, "error": "任务不存在"}
+        shutil.rmtree(td)
+        # 项目目录空了就一并清理
+        try:
+            if not any(root.iterdir()):
+                root.rmdir()
+        except OSError:
+            pass
+    else:
+        shutil.rmtree(root)
+    return {"success": True, "project_id": project_id}

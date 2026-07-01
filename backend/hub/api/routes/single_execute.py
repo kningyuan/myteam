@@ -4,10 +4,12 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from hub.services.single_execute_service import (
+    delete_single_execute,
     finish_single_execute,
     get_single_execute_task,
     list_single_execute_projects,
     prepare_single_execute,
+    update_single_execute,
 )
 
 router = APIRouter(prefix="/api/single-execute", tags=["single-execute"])
@@ -55,4 +57,34 @@ async def api_finish_single_execute(body: dict):
     )
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error") or "finish 失败")
+    return result
+
+
+@router.patch("/{project_id}/{task_id}")
+async def api_update_single_execute(project_id: str, task_id: str, body: dict):
+    result = update_single_execute(
+        project_id=project_id,
+        task_id=task_id,
+        intent=body.get("intent"),
+        agent_id=body.get("agent_id"),
+        task_type=body.get("task_type"),
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error") or "更新失败")
+    return result
+
+
+@router.delete("/{project_id}")
+async def api_delete_single_execute_project(project_id: str):
+    result = delete_single_execute(project_id=project_id)
+    if not result.get("success"):
+        raise HTTPException(status_code=404, detail=result.get("error") or "删除失败")
+    return result
+
+
+@router.delete("/{project_id}/{task_id}")
+async def api_delete_single_execute_task(project_id: str, task_id: str):
+    result = delete_single_execute(project_id=project_id, task_id=task_id)
+    if not result.get("success"):
+        raise HTTPException(status_code=404, detail=result.get("error") or "删除失败")
     return result

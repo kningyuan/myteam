@@ -1,10 +1,13 @@
 """Skill API — Hub 2.0 Skill 页。"""
 from __future__ import annotations
 
+import io
 import re
+import zipfile
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from common.paths import MYTEAM_ROOT
@@ -381,3 +384,66 @@ async def list_skill_references_api(skill_id: str):
                 "updated_at": fp.stat().st_mtime,
             })
     return {"skill_id": skill_id, "references": refs, "count": len(refs)}
+
+
+# ── 导出 / 导入 ──────────────────────────────────────────────
+
+
+@router.get("/library/{skill_id}/export")
+async def export_skill_api(skill_id: str):
+    """导出单个 Skill 为 zip 包（含 SKILL.md + references/）。"""
+    from common.skill.skill_catalog import SKILLS_DIR
+
+    skill_dir = SKILLS_DIR / skill_id
+    if not skill_dir.is_dir():
+        raise HTTPException(status_code=404, detail="Skill 不存在")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for fp in skill_dir.rglob("*"):
+            if fp.is_file():
+                # 加一层 skill_id 包裹，使 zip 顶层为唯一 skill 目录，与 import 端点契约一致
+                zf.write(fp, f"{skill_id}/{fp.relative_to(skill_dir).as_posix()}")
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="skill-{skill_id}.zip"'},
+    )
+
+
+@router.post("/library/import")
+async def import_skill_api(request: Request):
+    """导入 Skill zip 包：解压到 SKILLS_DIR，目录名即 skill_id。冲突时返回 409。"""
+    import shutil
+
+    from common.skill.skill_catalog import SKILLS_DIR
+
+    body = await request.body()
+    if not body:
+        raise HTTPException(status_code=400, detail="未上传文件")
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(body))
+    except zipfile.BadZipFile:
+        raise HTTPException(status_code=400, detail="无效的 zip 文件")
+    # 第一层目录名作为 skill_id
+    names = zf.namelist()
+    top_dirs = {n.split("/")[0] for n in names if n and not n.startswith("__MACOSX")}
+    if len(top_dirs) != 1:
+        raise HTTPException(status_code=400, detail="zip 包应仅含一个顶层 skill 目录")
+    skill_id = top_dirs.pop()
+    if not re.match(r"^[a-zA-Z0-9_-]+$", skill_id):
+        raise HTTPException(status_code=400, detail=f"非法 skill_id: {skill_id}")
+    target = SKILLS_DIR / skill_id
+    if target.is_dir():
+        raise HTTPException(status_code=409, detail=f"Skill 已存在: {skill_id}（请先删除或重命名）")
+    SKILLS_DIR.mkdir(parents=True, exist_ok=True)
+    zf.extractall(SKILLS_DIR)
+    # 清理 __MACOSX
+    macosx = SKILLS_DIR / "__MACOSX"
+    if macosx.is_dir():
+        shutil.rmtree(macosx)
+    # 必须有 SKILL.md
+    if not (target / "SKILL.md").is_file():
+        shutil.rmtree(target)
+        raise HTTPException(status_code=400, detail="zip 包根目录缺少 SKILL.md")
+    return {"success": True, "skill_id": skill_id}

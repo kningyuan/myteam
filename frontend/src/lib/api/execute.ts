@@ -71,3 +71,24 @@ export async function finishSingleExecute(body: {
     body: JSON.stringify(body),
   })
 }
+
+export async function updateSingleExecute(
+  projectId: string,
+  taskId: string,
+  body: { intent?: string; agent_id?: string; task_type?: string },
+): Promise<{ success: boolean; harness_block_count?: number }> {
+  return hubFetch(`/api/single-execute/${encodeURIComponent(projectId)}/${encodeURIComponent(taskId)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deleteSingleExecuteTask(
+  projectId: string,
+  taskId: string,
+): Promise<{ success: boolean }> {
+  return hubFetch(`/api/single-execute/${encodeURIComponent(projectId)}/${encodeURIComponent(taskId)}`, {
+    method: "DELETE",
+  })
+}

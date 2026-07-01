@@ -4,9 +4,6 @@ categories:
     name: 方法论
     description: 专业领域方法论
     members:
-    - backend-engineering-methodology
-    - coordination-methodology
-    - frontend-architecture-methodology
     - frontend-engineering-methodology
     - product-methodology
     - qa-methodology
@@ -28,6 +25,10 @@ categories:
     - design-system-methodology
     - tech-debt-management
     - myteam-user-manual
+    - backend-engineering-methodology
+    - coordination-methodology
+    - frontend-architecture-methodology
+    updated_at: 1782888601.599342
   code-project:
     name: 代码工程
     description: 代码工程相关技能

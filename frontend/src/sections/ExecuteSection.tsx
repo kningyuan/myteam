@@ -2,14 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { toast } from "sonner"
 import {
+  deleteSingleExecuteTask,
   finishSingleExecute,
   getSingleExecuteTask,
   listSingleExecuteProjects,
   prepareSingleExecute,
+  updateSingleExecute,
   type SingleExecuteProject,
   type SingleExecuteTaskDetail,
 } from "@/lib/api/execute"
-import { deleteProject } from "@/lib/api/projects"
 import { listAgents, type AgentSummary } from "@/lib/api/agents"
 import { listTaskTypes, type TaskTypeSummary } from "@/lib/api/workflows"
 import { DiscordShell, ListColumn, WelcomePane } from "@/components/layout/DiscordShell"
@@ -32,13 +33,32 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 
 function TaskDetailView({
   detail,
+  agents,
+  taskTypes,
   onRefresh,
+  onDeleted,
 }: {
   detail: SingleExecuteTaskDetail
+  agents: AgentSummary[]
+  taskTypes: TaskTypeSummary[]
   onRefresh: () => void
+  onDeleted: () => void
 }) {
+  const navigate = useNavigate()
   const [tab, setTab] = useState<"prompt" | "harness" | "deliverable" | "ledger">("harness")
   const [finishing, setFinishing] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [editIntent, setEditIntent] = useState(detail.intent || "")
+  const [editAgent, setEditAgent] = useState(detail.agent_id || "product")
+  const [editType, setEditType] = useState(detail.task_type || "research")
+  const [deleting, setDeleting] = useState(false)
+
+  useEffect(() => {
+    setEditIntent(detail.intent || "")
+    setEditAgent(detail.agent_id || "product")
+    setEditType(detail.task_type || "research")
+  }, [detail.project_id, detail.task_id, detail.intent, detail.agent_id, detail.task_type])
 
   async function handleFinish() {
     setFinishing(true)
@@ -58,6 +78,38 @@ function TaskDetailView({
     }
   }
 
+  async function handleSave() {
+    setSaving(true)
+    try {
+      await updateSingleExecute(detail.project_id, detail.task_id, {
+        intent: editIntent,
+        agent_id: editAgent,
+        task_type: editType,
+      })
+      toast.success("已保存")
+      setEditing(false)
+      onRefresh()
+    } catch (e) {
+      toast.error("保存失败", { description: e instanceof Error ? e.message : "" })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDelete() {
+    if (!confirm(`确定删除独立任务「${detail.task_id}」？该操作不可恢复。`)) return
+    setDeleting(true)
+    try {
+      await deleteSingleExecuteTask(detail.project_id, detail.task_id)
+      toast.success("任务已删除")
+      onDeleted()
+    } catch (e) {
+      toast.error("删除失败", { description: e instanceof Error ? e.message : "" })
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   const body =
     tab === "prompt"
       ? detail.prompt || ""
@@ -67,10 +119,12 @@ function TaskDetailView({
           ? detail.deliverable_content || ""
           : detail.ledger_content || ""
 
+  const readOnly = detail.finished
+
   return (
     <div className="workspace-panel">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h2 className="text-lg font-semibold">
             {detail.project_id} / {detail.task_id}
           </h2>
@@ -84,9 +138,75 @@ function TaskDetailView({
               {finishing ? "POST 中…" : "finish（POST promote）"}
             </Button>
           )}
+          {editing ? (
+            <>
+              <Button size="sm" disabled={saving} onClick={() => void handleSave()}>
+                {saving ? "保存中…" : "保存"}
+              </Button>
+              <Button size="sm" variant="ghost" disabled={saving} onClick={() => setEditing(false)}>
+                取消
+              </Button>
+            </>
+          ) : (
+            !readOnly && (
+              <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+                编辑
+              </Button>
+            )
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-[var(--color-destructive)] text-[var(--color-destructive)] hover:bg-[var(--color-destructive)]/10"
+            disabled={deleting}
+            onClick={() => void handleDelete()}
+          >
+            {deleting ? "删除中…" : "删除任务"}
+          </Button>
         </div>
       </div>
       <Separator className="my-4" />
+      {editing ? (
+        <div className="mb-4 grid gap-3 rounded-md border border-[var(--color-border)] p-3">
+          <div className="grid gap-2">
+            <Label>意图</Label>
+            <Textarea rows={3} value={editIntent} onChange={(e) => setEditIntent(e.target.value)} />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label>Agent</Label>
+              <select
+                className="h-9 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-sm"
+                value={editAgent}
+                onChange={(e) => setEditAgent(e.target.value)}
+              >
+                {agents.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name || a.id}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid gap-2">
+              <Label>task_type</Label>
+              <select
+                className="h-9 rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-sm"
+                value={editType}
+                onChange={(e) => setEditType(e.target.value)}
+              >
+                {taskTypes.map((t) => (
+                  <option key={t.task_type} value={t.task_type}>
+                    {t.display_name || t.task_type}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <p className="text-xs text-[var(--color-muted-foreground)]">
+            保存后会重新生成 worker.prompt.txt 与 harness.blocks.txt。
+          </p>
+        </div>
+      ) : null}
       <dl className="detail-dl">
         <div>
           <dt>Agent</dt>
@@ -229,18 +349,6 @@ export function ExecuteSection() {
     }
   }
 
-  async function handleDeleteTask(pid: string, tid: string) {
-    if (!confirm(`确定要删除独立任务「${tid}」吗？同项目下的其他任务也将被删除。`)) return
-    try {
-      await deleteProject(pid)
-      toast.success("任务已删除")
-      if (projectId === pid) navigate("/run/single")
-      void loadProjects()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "删除失败")
-    }
-  }
-
   return (
     <>
       <DiscordShell
@@ -270,7 +378,6 @@ export function ExecuteSection() {
                   tag={row.finished ? "done" : undefined}
                   active={projectId === row.project_id && taskId === row.task_id}
                   onClick={() => navigate(`/run/single/${row.project_id}/${row.task_id}`)}
-                  onDelete={() => handleDeleteTask(row.project_id, row.task_id)}
                 />
               ))
             ) : (
@@ -284,7 +391,13 @@ export function ExecuteSection() {
             detailLoading ? (
               <p className="text-sm text-[var(--color-muted-foreground)]">加载任务…</p>
             ) : detail ? (
-              <TaskDetailView detail={detail} onRefresh={() => void getSingleExecuteTask(projectId, taskId).then(setDetail)} />
+              <TaskDetailView
+                detail={detail}
+                agents={agents}
+                taskTypes={taskTypes}
+                onRefresh={() => void getSingleExecuteTask(projectId, taskId).then(setDetail)}
+                onDeleted={() => navigate("/run/single")}
+              />
             ) : (
               <WelcomePane title="任务不存在" description="请从左侧选择或新建 prepare。" />
             )

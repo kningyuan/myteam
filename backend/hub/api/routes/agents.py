@@ -204,7 +204,7 @@ async def agent_detail(agent_id: str):
 
 @router.put("/{agent_id}/files/{filename}")
 async def update_agent_workspace_file(agent_id: str, filename: str, body: dict):
-    from common.paths import AGENT_WORKSPACE_FILES
+    from common.paths import AGENT_WORKSPACE_FILES, resolve_workspace
     from base.agent_chat import _load_agents_config
 
     if filename not in AGENT_WORKSPACE_FILES:

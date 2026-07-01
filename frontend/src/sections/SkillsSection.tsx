@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState, useCallback } from "react"
+import { useEffect, useMemo, useState, useCallback, useRef } from "react"
 import { useNavigate, useParams, NavLink } from "react-router-dom"
-import { Plus } from "lucide-react"
+import { Plus, Upload } from "lucide-react"
 import { toast } from "sonner"
 import {
   createSkillCategory,
@@ -8,6 +8,7 @@ import {
   deleteSkillCategory,
   deleteSkillLibraryItem,
   getSkillLibraryItem,
+  importSkillZip,
   listSkillCategories,
   listSkillLibrary,
   listSkillPending,
@@ -151,12 +152,19 @@ export function SkillsSection() {
   const [pendingItems, setPendingItems] = useState<SkillPendingItem[]>([])
   const [pendingOpen, setPendingOpen] = useState(false)
   const [pendingBusy, setPendingBusy] = useState<string | null>(null)
+  const importInputRef = useRef<HTMLInputElement>(null)
 
   const reloadPending = useCallback(() => {
     listSkillPending()
       .then(setPendingItems)
       .catch(() => setPendingItems([]))
   }, [])
+
+  const reloadAll = useCallback(() => {
+    void reloadLibrary()
+    void reloadCategories()
+    reloadPending()
+  }, [reloadLibrary, reloadCategories, reloadPending])
 
   useEffect(() => {
     reloadPending()
@@ -365,12 +373,39 @@ export function SkillsSection() {
               </Button>
               <Button
                 size="sm"
+                variant="outline"
+                onClick={() => importInputRef.current?.click()}
+                title="导入 Skill zip 包"
+                aria-label="导入 Skill zip 包"
+              >
+                <Upload className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                size="sm"
                 onClick={() => setCreateSkillOpen(true)}
                 title="创建 Skill（写入 business/skills/<id>/SKILL.md）"
               >
                 <Plus className="h-3.5 w-3.5" />
                 创建 Skill
               </Button>
+              <input
+                ref={importInputRef}
+                type="file"
+                accept=".zip"
+                className="hidden"
+                onChange={async (e) => {
+                  const f = e.target.files?.[0]
+                  e.target.value = ""
+                  if (!f) return
+                  try {
+                    const res = await importSkillZip(f)
+                    toast.success(`已导入 Skill: ${res.skill_id}`)
+                    reloadAll()
+                  } catch (err) {
+                    toast.error("导入失败", { description: err instanceof Error ? err.message : "" })
+                  }
+                }}
+              />
             </div>
           }
         >

@@ -4151,6 +4151,69 @@ body.col-resizing * {
   cursor: default;
 }
 
+/* 分类详情页：成员 Skill 跳转网格 */
+.skill-members-grid-wrap {
+  margin-top: 12px;
+}
+
+.skill-members-grid-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-muted-foreground);
+}
+
+.skill-members-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.skill-member-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-background);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, transform 0.1s;
+}
+
+.skill-member-card:hover {
+  background: var(--color-accent);
+  border-color: color-mix(in srgb, var(--color-brand) 35%, var(--color-border));
+  transform: translateY(-1px);
+}
+
+.skill-member-card:active {
+  transform: translateY(0);
+}
+
+.skill-member-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.skill-member-desc {
+  font-size: 11px;
+  color: var(--color-muted-foreground);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .skill-category-manage-list {
   display: flex;
   flex-direction: column;

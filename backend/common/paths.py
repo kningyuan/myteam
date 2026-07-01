@@ -53,7 +53,7 @@ GROUP_ARCHIVES_FILE = BUSINESS_CONFIG_DIR / "group_archives.json"
 
 IDENTITY_FILES = ["IDENTITY.md", "SOUL.md", "USER.md"]
 # Hub 可编辑的 per-agent 工作区文件（USER.md 已移至团队「偏好库」）
-AGENT_WORKSPACE_FILES = ["IDENTITY.md", "SOUL.md"]
+AGENT_WORKSPACE_FILES = ["IDENTITY.md", "SOUL.md", "AGENTS.md"]
 
 
 def ensure_team_importable() -> Path:

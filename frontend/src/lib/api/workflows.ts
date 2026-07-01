@@ -478,6 +478,30 @@ export async function deleteSkillLibraryItem(skillId: string): Promise<DeleteSki
   return data
 }
 
+/** 导出单个 Skill 为 zip 包（浏览器触发下载） */
+export function exportSkillZip(skillId: string): void {
+  const url = `/api/skills/library/${encodeURIComponent(skillId)}/export`
+  // 走同源 hubFetch 的 baseUrl（与 hubFetch 一致：相对路径 + cookie）
+  const a = document.createElement("a")
+  a.href = url
+  a.download = `skill-${skillId}.zip`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
+
+/** 导入 Skill zip 包 */
+export async function importSkillZip(file: File): Promise<{ success: boolean; skill_id: string }> {
+  const form = new FormData()
+  form.append("file", file)
+  const data = await hubFetch<{ success: boolean; skill_id: string }>("/api/skills/library/import", {
+    method: "POST",
+    body: form,
+  })
+  invalidateResources("skill-library", "skill-matrix", "agents")
+  return data
+}
+
 export async function listSkillDrafts(): Promise<SkillDraftSummary[]> {
   const data = await hubFetch<{ drafts?: SkillDraftSummary[] }>("/api/skills/drafts")
   return data.drafts ?? []

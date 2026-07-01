@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react"
-import { Copy, Pencil, Save, X } from "lucide-react"
+import { useNavigate } from "react-router-dom"
+import { Copy, Download, Pencil, Save, X } from "lucide-react"
 import { toast } from "sonner"
 import {
   deleteSkillLibraryItem,
+  exportSkillZip,
   getSkillFile,
   moveSkillToCategory,
   updateSkillCategory,
@@ -70,6 +72,7 @@ export function SkillDetailPanel({
   const [nameDraft, setNameDraft] = useState("")
   const [savingName, setSavingName] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const navigate = useNavigate()
   const [movingCategory, setMovingCategory] = useState(false)
   const [editingDesc, setEditingDesc] = useState(false)
   const [descDraft, setDescDraft] = useState("")
@@ -440,20 +443,66 @@ export function SkillDetailPanel({
             <Button
               size="sm"
               variant="outline"
-              className="border-[var(--color-destructive)] text-[var(--color-destructive)] hover:bg-[var(--color-destructive)]/10"
-              disabled={deleting}
-              onClick={() => void handleDelete()}
+              onClick={() => {
+                if (!item?.id) return
+                exportSkillZip(item.id)
+                toast.success("已开始下载 Skill zip 包")
+              }}
             >
-              {deleting ? "删除中…" : "删除 Skill"}
+              <Download className="h-3.5 w-3.5" />
+              导出
             </Button>
+          ) : null}
+          {!isCategory ? (
+            currentCategory !== "__none__" ? (
+              <span className="text-xs text-[var(--color-muted-foreground)]" title="请先在上方「分类标签」中移出分类">
+                已归入分类，需先移出方可删除
+              </span>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-[var(--color-destructive)] text-[var(--color-destructive)] hover:bg-[var(--color-destructive)]/10"
+                disabled={deleting}
+                onClick={() => void handleDelete()}
+              >
+                {deleting ? "删除中…" : "删除 Skill"}
+              </Button>
+            )
           ) : null}
         </div>
       </div>
 
+      {isCategory && item.members && item.members.length > 0 ? (
+        <div className="skill-members-grid-wrap">
+          <div className="skill-members-grid-head">
+            <span>成员 Skill（{item.members.length}）</span>
+            <span className="text-xs text-[var(--color-muted-foreground)]">点击进入详情</span>
+          </div>
+          <div className="skill-members-grid">
+            {item.members.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                className="skill-member-card"
+                onClick={() => navigate(`/skills/${encodeURIComponent(m.id)}`)}
+                title={m.description || m.name || m.id}
+              >
+                <span className="skill-member-name">{m.name || m.id}</span>
+                {m.description ? (
+                  <span className="skill-member-desc">{m.description}</span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {isCategory ? null : (
       <div className="deliverable-layout">
         <aside className="deliverable-files skill-detail-nav">
           <div className="skill-detail-nav-block">
-            <div className="deliverable-files-title">{isCategory ? "成员目录" : "目录"}</div>
+            <div className="deliverable-files-title">目录</div>
             <ScrollArea className="flex-1 min-h-0">
               <SkillFileTree
                 tree={tree}
@@ -522,6 +571,7 @@ export function SkillDetailPanel({
           </div>
         </ScrollArea>
       </div>
+      )}
     </div>
   )
 }
