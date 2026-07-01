@@ -123,6 +123,11 @@ export function KnowledgePanel() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             }
+            action={
+              <Button size="sm" onClick={() => setKbCreateOpen(true)}>
+                新建条目
+              </Button>
+            }
             widthStorageKey="agentHub.manageListWidth"
           >
             {kbLoading ? (
@@ -175,9 +180,6 @@ export function KnowledgePanel() {
                 {label}
               </Button>
             ))}
-            <Button size="sm" variant="outline" className="ml-auto" onClick={() => setKbCreateOpen(true)}>
-              新建条目
-            </Button>
           </div>
           {selectedEntry ? (
             <KnowledgeDetailPanel

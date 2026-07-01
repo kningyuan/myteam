@@ -5,9 +5,8 @@ import { ChatSection } from "@/sections/ChatSection"
 import { GroupsSection } from "@/sections/GroupsSection"
 import { ManageSection } from "@/sections/ManageSection"
 import { ProjectsSection } from "@/sections/ProjectsSection"
-import { WorkflowsSection } from "@/sections/WorkflowsSection"
+import { RunSection } from "@/sections/RunSection"
 import { SkillsSection } from "@/sections/SkillsSection"
-import { ExecuteSection } from "@/sections/ExecuteSection"
 import { McpSection } from "@/sections/McpSection"
 import { DiscordShell } from "@/components/layout/DiscordShell"
 
@@ -36,13 +35,13 @@ export default function App() {
         <Route path="groups/:groupId" element={<GroupsSection />} />
         <Route path="projects" element={<ProjectsSection />} />
         <Route path="projects/:projectId" element={<ProjectsSection />} />
-        <Route path="execute" element={<ExecuteSection />} />
-        <Route path="execute/:projectId/:taskId" element={<ExecuteSection />} />
+        <Route path="run" element={<RunSection />} />
+        <Route path="run/:tab" element={<RunSection />} />
+        <Route path="run/:tab/:workflowId" element={<RunSection />} />
+        <Route path="run/:tab/:projectId/:taskId" element={<RunSection />} />
         <Route path="manage" element={<ManageSection />} />
         <Route path="manage/:tab" element={<ManageSection />} />
         <Route path="manage/:tab/:itemId" element={<ManageSection />} />
-        <Route path="workflows" element={<WorkflowsSection />} />
-        <Route path="workflows/:workflowId" element={<WorkflowsSection />} />
         <Route path="skills" element={<SkillsSection />} />
         <Route path="skills/:skillId" element={<SkillsSection />} />
         <Route path="mcp" element={<McpSection />} />

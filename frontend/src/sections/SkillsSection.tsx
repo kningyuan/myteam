@@ -350,7 +350,30 @@ export function SkillsSection() {
   return (
     <DiscordShell
       list={
-        <ListColumn title="Skill">
+        <ListColumn
+          title="Skill"
+          action={
+            <div className="flex gap-1">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setCreateOpen(true)}
+                title="新建 Skill 分类"
+                aria-label="新建 Skill 分类"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setCreateSkillOpen(true)}
+                title="创建 Skill（写入 business/skills/<id>/SKILL.md）"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                创建 Skill
+              </Button>
+            </div>
+          }
+        >
           <div className="skill-list-toolbar">
             <NavLink
               to="/skills"
@@ -378,27 +401,6 @@ export function SkillsSection() {
               title="Skill review 待审批"
             >
               待审批{pendingItems.length ? ` (${pendingItems.length})` : ""}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="ml-auto h-6 px-2 text-[11px]"
-              onClick={() => setCreateSkillOpen(true)}
-              title="创建 Skill（写入 business/skills/<id>/SKILL.md）"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              创建 Skill
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="h-6 w-6 p-0"
-              onClick={() => setCreateOpen(true)}
-              title="新建 Skill 分类"
-            >
-              <Plus className="h-3.5 w-3.5" />
             </Button>
           </div>
           {(sortedCategories ?? []).length ? (

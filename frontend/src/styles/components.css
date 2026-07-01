@@ -2615,6 +2615,25 @@ body.col-resizing * {
   color: var(--color-muted-foreground);
 }
 
+/* 预算状态色：alert=接近上限(橙)、over=超限(红)、ok=默认品牌色 */
+.budget-alert .budget-fill {
+  background: #d97706;
+}
+
+.budget-alert .budget-label {
+  color: #d97706;
+  font-weight: 600;
+}
+
+.budget-over .budget-fill {
+  background: #f23f43;
+}
+
+.budget-over .budget-label {
+  color: #f23f43;
+  font-weight: 600;
+}
+
 .cost-row {
   display: flex;
   justify-content: space-between;
@@ -2642,6 +2661,12 @@ body.col-resizing * {
   gap: 10px;
   align-items: center;
   font-size: 12px;
+}
+
+.cost-bar-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cost-bar-track {

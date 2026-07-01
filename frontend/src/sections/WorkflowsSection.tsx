@@ -6,6 +6,7 @@ import { sortByModifiedDesc } from "@/lib/sortByModified"
 import { WorkflowEditor } from "@/components/workflow/WorkflowEditor"
 import { DiscordShell, ListColumn, WelcomePane } from "@/components/layout/DiscordShell"
 import { ListItemRow } from "@/components/layout/ListItemRow"
+import { RunSegmentNav } from "@/components/RunSegmentNav"
 import { Button } from "@/components/ui/button"
 
 export function WorkflowsSection() {
@@ -29,10 +30,11 @@ export function WorkflowsSection() {
         <ListColumn
           title="工作流"
           action={
-            <Button size="sm" onClick={() => navigateWorkflow("/workflows/new")}>
+            <Button size="sm" onClick={() => navigateWorkflow("/run/workflows/new")}>
               新建
             </Button>
           }
+          tabs={<RunSegmentNav />}
         >
           {sortedWorkflows.map((w) => (
             <ListItemRow
@@ -41,7 +43,7 @@ export function WorkflowsSection() {
               sub={`${w.task_count ?? "—"} 任务`}
               avatar={workflowDisplayName(w)}
               active={w.id === workflowId}
-              onClick={() => navigateWorkflow(`/workflows/${encodeURIComponent(w.id)}`)}
+              onClick={() => navigateWorkflow(`/run/workflows/${encodeURIComponent(w.id)}`)}
             />
           ))}
         </ListColumn>
@@ -53,11 +55,11 @@ export function WorkflowsSection() {
           onDirtyChange={setEditorDirty}
           onSaved={(id) => {
             setEditorDirty(false)
-            navigate(`/workflows/${encodeURIComponent(id)}`, { replace: true })
+            navigate(`/run/workflows/${encodeURIComponent(id)}`, { replace: true })
           }}
           onDeleted={() => {
             setEditorDirty(false)
-            navigate("/workflows")
+            navigate("/run/workflows")
           }}
         />
       ) : (

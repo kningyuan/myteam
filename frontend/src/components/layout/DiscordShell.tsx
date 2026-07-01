@@ -9,7 +9,6 @@ import {
   Settings,
   Sun,
   Users,
-  Workflow,
   Sparkles,
   Plug,
   Zap,
@@ -30,9 +29,8 @@ const mainNav: {
   { to: "/chat", label: "对话", icon: MessageCircle },
   { to: "/groups", label: "群组", icon: Users },
   { to: "/projects", label: "项目", icon: FolderKanban },
-  { to: "/execute", label: "Execute", icon: Zap },
+  { to: "/run", label: "执行", icon: Zap },
   { to: "/manage", label: "管理", icon: Layers },
-  { to: "/workflows", label: "流程", icon: Workflow },
   { to: "/skills", label: "Skill", icon: Sparkles },
   { to: "/mcp", label: "MCP", icon: Plug },
 ]

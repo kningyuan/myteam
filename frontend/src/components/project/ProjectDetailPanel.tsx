@@ -141,7 +141,7 @@ function CostView({
         <div className="cost-bar-chart">
           {Object.entries(byAgent).map(([a, n], i) => (
             <div key={a} className="cost-bar-item">
-              <div className="cost-bar-label">{a}</div>
+              <div className="cost-bar-label">{a || "未分配"}</div>
               <div className="cost-bar-track">
                 <div
                   className="cost-bar-fill"

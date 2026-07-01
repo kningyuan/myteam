@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react"
-import { useNavigate, useParams } from "react-router-dom"
+import { NavLink, useNavigate, useParams } from "react-router-dom"
 import { toast } from "sonner"
 import { createMcpServer, deleteMcpServer, listMcpLibrary, type McpServerSummary } from "@/lib/api/mcp"
 import { useResourceQuery, useOnResourceInvalidate } from "@/hooks/useResourceQuery"
@@ -143,19 +143,24 @@ export function McpSection() {
     <>
       <DiscordShell
         list={
-          <ListColumn title="MCP">
-            <div className="px-3 pb-2 pt-1 space-y-2">
-              <Button
-                size="sm"
-                variant={serverId ? "outline" : "default"}
-                className="w-full"
-                onClick={() => navigate("/mcp")}
-              >
-                全部 MCP
-              </Button>
-              <Button size="sm" variant="outline" className="w-full" onClick={() => setCreateOpen(true)}>
+          <ListColumn
+            title="MCP"
+            action={
+              <Button size="sm" onClick={() => setCreateOpen(true)}>
                 新建 MCP
               </Button>
+            }
+          >
+            <div className="skill-list-toolbar">
+              <NavLink
+                to="/mcp"
+                end
+                className={({ isActive }) =>
+                  `skill-list-overview-btn${isActive && !serverId ? " active" : ""}`
+                }
+              >
+                全部 MCP
+              </NavLink>
             </div>
             {loadingLibrary ? (
               <p className="px-4 py-3 text-center text-xs text-[var(--color-muted-foreground)]">加载中…</p>

@@ -14,6 +14,7 @@ import { listAgents, type AgentSummary } from "@/lib/api/agents"
 import { listTaskTypes, type TaskTypeSummary } from "@/lib/api/workflows"
 import { DiscordShell, ListColumn, WelcomePane } from "@/components/layout/DiscordShell"
 import { ListItemRow } from "@/components/layout/ListItemRow"
+import { RunSegmentNav } from "@/components/RunSegmentNav"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -220,7 +221,7 @@ export function ExecuteSection() {
       })
       setCreateOpen(false)
       loadProjects()
-      navigate(`/execute/${project_id}/${task_id}`)
+      navigate(`/run/single/${project_id}/${task_id}`)
     } catch (e) {
       toast.error("prepare 失败", { description: e instanceof Error ? e.message : "" })
     } finally {
@@ -233,7 +234,7 @@ export function ExecuteSection() {
     try {
       await deleteProject(pid)
       toast.success("任务已删除")
-      if (projectId === pid) navigate("/execute")
+      if (projectId === pid) navigate("/run/single")
       void loadProjects()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "删除失败")
@@ -244,12 +245,16 @@ export function ExecuteSection() {
     <>
       <DiscordShell
         list={
-          <ListColumn title="独立任务" widthStorageKey="agentHub.executeListWidth">
-            <div className="px-3 pb-2">
-              <Button size="sm" className="w-full" onClick={() => setCreateOpen(true)}>
+          <ListColumn
+            title="独立任务"
+            widthStorageKey="agentHub.executeListWidth"
+            tabs={<RunSegmentNav />}
+            action={
+              <Button size="sm" onClick={() => setCreateOpen(true)}>
                 新建任务
               </Button>
-            </div>
+            }
+          >
             <div className="px-3 pb-2">
               <ExecuteInfoCard />
             </div>
@@ -264,7 +269,7 @@ export function ExecuteSection() {
                   avatar={row.finished ? "✓" : "EX"}
                   tag={row.finished ? "done" : undefined}
                   active={projectId === row.project_id && taskId === row.task_id}
-                  onClick={() => navigate(`/execute/${row.project_id}/${row.task_id}`)}
+                  onClick={() => navigate(`/run/single/${row.project_id}/${row.task_id}`)}
                   onDelete={() => handleDeleteTask(row.project_id, row.task_id)}
                 />
               ))

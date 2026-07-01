@@ -116,7 +116,7 @@ export function DashboardPage() {
   const quickLinks = [
     { to: "/chat", icon: MessageCircle, label: "对话", desc: "与 Agent 一对一交流" },
     { to: "/projects", icon: FolderKanban, label: "项目", desc: "编排任务 DAG" },
-    { to: "/workflows", icon: Workflow, label: "流程", desc: "定义团队协作流" },
+    { to: "/run/workflows", icon: Workflow, label: "流程", desc: "定义团队协作流" },
     { to: "/skills", icon: Sparkles, label: "Skill", desc: "管理能力技能包" },
   ]
 

@@ -53,6 +53,45 @@ export async function updateSkillConfig(config: Record<string, unknown>): Promis
   invalidateResources("config")
 }
 
+/** 递归合并：对象深合并，数组与标量整体替换。 */
+function deepMerge(
+  target: Record<string, unknown>,
+  patch: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...target }
+  for (const [k, v] of Object.entries(patch)) {
+    const tv = out[k]
+    if (
+      v !== null &&
+      typeof v === "object" &&
+      !Array.isArray(v) &&
+      tv !== null &&
+      typeof tv === "object" &&
+      !Array.isArray(tv)
+    ) {
+      out[k] = deepMerge(tv as Record<string, unknown>, v as Record<string, unknown>)
+    } else {
+      out[k] = v
+    }
+  }
+  return out
+}
+
+/**
+ * 读取最新 config → 合并 patch → 整体写回。
+ * 多个设置 Panel 各自只编辑 system_config 的一个子集；直接 PUT 全量会互相覆盖，
+ * 因此保存前先重新拉取最新值再做深合并。
+ */
+export async function patchConfig(patch: Record<string, unknown>): Promise<void> {
+  const latest = await getConfig()
+  await updateConfig(deepMerge(latest, patch))
+}
+
+export async function patchSkillConfig(patch: Record<string, unknown>): Promise<void> {
+  const latest = await getSkillConfig()
+  await updateSkillConfig(deepMerge(latest, patch))
+}
+
 export async function listBackends(): Promise<BackendSummary[]> {
   const data = await hubFetch<{ backends?: BackendSummary[] }>("/api/backends")
   return data.backends ?? []
