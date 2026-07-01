@@ -13,7 +13,7 @@ if str(_BACKEND) not in sys.path:
 
 from common.agent.agent_transport import build_worker_prompt
 from common.contracts import InteractionRequest
-from common.paths import MYTEAM_ROOT, deliverables_dir, response_dir
+from common.paths import MYTEAM_ROOT, TASKS_DIR, deliverables_dir, response_dir
 from common.gate.registry import resolve_format_spec
 from common.store.store import Store, default_db_path
 from execution_harness.context import TaskCompleteContext
@@ -29,7 +29,7 @@ from execution_harness.single_execute import (
 
 
 def list_single_execute_projects() -> list[dict[str, Any]]:
-    root = MYTEAM_ROOT / "tasks" / "single_agent"
+    root = TASKS_DIR / "single_agent"
     if not root.is_dir():
         return []
     out: list[dict[str, Any]] = []

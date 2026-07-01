@@ -64,6 +64,3 @@ business/regression/artifacts/
 myteam-test-report/
 myteam-user-manual/
 agent-upgrade-report/
-
-# 运行时任务状态
-tasks/

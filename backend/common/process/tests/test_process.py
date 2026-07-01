@@ -1231,7 +1231,7 @@ def test_kernel_triage_k7_measurable(env, tmp_path, monkeypatch):
 
     monkeypatch.setattr("common.agent.agent_port.audit_enabled", lambda: True)
 
-    _REG = Path(__file__).resolve().parents[4] / "scripts" / "regression"
+    _REG = Path(__file__).resolve().parents[4] / "business" / "scripts" / "regression"
     sys.path.insert(0, str(_REG))
     from check_kpis import check_k7  # noqa: E402
 

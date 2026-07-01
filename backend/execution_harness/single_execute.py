@@ -30,7 +30,7 @@ if str(BACKEND) not in sys.path:
 
 from common.agent.agent_transport import build_worker_prompt
 from common.contracts import InteractionRequest
-from common.paths import MYTEAM_ROOT, deliverables_dir, response_dir
+from common.paths import MYTEAM_ROOT, TASKS_DIR, deliverables_dir, response_dir
 from common.gate.registry import resolve_format_spec
 from common.store.store import Store, default_db_path
 from execution_harness.context import TaskCompleteContext
@@ -38,7 +38,7 @@ from execution_harness.facade import on_task_complete
 
 
 def _run_root(project_id: str) -> Path:
-    return MYTEAM_ROOT / "tasks" / "single_agent" / project_id
+    return TASKS_DIR / "single_agent" / project_id
 
 
 def _task_dir(project_id: str, task_id: str) -> Path:

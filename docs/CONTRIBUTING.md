@@ -27,11 +27,11 @@ AGENTS.md 是架构不变量的权威源（adapter 隔离、交互契约、三�
 | `business/means/` | 工具手段（diagram-build 等） | 业务配置 | ✅ |
 | `business/regression/` | 回归测试结果（JSON） | 源码 | ✅ |
 | `frontend/src/` | 前端源码（React + TS） | 后端代码 | ✅ |
-| `scripts/` | 一次性脚本、bootstrap、工具 | 运行态业务数据 | ✅ |
+| `business/scripts/` | 业务引导脚本、bootstrap、回归工具 | 运行态业务数据 | ✅ |
 | `config/` | 系统配置 JSON（运行态生成） | 源码 | ❌ gitignore |
 | `business/config/` | 业务配置（agents_config/agents_registry/groups） | 源码 | ❌ gitignore |
 | `business/workspaces/` | Agent workspace（运行态） | 源码 | ❌ gitignore |
-| `business/tasks/` | 任务运行态数据（state.db、交付物） | 源码 | ❌ gitignore |
+| `business/tasks/` | 任务运行态数据（state.db、交付物、single_agent 产物） | 源码 | ❌ gitignore |
 
 ---
 
@@ -143,7 +143,7 @@ AGENTS.md 是架构不变量的权威源（adapter 隔离、交互契约、三�
 
 - 模板：`business/templates/business-roster.json`（权威角色定义）
 - 运行态：`business/config/agents_config.json`（backend/model/name）、`business/config/agents_registry.json`（role/task_types/skills）
-- 身份文件：`business/workspaces/workspace-<agent_id>/` 下的 IDENTITY/SOUL/AGENTS/MEMORY.md（用 `scripts/bootstrap_agent_identity.py` 生成）
+- 身份文件：`business/workspaces/workspace-<agent_id>/` 下的 IDENTITY/SOUL/AGENTS/MEMORY.md（用 `business/scripts/bootstrap_agent_identity.py` 生成）
 
 ---
 
@@ -151,12 +151,12 @@ AGENTS.md 是架构不变量的权威源（adapter 隔离、交互契约、三�
 
 | 路径 | 放什么 |
 |------|--------|
-| `scripts/` | 一次性脚本、bootstrap、运维工具 |
-| `scripts/regression/` | 回归测试脚本 |
+| `business/scripts/` | 业务引导脚本、bootstrap、运维工具 |
+| `business/scripts/regression/` | 回归测试脚本 |
 | `backend/execution_harness/single_execute.py` | 单 Agent 执行器（可直接运行） |
 | `backend/common/runtime/run_kernel.py` | 内核运行入口（可直接运行） |
 
-**规则**：可执行脚本放 `scripts/`，库代码放 `backend/`，不混放。
+**规则**：业务脚本放 `business/scripts/`，库代码放 `backend/`，不混放。根目录不放脚本目录。
 
 ---
 

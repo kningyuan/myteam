@@ -66,7 +66,7 @@ PYTHONPATH=backend python backend/execution_harness/single_execute.py finish \
   --project sa-q1 --task t1 --agent product --task-type research
 ```
 
-产物：`tasks/single_agent/<project>/<task>/worker.prompt.txt`、全局 KB 复利、
+产物：`business/tasks/single_agent/<project>/<task>/worker.prompt.txt`、全局 KB 复利、
 `business/skills/<umbrella>/references/`。
 
 ## 文档
