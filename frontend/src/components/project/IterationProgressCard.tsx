@@ -18,7 +18,7 @@ const STATE_LABEL: Record<string, string> = {
   running: "进行中",
   passed: "已通过",
   exhausted: "轮次用尽",
-  needs_review: "待人工",
+  needs_review: "待复核",
   finished: "已结束",
 }
 

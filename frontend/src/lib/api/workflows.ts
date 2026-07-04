@@ -47,13 +47,20 @@ export function workflowDisplayName(w: {
   return (w.name || w.display_name || w.id).trim()
 }
 
+export type DeliveryTemplateSection = string | { name: string; description?: string }
+
+/** check_rules 支持任意 key（含质量约束可视化新增 key），值为 bool/int/str/list。 */
+export type CheckRules = Record<string, boolean | number | string | string[]>
+
 export type DeliveryTemplateSummary = {
   id: string
   display_name?: string
   task_types?: string[]
   description?: string
   default_for?: string
-  sections?: Array<string | { name: string; description?: string }>
+  sections?: DeliveryTemplateSection[]
+  /** 仅详情接口（getDeliveryTemplate）会回填 check_rules。 */
+  check_rules?: CheckRules
   operated_at?: string
 }
 
@@ -301,11 +308,95 @@ export async function listDeliveryTemplates(): Promise<DeliveryTemplateSummary[]
   return data.templates ?? []
 }
 
+/** Gate 可用的质量约束全集项（来自后端 CHECK_REGISTRY）。 */
+export type CheckConstraintMeta = {
+  key: string
+  group: string         // A 存在性 / B 对比矩阵 / C 数据可信 / D 维度覆盖
+  label: string
+  hint: string
+  type: string          // bool / int / str / list
+}
+
+export async function listCheckConstraints(): Promise<CheckConstraintMeta[]> {
+  const data = await hubFetch<{ constraints?: CheckConstraintMeta[] }>(
+    "/api/delivery-templates/constraints",
+  )
+  return data.constraints ?? []
+}
+
 export async function getDeliveryTemplate(templateId: string): Promise<DeliveryTemplateDetail> {
   const data = await hubFetch<{ template?: DeliveryTemplateSummary; yaml?: string }>(
     `/api/delivery-templates/${encodeURIComponent(templateId)}`,
   )
-  return { ...(data.template ?? { id: templateId }), yaml: data.yaml || "" }
+  const yamlText = data.yaml || ""
+  return {
+    ...(data.template ?? { id: templateId }),
+    yaml: yamlText,
+    check_rules: parseCheckRulesFromYaml(yamlText),
+  }
+}
+
+/**
+ * 从交付模板 YAML 原文中抽取 check_rules 块（最小行扫描解析，不引入 yaml 依赖）。
+ * 只识别已知形态：顶层 `check_rules:` 块，值为 bool/int/str/str-list。
+ * 解析失败返回 undefined（编辑器回退到 YAML 文本编辑）。
+ */
+export function parseCheckRulesFromYaml(yamlText: string): CheckRules | undefined {
+  if (!yamlText) return undefined
+  const lines = yamlText.split(/\r?\n/)
+  const startIdx = lines.findIndex((l) => /^check_rules:\s*$/.test(l))
+  if (startIdx < 0) return undefined
+  const block: CheckRules = {}
+  let currentKey: string | null = null
+  let currentList: string[] | null = null
+  const flushList = () => {
+    if (currentKey && currentList) {
+      block[currentKey] = currentList
+      currentKey = null
+      currentList = null
+    }
+  }
+  for (let i = startIdx + 1; i < lines.length; i++) {
+    const line = lines[i]
+    if (/^\S/.test(line)) break // 回到顶层 key，块结束
+    if (!line.trim() || line.trim().startsWith("#")) continue
+    const itemMatch = line.match(/^\s+-\s+(.+)$/)
+    if (itemMatch && currentKey && currentList) {
+      currentList.push(stripQuotes(itemMatch[1].trim()))
+      continue
+    }
+    const kvMatch = line.match(/^\s{2}(\w[\w-]*)\s*:\s*(.*)$/)
+    if (kvMatch) {
+      flushList()
+      const key = kvMatch[1]
+      const val = kvMatch[2].trim()
+      if (!val) {
+        // 值在后续缩进行（list 形态）
+        currentKey = key
+        currentList = []
+      } else {
+        block[key] = coerceScalar(stripQuotes(val))
+        currentKey = null
+        currentList = null
+      }
+    }
+  }
+  flushList()
+  return Object.keys(block).length ? block : undefined
+}
+
+function stripQuotes(s: string): string {
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+    return s.slice(1, -1)
+  }
+  return s
+}
+
+function coerceScalar(s: string): boolean | number | string {
+  if (s === "true" || s === "True" || s === "TRUE") return true
+  if (s === "false" || s === "False" || s === "FALSE") return false
+  if (/^-?\d+$/.test(s)) return Number(s)
+  return s
 }
 
 export async function saveDeliveryTemplate(

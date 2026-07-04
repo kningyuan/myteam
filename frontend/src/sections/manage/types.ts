@@ -2,7 +2,6 @@ export type ManageTab =
   | "agents"
   | "preferences"
   | "task-types"
-  | "templates"
   | "prompt-templates"
   | "delivery-profiles"
   | "knowledge"

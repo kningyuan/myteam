@@ -111,12 +111,15 @@ export function ThinkingStream({
   const body = useMemo(() => {
     const nodes: ReactNode[] = []
     let step = 0
+    // key 必须用原始 events 下标（i 原值），不能用配对跳过后递增的游标，
+    // 否则 tool_use/tool_result 配对状态变化时后续 key 整体偏移 → React 重建
+    // <details> 节点 → 展开态丢失。
     for (let i = 0; i < events.length; i++) {
       const t = events[i]
       if (t.type === "step_start") {
         step += 1
         nodes.push(
-          <div key={`step-${step}`} className="activity-step">
+          <div key={`step-${i}`} className="activity-step">
             <span className="activity-step-label">步骤 {step}</span>
           </div>,
         )

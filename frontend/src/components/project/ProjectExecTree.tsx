@@ -180,8 +180,10 @@ function TaggedPhaseSection({
           </div>
         )}
         {!loading &&
-          milestoneEvents.map((ev, idx) => {
-            const childId = `${event.interaction_id}:${ev.seq ?? idx}`
+          milestoneEvents.map((ev) => {
+            // key 必须稳定：用 seq 优先，缺 seq 时用 kind+ts（而非数组位置 idx），
+            // 否则新事件插入导致 idx 漂移 → React 卸载旧节点 → 展开态丢失 + 视口跳动。
+            const childId = `${event.interaction_id}:${ev.seq ?? `${ev.kind || ""}@${ev.ts || ""}`}`
             return (
               <TaggedContentRow
                 key={childId}
@@ -328,6 +330,11 @@ function TaskFold({
   const stLabel = DAG_LABELS[task.status || ""] || task.status || ""
   const agentLine = [task.agent && `Agent · ${task.agent}`, task.task_type].filter(Boolean).join(" · ")
 
+  // phases 每次 events 变都会是新数组引用（即便 interaction 列表没变），若直接进 useEffect 依赖
+  // 会导致流订阅反复 stop/start、timeline 反复重拉。这里派生稳定签名：仅当 iid 列表或 status
+  // 真正变化时才换串，引用稳定 → effect 不重跑。
+  const phaseSig = phases.map((p) => `${p.interaction_id || ""}:${p.status || ""}`).join("|")
+
   useEffect(() => {
     if (!open) return
     for (const p of phases) {
@@ -337,7 +344,8 @@ function TaskFold({
       if (p.status === "running") startStream(iid)
       else stopStream(iid)
     }
-  }, [open, phases, loadTimeline, startStream, stopStream])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, phaseSig, loadTimeline, startStream, stopStream])
 
   const hasBody = phases.length > 0 || splitEvents.length > 0 || activity.length > 0 || childTasks.length > 0
 

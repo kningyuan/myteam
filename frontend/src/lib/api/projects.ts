@@ -279,6 +279,17 @@ export async function cancelProject(
   return res
 }
 
+export async function pauseProject(
+  projectId: string,
+): Promise<{ success?: boolean; message?: string }> {
+  const res = await hubFetch<{ success?: boolean; message?: string }>(
+    `/api/projects/${encodeURIComponent(projectId)}/pause`,
+    { method: "POST" },
+  )
+  invalidateResources("projects")
+  return res
+}
+
 export async function deleteProject(projectId: string): Promise<void> {
   await hubFetch(`/api/projects/${encodeURIComponent(projectId)}`, { method: "DELETE" })
   invalidateResources("projects")

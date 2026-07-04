@@ -5,8 +5,7 @@ const segments = [
   { id: "agents", label: "Agent" },
   { id: "preferences", label: "偏好库" },
   { id: "knowledge", label: "知识库" },
-  { id: "task-types", label: "任务类型" },
-  { id: "templates", label: "交付模板" },
+  { id: "task-types", label: "任务与模板" },
   { id: "prompt-templates", label: "Prompt模板" },
   { id: "delivery-profiles", label: "交付流程" },
 ] as const

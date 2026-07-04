@@ -5,6 +5,7 @@ import {
   FileText,
   GitBranch,
   LayoutGrid,
+  Pause,
   Play,
   ScrollText,
   Trash2,
@@ -20,6 +21,7 @@ import {
   getProjectFleet,
   getProjectOverview,
   getProjectRunStatus,
+  pauseProject,
   projectWorkflowLabel,
   resumeProject,
   subscribeProjectStream,
@@ -71,7 +73,7 @@ function LaunchConfig({ ov, cyclesDone }: { ov: ProjectOverview; cyclesDone?: nu
         ? `${Number(lc.token_budget ?? ov.budget).toLocaleString()} tok`
         : "不限",
     ],
-    ["交付模板", lc.template_id || "未指定"],
+    ["交付模板", lc.template_id || "按任务类型内联"],
     ["CLI 后端", lc.backend || "系统默认"],
     ["创建时间", fmtTime(ov.created_at || ov.updated_at)],
   ]
@@ -177,6 +179,44 @@ export function ProjectDetailPanel({
   const mainRef = useRef<HTMLDivElement>(null)
   const reloadSeq = useRef(0)
 
+  // SSE/轮询每次都全量重拉 events；直接整体替换会让下游 useMemo（ProjectExecTree 的
+  // interactionsByTask/rootTasks 等）每次都拿到新数组引用 → 整树重渲染 → 展开态丢失 +
+  // 视口失去锚点。这里按事件键去重合并：内容未变时复用旧对象引用，仅在确有新增/变更时
+  // 才返回新数组，从而保持引用稳定。
+  const mergeEvents = useCallback(
+    (prev: ProjectEvent[], incoming: ProjectEvent[]): ProjectEvent[] => {
+      const keyOf = (e: ProjectEvent) =>
+        `${e.interaction_id || ""}|${e.task_id || ""}|${e.kind || ""}|${e.ts || ""}`
+      const prevByKey = new Map<string, ProjectEvent>()
+      for (const e of prev) prevByKey.set(keyOf(e), e)
+      let changed = false
+      const next: ProjectEvent[] = []
+      const seen = new Set<string>()
+      for (const e of incoming) {
+        const k = keyOf(e)
+        if (seen.has(k)) continue // 后端偶发重复，去重
+        seen.add(k)
+        const old = prevByKey.get(k)
+        if (old && old.status === e.status && old.tokens === e.tokens) {
+          next.push(old) // 内容未变，复用旧引用
+        } else {
+          next.push(e)
+          if (!old) changed = true
+        }
+      }
+      if (!changed && next.length === prev.length) {
+        // 没有新事件且每条都复用了旧引用 → 返回旧数组，引用稳定
+        let allSame = true
+        for (let i = 0; i < next.length; i++) {
+          if (next[i] !== prev[i]) { allSame = false; break }
+        }
+        if (allSame) return prev
+      }
+      return next
+    },
+    [],
+  )
+
   const reload = useCallback(async () => {
     const seq = ++reloadSeq.current
     const pid = projectId
@@ -193,7 +233,7 @@ export function ProjectDetailPanel({
       setCost(costData)
       setFleet(fleetData.fleet ?? {})
       setRunning(!!runStatus.running)
-      setEvents(evData.events ?? [])
+      setEvents((prev) => mergeEvents(prev, evData.events ?? []))
       setError("")
     } catch (e) {
       if (seq !== reloadSeq.current) return
@@ -304,6 +344,24 @@ export function ProjectDetailPanel({
               >
                 <Play className="h-4 w-4" />
                 续跑
+              </Button>
+            )}
+            {active && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    await pauseProject(projectId)
+                    toast.success("已暂停，可随时续跑")
+                    reload()
+                  } catch (e) {
+                    toast.error("暂停失败", { description: e instanceof Error ? e.message : "" })
+                  }
+                }}
+              >
+                <Pause className="h-4 w-4" />
+                暂停
               </Button>
             )}
             {active && (

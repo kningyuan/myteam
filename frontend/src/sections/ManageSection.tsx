@@ -6,7 +6,6 @@ import { useResourceQuery } from "@/hooks/useResourceQuery"
 import type { ManageTab } from "./manage/types"
 import { AgentsPanel } from "./manage/AgentsPanel"
 import { TaskTypesPanel } from "./manage/TaskTypesPanel"
-import { TemplatesPanel } from "./manage/TemplatesPanel"
 import { PromptTemplatesPanel } from "./manage/PromptTemplatesPanel"
 import { DeliveryProfilesPanel } from "./manage/DeliveryProfilesPanel"
 import { PreferencesPanel } from "./manage/PreferencesPanel"
@@ -23,16 +22,21 @@ export function ManageSection() {
   const { data: types } = useResourceQuery("task-types", listTaskTypes, [])
 
   useEffect(() => {
-    if (!tab) navigate("/manage/agents", { replace: true })
+    if (!tab) {
+      navigate("/manage/agents", { replace: true })
+      return
+    }
+    // 旧「交付模板」tab 已并入「任务与模板」(task-types)，重定向兼容旧链接
+    if (tab === "templates") {
+      navigate("/manage/task-types", { replace: true })
+    }
   }, [tab, navigate])
 
   switch (activeTab) {
     case "agents":
       return <AgentsPanel agents={agents} />
     case "task-types":
-      return <TaskTypesPanel types={types} />
-    case "templates":
-      return <TemplatesPanel templates={templates} types={types} />
+      return <TaskTypesPanel types={types} templates={templates} />
     case "prompt-templates":
       return <PromptTemplatesPanel />
     case "delivery-profiles":

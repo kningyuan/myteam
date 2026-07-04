@@ -12,7 +12,7 @@ export const DAG_COLORS: Record<string, string> = {
 
 export const DAG_LABELS: Record<string, string> = {
   completed: "已完成",
-  needs_review: "待评审",
+  needs_review: "待复核",
   running: "运行中",
   in_progress: "运行中",
   failed: "失败",

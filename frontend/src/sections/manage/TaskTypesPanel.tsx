@@ -1,12 +1,15 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { toast } from "sonner"
 import {
   createTaskType,
+  deleteDeliveryTemplate,
   deleteTaskType,
   listOutcomeKinds,
+  saveDeliveryTemplate,
   suggestTaskType,
   updateTaskType,
+  type DeliveryTemplateSummary,
   type OutcomeKind,
   type TaskTypeSummary,
 } from "@/lib/api/workflows"
@@ -30,7 +33,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { WorkspaceHeader } from "./WorkspaceHeader"
 import { TaskTypeDetailPanel } from "./TaskTypeDetailPanel"
 
-export function TaskTypesPanel({ types }: { types: TaskTypeSummary[] }) {
+export function TaskTypesPanel({
+  types,
+  templates,
+}: {
+  types: TaskTypeSummary[]
+  templates: DeliveryTemplateSummary[]
+}) {
   const { itemId } = useParams()
   const navigate = useNavigate()
   const [search, setSearch] = useState("")
@@ -43,6 +52,7 @@ export function TaskTypesPanel({ types }: { types: TaskTypeSummary[] }) {
   const [typeEditKind, setTypeEditKind] = useState("artifact")
   const [typeEditSections, setTypeEditSections] = useState("")
   const [typeEditBusy, setTypeEditBusy] = useState(false)
+  const templateImportRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     listOutcomeKinds()
@@ -147,6 +157,29 @@ export function TaskTypesPanel({ types }: { types: TaskTypeSummary[] }) {
     }
   }
 
+  async function handleDeleteTemplate(id: string) {
+    if (!window.confirm(`删除模板「${id}」？`)) return
+    try {
+      await deleteDeliveryTemplate(id)
+      toast.success("已删除")
+      navigate(`/manage/task-types/${encodeURIComponent(selectedType?.task_type ?? itemId ?? "")}`, { replace: true })
+    } catch (e) {
+      toast.error("删除失败", { description: e instanceof Error ? e.message : "" })
+    }
+  }
+
+  async function handleTemplateYamlImport(file: File | null) {
+    if (!file) return
+    try {
+      const text = await file.text()
+      await saveDeliveryTemplate(null, { yaml: text })
+      toast.success("模板已导入")
+      if (templateImportRef.current) templateImportRef.current.value = ""
+    } catch (e) {
+      toast.error("导入失败", { description: e instanceof Error ? e.message : "" })
+    }
+  }
+
   return (
     <>
       <DiscordShell
@@ -154,9 +187,21 @@ export function TaskTypesPanel({ types }: { types: TaskTypeSummary[] }) {
           <ListColumn
             title="管理"
             action={
-              <Button size="sm" onClick={() => openTaskTypeEdit(null)}>
-                新建
-              </Button>
+              <div className="flex gap-1">
+                <Button size="sm" variant="outline" onClick={() => templateImportRef.current?.click()}>
+                  导入
+                </Button>
+                <Button size="sm" onClick={() => openTaskTypeEdit(null)}>
+                  新建
+                </Button>
+                <input
+                  ref={templateImportRef}
+                  type="file"
+                  accept=".yaml,.yml,.txt"
+                  className="hidden"
+                  onChange={(e) => void handleTemplateYamlImport(e.target.files?.[0] ?? null)}
+                />
+              </div>
             }
             tabs={<ManageSegmentNav />}
             search={
@@ -183,7 +228,7 @@ export function TaskTypesPanel({ types }: { types: TaskTypeSummary[] }) {
         }
       >
         <div className="discord-main-scroll workspace-scroll">
-          <WorkspaceHeader title="任务类型" description="产出形态与 Gate 规则。" />
+          <WorkspaceHeader title="任务与模板" description="任务类型 → 交付模板（章节 + 质量约束）。" />
           {kinds.length > 0 && (
             <div className="mb-5 flex flex-wrap gap-2">
               {kinds.map((k) => (
@@ -197,8 +242,10 @@ export function TaskTypesPanel({ types }: { types: TaskTypeSummary[] }) {
             <TaskTypeDetailPanel
               taskType={selectedType}
               kindMap={kindMap}
+              templates={templates}
               onEdit={() => openTaskTypeEdit(selectedType)}
               onDelete={() => handleDeleteType(selectedType.task_type)}
+              onDeleteTemplate={handleDeleteTemplate}
             />
           ) : (
             <WelcomePane title="选择任务类型" description="左侧已列出全部类型，点选一项查看详情。" />

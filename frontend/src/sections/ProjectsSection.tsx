@@ -181,11 +181,13 @@ function NewProjectDialog({
               </div>
             )}
             <div className="flex flex-wrap gap-4 text-sm">
-              <label className="flex items-center gap-2">
-                <input type="checkbox" checked={review} onChange={(e) => setReview(e.target.checked)} />
-                开启同行评审
-              </label>
-              <label className="flex items-center gap-2">
+              {!workflow && (
+                <label className="flex items-center gap-2" title="Process 层单 reviewer rework；选 workflow 时由 workflow 内部定义 review，此处不生效">
+                  <input type="checkbox" checked={review} onChange={(e) => setReview(e.target.checked)} />
+                  开启同行评审
+                </label>
+              )}
+              <label className="flex items-center gap-2" title="派发前判断长任务是否拆子任务，防止单任务执行过久卡死；重试/打回时只重跑子任务不从头执行">
                 <input type="checkbox" checked={split} onChange={(e) => setSplit(e.target.checked)} />
                 自动拆分子任务
               </label>

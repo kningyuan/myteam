@@ -86,6 +86,16 @@ function layoutDag(tasks: ProjectTask[]) {
     ;(layers[lv] ??= []).push(id)
   }
 
+  // 拓扑序编号：按层号升序、层内原序，给每个 task 分配 T1/T2/...
+  const taskNumber: Record<string, number> = {}
+  let _no = 0
+  for (const lvStr of Object.keys(layers).sort((a, b) => Number(a) - Number(b))) {
+    for (const id of layers[Number(lvStr)]) {
+      _no += 1
+      taskNumber[id] = _no
+    }
+  }
+
   const H_GAP = 28
   const V_GAP = 56
   const PAD = 24
@@ -101,7 +111,14 @@ function layoutDag(tasks: ProjectTask[]) {
 
   function sizeTaskNode(id: string) {
     const t = byId[id]
-    const label = t?.name || id
+    const no = taskNumber[id]
+    const prefix = no ? `T${no} · ` : ""
+    // loop 产生的轮次任务 id 形如「{loop_id}-r{round}-{body}」，三轮 body 名重名
+    // （如「调研执行/修订」x3），仅靠 name 看不出是 loop 轮次还是 split 拆分。
+    // 从 id 解析轮次前缀 rN 标到 label，让用户一眼区分。
+    const roundMatch = id.match(/-r(\d+)-/)
+    const roundTag = roundMatch ? `R${roundMatch[1]} · ` : ""
+    const label = prefix + roundTag + (t?.name || id)
     const stLabel = DAG_LABELS[t?.status || ""] || t?.status || ""
     const token = (t as ProjectTask & { token?: number }).token
     const meta = [stLabel, t?.agent, token ? `${token.toLocaleString()} tok` : ""]
