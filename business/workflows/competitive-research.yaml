@@ -1,0 +1,18 @@
+id: competitive-research
+name: 竞品调研（单专业）
+description: 单 agent 竞品调研，打磨调研方向 skill/KB/偏好质量
+version: '1.0'
+tasks:
+- id: step-research
+  agent_id: research
+  task_type: research
+  template_id: research-report
+  name: 竞品调研执行
+  description: '【范围】调研指定竞品的功能、定价、用户评价，交叉验证后产出结构化报告
+
+    【输入】竞品列表
+
+    【交付】竞品调研报告（Markdown，含调研背景/信息来源/关键发现/结论四章节）
+
+    【质量】每个关键信息标注来源；关键发现至少3条含对比；结论含P0/P1优先级；覆盖异常场景'
+  dependencies: []

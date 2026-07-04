@@ -1,0 +1,104 @@
+id: competitive-research-review
+name: 竞品调研+多agent评审循环
+description: research 产出调研报告 → product(需求视角)+arch(结构视角)并行评审 → 汇总 → FAIL 则 research
+  定点修订 → 再评审，最多3轮
+version: '1.0'
+options:
+  review_enabled: false
+  split_enabled: false
+tasks:
+- id: task-research
+  name: 竞品调研评审循环
+  loop: review_round
+  dependencies: []
+  description: 每轮：产出/修订调研报告 → product+arch 并行评审 → 汇总
+loops:
+- id: review_round
+  max_rounds: 3
+  min_rounds: 1
+  default_body: default
+  on_pass: complete
+  on_exhaust: needs_review
+  bodies:
+    default:
+    - id: work
+      name: 调研执行/修订
+      agent_id: research
+      task_type: research
+      template_id: research-report
+      dependencies: []
+      description: '【范围】调研指定竞品，产出/修订调研报告（首轮产出，后续轮根据评审反馈定点修订，不重写）
+
+        【输入】Goal；后续轮注入上一轮评审汇总的改稿清单
+
+        【交付】deliverables/research_deliverable.md（含调研背景/信息来源/关键发现/结论四章节）
+
+        【质量】每个关键信息标注来源URL；关键发现≥3条含对比；结论含P0/P1优先级；覆盖异常场景'
+    - id: review-product
+      name: 需求视角评审
+      agent_id: product
+      task_type: section-review
+      template_id: review-report
+      dependencies:
+      - work
+      description: '【范围】从产品/需求/用户视角评审 work 交付物，不修改交付物
+
+        【输入】work 交付物 + Goal
+
+        【交付】deliverables/review-product.md（评审范围/问题列表/改进建议/评审结论）
+
+        【质量】问题须可定位（引用原文）；建议须可执行；末行 REVIEW: PASS 或 REVIEW: FAIL'
+    - id: review-arch
+      name: 结构视角评审
+      agent_id: arch
+      task_type: section-review
+      template_id: review-report
+      dependencies:
+      - work
+      description: '【范围】从结构/逻辑/完整性视角评审 work 交付物，不修改交付物
+
+        【输入】work 交付物 + Goal
+
+        【交付】deliverables/review-arch.md（评审范围/问题列表/改进建议/评审结论）
+
+        【质量】检查章节逻辑连贯性、论据充分性、异常覆盖完整性；末行 REVIEW: PASS 或 REVIEW: FAIL'
+    - id: review-summary
+      name: 评审汇总
+      agent_id: main
+      task_type: section-review
+      template_id: review-report
+      dependencies:
+      - review-product
+      - review-arch
+      description: '【范围】合并 product+arch 两位 reviewer 的评审，产出改稿清单与总结论，不修改 work 交付物
+
+        【输入】review-product + review-arch 交付物 + Goal
+
+        【交付】deliverables/review-summary.md（评审范围/问题列表/改进建议/评审结论）
+
+        【质量】合并两位 reviewer 的问题，去重排序；产出定点改稿清单（指明改哪条）；末行 REVIEW: PASS（两位都PASS）或 REVIEW:
+        FAIL（任一FAIL或有未解决问题）'
+  assess:
+    ref: review-summary
+    inputs:
+    - kind: goal
+    - kind: phase.deliverable
+      phase: work
+  transition:
+  - when: deliverable_marker
+    task: review-summary
+    marker: 'REVIEW: PASS'
+    action: exit
+    outcome: complete
+  - when: deliverable_marker
+    task: review-summary
+    marker: 'REVIEW: FAIL'
+    action: continue
+    next_body: default
+  - when: exhausted
+    action: exit
+    outcome: needs_review
+  fallback_until:
+  - type: deliverable_marker
+    task: review-summary
+    marker: 'REVIEW: PASS'
