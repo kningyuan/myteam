@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """协作审计日志开关测试。"""
-import json
 import sys
 from pathlib import Path
 

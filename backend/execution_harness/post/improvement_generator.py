@@ -7,8 +7,11 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from execution_harness.post.rubric_eval import RubricResult
 
 
 @dataclass
@@ -39,7 +42,6 @@ def generate_improvements(
         改进建议列表，按优先级排序
     """
     # Lazy import to avoid circular dependency
-    from execution_harness.post.rubric_eval import RubricResult
 
     suggestions: list[ImprovementSuggestion] = []
     seen_what: set[str] = set()

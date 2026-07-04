@@ -15,7 +15,6 @@ from common.skill.skill_catalog import (
     _list_skill_tree,
     _read_skill_meta,
 )
-from common.skill.skill_display_names import resolve_skill_display_description, resolve_skill_display_name
 from common.skill.skill_link import resolve_skill_source_dir
 
 _CATEGORIES_FILE = "categories.yaml"

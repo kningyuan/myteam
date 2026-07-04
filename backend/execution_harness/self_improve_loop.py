@@ -13,20 +13,18 @@ from __future__ import annotations
 
 import json
 import logging
-import time
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Callable, Optional
 
 from common.store.store import Store
 from execution_harness.pre.self_improve import merge_constraints
-from execution_harness.post.data_collector import DataCollector, TaskTrace
-from execution_harness.post.self_eval import evaluate, EvalReport, report_to_json, fetch_baseline, update_baseline
+from execution_harness.post.data_collector import DataCollector
+from execution_harness.post.self_eval import evaluate, EvalReport, fetch_baseline
 from execution_harness.post.self_improve import (
     classify_defects, determine_improvement_level, build_improvement_prompt, ImprovementAction,
 )
 from execution_harness.post.capability_pool import (
-    store_optimal_skills, store_case, store_defect_mapping, update_baseline_from_score, store_full_report,
+    store_optimal_skills, store_case, update_baseline_from_score, store_full_report,
 )
 from execution_harness.post.improvement_generator import (
     generate_improvements, format_improvement_prompt as format_improvement_prompt_list,
@@ -197,7 +195,7 @@ class SelfImproveLoop:
                 break
 
             # Step 6: 分级补强 — 生成改进建议
-            defects = classify_defects(report.defects)
+            classify_defects(report.defects)
             action = determine_improvement_level(
                 report.total_score,
                 result.baseline_score,

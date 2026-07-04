@@ -11,7 +11,7 @@ from memstack.l1.mem0 import Mem0AgentMemory
 from memstack.l1.native import NativeAgentMemory, clear_group_store_conversation
 from memstack.l1.noop import NoopAgentMemory
 from memstack.l1.sqlite import SqliteAgentMemory
-from memstack.l1.protocol import AgentMemoryProvider, MemoryScope, memory_scope_group
+from memstack.l1.protocol import AgentMemoryProvider, memory_scope_group
 
 logger = logging.getLogger("memstack.l1")
 

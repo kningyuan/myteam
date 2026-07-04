@@ -6,8 +6,6 @@
 """
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 
@@ -179,7 +177,7 @@ def update_template(template_id: str, body: dict):
     kinds = data.get("kinds") or {}
     types = data.get("task_types") or {}
 
-    kind = body.get("kind")
+    body.get("kind")
     content = body.get("content")
 
     # Update kind-level template

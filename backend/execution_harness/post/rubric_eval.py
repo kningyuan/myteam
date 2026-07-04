@@ -65,7 +65,6 @@ _TASK_TYPE_FAMILIES: dict[str, str] = {
     "requirements": "product",
     "strategy": "product",
     "product-planning": "product",
-    "product-research": "research",
 }
 
 # Path to rubric templates YAML

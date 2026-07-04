@@ -33,7 +33,7 @@ def _memstack_section() -> dict:
     return dict(raw) if isinstance(raw, dict) else {}
 
 
-def memstack_enabled(default: bool = False) -> bool:
+def memstack_enabled(default: bool = True) -> bool:
     sec = _memstack_section()
     if "enabled" in sec:
         return bool(sec.get("enabled"))

@@ -11,7 +11,6 @@
 接口契约：loop 产出的评审摘要文本能被 roundtable 消费（净化 / 抽取修正项）。
 """
 import sys
-import threading
 from pathlib import Path
 
 import pytest

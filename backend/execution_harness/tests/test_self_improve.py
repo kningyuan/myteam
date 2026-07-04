@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import json
 import textwrap
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
 
 # Ensure backend is on PYTHONPATH
 import sys
@@ -18,7 +17,7 @@ from execution_harness.post.improvement_generator import (
     ImprovementSuggestion,
 )
 from execution_harness.post.rubric_eval import RubricResult
-from execution_harness.self_improve_loop import SelfImproveLoop, SelfImproveResult
+from execution_harness.self_improve_loop import SelfImproveLoop
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────

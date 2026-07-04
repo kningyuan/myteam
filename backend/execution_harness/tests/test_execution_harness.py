@@ -34,7 +34,7 @@ def test_harness_enabled_default():
 
 
 def test_resolve_umbrella_research():
-    assert resolve_umbrella_skill("research") == "product-methodology"
+    assert resolve_umbrella_skill("research") == "research_methodology"
 
 
 def test_inject_umbrella_block():
@@ -47,7 +47,7 @@ def test_inject_umbrella_block():
             agent_id="product",
         )
     )
-    assert any("推荐方法论 Skill" in ln for ln in lines)
+    assert any("方法论 Skill" in ln for ln in lines)
 
 
 def test_write_reference_from_ledger(tmp_path):
@@ -155,7 +155,7 @@ def test_build_skill_review_request(tmp_path):
     )
     req = build_skill_review_request(ctx, store)
     assert req["kind"] == "skill_review"
-    assert req["constraints"]["umbrella_skill"] == "product-methodology"
+    assert req["constraints"]["umbrella_skill"] == "research_methodology"
     store.close()
 
 
@@ -176,5 +176,5 @@ def test_prepare_execute_harness(tmp_path, monkeypatch):
             workspace=ws,
         )
     )
-    assert summary.get("umbrella") == "product-methodology"
+    assert summary.get("umbrella") == "research_methodology"
     assert (ws / "MEMORY.md").is_file()

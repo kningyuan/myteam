@@ -4,25 +4,25 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Optional
 
-import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from common.store.store import Store
-from memstack.facade import enabled, inject_for_execute, on_task_success
-from memstack.kb.protocol import KB_SCHEME, KnowledgeBackend
+from memstack.facade import inject_for_execute, on_task_success
+from memstack.kb.protocol import KB_SCHEME
 from memstack.kb.registry import get_kb_backend, register_kb_backend
-from memstack.l1.protocol import memory_scope_dm
 from memstack.orchestration.context import ExecuteInjectContext, TaskSuccessContext
 
 
 def test_tc_0_02_facade_disabled_no_extra_kb(monkeypatch, tmp_path):
+    """memstack + execution_harness 均禁用时，不注入【相关知识】。"""
     monkeypatch.setenv("MEMSTACK_ENABLED_OVERRIDE", "")
-    import memstack.config as cfg
-
-    monkeypatch.setattr(cfg, "memstack_enabled", lambda default=False: False)
+    # 禁用 memstack（facade 层 + config 层）
+    monkeypatch.setattr("memstack.facade.memstack_enabled", lambda default=False: False)
+    monkeypatch.setattr("memstack.config.memstack_enabled", lambda default=False: False)
+    # 禁用 execution_harness KB 注入（facade 委托到 execution_harness）
+    monkeypatch.setattr("execution_harness.config.kb_inject_allowed", lambda default=True: False)
     store = Store(tmp_path / "s.db")
     lines: list[str] = []
     inject_for_execute(

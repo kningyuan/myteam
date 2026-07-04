@@ -90,6 +90,34 @@ class ProjectRuntime:
         logger.info("cancel requested for project %s", project_id)
         return True, "cancelled"
 
+    def pause(self, project_id: str) -> tuple[bool, str]:
+        """暂停项目：与 cancel 同样停 CLI 子进程 + 调度，但置 paused（可 resume 恢复）。
+
+        当前 in_progress 的 task 置回 pending，让 resume 时重新派发（不续跑被中断的半截执行）。
+        """
+        store = store_module.Store()
+        try:
+            proj = store.get_project(project_id)
+            if not proj:
+                return False, "项目不存在"
+            st = proj.get("status") or ""
+            # paused 属终态但可 resume；cancelled/failed 等不可 pause
+            if st in (_PROJECT_TERMINAL - {"paused"}):
+                return False, f"项目已终态：{st}"
+            store.set_project_status(project_id, "paused")
+            # 把 in_progress 的 task 置回 pending，resume 时重新派发
+            for t in store.list_tasks(project_id):
+                if t.get("status") == "in_progress":
+                    tid = t.get("task_id") or t.get("id")
+                    if tid:
+                        store.set_task_status(project_id, tid, "pending")
+        finally:
+            store.close()
+        cancel_registry.cancel(project_id)  # 停当前 CLI 子进程
+        self._supervisor.cancel_job(project_id)  # 停后续派发
+        logger.info("pause requested for project %s", project_id)
+        return True, "paused"
+
 
 _runtime: Optional[ProjectRuntime] = None
 _runtime_lock = threading.Lock()

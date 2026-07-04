@@ -10,13 +10,11 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from common.runtime.kernel_config import process_from_defaults  # noqa: E402
-from common.skill.skill_settings import reload_skill_settings  # noqa: E402
 
 
 # ============ B1: 空串短路 ============

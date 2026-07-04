@@ -81,7 +81,7 @@ def _calc_asset_reuse(
     total_kb = len(constraints.get("kb", []))
     used_kb = len(trace.kb_fragments)
     total_prefs = len(constraints.get("preferences", []))
-    used_prefs = len(trace.loaded_preferences)
+    len(trace.loaded_preferences)
 
     # 偏好执行：检查输出中是否体现了偏好要求
     pref_mentions = 0

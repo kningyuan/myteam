@@ -190,7 +190,7 @@ def cmd_prompt(args: argparse.Namespace) -> int:
     if not meta_path.is_file():
         print("请先 prepare", file=sys.stderr)
         return 1
-    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    json.loads(meta_path.read_text(encoding="utf-8"))
     text = (_task_dir(args.project, args.task) / "worker.prompt.txt").read_text(encoding="utf-8")
     print(text)
     return 0

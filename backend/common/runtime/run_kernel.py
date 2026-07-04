@@ -19,7 +19,7 @@ import sys
 import textwrap
 from datetime import datetime
 from pathlib import Path
-from typing import NoReturn, Optional
+from typing import Optional
 
 if __package__ in (None, ""):  # 作为脚本直接运行时确保 common 包可导入
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -99,9 +99,9 @@ def _friendly_traceback(e: BaseException) -> str:
                     f"可能原因：main 分配了名册外的 agent，或 task_type 不匹配。\n"
                     f"请检查 business/config/agents_registry.json 中的 agent 配置。")
         if "项目不存在" in msg:
-            return f"项目不存在，请检查项目 ID 是否正确。"
+            return "项目不存在，请检查项目 ID 是否正确。"
         if "项目无任务" in msg:
-            return f"项目没有任务数据，可能是不完整的中断状态。"
+            return "项目没有任务数据，可能是不完整的中断状态。"
         return f"运行时异常：{msg}"
     if isinstance(e, LookupError):
         return f"找不到配置或数据：{msg}"
@@ -217,6 +217,12 @@ def resume_project(project_id: str, *,
     backend = backend or _system_default_backend()
     store = store or Store()
     reconcile_on_start(store)
+    # pause 时设的 cancel_event 在 resume 时必须清掉，否则 Process 重跑会再次取消
+    try:
+        from common.project.project_cancel import cancel_registry
+        cancel_registry.clear(project_id)
+    except Exception:
+        pass
     if transport is None:
         from common.agent.agent_transport import AdapterTransport, make_gate_session_resolver
         transport = AdapterTransport(

@@ -25,13 +25,16 @@ def append_preference_block(lines: list[str], body: str) -> None:
 
 def append_kb_top_k(lines: list[str], entries: list[dict], *, title: str = "【相关知识】") -> None:
     if not entries:
+        lines.append(title)
+        lines.append("- 暂无相关知识条目。")
+        lines.append("")
         return
     lines.append(title)
     for e in entries:
         t = e.get("title") or "entry"
         content = (e.get("content") or "").strip().replace("\n", " ")
-        if len(content) > 200:
-            content = content[:199] + "…"
+        if len(content) > 800:
+            content = content[:799] + "…"
         lines.append(f"- {t}: {content}")
     lines.append("")
 
@@ -42,7 +45,6 @@ def append_rubric_block(lines: list[str], task_type: str = "") -> None:
     向 Agent 告知它将被按什么标准评估，让其有明确的质量目标。
     不是完整 rubric，而是精简版提示（完整版由 Gate/Rubric eval 执行）。
     """
-    from common.paths import MYTEAM_ROOT
 
     # 仅对产品类任务注入
     product_types = {"research", "product-research", "product-analysis", "competition", "prd"}
@@ -85,14 +87,128 @@ def append_l1_block(lines: list[str], hint: str) -> None:
     append_block(lines, "【工作记忆（本 Agent）】", hint)
 
 
-def append_umbrella_skill_block(lines: list[str], skill_id: str, skill_path: str) -> None:
+def _extract_sections(markdown: str, sections: list[str]) -> str:
+    """从 markdown 中按 ## heading 截取指定章节正文。
+
+    heading 匹配规则：``## 方法论`` 匹配名为"方法论"的二级标题。
+    返回该 heading 到下一个同级（##）或更高级（#）heading 之间的正文。
+    """
+    import re as _re
+
+    lines = markdown.splitlines()
+    result: list[str] = []
+    wanted = {s.strip().lower() for s in sections if s.strip()}
+    in_target = False
+    for line in lines:
+        # 检测 heading
+        m = _re.match(r"^(#{1,3})\s+(.+)$", line)
+        if m:
+            level = len(m.group(1))
+            title = m.group(2).strip().lower()
+            if level == 2 and title in wanted:
+                in_target = True
+                result.append(line)
+                continue
+            # 遇到同级或更高级 heading（## 或 #），结束当前目标章节
+            if in_target and level <= 2:
+                in_target = False
+        if in_target:
+            result.append(line)
+    return "\n".join(result).strip()
+
+
+def _extract_toc(markdown: str) -> list[str]:
+    """提取 markdown 中的 ## 二级标题列表（章节目录）。"""
+    import re as _re
+
+    toc: list[str] = []
+    for line in markdown.splitlines():
+        m = _re.match(r"^##\s+(.+)$", line)
+        if m:
+            toc.append(m.group(1).strip())
+    return toc
+
+
+def append_umbrella_skill_block(
+    lines: list[str],
+    skill_id: str,
+    skill_path: str,
+    *,
+    skill_sections: list[str] | None = None,
+    max_chars: int = 800,
+    store=None,
+    project_id: str = "",
+) -> None:
+    """注入方法论 Skill（三层懒加载，节省上下文）。
+
+    三层结构：
+    - 层1（总是注入）：Skill ID + 章节目录 + 文件路径（~300字符）
+    - 层2（skill_sections 配置时）：核心章节正文直接注入（~800字符）
+    - 层3（其余章节）：仅路径，agent 按需 Read
+
+    文件不存在时：记录 ``inject_failed`` run_event，降级为指针。
+    """
     if not skill_id:
         return
-    lines.append("【本任务推荐方法论 Skill — 必读】")
-    lines.append(f"- umbrella skill：`{skill_id}`")
+    from pathlib import Path as _Path
+
+    sp = _Path(skill_path)
+    try:
+        markdown = sp.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        if store is not None:
+            try:
+                store.append_run_event(
+                    f"{project_id}:inject",
+                    "inject_failed",
+                    {"layer": "skill", "skill_id": skill_id, "error": str(e)},
+                )
+            except Exception:
+                pass
+        lines.append("【本任务方法论 Skill — 必读】")
+        lines.append(f"- Skill：`{skill_id}`")
+        lines.append(f"- 路径：`{skill_path}`")
+        lines.append("- ⚠️ Skill 文件读取失败，请手动 Read 上述 SKILL.md。")
+        lines.append("")
+        return
+
+    toc = _extract_toc(markdown)
+    toc_str = "、".join(toc) if toc else "（无章节）"
+
+    # 层1：总是注入摘要 + 目录 + 路径
+    lines.append("【本任务方法论 Skill — 必读】")
+    lines.append(f"- Skill：`{skill_id}`")
     lines.append(f"- 路径：`{skill_path}`")
-    lines.append("- 执行前须 Read 上述 SKILL.md 全文，按 Procedure / Pitfalls / Verification 操作。")
-    lines.append("- 同类历史细节见该 skill 下 `references/`（按需 Read，勿一次全读）。")
+    lines.append(f"- 章节目录：{toc_str}")
+
+    # 层2：skill_sections 配置时注入核心章节正文
+    if skill_sections:
+        body = _extract_sections(markdown, skill_sections)
+        if body:
+            if len(body) > max_chars:
+                body = body[: max_chars - 1] + "…"
+            lines.append("")
+            lines.append("【核心章节（直接注入）】")
+            lines.append(body)
+        else:
+            # 指定章节不存在：记录告警
+            if store is not None:
+                try:
+                    store.append_run_event(
+                        f"{project_id}:inject",
+                        "inject_failed",
+                        {
+                            "layer": "skill",
+                            "skill_id": skill_id,
+                            "error": f"指定章节 {skill_sections} 未找到",
+                        },
+                    )
+                except Exception:
+                    pass
+            lines.append("- ⚠️ 指定章节未找到，请 Read上述 SKILL.md 获取完整内容。")
+    else:
+        lines.append("- 完整内容请按需 Read 上述 SKILL.md。")
+
     lines.append("")
 
 

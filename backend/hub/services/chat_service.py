@@ -2,7 +2,6 @@
 
 import os
 import sys
-import tempfile
 from pathlib import Path
 from threading import Event
 from typing import Generator, Optional
@@ -12,7 +11,7 @@ _ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-import adapter  # noqa: F401  — side-effect CLI 注册 — 注册 CLI 实例
+import adapter as _adapter  # noqa: F401  — side-effect CLI 注册 — 注册 CLI 实例
 from adapter.core.events import EventKind
 from adapter.core.protocol import RunRequest
 from adapter.core.registry import registry

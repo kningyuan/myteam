@@ -10,7 +10,7 @@ from execution_harness.backends.context_provider import (
     fetch_l1_hint,
     fetch_preferences,
 )
-from execution_harness.config import experience_clip_chars, execute_harness_enabled, lesson_inject_enabled
+from execution_harness.config import experience_clip_chars, execute_harness_enabled, kb_inject_allowed, lesson_inject_enabled
 from execution_harness.context import ExecuteHarnessContext
 from execution_harness.injection.blocks import (
     append_kb_top_k,
@@ -22,7 +22,11 @@ from execution_harness.injection.blocks import (
 )
 from execution_harness.pre.lesson_inject import append_lesson_hints
 from execution_harness.skill.references import list_reference_pointers
-from execution_harness.skill.umbrella import resolve_umbrella_skill, umbrella_skill_path
+from execution_harness.skill.umbrella import (
+    resolve_umbrella_skill,
+    resolve_umbrella_skill_sections,
+    umbrella_skill_path,
+)
 
 logger = logging.getLogger("execution_harness.pre.inject")
 
@@ -82,7 +86,15 @@ def inject_execute_prompt(ctx: ExecuteHarnessContext) -> None:
         if umbrella:
             sp = umbrella_skill_path(umbrella)
             if sp is not None:
-                append_umbrella_skill_block(ctx.lines, umbrella, str(sp))
+                skill_secs = resolve_umbrella_skill_sections(ctx.task_type)
+                append_umbrella_skill_block(
+                    ctx.lines,
+                    umbrella,
+                    str(sp),
+                    skill_sections=skill_secs,
+                    store=ctx.store,
+                    project_id=ctx.project_id,
+                )
             pointers = list_reference_pointers(
                 umbrella, ctx.project_id, ctx.task_type, limit=ctx.limit
             )
@@ -96,10 +108,11 @@ def inject_execute_prompt(ctx: ExecuteHarnessContext) -> None:
         pref = fetch_preferences(agent_id=ctx.agent_id)
         append_preference_block(ctx.lines, pref)
 
-        entries = fetch_kb_entries(
-            ctx.project_id, ctx.task_type, store=ctx.store, limit=ctx.limit
-        )
-        append_kb_top_k(ctx.lines, entries)
+        if kb_inject_allowed():
+            entries = fetch_kb_entries(
+                ctx.project_id, ctx.task_type, store=ctx.store, limit=ctx.limit
+            )
+            append_kb_top_k(ctx.lines, entries)
 
         # 路径 D：Rubric 质量评分标准注入（让 Agent 知晓将被如何评估）
         append_rubric_block(ctx.lines, task_type=ctx.task_type)

@@ -193,7 +193,7 @@ def test_project_stream_until_done(client):
     t = threading.Thread(target=read, daemon=True)
     t.start()
     done.wait(timeout=30)
-    assert body, f"no SSE data (timeout 30s)"
+    assert body, "no SSE data (timeout 30s)"
     assert '"status": "completed"' in body, body[:200]
     assert "[DONE]" in body
 

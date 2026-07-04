@@ -1,8 +1,6 @@
 """stream_fanout 单元测试 — 验证 adapter 隔离：只处理标准化 thinking 事件，不解析 opencode 原始字段。"""
 
 import json
-import pytest
-from unittest.mock import patch
 
 from hub.services.stream_fanout import sse_to_thinking, fanout_stream_event
 

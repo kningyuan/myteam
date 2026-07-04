@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 _COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 _BLOCK_KEY_RE = re.compile(
@@ -64,8 +67,8 @@ def parse_simple_yaml(raw: str) -> dict[str, Any]:
             for k, v in loaded.items():
                 if k not in data or not data[k]:
                     data[k] = v
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("parse_simple_yaml yaml 增强解析失败，使用轻量结果: %s", e)
     return data
 
 

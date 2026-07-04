@@ -6,9 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from common.prompt.prompt_composer import compose_execute_layers
 from common.prompt.prompt_injections import (
-    append_prompt_injections,
     invalidate_injections_cache,
     iter_injection_blocks,
 )

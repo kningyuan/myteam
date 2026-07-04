@@ -3,14 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import re
 import time
 
-from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, HTTPException, Query
 
-from hub.api.deps import we_store
 from hub.api.errors import APIError
 from hub.services.kernel_run import (
     _clear_kernel_run,
@@ -212,6 +209,23 @@ async def api_project_deliverable_file(project_id: str, task_id: str, path: str 
     return read_task_artifact_file(Store(), project_id, task_id, path)
 
 
+@router.post("/{project_id}/pause")
+async def api_project_pause(project_id: str):
+    """暂停项目：停 CLI 子进程 + 调度，置 paused（可 resume 恢复，不丢上下文）。"""
+    from common.project.project_runtime import get_project_runtime
+
+    ok, msg = get_project_runtime().pause(project_id)
+    if not ok:
+        if msg == "项目不存在":
+            raise APIError("PROJECT_NOT_FOUND", "项目不存在", status_code=404)
+        if msg.startswith("项目已终态"):
+            status = msg.split("：", 1)[-1] if "：" in msg else "unknown"
+            return {"success": False, "status": status, "message": "项目已结束"}
+        return {"success": False, "message": msg}
+    _clear_kernel_run(project_id)
+    return {"success": True, "project_id": project_id, "status": "paused"}
+
+
 @router.post("/{project_id}/cancel")
 async def api_project_cancel(project_id: str):
     """取消项目：Store 置 cancelled + cancel_event 终止当前 CLI 子进程 + 停止后续派发。"""
@@ -277,7 +291,7 @@ async def api_demo():
     if _is_kernel_running(project_id):
         raise APIError("PROJECT_RUNNING", "Demo 项目已在运行")
     demo_goal = _read_demo_goal()
-    backend = _system_default_backend()
+    _system_default_backend()
     _set_kernel_run(project_id, running=True)
     try:
         start_kernel_job(

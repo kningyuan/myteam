@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT / "scripts" / "regression"))
 
 try:  # noqa: E402
     from reg_platform_v3_e2e_baseline import (
-        BASELINE_TEST_PATHS,
+        BASELINE_TEST_PATHS,  # noqa: F401
         execute_double_run,
         parse_pytest_q_output,
         run_baseline_once_inprocess,

@@ -6,7 +6,7 @@ from typing import Optional
 
 from memstack.kb.protocol import KB_SCHEME
 from memstack.kb.store_adapter import MemoryStore, SqliteStoreAdapter
-from memstack.kb.template import content_to_json, is_structured, json_to_content
+from memstack.kb.template import content_to_json, json_to_content
 
 
 class SqliteKnowledgeBackend:

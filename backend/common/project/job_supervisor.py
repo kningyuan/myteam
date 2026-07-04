@@ -11,7 +11,6 @@
 import logging
 import os
 import threading
-import time
 from typing import Callable, Optional
 
 logger = logging.getLogger("job_supervisor")

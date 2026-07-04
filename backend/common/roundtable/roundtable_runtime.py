@@ -340,7 +340,7 @@ def build_best_practice_assessment_markdown(
         "\n",
         f"> **议题**：{agenda.strip() or '（未指定）'}\n",
         f"> **群组**：{group_name.strip() or '（未知）'}\n",
-        f"> **状态**：BEST_PRACTICE: PASSED（交叉确认投票通过）\n",
+        "> **状态**：BEST_PRACTICE: PASSED（交叉确认投票通过）\n",
         f"> **圆桌记录**：`{transcript_rel_path}`\n",
         f"> **消息 ID**：`{msg_id}`\n",
         f"> **生成时间**：{ts}\n",

@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
 
 from config_store.system_config import DEFAULT_CONFIG, SystemConfig
 

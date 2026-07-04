@@ -5,8 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from memstack.config import inject_top_k, memstack_enabled
-from memstack.injection.blocks import append_kb_top_k, append_preference_block
+from memstack.config import inject_top_k, memstack_enabled  # noqa: F401  — inject_top_k 供测试 monkeypatch
 from memstack.kb import get_kb_backend
 from memstack.l1.protocol import AgentMemoryProvider, MemoryScope, inject_memory_hints
 from memstack.l1.registry import get_agent_memory_provider
@@ -17,7 +16,6 @@ from memstack.orchestration.context import (
     ProjectCompleteContext,
     TaskSuccessContext,
 )
-from memstack.orchestration.experience import append_experience_hints, promote_ledger_to_memory
 from memstack.preferences.registry import get_preference_backend
 
 logger = logging.getLogger("memstack.facade")

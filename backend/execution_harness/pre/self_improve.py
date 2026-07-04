@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import logging
 import re
-from pathlib import Path
 from typing import Optional
 
 from common.store.store import Store
-from common.agent.agent_registry import get_agent_info
 from common.skill.skill_catalog import list_all_skills
 from common.paths import MYTEAM_ROOT
 
@@ -19,7 +17,7 @@ _PREFERENCE_KEYWORDS = {
     "research": {"调研", "research", "竞品"},
     "competitive-analysis": {"竞品", "competitive"},
     "requirements": {"需求", "requirements"},
-    "product-planning": {"规划", "规划"},
+    "product-planning": {"规划"},
     "business-diagnosis": {"诊断", "diagnosis"},
 }
 
@@ -44,8 +42,8 @@ def load_preferences(agent_id: str, task_type: str = "") -> list[str]:
         stored = store.get_preferences(agent_id) if hasattr(store, "get_preferences") else None
         if stored and isinstance(stored, str) and stored.strip():
             prefs.append(stored.strip())
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("load_preferences store 读取失败: %s", e)
 
     # 3. 从 KB 加载偏好相关条目
     if task_type:
@@ -55,8 +53,8 @@ def load_preferences(agent_id: str, task_type: str = "") -> list[str]:
                 content = (e.get("content") or "").strip()
                 if content:
                     prefs.append(f"[KB偏好] {content[:300]}")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("load_preferences KB 检索失败: %s", e)
 
     logger.info("loaded %d preferences for %s", len(prefs), agent_id)
     return prefs
@@ -146,7 +144,8 @@ def retrieve_knowledge(
                     entries.append(e)
                     if len(entries) >= limit:
                         return entries
-        except Exception:
+        except Exception as e:
+            logger.warning("retrieve_knowledge tags=%s 检索失败，跳过: %s", tags, e)
             continue
 
     # Fallback: task_type 泛匹配
@@ -157,8 +156,8 @@ def retrieve_knowledge(
             if eid not in seen_ids:
                 seen_ids.add(eid)
                 entries.append(e)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("retrieve_knowledge fallback 检索失败: %s", e)
 
     return entries[:limit]
 

@@ -2,10 +2,13 @@
 """Context 后端聚合 — KB / L1 / 偏好（复用 memstack adapter，不重复实现）。"""
 from __future__ import annotations
 
+import logging
 from typing import Optional
 
 from common.store.store import Store
-from execution_harness.config import inject_top_k, kb_enabled, l1_on_execute
+from execution_harness.config import inject_top_k, l1_on_execute
+
+logger = logging.getLogger(__name__)
 
 
 def fetch_l1_hint(
@@ -25,7 +28,8 @@ def fetch_l1_hint(
         prov = get_agent_memory_provider()
         query = (intent or "execute task context").strip()[:500]
         return (prov.before_turn(scope, query) or "").strip()
-    except Exception:
+    except Exception as e:
+        logger.warning("fetch_l1_hint 失败，回退空串: %s", e)
         return ""
 
 
@@ -40,7 +44,8 @@ def fetch_preferences(_owner_id: str = "", *, agent_id: str = "") -> str:
         return (
             get_preference_backend().format_block("default", agent_id=agent_id) or ""
         ).strip()
-    except Exception:
+    except Exception as e:
+        logger.warning("fetch_preferences 失败，回退空串: %s", e)
         return ""
 
 
@@ -73,7 +78,8 @@ def fetch_kb_entries(
                 seen.add(eid)
                 merged.append(entry)
         return merged[:top_k]
-    except Exception:
+    except Exception as e:
+        logger.warning("fetch_kb_entries 失败，回退空列表: %s", e)
         return []
 
 
@@ -88,5 +94,6 @@ def fetch_experience_entries(
         from memstack.orchestration.experience import fetch_experience_entries as _fetch
 
         return _fetch(project_id, task_type, limit=limit, store=store)
-    except Exception:
+    except Exception as e:
+        logger.warning("fetch_experience_entries 失败，回退空列表: %s", e)
         return []

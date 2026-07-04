@@ -17,18 +17,15 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 import shutil
 import subprocess
 import tempfile
-import time
 from pathlib import Path
 from typing import Optional
 
 import yaml
 
-from common.paths import MYTEAM_ROOT
 from common.skill.skill_catalog import SKILLS_DIR
 from common.skill.skill_catalog import get_skill_library_entry
 
@@ -373,7 +370,7 @@ def search_and_install(
             data = json.loads(resp.read().decode("utf-8"))
 
         for item in data.get("items", []):
-            repo_url = item.get("clone_url") or item.get("html_url", "")
+            item.get("clone_url") or item.get("html_url", "")
             results.append({
                 "skill_id": item.get("name", ""),
                 "name": item.get("name", ""),
@@ -407,7 +404,6 @@ def list_available_skills() -> list[dict]:
         skill_md = p / "SKILL.md"
         if not skill_md.is_file():
             continue
-        from common.skill.skill_catalog import get_skill_library_entry
         entry = get_skill_library_entry(p.name)
         if entry:
             local.append(entry)

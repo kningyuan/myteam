@@ -1,8 +1,6 @@
 """Prompt Injections API — CRUD over business/templates/prompt_injections.yaml."""
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 

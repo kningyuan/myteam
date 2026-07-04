@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from common.agent.agent_id_policy import normalize_agent_ids, normalize_plan_tasks
-from common.loop.loop_runtime import LoopSpec, iter_loop_body_tasks, parse_loop_specs, validate_loop_specs
+from common.loop.loop_runtime import iter_loop_body_tasks, parse_loop_specs, validate_loop_specs
 from common.process.plan_gate import check_plan
 from common.gate.registry import get_spec
 from common.workflow.workflow_loader import roster_from_tasks
@@ -122,7 +122,6 @@ def _validate_agents(
         # PGD bootstrap agents（内建协调者）
         agent_pool = set(list_available_agent_ids()) | _pgd_bootstrap_agent_ids()
 
-    seen_tasks = set()
     for t in tasks:
         if t.get("loop"):
             continue

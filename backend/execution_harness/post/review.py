@@ -9,7 +9,7 @@ from typing import Any, Callable, Optional
 
 from common.store.store import Store
 from execution_harness.config import skill_review_enabled, skill_review_min_attempts
-from execution_harness.context import SkillReviewContext, TaskCompleteContext
+from execution_harness.context import TaskCompleteContext
 from execution_harness.post.pending import create_pending_bundle
 from execution_harness.skill.umbrella import resolve_umbrella_skill
 
@@ -31,6 +31,11 @@ def should_trigger_review(ctx: TaskCompleteContext) -> bool:
     if not skill_review_enabled():
         return False
     if not ctx.gate_passed:
+        return False
+    # 评审类 task_type（section-review/architecture-review/review）本身就是在评审交付物，
+    # 对它再跑 skill_review「复盘评审过程」无价值——它不产出可复用技能，只产噪音+耗时。
+    # 跳过，让循环迭代更快。
+    if (ctx.task_type or "").lower() in {"section-review", "architecture-review", "review"}:
         return False
     if ctx.attempt >= skill_review_min_attempts():
         return True

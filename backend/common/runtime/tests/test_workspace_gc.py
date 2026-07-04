@@ -1,7 +1,6 @@
 """workspace_gc — agent 工作目录临时文件自动清理。"""
 from __future__ import annotations
 
-import time
 
 from common import paths
 from common.store.store import Store
@@ -13,7 +12,6 @@ from common.runtime.workspace_gc import (
     gc_terminal_interactions,
     gc_workspace,
     remove_interaction_files,
-    remove_legacy_task_files,
 )
 
 

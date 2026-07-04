@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
 from typing import Optional
 
 from common.paths import MYTEAM_ROOT
@@ -79,7 +78,7 @@ def to_records(
     if not sections:
         return []
     records: list[PreferenceRecord] = []
-    known_keys = _load_section_keys()
+    _load_section_keys()
 
     for key, content in sections.items():
         if key == "_header":

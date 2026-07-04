@@ -16,7 +16,6 @@ from common.skill.skill_catalog import (
     delete_skill_library_entry,
     get_skill_entry,
     get_skill_file,
-    get_skill_library_entry,
     list_all_skills,
     update_skill_content,
     update_skill_name,
@@ -298,7 +297,6 @@ async def skill_matrix_audit():
     import yaml
 
     from common.skill.skill_catalog import audit_catalog_router_paths
-    from common.skill.skill_link import iter_business_skill_dir_names
     from common.gate.task_type_store import list_task_types_for_api
 
     catalog_path = MYTEAM_ROOT / "business/skills/catalog.yaml"

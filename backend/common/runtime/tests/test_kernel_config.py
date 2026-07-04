@@ -2,7 +2,6 @@
 import sys
 from pathlib import Path
 
-import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -97,7 +96,6 @@ def test_resume_project_uses_kernel_configs_watchdog(tmp_path, monkeypatch):
 
 
 def test_skill_settings_process_defaults_empty(tmp_path, monkeypatch):
-    from common.paths import CONFIG_DIR
     from common.skill.skill_settings import process_defaults, reload_skill_settings
 
     monkeypatch.setattr("common.skill.skill_settings.CONFIG_DIR", tmp_path)

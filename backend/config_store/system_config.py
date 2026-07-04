@@ -1,7 +1,6 @@
 """系统配置 — 读写在 store/，路径来自 common.paths。"""
 
 import json
-from pathlib import Path
 from typing import Any
 
 from common.paths import SYSTEM_CONFIG_FILE

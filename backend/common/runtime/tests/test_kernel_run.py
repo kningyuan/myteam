@@ -8,7 +8,6 @@ import pytest
 ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(ROOT / "backend"))
 
-from common.store.store import Store  # noqa: E402
 from hub.services import kernel_run  # noqa: E402
 
 

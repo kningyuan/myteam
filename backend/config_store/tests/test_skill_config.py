@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
 
 from config_store.skill_config import DEFAULT_SKILL_CONFIG, SkillConfig
 

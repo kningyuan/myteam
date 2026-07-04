@@ -27,7 +27,6 @@ from common.store.store import Store  # noqa: E402
 from common.delivery.submit_result import submit  # noqa: E402
 from common.workflow.workflow_loader import (  # noqa: E402
     load_workflow,
-    workflows_dir,
     write_workflow_raw,
 )
 

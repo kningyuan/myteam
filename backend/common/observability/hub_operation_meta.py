@@ -6,7 +6,6 @@ import json
 import threading
 import time
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Optional
 
 from common.paths import BUSINESS_CONFIG_DIR

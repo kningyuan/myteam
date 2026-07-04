@@ -30,5 +30,6 @@ def test_inject_execute_baseline():
     assert isinstance(lines, list)
 
 
-def test_enabled_default_false():
-    assert enabled() is False
+def test_enabled_default_true():
+    """memstack 默认启用（升级后默认 True）。"""
+    assert enabled() is True

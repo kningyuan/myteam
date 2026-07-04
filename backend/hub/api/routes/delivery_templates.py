@@ -15,6 +15,18 @@ async def api_list_delivery_templates():
     return {"templates": list_templates_for_api()}
 
 
+@router.get("/constraints")
+async def api_list_check_constraints():
+    """返回 Gate 可用的质量约束全集（供 UI 渲染配置项）。
+
+    详见 docs/quality-constraint-design.md 第七章。约束跟交付模板 check_rules 走，
+    Gate 从注册表调检查函数。UI 从此端点读全集动态渲染，做到「所见即所验」。
+    """
+    from common.gate.gate import list_check_constraints
+
+    return {"constraints": [c.__dict__ for c in list_check_constraints()]}
+
+
 @router.get("/{template_id}")
 async def api_get_delivery_template(template_id: str):
     from common.delivery.delivery_template_store import format_template_api, read_template_raw

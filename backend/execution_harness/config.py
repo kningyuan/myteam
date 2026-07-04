@@ -2,10 +2,12 @@
 """execution_harness 配置 — 读 config/skill_config.json execution_harness 段。"""
 from __future__ import annotations
 
-import os
+import logging
 from pathlib import Path
 
 from common.paths import BACKEND_DIR, CONFIG_DIR, MYTEAM_ROOT
+
+logger = logging.getLogger(__name__)
 
 HARNESS_DIR = BACKEND_DIR / "execution_harness"
 TASK_TYPE_SKILLS_FILE = MYTEAM_ROOT / "business" / "config" / "task_type_skills.yaml"
@@ -20,7 +22,8 @@ def _skill_config() -> dict:
         import json
 
         return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
+    except Exception as e:
+        logger.warning("skill_config.json 解析失败，回退空配置: %s", e)
         return {}
 
 
@@ -90,8 +93,9 @@ def kb_inject_allowed() -> bool:
     try:
         from memstack.config import memstack_enabled
 
-        return memstack_enabled(default=False)
-    except Exception:
+        return memstack_enabled(default=True)
+    except Exception as e:
+        logger.warning("kb_inject_allowed memstack 可用性检查失败，回退 False: %s", e)
         return False
 
 

@@ -2,8 +2,6 @@
 """任务完成后写入 publish_log / audit_log。"""
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Optional
 
 
 def maybe_log_task_completion(

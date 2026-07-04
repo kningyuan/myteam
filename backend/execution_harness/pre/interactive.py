@@ -57,8 +57,8 @@ def build_interactive_harness_block(agent_id: str) -> str:
             constraints = merge_constraints(agent_id, first_type, "", store=None)
             if constraints.get("constraints_text"):
                 lines.append(constraints["constraints_text"])
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("interactive merge_constraints 失败，跳过约束注入: %s", e)
 
         # 偏好注入（兼容保留）
         pref = fetch_preferences(agent_id=agent_id)

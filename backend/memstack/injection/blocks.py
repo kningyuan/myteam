@@ -60,7 +60,7 @@ def _format_structured_entry(struct: dict[str, str], task_type: Optional[str] = 
                 val = val[:149] + "…"
             return val
     # fallback: 展示第一个非空字段
-    for key, val in struct.items():
+    for _key, val in struct.items():
         if val.strip():
             if len(val) > 150:
                 val = val[:149] + "…"

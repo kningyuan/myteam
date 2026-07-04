@@ -57,7 +57,7 @@ def roster_from_tasks(tasks: list[dict], loops: Optional[list[LoopSpec]] = None)
             roster.append(aid)
     for spec in loops or []:
         for t in iter_loop_body_tasks(spec):
-            aid = str(t.get("agent") or "").strip()
+            aid = str(t.get("agent") or t.get("agent_id") or "").strip()
             if aid and aid not in roster:
                 roster.append(aid)
     cid = get_coordinator_id()
@@ -213,6 +213,18 @@ def validate_workflow(profile: WorkflowProfile) -> None:
         if allowed and tt and tt not in allowed:
             bind_errors.append(
                 f"{aid} 未配置 task_type「{tt}」（请在管理 Tab → Agent 配置中勾选）")
+    # reviewer 校验：若指定了 reviewer，必须在 roster 中
+    for t in profile.tasks:
+        reviewer = str(t.get("reviewer") or "").strip()
+        if reviewer and reviewer not in team:
+            bind_errors.append(
+                f"任务「{t.get('id', '')}」的 reviewer「{reviewer}」不在团队名册中")
+    for spec in profile.loops:
+        for t in iter_loop_body_tasks(spec):
+            reviewer = str(t.get("reviewer") or "").strip()
+            if reviewer and reviewer not in team:
+                bind_errors.append(
+                    f"loop body 任务「{t.get('id', '')}」的 reviewer「{reviewer}」不在团队名册中")
     if bind_errors:
         raise ValueError(
             f"workflow「{profile.id}」任务绑定无效：\n- " + "\n- ".join(sorted(bind_errors)))
@@ -242,6 +254,18 @@ def read_workflow_raw(workflow_id: str) -> dict:
     raw = yaml.safe_load(fp.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
         raise ValueError(f"workflow 格式无效：{fp}")
+    # 前端 WorkflowEditor 读 agent 字段，但 YAML 写的是 agent_id —— 读出时补齐，避免 UI 显示空
+    for spec in raw.get("loops") or []:
+        bodies = spec.get("bodies") or {}
+        if bodies:
+            for _bid, tasks in bodies.items():
+                for t in tasks:
+                    if not t.get("agent") and t.get("agent_id"):
+                        t["agent"] = t["agent_id"]
+        elif spec.get("body"):
+            for t in spec.get("body"):
+                if not t.get("agent") and t.get("agent_id"):
+                    t["agent"] = t["agent_id"]
     return raw
 
 

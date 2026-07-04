@@ -17,7 +17,7 @@ from typing import Any, Callable, Optional
 
 from common.store.store import Store
 from execution_harness.config import skill_review_enabled, skill_review_min_attempts
-from execution_harness.context import SkillReviewContext, TaskCompleteContext
+from execution_harness.context import TaskCompleteContext
 from execution_harness.post.pending import create_pending_bundle
 from execution_harness.skill.umbrella import resolve_umbrella_skill
 
@@ -49,7 +49,8 @@ def summarize_interaction(store: Store, interaction_id: str, *, max_events: int 
     lines: list[str] = []
     try:
         events = store.list_run_events(interaction_id)
-    except Exception:
+    except Exception as e:
+        logger.warning("summarize_interaction list_run_events 失败，回退占位: %s", e)
         return "(无 run_events)"
     for ev in events[-max_events:]:
         kind = ev.get("kind") or "?"
@@ -183,7 +184,7 @@ def run_skill_review(
 
     # Check trigger conditions
     try:
-        from execution_harness.context import TaskCompleteContext
+        from execution_harness.context import TaskCompleteContext  # noqa: F401
         # If called directly without full context, skip should_trigger_review guard
         # (caller is responsible for deciding whether to trigger)
     except ImportError:

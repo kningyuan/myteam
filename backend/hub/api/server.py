@@ -1,42 +1,29 @@
 """FastAPI 入口 — 薄路由层，业务逻辑在 base/ 与 hub/services/。"""
 
-import asyncio
 import os
 import sys
 import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Optional
 
 _ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 try:
-    from fastapi import FastAPI, HTTPException, Query, Request
-    from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
+    from fastapi import FastAPI, HTTPException, Request
+    from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
     from fastapi.middleware.cors import CORSMiddleware
-    from fastapi.staticfiles import StaticFiles
     import uvicorn
 except ImportError:
     print("需要安装依赖: pip install fastapi uvicorn")
     sys.exit(1)
 
-from base.agent_chat import (
-    _load_agents_config,
-    delete_agent,
-    get_agent_backend_config,
-    scan_agents,
-    set_agent_backend_config,
-)
-from base.agent_factory import generate_agent, suggest_agent_id
-from common.paths import FRONTEND_DIST, resolve_workspace, to_relative_path
+from common.paths import FRONTEND_DIST
 from hub.services.project_launch import (
     resume_kernel_bg,
-    run_kernel_bg,
     start_kernel_job,
 )
-from hub.api.deps import we_store as _we_store
 from hub.api.errors import APIError
 from config_store.system_config import system_config
 
@@ -189,7 +176,6 @@ async def http_exception_envelope(request: Request, exc: HTTPException):
 # ── 发起项目：UI → 编排内核（后台线程跑 run_kernel）──────────────
 from hub.services.kernel_run import (  # noqa: E402
     _clear_kernel_run,
-    _get_kernel_run,
     _is_kernel_running,
     _reconcile_stale_kernel_runs,
     _set_kernel_run,

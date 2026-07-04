@@ -72,7 +72,6 @@ def list_profiles():
 @router.post("/")
 def create_profile(body: dict):
     """创建新的 delivery profile。"""
-    import re
 
     try:
         pid = _validate_profile_id(body.get("id", ""))

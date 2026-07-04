@@ -14,7 +14,6 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -168,7 +167,7 @@ class TestDefaultReviewConsistency:
         # 由于 _load 已加载了用户数据，default_review 可能缺失
         # 但 deep_merge 不会补全已存在但未修改的字段
         # 这是预期行为 — 用户未设置则从默认值读取
-        all_data = sc.system_config.get_all()
+        sc.system_config.get_all()
         # get_all 返回 _data 的快照（不含 models）
         # 如果用户写入的文件没有 default_review，则 _data 中也没有
         # get() 会回退到 DEFAULT_CONFIG

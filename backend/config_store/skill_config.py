@@ -1,7 +1,6 @@
 """协作 skill 配置 — config/skill_config.json。"""
 
 import json
-from pathlib import Path
 from typing import Any
 
 from common.paths import SKILL_CONFIG_FILE

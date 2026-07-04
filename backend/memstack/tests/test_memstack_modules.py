@@ -333,6 +333,8 @@ class TestFacadeModule:
     def disable_memstack(self, monkeypatch):
         monkeypatch.setattr("memstack.facade.memstack_enabled", lambda default=False: False)
         monkeypatch.setattr("memstack.config.memstack_enabled", lambda default=False: False)
+        # execution_harness KB 注入也需禁用（memstack facade 委托到 execution_harness）
+        monkeypatch.setattr("execution_harness.config.kb_inject_allowed", lambda default=True: False)
 
     def test_enabled_default_false(self, disable_memstack):
         from memstack.facade import enabled

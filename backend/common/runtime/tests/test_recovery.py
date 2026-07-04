@@ -12,7 +12,6 @@ import common.paths as paths  # noqa: E402
 from common.agent.agent_port import AgentPort, WatchdogConfig, reconcile_on_start  # noqa: E402
 from common.process.process import Process, ProcessConfig  # noqa: E402
 from common.gate.registry import get_spec  # noqa: E402
-from common.runtime.run_kernel import resume_project  # noqa: E402
 from common.store.store import Store  # noqa: E402
 from common.delivery.submit_result import submit  # noqa: E402
 
@@ -95,7 +94,6 @@ def test_resume_adopts_stuck_t1_and_continues(env, monkeypatch):
 
 def test_kernel_order_reconcile_gc_then_resume_settles(env, monkeypatch):
     """run_kernel 顺序：reconcile → resume(settle) → gc，任务级回收不得断链。"""
-    from common.agent.agent_port import reconcile_on_start
     from common.runtime.workspace_gc import gc_workspace
 
     store, wcfg = env
@@ -233,7 +231,6 @@ def test_resume_unblocks_when_upstream_recovers(env, monkeypatch):
     store.upsert_task(pid, "t2", name="汇总", agent="main", task_type="strategy",
                       status="blocked", dependencies=["t1"])
 
-    from common.gate.registry import get_spec
     from common.process.tests.test_process import GOOD_Q, _port, _write_exec, valid_content
 
     def transport(ctx):
