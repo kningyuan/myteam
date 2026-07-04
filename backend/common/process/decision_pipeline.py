@@ -117,7 +117,6 @@ class DecisionPipeline:
 
         # 质量推荐：为每个已知的 task_type 找出评分最高的 agent，供 coordinator 参考
         try:
-            from common.gate.quality_suggest import get_agent_quality_score
             coordinator = self.config.coordinator_agent_id
             all_agents = sorted({
                 aid for aid in _list_agent_ids(self.store) if aid != coordinator

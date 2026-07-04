@@ -18,7 +18,7 @@ class BudgetExceededError(Exception):
 class ProcessConfig:
     mode: str = "one_shot"                 # one_shot | recurring
     max_gate_retries: int = 3              # 确定性门禁失败的重试上限（D18 → D19 PATCH 减为 3）
-    max_plan_retries: int = 2              # task_plan 指派团队外 agent 时的重试上限
+    max_plan_retries: int = 3              # task_plan 指派团队外 agent 时的重试上限
     review_enabled: bool = False           # 是否走同行评审（TaskPipeline.peer_review）
     quality_floor: float = 0.6             # 自评低于此 → needs_review
     needs_review_blocks: bool = False      # needs_review 是否阻塞依赖者（默认否，D18）
@@ -44,6 +44,7 @@ class ProcessConfig:
     parallel_enabled: bool = False         # L2：同波次无依赖任务真并行
     max_parallel: int = 4                  # 单波次最大并发任务数
     plan_enabled: bool = True              # 路径 A：execute 前是否插入 plan 交互
+    max_review_retries: int = 2            # peer_review 不通过时的重做上限
 
 
 @dataclass

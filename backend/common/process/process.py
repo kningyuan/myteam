@@ -127,14 +127,18 @@ class Process:
             if paused := self._pause_if_over_budget(project_id):
                 return paused
         self._fire_team_ready(project_id, agents, title)
-        if self.config.mode == "recurring" and tasks is None:
+        # 升级：workflow 模式也支持 recurring — 每轮用 workflow 实例化 tasks
+        if self.config.mode == "recurring":
+            if tasks is not None:
+                # workflow 模式 recurring：用 instantiate_tasks 每轮重新生成
+                return self._run_recurring_with_workflow(project_id, goal, agents, tasks)
             return self._run_recurring(project_id, goal, agents)
         if tasks is None:
             tasks = self._decisions.task_plan(project_id, goal, agents)
-            if self.config.split_enabled:
-                tasks = self._expander.expand(project_id, tasks, agents)
-            if paused := self._pause_if_over_budget(project_id):
-                return paused
+        if self.config.split_enabled:
+            tasks = self._expander.expand(project_id, tasks, agents)
+        if paused := self._pause_if_over_budget(project_id):
+            return paused
         check = check_plan([t for t in tasks if not t.get("loop")], set(agents))
         if not check.passed:
             raise RuntimeError(f"plan gate 校验失败（{project_id}）：{check.feedback}")
@@ -149,6 +153,9 @@ class Process:
             raise RuntimeError(f"项目不存在：{project_id}")
         if proj.get("status") not in ("in_progress", "paused"):
             return ProjectOutcome(project_id, proj["status"], {})
+        # paused 恢复时显式改回 in_progress，让 UI 立即反映"已恢复"
+        if proj.get("status") == "paused":
+            self.store.set_project_status(project_id, "in_progress")
 
         tasks = self._tasks_from_store(project_id)
         if not tasks:
@@ -284,6 +291,52 @@ class Process:
             self._maybe_extract_skills(project_id)
         return ProjectOutcome(project_id, final, overall)
 
+    def _run_recurring_with_workflow(self, project_id: str, goal: str,
+                                     agents: list[str],
+                                     base_tasks: list[dict]) -> ProjectOutcome:
+        """workflow 模式的周期循环：每轮用 workflow 实例化 tasks（注入 prior_summary）。"""
+        overall: dict[str, TaskOutcome] = {}
+        prior_summary = ""
+        stop_status: Optional[str] = None
+        from common.process.plan_expansion import prefix_cycle
+        for cycle in range(1, max(1, self.config.max_cycles) + 1):
+            if self._is_cancelled(project_id):
+                stop_status = "cancelled"
+                break
+            # 每轮重新实例化 workflow tasks（保持 goal 前缀）
+            tasks = [dict(t) for t in base_tasks]
+            if prior_summary:
+                # 注入上一轮摘要到每个 task 的 description
+                for t in tasks:
+                    desc = t.get("description", "")
+                    if desc:
+                        t["description"] = f"【上一轮摘要】{prior_summary[:500]}\n\n{desc}"
+            if self.config.split_enabled:
+                tasks = self._expander.expand(project_id, tasks, agents, cycle=cycle)
+            if self._over_budget(project_id):
+                stop_status = "paused"
+                break
+            tasks = prefix_cycle(tasks, cycle)
+            self._persist_tasks(project_id, tasks)
+            outcome = self._dispatch(project_id, tasks, persist=False)
+            overall.update(outcome.tasks)
+            prior_summary = self._cycle_summary(project_id, tasks)
+            self.store.memory_write(project_id, f"周期 {cycle} 滚动摘要", prior_summary,
+                                    tags=["cycle_summary"])
+            self.store.append_run_event(f"{project_id}:cycle:{cycle}", "cycle_done",
+                                        {"status": outcome.status, "mode": "workflow_recurring"})
+            if outcome.status in ("cancelled", "aborted", "paused"):
+                stop_status = outcome.status
+                break
+            if not any(o.status in TERMINAL_OK for o in outcome.tasks.values()):
+                stop_status = "failed"
+                break
+        final = stop_status or "completed"
+        self.store.set_project_status(project_id, final)
+        if final == "completed":
+            self._maybe_extract_skills(project_id)
+        return ProjectOutcome(project_id, final, overall)
+
     def _cycle_summary(self, project_id: str, tasks: list[dict]) -> str:
         parts: list[str] = []
         for t in tasks:
@@ -316,8 +369,52 @@ class Process:
     def _agents_from_tasks(self, by_id: dict[str, dict]) -> list[str]:
         return sorted({t.get("agent", "") for t in by_id.values() if t.get("agent")})
 
+    def _inject_upstream_context(self, project_id: str, task: dict) -> dict:
+        """升级：跨任务数据传递 — 将上游交付物摘要注入 task description。
+
+        自动读取 dependencies 中已完成任务的交付物，截取前 800 字作为上下文。
+        task 可通过 ``task_inputs`` 字段指定哪些上游的交付物需要注入及截取长度：
+        ``task_inputs: [{task: "t1", max_chars: 1000}, ...]``
+        未指定 task_inputs 时，自动注入全部依赖的交付物摘要。
+        """
+        deps = task.get("dependencies") or []
+        if not deps:
+            return task
+        task_inputs = task.get("task_inputs") or []
+        # 构建上游交付物摘要
+        upstream_parts: list[str] = []
+        for dep_id in deps:
+            # 查找 task_inputs 中的配置
+            config = next((ti for ti in task_inputs if ti.get("task") == dep_id), {})
+            max_chars = config.get("max_chars", 800)
+            dep_task = self.store.get_task(project_id, dep_id) or {}
+            dep_type = dep_task.get("task_type", "")
+            if not dep_type:
+                continue
+            from common.project.project_artifacts import task_deliverable_base, artifact_rel_path
+            base_dir = task_deliverable_base(project_id, dep_id, dep_type)
+            rel = artifact_rel_path(dep_id, dep_type)
+            dv_path = base_dir / rel
+            if not dv_path.exists():
+                continue
+            try:
+                content = dv_path.read_text(encoding="utf-8")
+                if len(content) > max_chars:
+                    content = content[:max_chars] + "\n...(截断)"
+                upstream_parts.append(f"【上游任务 {dep_id} 交付物摘要】\n{content}")
+            except Exception:
+                pass
+        if not upstream_parts:
+            return task
+        desc = task.get("description", "")
+        task = dict(task)  # 不修改原 dict
+        task["description"] = "\n\n".join(upstream_parts) + f"\n\n{desc}" if desc else "\n\n".join(upstream_parts)
+        return task
+
     def _execute_task(self, project_id: str, task: dict) -> TaskExecuteResult:
         """跑单任务；失败时 triage。返回 outcome + triage 决策 + 可选拆分子任务。"""
+        # 升级：跨任务数据传递 — 注入上游交付物摘要到 description
+        task = self._inject_upstream_context(project_id, task)
         outcome = self._pipeline.run_task(project_id, task)
         if outcome.status != "failed":
             self._notify_task_done(project_id, task, outcome)
@@ -373,6 +470,8 @@ class Process:
             store=self.store,
             on_loop_round_done=on_round,
             needs_review_blocks=self.config.needs_review_blocks,
+            parallel_enabled=self.config.parallel_enabled,
+            max_parallel=self.config.max_parallel,
             expand_ready=(
                 (lambda pid, by_id, order, outcomes, agents, cycle=0: self._expander.expand_ready(
                     pid, by_id, order, outcomes, agents, cycle=cycle,
@@ -622,6 +721,30 @@ class Process:
                   persist: bool = True) -> str:
         status = derive_project_status(outcomes, aborted=aborted, paused=paused,
                                        cancelled=cancelled)
+        # 兜底：outcomes 只含本轮跑过+settle 的 task，loop 中途退出时 DB 里可能仍有
+        # pending/in_progress 的残留 task 不在 outcomes 里，导致 derive_project_status
+        # 只看到 {needs_review}⊆TERMINAL_OK 误判 completed。这里用 DB 全量 task 状态校验：
+        # 若算出 completed 但 DB 仍有活跃（非终态）task，降级 partially_failed，避免项目假完成。
+        # 注意：cancelled（split 替换的旧 task）/ failed / blocked / needs_review / completed
+        # 都是终态，不算残留；只 pending/in_progress/running 这类活跃态才算未跑完。
+        if status == "completed" and not aborted and not paused and not cancelled:
+            active_statuses = {"pending", "in_progress", "running", "ready"}
+            active = [
+                (t.get("task_id") or t.get("id") or "")
+                for t in self.store.list_tasks(project_id)
+                if (t.get("status") or "") in active_statuses
+            ]
+            if active:
+                status = "partially_failed"
+                self.store.append_run_event(
+                    f"{project_id}:finalize",
+                    "project_downgraded",
+                    {
+                        "reason": "DB 仍有活跃 task 但 outcomes 判 completed",
+                        "active_count": len(active),
+                        "sample": active[:5],
+                    },
+                )
         if persist:
             self.store.set_project_status(project_id, status)
             gc_project_workspace(self.store, project_id)

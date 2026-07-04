@@ -176,7 +176,6 @@ class TaskPipeline:
         context = self.build_context(project_id, task) if self.config.inject_context else {}
 
         # 路径 E：前置资产加载（偏好+Skill匹配+知识库）
-        self_improve_constraints = {}
         try:
             from execution_harness.pre.self_improve import merge_constraints
             si = merge_constraints(
@@ -186,7 +185,6 @@ class TaskPipeline:
             )
             if si.get("constraints_text"):
                 context["self_improve_constraints"] = si["constraints_text"]
-                self_improve_constraints = si
         except Exception:
             pass
 
@@ -262,6 +260,7 @@ class TaskPipeline:
                 outcome = self._finalize_success(
                     project_id, task, resp, attempt, rel_path, task_type,
                     interaction_id=req["interaction_id"], agent=agent,
+                    context=context,
                 )
                 return outcome
 
@@ -413,14 +412,63 @@ class TaskPipeline:
 
     def peer_review(self, project_id: str, task: dict, status: str,
                     task_type: str, rel_path: str) -> str:
+        """同行评审（兼容旧接口）。返回 status 字符串。"""
+        passed, _ = self._peer_review_with_feedback(
+            project_id, task, task_type, rel_path, round_suffix="",
+        )
+        return "completed" if passed else "needs_review"
+
+    def _auto_assign_reviewer(self, project_id: str, task_id: str, task_type: str,
+                              executor: str) -> str:
+        """当 task 未指定 reviewer 时，从项目 agent 列表中自动选择。
+
+        策略：排除执行者和协调者，优先选能处理该 task_type 的 agent。
+        """
+        try:
+            from common.agent.agent_registry import agent_task_type_map
+            cap_map = agent_task_type_map()
+            coordinator = self.config.coordinator_agent_id
+            project_agents: list[str] = []
+            for row in self.store.list_tasks(project_id):
+                aid = str(row.get("agent") or "").strip()
+                if aid and aid not in project_agents and aid != executor and aid != coordinator:
+                    project_agents.append(aid)
+            for aid in project_agents:
+                allowed = cap_map.get(aid) or []
+                if task_type in allowed:
+                    return aid
+            if project_agents:
+                return project_agents[0]
+        except Exception:
+            pass
+        return ""
+
+    def _peer_review_with_feedback(
+        self, project_id: str, task: dict, task_type: str, rel_path: str,
+        *, round_suffix: str = "",
+    ) -> tuple[bool, str]:
+        """同行评审，返回 (passed, feedback)。
+
+        ``round_suffix`` 用于区分重做轮次的 interaction_id。
+        """
         tid = task["id"]
+        executor = (self.store.get_task(project_id, tid) or {}).get("agent") \
+            or task.get("agent", "")
         reviewer = (self.store.get_task(project_id, tid) or {}).get("reviewer") \
             or task.get("reviewer", "")
         if not reviewer:
-            return status
+            # 自动分配 reviewer（从项目 agent 列表中选择非执行者）
+            reviewer = self._auto_assign_reviewer(project_id, tid, task_type, executor)
+            if not reviewer:
+                return True, ""
+            self.store.append_run_event(
+                f"{project_id}:{tid}:review{round_suffix}",
+                "reviewer_auto_assigned",
+                {"reviewer": reviewer, "executor": executor},
+            )
         spec = spec_for_task(task)
         template_id = str(task.get("template_id") or "").strip()
-        iid = f"{project_id}:{tid}:review"
+        iid = f"{project_id}:{tid}:review{round_suffix}"
         review_input = {
             "task": task,
             "deliverable_path": rel_path,
@@ -444,21 +492,129 @@ class TaskPipeline:
         if res.status != "done":
             self.release_files(reviewer, iid)
             self.store.append_run_event(iid, "review_unreachable", {"reason": res.reason})
-            return "needs_review"
+            return False, f"评审不可达: {res.reason}"
         result = res.response.get("result", {})
         passed = bool(result.get("passed"))
+        feedback = result.get("feedback", "")
         self.store.append_run_event(iid, "review_done",
-                                    {"passed": passed, "feedback": result.get("feedback", "")})
+                                    {"passed": passed, "feedback": feedback})
         self.release_files(reviewer, iid)
-        return "completed" if passed else "needs_review"
+        return passed, feedback
+
+    def _review_with_rework(
+        self, project_id: str, task: dict, resp: dict, attempt: int,
+        rel_path: str, task_type: str, *, interaction_id: str, agent: str,
+        context: dict | None = None,
+    ) -> tuple[str, dict, str]:
+        """peer_review + 重做循环。
+
+        评审不通过时，用评审反馈驱动新一轮 execute（最多 max_review_retries 次）。
+        返回 (final_status, final_resp, final_interaction_id)。
+        """
+        tid = task["id"]
+        template_id = str(task.get("template_id") or "").strip()
+        base_dir = task_deliverable_base(project_id, tid, task_type)
+        spec = spec_for_task(task)
+        cur_resp = resp
+        cur_iid = interaction_id
+
+        for round_num in range(self.config.max_review_retries + 1):
+            suffix = f":r{round_num}" if round_num > 0 else ""
+            passed, feedback_text = self._peer_review_with_feedback(
+                project_id, task, task_type, rel_path, round_suffix=suffix,
+            )
+            if passed:
+                return "completed", cur_resp, cur_iid
+
+            if round_num >= self.config.max_review_retries:
+                self.store.append_run_event(
+                    cur_iid, "review_rework_exhausted",
+                    {"rounds": round_num, "feedback": (feedback_text or "")[:500]},
+                )
+                return "needs_review", cur_resp, cur_iid
+
+            # 重做：用评审反馈驱动新一轮 execute
+            self.store.append_run_event(
+                cur_iid, "review_rework_round",
+                {"round": round_num + 1, "feedback": (feedback_text or "")[:500]},
+            )
+            rework_iid = f"{project_id}:{tid}:execute:r{round_num + 1}"
+            prev_sid = lookup_interaction_session(self.store, cur_iid)
+            inp: dict = {
+                "task": task,
+                "deliverable_path": rel_path,
+                "deliverable_base": str(base_dir),
+            }
+            if spec and spec.acceptance_criteria:
+                inp["acceptance_criteria"] = list(spec.acceptance_criteria)
+            if prev_sid:
+                inp["session_id"] = prev_sid
+            dv_abs = str(base_dir / rel_path) if rel_path else ""
+            rework_feedback = [
+                f"【同行评审反馈】\n{feedback_text}",
+            ]
+            if dv_abs:
+                rework_feedback.append(f"上一轮交付物文件：{dv_abs}")
+            rework_feedback.append("请基于现有交付物做局部修改，仅修改反馈指出的问题，不要重写整个文档。")
+            rework_req = {
+                "interaction_id": rework_iid,
+                "kind": "execute", "project_id": project_id, "task_id": tid,
+                "agent_id": agent,
+                "intent": f"根据同行评审反馈修改任务「{task.get('name', tid)}」的交付物，仅修改反馈指出的问题",
+                "input": inp,
+                "context": context or {},
+                "response_schema": "execute.result@1.0",
+                "constraints": {"task_type": task_type, "template_id": template_id, "patch_hint": "review_rework"},
+                "retry_feedback": rework_feedback,
+            }
+            res = self.port.run(rework_req)
+            if res.status == "budget_exceeded":
+                self.release_files(agent, rework_iid)
+                raise BudgetExceededError(res.reason or "交互级 token 超预算")
+            if res.status != "done":
+                self.release_files(agent, rework_iid)
+                self.store.append_run_event(
+                    rework_iid, "rework_unreachable", {"reason": res.reason},
+                )
+                return "needs_review", cur_resp, cur_iid
+
+            rework_resp = res.response
+            rework_resp.setdefault("meta", {})
+            if isinstance(rework_resp["meta"], dict):
+                rework_resp["meta"].setdefault("task_type", task_type)
+                rework_resp["meta"].setdefault("task_id", tid)
+                if template_id:
+                    rework_resp["meta"].setdefault("template_id", template_id)
+            gate_res = check_execute(
+                rework_resp, base_dir=str(base_dir),
+                enforce_must_include=self.config.enforce_must_include,
+            )
+            if not gate_res.passed:
+                self.release_files(agent, rework_iid)
+                self.store.append_run_event(
+                    rework_iid, "rework_gate_failed",
+                    {"failures": gate_res.failures},
+                )
+                return "needs_review", cur_resp, cur_iid
+
+            # Gate 通过，更新引用，进入下一轮评审
+            self.release_files(agent, rework_iid)
+            cur_resp = rework_resp
+            cur_iid = rework_iid
+
+        return "needs_review", cur_resp, cur_iid
 
     def _finalize_success(self, project_id: str, task: dict, resp: dict, attempt: int,
                           rel_path: str, task_type: str, *, interaction_id: str,
-                          agent: str) -> TaskOutcome:
+                          agent: str, context: dict | None = None) -> TaskOutcome:
         tid = task["id"]
         status = self.quality_status(resp)
+        orig_iid = interaction_id
         if self.config.review_enabled:
-            status = self.peer_review(project_id, task, status, task_type, rel_path)
+            status, resp, interaction_id = self._review_with_rework(
+                project_id, task, resp, attempt, rel_path, task_type,
+                interaction_id=interaction_id, agent=agent, context=context,
+            )
         # 路径 D：Rubric 自动化质量评估（不阻塞流程，仅记录+打分）
         rubric_result = None
         try:
@@ -522,4 +678,6 @@ class TaskPipeline:
             ),
         )
         self.release_files(agent, interaction_id)
+        if orig_iid != interaction_id:
+            self.release_files(agent, orig_iid)
         return TaskOutcome(tid, status, "", attempt, resp)
