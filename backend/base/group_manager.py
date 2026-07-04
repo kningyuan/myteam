@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Callable, Generator, Optional
 
 from base.agent_chat import (
-    get_agent_backend_config,
     scan_agents,
     stream_chat,
 )

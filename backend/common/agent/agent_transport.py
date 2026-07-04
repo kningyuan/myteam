@@ -14,7 +14,6 @@ import json
 import os
 import shutil
 import sys
-import tempfile
 from pathlib import Path
 from typing import Callable, Optional, TYPE_CHECKING
 
@@ -37,7 +36,7 @@ from common.project.project_artifacts import is_code_project_task, task_project_
 from common.prompt.prompt_composer import compose_execute_layers
 from execution_harness.context import ExecuteHarnessContext
 from execution_harness.facade import inject_for_execute, prepare_execute_harness
-from common.gate.registry import get_spec, load_registry
+from common.gate.registry import load_registry
 
 RULES_DIR = BUSINESS_CONFIG_DIR.parent / "rules"
 
@@ -111,7 +110,7 @@ def _ensure_backend_importable() -> None:
 
 def _default_adapter(backend: str = "opencode"):
     _ensure_backend_importable()
-    import adapter  # noqa: F401  — side-effect CLI 注册 — side-effect registration
+    import adapter as _adapter  # noqa: F401  — side-effect CLI 注册 — side-effect registration
 
     from adapter.core.registry import registry
 
@@ -310,7 +309,7 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
                 "",
                 "【必须完成的两步（缺一不可）】",
                 f"  1. 把完整交付物写入：{abs_dv}",
-                f"  2. 运行文末 submit_result 命令提交 JSON（仅聊天不算交卷）",
+                "  2. 运行文末 submit_result 命令提交 JSON（仅聊天不算交卷）",
             ]
             intent = getattr(req, "intent", None) or (req.get("intent") if isinstance(req, dict) else "") or ""
             if "200字" in intent or "简短" in intent:
@@ -495,7 +494,7 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
     lines += [
         "",
         "【提交结果（必须这样做）】",
-        f"把结果 JSON 写入临时文件后，运行以下命令提交（会做契约校验并原子写回）：",
+        "把结果 JSON 写入临时文件后，运行以下命令提交（会做契约校验并原子写回）：",
         f"  {sys.executable} {submit_script} --out {resp_path} --file <你的结果json文件>",
         "结果 JSON 必须形如：",
         "{",

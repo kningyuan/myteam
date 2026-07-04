@@ -7,7 +7,6 @@ import re
 from typing import Any
 
 from common.paths import BUSINESS_CONFIG_DIR
-from common.gate.registry import load_registry
 from common.gate.task_type_store import list_task_type_ids
 
 _RULES_CACHE: dict | None = None

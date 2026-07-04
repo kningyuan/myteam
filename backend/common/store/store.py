@@ -801,7 +801,7 @@ class Store:
                 rows = self._conn.execute(sql, params).fetchall()
                 out = [self._mem_row(r) for r in rows]
                 if tags:
-                    out = [d for d in out if set(tags) & set(d["tags"])]
+                    out = [d for d in out if set(tags).issubset(set(d["tags"]))]
                 return out
             except sqlite3.OperationalError:
                 pass
@@ -811,7 +811,7 @@ class Store:
             d = self._mem_row(r)
             if project_id and d["project_id"] != project_id:
                 continue
-            if tags and not (set(tags) & set(d["tags"])):
+            if tags and not set(tags).issubset(set(d["tags"])):
                 continue
             if q and q not in d["title"] and q not in d["content"]:
                 tokens = [t for t in re.split(r"\s+", q) if t]

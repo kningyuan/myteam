@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from common.delivery.delivery_templates import DeliveryTemplateError, list_delivery_template_ids, load_delivery_template
+from common.delivery.delivery_templates import list_delivery_template_ids
 from common.gate.gate import check_format
 from common.runtime.goal_template import apply_goal_template_defaults, parse_goal_template_id
 from common.gate.registry import get_spec, invalidate_registry_cache, resolve_format_spec
@@ -115,7 +115,6 @@ def test_delete_template_blocked_when_workflow_references():
 
 
 def test_list_templates_omits_missing_yaml(tmp_path, monkeypatch):
-    import shutil
     from common.delivery.delivery_template_store import list_templates_for_api
     from common.delivery.delivery_templates import invalidate_delivery_templates_cache
     from common.paths import BUSINESS_DIR

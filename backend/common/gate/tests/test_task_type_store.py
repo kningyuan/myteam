@@ -5,10 +5,9 @@ from __future__ import annotations
 import json
 
 import pytest
-import yaml
 
 from common import paths
-from common.gate.registry import get_spec, load_registry
+from common.gate.registry import get_spec
 from common.gate.task_type_store import (
     delete_task_type,
     list_task_types_for_api,

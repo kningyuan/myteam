@@ -11,7 +11,7 @@ def sync_agent_mcp_to_cli(agent_id: str, *, workspace: str | None = None) -> dic
     if not aid:
         return {"success": False, "error": "agent_id 为空"}
 
-    import adapter  # noqa: F401  — side-effect CLI 注册
+    import adapter as _adapter  # noqa: F401  — side-effect CLI 注册
     from adapter.core.registry import registry
     from base.agent_chat import get_agent_backend_config
 

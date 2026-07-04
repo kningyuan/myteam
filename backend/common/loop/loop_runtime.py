@@ -65,6 +65,10 @@ class RunLoopDeps:
     expand_ready: Optional[
         Callable[..., bool]
     ] = None
+    # L2：轮次内同波次无依赖 task（如 product+arch 两个 reviewer）真并行。
+    # 默认 False 保持旧行为（wave[0] 串行），True 时整个 wave 用 ThreadPool 并行执行。
+    parallel_enabled: bool = False
+    max_parallel: int = 4
 
 
 @dataclass
@@ -289,15 +293,22 @@ def seed_patch_baseline(project_id: str, prev_task_id: str, cur_task_id: str) ->
     return True
 
 
-def build_patch_goal_prefix(project_id: str, round_num: int, loop_id: str) -> str:
-    """第 2+ 轮 work 任务前缀：强调定点 PATCH + 引用群讨论对齐清单。"""
+def build_patch_goal_prefix(project_id: str, round_num: int, loop_id: str,
+                            *, original_goal: str = "") -> str:
+    """第 2+ 轮 work 任务前缀：保留原始目标 + 定点 PATCH + 引用群讨论对齐清单。"""
     if round_num <= 1:
         return ""
     from common.store.store import Store
 
     prev_work = loop_body_task_id(loop_id, round_num - 1, "work")
     cur_work = loop_body_task_id(loop_id, round_num, "work")
-    lines = [
+    lines: list[str] = []
+    # 保留原始目标（截断到 300 字符，避免上下文膨胀）
+    if original_goal:
+        goal_summary = original_goal.strip()[:300]
+        lines.append(f"【原始目标】{goal_summary}")
+        lines.append("")
+    lines.extend([
         "【改稿模式：定点 PATCH — 禁止全文重写】",
         f"- 基线：deliverables/{prev_work}_deliverable.md",
         f"- 本轮初稿已复制为：deliverables/{cur_work}_deliverable.md",
@@ -305,7 +316,7 @@ def build_patch_goal_prefix(project_id: str, round_num: int, loop_id: str) -> st
         "- 清单外的章节保持原文不变（措辞、结构、顺序均勿动）",
         "- 架构图仅当清单明确要求时才改 drawio/png",
         "",
-    ]
+    ])
     store = Store()
     try:
         meta = (store.get_project(project_id) or {}).get("meta") or {}
@@ -592,6 +603,22 @@ def evaluate_transition(
                 passed=True,
             )
 
+    # 隐式 fallback：无规则命中时，若 assess task 已 completed，视为通过
+    # （去文本依赖：不依赖 deliverable_marker 字符串，基于 task 状态判定）
+    if spec.assess:
+        assess_ref = (spec.assess.ref or "").strip()
+        if assess_ref:
+            assess_tid = loop_body_task_id(spec.id, round_num, assess_ref)
+            assess_outcome = round_outcomes.get(assess_tid)
+            if assess_outcome and assess_outcome.status == "completed":
+                return TransitionResult(
+                    action="exit",
+                    outcome=spec.on_pass,
+                    next_body=None,
+                    matched_rule=None,
+                    passed=True,
+                )
+
     if round_num >= spec.max_rounds:
         return TransitionResult(
             action="exit",
@@ -689,7 +716,7 @@ def instantiate_round_body_tasks(
     body_tpl = spec.body_for(body_key) if (body_key or spec.bodies) else spec.body
     if not body_tpl:
         body_tpl = spec.body_for(spec.default_body)
-    body_ids = {str(t.get("id") or "").strip() for t in body_tpl}
+    {str(t.get("id") or "").strip() for t in body_tpl}
     out: list[dict] = []
     for tpl in body_tpl:
         body_id = str(tpl.get("id") or "").strip()
@@ -711,6 +738,9 @@ def instantiate_round_body_tasks(
         elif goal_prefix:
             desc = goal_prefix.rstrip()
         item = {k: v for k, v in tpl.items() if k not in ("dependencies", "description", "id")}
+        # loop body YAML 用 agent_id，但下游（roster/process/task_pipeline）读 agent —— 此处补齐字段名
+        if not item.get("agent") and item.get("agent_id"):
+            item["agent"] = item["agent_id"]
         item["id"] = tid
         item["dependencies"] = deps
         item["description"] = desc
@@ -887,7 +917,7 @@ def run_loop(
             next_body_key = None
 
         round_goal_prefix = goal_prefix if round_num == 1 else build_patch_goal_prefix(
-            project_id, round_num, spec.id,
+            project_id, round_num, spec.id, original_goal=goal_prefix,
         )
         if round_num > 1:
             prev_work = resolve_work_task_id(spec, round_num - 1, body_key)
@@ -938,17 +968,53 @@ def run_loop(
             wave = [tid for tid in wave if tid not in done]
             if not wave:
                 break
-            body_tid = wave[0]
-            result = deps.execute_task(project_id, by_id[body_tid])
-            round_outcomes[body_tid] = result.outcome
-            done.add(body_tid)
-            if result.triage_decision == "abort":
-                return TaskOutcome(placeholder_id, "failed", "loop 内任务中止", round_num)
-            if result.split_subtasks:
-                for sub in result.split_subtasks:
-                    by_id[sub["id"]] = sub
-                order[:] = topological_order(list(by_id.values()))
-                body_types = {t["id"]: t.get("task_type", "") for t in by_id.values()}
+
+            # 单 task 或未开并行：保持旧行为（串行 wave[0]）。
+            # 多 task 且 parallel_enabled：整个 wave 用 ThreadPool 并行执行
+            # （如 product+arch 两个 reviewer 同时跑，省一轮串行等待）。
+            if len(wave) == 1 or not deps.parallel_enabled:
+                body_tid = wave[0]
+                result = deps.execute_task(project_id, by_id[body_tid])
+                round_outcomes[body_tid] = result.outcome
+                done.add(body_tid)
+                if result.triage_decision == "abort":
+                    return TaskOutcome(placeholder_id, "failed", "loop 内任务中止", round_num)
+                if result.split_subtasks:
+                    for sub in result.split_subtasks:
+                        by_id[sub["id"]] = sub
+                    order[:] = topological_order(list(by_id.values()))
+                    body_types = {t["id"]: t.get("task_type", "") for t in by_id.values()}
+            else:
+                workers = min(len(wave), deps.max_parallel)
+                from concurrent.futures import ThreadPoolExecutor
+
+                deps.append_run_event(
+                    f"{project_id}:{spec.id}", "parallel_wave",
+                    {"tasks": wave, "count": len(wave), "round": round_num},
+                )
+                with ThreadPoolExecutor(max_workers=workers) as pool:
+                    futures = {
+                        pool.submit(deps.execute_task, project_id, by_id[tid]): tid
+                        for tid in wave
+                    }
+                    aborted = False
+                    split_subs_all: list[dict] = []
+                    for fut in futures:  # 顺序遍历 dict（保留 wave 顺序），不阻塞到对应 future
+                        tid = futures[fut]
+                        result = fut.result()
+                        round_outcomes[tid] = result.outcome
+                        done.add(tid)
+                        if result.triage_decision == "abort":
+                            aborted = True
+                        if result.split_subtasks:
+                            split_subs_all.extend(result.split_subtasks)
+                if aborted:
+                    return TaskOutcome(placeholder_id, "failed", "loop 内任务中止", round_num)
+                if split_subs_all:
+                    for sub in split_subs_all:
+                        by_id[sub["id"]] = sub
+                    order[:] = topological_order(list(by_id.values()))
+                    body_types = {t["id"]: t.get("task_type", "") for t in by_id.values()}
 
         if use_transition:
             result = evaluate_transition(
@@ -1141,7 +1207,7 @@ def validate_loop_specs(
                     )
         expanded = expand_loop_body_for_validation(spec)
         if spec.is_v2 and len(spec.bodies) > 1:
-            for body_key, body_tpl in spec.bodies.items():
+            for body_key, _body_tpl in spec.bodies.items():
                 branch_tasks = instantiate_round_body_tasks(spec, 1, body_key=body_key)
                 result = check_plan(branch_tasks, team, check_capabilities=True)
                 if not result.passed:

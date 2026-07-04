@@ -17,7 +17,6 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -260,7 +259,7 @@ class TestProcessDefaultsMergeBehavior:
         # 缺失的字段 get() 返回 None（因为 _data 不包含它）
         # 这不是 bug — 前端应在构造 PUT 前从 API GET 获取完整数据
         # 验证 _load 的 deep_merge 只在初始化时有效
-        val = sc.skill_config.get("executor", "poll_interval")
+        sc.skill_config.get("executor", "poll_interval")
         # _load 后 _data 只有用户写入的字段，deep_merge 仅在 _data 为空时调用
         # 所以这里可能返回 None
         # 这是已确认行为 — 前端必须传完整 skillCfg

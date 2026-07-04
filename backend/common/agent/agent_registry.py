@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
-from typing import Optional
 
 from common import paths
 from common.paths import MYTEAM_ROOT, WORKSPACES_DIR, WORKSPACE_PREFIX

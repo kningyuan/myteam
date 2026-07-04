@@ -11,13 +11,11 @@
 import fcntl
 import json
 import os
-import time
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 from common.paths import (
-    PROJECTS_DIR,
     deliverables_dir as _deliverables_dir,
     project_dir as _project_dir,
     response_dir as _response_dir,

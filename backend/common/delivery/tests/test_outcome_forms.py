@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from common.gate.gate import check_code_project, check_format
+from common.gate.gate import check_code_project
 from common.gate.registry import get_spec, invalidate_registry_cache, resolve_format_spec
 from common.gate.task_type_suggest import list_outcome_kind_catalog
 from common.gate.task_type_store import format_task_type_api

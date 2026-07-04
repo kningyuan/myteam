@@ -6,7 +6,6 @@ import pytest
 
 from base.group_manager import (
     DEFAULT_ROUNDTABLE_MAX_ROUNDS,
-    MAX_ROUNDTABLE_ROUNDS_CAP,
     MIN_ALIGNMENT_CYCLES_BEFORE_EARLY_CONSENSUS,
     accept_early_consensus,
     consensus_agree_threshold,
@@ -40,7 +39,6 @@ def test_detect_roundtable_only_at_all():
 
 
 def test_detect_notify_for_specific_mentions():
-    members = ["main", "product", "arch"]
     assert detect_group_mode("@main 完成首页重构任务", ["main"]) == "notify"
     assert detect_group_mode("@arch @product 帮我想想这个方案", ["arch", "product"]) == "notify"
     assert detect_group_mode("@arch 这个方案怎么样？", ["arch"]) == "notify"

@@ -1,9 +1,7 @@
 """测试 Path D+B 新模块 + Path A 计划 + Path C 质量画像。"""
 from __future__ import annotations
 
-from pathlib import Path
 
-import pytest
 
 from common.store.store import Store
 

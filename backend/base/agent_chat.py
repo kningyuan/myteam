@@ -4,9 +4,7 @@ Agent Chat - 轻量级本地 Agent 交互核心模块
 """
 
 import json
-import os
 import sys
-import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Generator, Optional
@@ -200,7 +198,7 @@ def _adapter_models_payload(adapter, *, refresh: bool = False) -> list[dict]:
 
 def get_backend_models(backend_id: str, *, refresh: bool = False) -> list[dict]:
     """按 backend_id 返回模型列表；不存在则抛 ValueError。"""
-    import adapter  # noqa: F401  — side-effect CLI 注册
+    import adapter as _adapter  # noqa: F401  — side-effect CLI 注册
     from adapter.core.registry import registry as adapter_registry
 
     adapter = adapter_registry.get(backend_id)
@@ -211,15 +209,15 @@ def get_backend_models(backend_id: str, *, refresh: bool = False) -> list[dict]:
 
 def list_all_backends_with_models() -> list[dict]:
     """列出所有 Adapter 及其模型。"""
-    import adapter  # noqa: F401  — side-effect CLI 注册
+    import adapter as _adapter  # noqa: F401  — side-effect CLI 注册
     from adapter.core.registry import registry as adapter_registry
 
     result = []
-    for adapter in adapter_registry.list_all():
-        caps = adapter.capabilities
+    for adp in adapter_registry.list_all():
+        caps = adp.capabilities
         result.append({
-            "id": adapter.id,
-            "name": adapter.display_name,
+            "id": adp.id,
+            "name": adp.display_name,
             "capabilities": {
                 "streaming": caps.streaming,
                 "tool_use": caps.tool_use,
@@ -227,7 +225,7 @@ def list_all_backends_with_models() -> list[dict]:
                 "json_output": True,
                 "custom_rules": caps.custom_rules,
             },
-            "models": _adapter_models_payload(adapter),
+            "models": _adapter_models_payload(adp),
         })
     return result
 
@@ -308,7 +306,7 @@ def create_merged_rules_file(
     profile: str = "interactive",
 ) -> Optional[str]:
     """动态合并规则文件（默认交互模式；圆桌 discussion；execute 传 workflow_execute）。"""
-    from common.gate.rules_merge import RulesProfile, merge_rules_file, normalize_rules_profile
+    from common.gate.rules_merge import merge_rules_file, normalize_rules_profile
 
     profile = normalize_rules_profile(profile)
     builder = AgentIdentityBuilder(agent_id, workspace)
@@ -403,7 +401,6 @@ def stream_chat(
     """
     from hub.services.chat_service import chat_service
     from memstack.l1 import (
-        MemoryScope,
         memory_scope_dm,
         memory_scope_group,
         memory_scope_roundtable,

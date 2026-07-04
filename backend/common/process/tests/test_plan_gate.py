@@ -8,7 +8,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from common.process.plan_gate import PlanCheckResult, check_plan, prefix_cycle, topological_order  # noqa: E402
+from common.process.plan_gate import check_plan, prefix_cycle, topological_order  # noqa: E402
 
 
 def _task(tid, agent="research", task_type="research", deps=None):

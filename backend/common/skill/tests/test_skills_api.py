@@ -58,7 +58,6 @@ def test_draft_404(client):
 
 
 def test_delete_library_skill(tmp_path, monkeypatch):
-    import shutil
 
     skills_dir = tmp_path / "business" / "skills"
     skill_id = "tmp-delete-me"

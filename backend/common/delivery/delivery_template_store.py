@@ -10,7 +10,6 @@ import yaml
 
 from common.delivery.delivery_templates import (
     DeliveryTemplateError,
-    _parse_template_file,
     delivery_templates_dir,
     invalidate_delivery_templates_cache,
     list_delivery_template_ids,

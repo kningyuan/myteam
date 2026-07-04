@@ -6,10 +6,9 @@
 """
 from __future__ import annotations
 
-import json
 import shutil
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional
 
 from common.delivery.delivery_profiles import get_delivery_profile
 from common.paths import MYTEAM_ROOT

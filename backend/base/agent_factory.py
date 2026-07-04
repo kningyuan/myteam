@@ -1,8 +1,9 @@
 """
-from common.coordinator import get_coordinator_id
 Agent Factory - 一键创建 Agent
 根据描述自动生成工作目录和能力文件
 """
+
+from common.coordinator import get_coordinator_id
 
 import json
 import re
@@ -14,9 +15,8 @@ _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from common.paths import WORKSPACE_PREFIX, WORKSPACES_DIR, resolve_workspace, to_relative_path
+from common.paths import WORKSPACE_PREFIX, WORKSPACES_DIR, to_relative_path
 from base.agent_chat import (
-    get_agent_backend_config,
     set_agent_backend_config,
     stream_chat,
 )
@@ -24,7 +24,7 @@ from hub.services.agent_registry import register_agent
 
 
 def _default_model(backend_id: str) -> str:
-    import adapter  # noqa: F401  — side-effect CLI 注册
+    import adapter as _adapter  # noqa: F401  — side-effect CLI 注册
     from adapter.core.registry import registry
 
     adapter = registry.get(backend_id)

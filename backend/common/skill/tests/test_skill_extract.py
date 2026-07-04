@@ -9,7 +9,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from common.paths import MYTEAM_ROOT, deliverables_dir  # noqa: E402
+from common.paths import deliverables_dir  # noqa: E402
 from common.skill.skill_extract import (  # noqa: E402
     draft_dir,
     extract_skill_draft,

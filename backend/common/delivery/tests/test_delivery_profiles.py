@@ -5,7 +5,6 @@ from __future__ import annotations
 import pytest
 
 from common.delivery.delivery_profiles import (
-    get_delivery_profile,
     invalidate_delivery_profiles_cache,
     merge_file_exists,
 )

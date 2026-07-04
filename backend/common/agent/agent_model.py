@@ -45,7 +45,7 @@ def default_model_for_backend(backend_id: str) -> str:
     except Exception:
         pass
     try:
-        import adapter  # noqa: F401  — side-effect CLI 注册
+        import adapter as _adapter  # noqa: F401  — side-effect CLI 注册
         from adapter.core.registry import registry
 
         adapter = registry.get(backend)

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """submit_result 编排派发门测试。"""
 import json
-import os
 import sys
 from pathlib import Path
 

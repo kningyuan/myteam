@@ -71,7 +71,7 @@ def auto_create_agent(agent_id: str, *, name: str = "", role: str = "worker",
                       description: str = "",
                       backend: str = "opencode", model: str = "") -> bool:
     """自动创建 agent 工作目录、身份文件和注册项（纯模板，不调用 LLM）。"""
-    from common.agent.agent_model import default_model_for_backend, system_default_backend
+    from common.agent.agent_model import system_default_backend
 
     if not (model or "").strip():
         model = ""  # 新建 agent 默认跟随设置页，不写入硬编码 model
