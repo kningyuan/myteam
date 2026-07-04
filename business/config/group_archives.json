@@ -1,0 +1,42 @@
+[
+  {
+    "id": "g_1782820584_0",
+    "name": "测试群",
+    "description": "",
+    "project_id": "",
+    "members": [
+      "alice"
+    ],
+    "dissolved_at": 1782820584.6487439,
+    "message_count": 0
+  },
+  {
+    "id": "g_1782820584_0",
+    "name": "群",
+    "description": "",
+    "project_id": "",
+    "members": [],
+    "dissolved_at": 1782820584.654836,
+    "message_count": 0
+  },
+  {
+    "id": "g_1782820701_0",
+    "name": "测试群",
+    "description": "",
+    "project_id": "",
+    "members": [
+      "alice"
+    ],
+    "dissolved_at": 1782820701.552086,
+    "message_count": 0
+  },
+  {
+    "id": "g_1782820701_0",
+    "name": "群",
+    "description": "",
+    "project_id": "",
+    "members": [],
+    "dissolved_at": 1782820701.555667,
+    "message_count": 0
+  }
+]

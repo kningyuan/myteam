@@ -72,3 +72,6 @@ business/experiments/
 # understand-anything 缓存
 .understand-anything/intermediate/
 .understand-anything/tmp/
+
+# playwright-mcp 运行时产物
+business/workspaces/*/.playwright-mcp/
