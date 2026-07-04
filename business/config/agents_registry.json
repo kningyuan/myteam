@@ -146,8 +146,8 @@
         "阶段闸门"
       ],
       "task_types": [
-        "section-review",
-        "research"
+        "research",
+        "section-review"
       ],
       "skills": [
         "agent-collaboration-patterns",
