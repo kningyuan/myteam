@@ -165,6 +165,7 @@ export function TaskTypeDetailPanel({
             <DeliveryTemplateEditor
               key={t.id}
               template={t}
+              outcomeKind={taskType.outcome_kind}
               onSaved={() => {
                 onTemplateCreated?.()
                 navigate(`/manage/task-types/${encodeURIComponent(taskType.task_type)}`)

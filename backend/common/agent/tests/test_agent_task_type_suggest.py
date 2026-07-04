@@ -12,8 +12,9 @@ def test_suggest_analyst():
 
 
 def test_suggest_geo():
-    r = suggest_task_types_for_agent("GEO 与 Perplexity 可见性", name="GEO专家", agent_id="geo")
-    assert "geo-plan" in r["task_types"]
+    # 用现有 task_type（research）的关键词验证 suggest 机制
+    r = suggest_task_types_for_agent("做竞品调研与分析", name="调研员", agent_id="research")
+    assert "research" in r["task_types"]
 
 
 def test_suggest_empty_raises():

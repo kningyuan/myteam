@@ -33,10 +33,22 @@ def env(tmp_path, monkeypatch):
 
 
 def _valid_content(task_type: str) -> str:
+    from common.gate.registry import resolve_format_spec
+    spec = resolve_format_spec(task_type) or get_spec(task_type)
     out = ["# 标题\n"]
-    for s in get_spec(task_type).required_sections:
+    for s in spec.required_sections:
         out.append(f"## {s}\n这是「{s}」的足够具体的内容，覆盖要点与细节，便于评审与复用。\n")
-    return "\n".join(out)
+    body = "\n".join(out)
+    if task_type == "research":
+        matrix = (
+            "\n| 对象 | 核心功能 | 用户画像 | 变现模式 | 用户评价 |\n"
+            "|---|---|---|---|---|\n"
+            "| A | 功能X [S1] | 画像P [S2] | 订阅 [S1] | 好评 [S2] |\n"
+            "| B | 功能Y [S2] | 画像Q [S1] | 广告 [S1] | 中评 [S2] |\n\n"
+            "核心功能与用户画像均有数据支撑，变现模式涵盖订阅与广告。\n"
+        )
+        body = body.replace("## 关键发现\n", "## 关键发现\n" + matrix, 1)
+    return body
 
 
 def _fake_transport(ctx):
@@ -55,7 +67,14 @@ def _fake_transport(ctx):
                 ]}}
     elif req.kind == "execute":
         rel = f"{req.task_id}_deliverable.md"
-        (paths.deliverables_dir(req.project_id) / rel).write_text(
+        # light_v1 过程产物（覆盖 scaffold 模板版）
+        base = paths.deliverables_dir(req.project_id)
+        base.mkdir(parents=True, exist_ok=True)
+        (base / "align.md").write_text(
+            "# Align\n\n## 对象\n\n目标\n\n## 输入\n\n输入\n\n## 成功标准\n\n标准\n\n## 非目标\n\n无\n",
+            encoding="utf-8")
+        (base / "verify.log").write_text("PASS: self-check ok\n", encoding="utf-8")
+        (base / rel).write_text(
             _valid_content(req.constraints.get("task_type", "research")), "utf-8")
         resp = {"interaction_id": iid, "kind": "execute", "status": "ok",
                 "quality": {"score": 0.9, "known_gaps": [], "notes": "ok"},

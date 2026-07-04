@@ -4,6 +4,7 @@ display_name: research-report
 description: ''
 task_types:
 - research
+default_for: research
 deliverable_template:
   title: 竞品调研报告
   sections:
@@ -26,7 +27,7 @@ check_rules:
   - 信息来源
   - 关键发现
   - 结论
-  min_length: 200
+  stub_floor: 200
   require_comparison_matrix: true
   dimension_coverage:
   - 核心功能
@@ -35,3 +36,9 @@ check_rules:
   - 用户评价
   source_inline_required: true
   no_unsourced_in_findings: true
+acceptance_criteria:
+- 完整覆盖调研背景章节且内容具体
+- 信息来源必须标注（URL/出处），禁止编造数据
+- 关键发现至少3条，含对比/优势/劣势
+- 结论含可执行建议（P0/P1/优先级/下一步）
+- 覆盖异常/边界场景，不能只写正常情况

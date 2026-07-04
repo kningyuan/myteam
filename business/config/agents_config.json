@@ -14,9 +14,9 @@
   },
   "main": {
     "backend": "opencode",
-    "model": "",
+    "model": "opencode/deepseek-v4-flash-free",
     "extra": {},
-    "name": "main",
+    "name": "项目经理",
     "workspace": "business/workspaces/workspace-main"
   },
   "product": {
@@ -27,7 +27,7 @@
     "workspace": "business/workspaces/workspace-product"
   },
   "research": {
-    "backend": "opencode",
+    "backend": "claude",
     "model": "",
     "extra": {},
     "name": "research",

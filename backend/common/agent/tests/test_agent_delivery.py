@@ -39,7 +39,7 @@ def test_scaffold_does_not_overwrite_filled_align(tmp_path):
 
 
 def test_process_gate_rejects_template_align(tmp_path):
-    spec = get_spec("product-research")
+    spec = get_spec("research")
     tpl = (
         Path(__file__).resolve().parents[4] / "business/playbooks/templates/align.md"
     )
@@ -51,7 +51,7 @@ def test_process_gate_rejects_template_align(tmp_path):
 
 
 def test_process_gate_accepts_filled_align(tmp_path):
-    spec = get_spec("product-research")
+    spec = get_spec("research")
     (tmp_path / "align.md").write_text(
         "# Align\n\n## 对象\n\n面向 PM 的竞品调研摘要\n\n## 输入\n\nworkflow\n\n"
         "## 成功标准\n\n章节齐全\n\n## 非目标\n\n不写代码\n",

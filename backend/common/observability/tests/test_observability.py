@@ -168,11 +168,38 @@ def penv(tmp_path, monkeypatch):
 
 
 def _valid(task_type):
-    spec = get_spec(task_type)
+    from common.gate.registry import resolve_format_spec
+    spec = resolve_format_spec(task_type) or get_spec(task_type)
     out = ["# 标题\n"]
     for sname in spec.required_sections:
         out.append(f"## {sname}\n「{sname}」足够具体的内容，覆盖要点与细节说明充分。\n")
-    return "\n".join(out)
+    body = "\n".join(out)
+    # research-report 强化约束：补矩阵/维度/来源
+    if task_type == "research":
+        matrix = (
+            "\n| 对象 | 核心功能 | 用户画像 | 变现模式 | 用户评价 |\n"
+            "|---|---|---|---|---|\n"
+            "| A | 功能X [S1] | 画像P [S2] | 订阅 [S1] | 好评 [S2] |\n"
+            "| B | 功能Y [S2] | 画像Q [S1] | 广告 [S1] | 中评 [S2] |\n\n"
+            "核心功能与用户画像均有数据支撑，变现模式涵盖订阅与广告。\n"
+        )
+        body = body.replace("## 关键发现\n", "## 关键发现\n" + matrix, 1)
+    return body
+
+
+def _ensure_process_artifacts(project_id: str) -> None:
+    """light_v1 过程产物：避免 Gate 因 process_artifact 失败。"""
+    base = paths.deliverables_dir(project_id)
+    base.mkdir(parents=True, exist_ok=True)
+    align = base / "align.md"
+    if not align.is_file() or "<!--" in align.read_text(encoding="utf-8", errors="replace"):
+        align.write_text(
+            "# Align\n\n## 对象\n\n目标\n\n## 输入\n\n输入\n\n## 成功标准\n\n标准\n\n## 非目标\n\n无\n",
+            encoding="utf-8",
+        )
+    vlog = base / "verify.log"
+    if not vlog.is_file() or len(vlog.read_text(encoding="utf-8", errors="replace").strip()) < 8:
+        vlog.write_text("PASS: self-check ok\n", encoding="utf-8")
 
 
 def test_execute_budget_exceeded_pauses_mid_interaction(penv):
@@ -207,6 +234,7 @@ def test_over_budget_pauses_project(penv):
     def transport(ctx):
         ctx.emit("step_start")
         rel = f"{ctx.request.task_id}_deliverable.md"
+        _ensure_process_artifacts(ctx.request.project_id)
         (paths.deliverables_dir(ctx.request.project_id) / rel).write_text(_valid("research"), "utf-8")
         submit({
             "interaction_id": ctx.request.interaction_id, "kind": "execute", "status": "ok",
@@ -238,6 +266,7 @@ def test_budget_degrade_fires_before_pause(penv, tmp_path, monkeypatch):
     def transport(ctx):
         ctx.emit("step_start")
         rel = f"{ctx.request.task_id}_deliverable.md"
+        _ensure_process_artifacts(ctx.request.project_id)
         (paths.deliverables_dir(ctx.request.project_id) / rel).write_text(
             _valid("research"), "utf-8")
         submit({

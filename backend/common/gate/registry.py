@@ -212,11 +212,19 @@ def resolve_format_spec(
     *,
     path: Optional[Path] = None,
 ) -> Optional[FormatSpec]:
-    """task_type 默认 + 可选 template_id 覆盖 Gate/scaffold/Review 结构。"""
+    """task_type 默认 + 可选 template_id 覆盖 Gate/scaffold/Review 结构。
+
+    template_id 为空时回退到该 task_type 的默认模板（default_for == task_type）；
+    无默认模板才用 task_type 自带字段（兼容老配置）。
+    """
     base = get_spec(task_type, path)
     if not base:
         return None
     tid = (template_id or "").strip()
+    if not tid:
+        # 回退到默认模板：约束/章节随默认模板生效（约束绑模板，不绑 task_type）
+        from common.delivery.delivery_templates import default_template_id_for
+        tid = default_template_id_for(task_type) or ""
     if not tid:
         return base
     from common.delivery.delivery_templates import load_delivery_template

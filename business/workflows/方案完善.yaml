@@ -1,0 +1,106 @@
+id: 方案完善
+name: 方案完善
+description: 方案/规划文档的多轮迭代完善 — work 撰写/修订方案 → main 评审 → 不通过则定点修订再评审，最多 3 轮。
+version: '1.0'
+options:
+  review_enabled: false
+  split_enabled: false
+  collaboration:
+    project_group:
+      enabled: true
+    notifications:
+      enabled: true
+    group_discussion:
+      enabled: true
+      profile: work-review-alignment
+tasks:
+- id: t-plan-improve
+  name: 方案迭代完善
+  loop: plan_improve_round
+  dependencies: []
+  description: 每轮：撰写/修订方案文档 → main 评审 → 汇总改稿清单
+loops:
+- id: plan_improve_round
+  max_rounds: 3
+  min_rounds: 1
+  default_body: draft
+  on_pass: complete
+  on_exhaust: needs_review
+  bodies:
+    draft:
+    - id: work
+      name: 撰写方案初稿
+      agent_id: product
+      task_type: feature-design
+      template_id: feature-design
+      dependencies: []
+      description: '【范围】基于项目目标撰写方案/规划文档初稿
+
+        【输入】项目目标；后续轮注入上一轮评审改稿清单
+
+        【交付】deliverables/work_deliverable.md
+
+        【质量】覆盖需求背景/方案设计/架构图/验收标准四章节'
+    - id: assess
+      name: 评估方案初稿
+      agent_id: main
+      task_type: section-review
+      template_id: review-report
+      dependencies:
+      - work
+      description: '【范围】评审方案初稿，输出标记 ITERATION: PASS 或 ITERATION: CONTINUE 或 ITERATION: STOP
+
+        【输入】work 交付物 + 项目目标
+
+        【交付】deliverables/assess_deliverable.md
+
+        【质量】问题须可定位；建议须可执行；末行 ITERATION: PASS/CONTINUE/STOP'
+    revise:
+    - id: work
+      name: 修订方案
+      agent_id: product
+      task_type: feature-design
+      template_id: feature-design
+      dependencies: []
+      description: '【范围】根据评审反馈修订方案，仅修改清单列出的问题
+
+        【输入】上一轮评审改稿清单
+
+        【交付】deliverables/work_deliverable.md（在初稿基础上 PATCH）'
+    - id: assess
+      name: 评估修订稿
+      agent_id: main
+      task_type: section-review
+      template_id: review-report
+      dependencies:
+      - work
+      description: '【范围】评估修订稿是否解决了上一轮问题，输出标记 ITERATION: PASS 或 ITERATION: CONTINUE 或 ITERATION: STOP'
+  assess:
+    ref: assess
+    inputs:
+    - kind: goal
+    - kind: phase.deliverable
+      phase: work
+  transition:
+  - when: deliverable_marker
+    task: assess
+    marker: "ITERATION: PASS"
+    action: exit
+    outcome: complete
+  - when: deliverable_marker
+    task: assess
+    marker: "ITERATION: STOP"
+    action: exit
+    outcome: needs_review
+  - when: deliverable_marker
+    task: assess
+    marker: "ITERATION: CONTINUE"
+    action: continue
+    next_body: revise
+  - when: exhausted
+    action: exit
+    outcome: needs_review
+  fallback_until:
+  - type: deliverable_marker
+    task: assess
+    marker: "ITERATION: PASS"

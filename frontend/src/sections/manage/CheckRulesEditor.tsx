@@ -20,12 +20,23 @@ const GROUP_LABEL: Record<string, string> = {
   D: "维度覆盖",
 }
 
+// 每组的一句白话说明，让普通人看懂这组约束是干嘛的、什么任务用
+const GROUP_HINT: Record<string, string> = {
+  A: "必备章节与防占位，所有任务都适用",
+  B: "结构化对比表格，仅调研/分析类需要",
+  C: "量化数据要标来源，仅带数据的文档适用",
+  D: "指定维度词必须覆盖，仅调研/分析类需要",
+}
+
 export function CheckRulesEditor({
   value,
   onChange,
+  outcomeKind = "artifact",
 }: {
   value: CheckRules
   onChange: (next: CheckRules) => void
+  /** 模板所属 task_type 的 outcome_kind；用于按族过滤可见约束。默认 artifact（显示全集）。 */
+  outcomeKind?: string
 }) {
   const [constraints, setConstraints] = useState<CheckConstraintMeta[]>([])
 
@@ -72,14 +83,19 @@ export function CheckRulesEditor({
   const listVal = (key: string): string =>
     Array.isArray(value[key]) ? (value[key] as string[]).join(", ") : String(value[key] ?? "")
 
+  // 按族过滤：applies 为空=全通用；否则仅当 outcomeKind 命中才显示
+  const visible = constraints.filter(
+    (c) => !c.applies || c.applies.length === 0 || c.applies.includes(outcomeKind),
+  )
+
   // 按组分组
   const groups = ["A", "B", "C", "D"]
-  const byGroup = (g: string) => constraints.filter((c) => c.group === g)
+  const byGroup = (g: string) => visible.filter((c) => c.group === g)
 
   return (
     <div className="grid gap-4">
       <p className="text-xs text-[var(--color-muted-foreground)]">
-        从 Gate 可用约束全集中勾选启用。不同模板可配不同约束。配了即生效（Gate 机器判）。
+        按任务产出类型（{outcomeKind}）过滤可见约束。勾选即生效（Gate 机器判）。不同模板可配不同约束。
       </p>
       {groups.map((g, gi) => {
         const items = byGroup(g)
@@ -87,9 +103,12 @@ export function CheckRulesEditor({
         return (
           <div key={g}>
             {gi > 0 && <Separator className="my-3" />}
-            <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-muted-foreground)]">
+            <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--color-muted-foreground)]">
               {GROUP_LABEL[g] || g}
             </h4>
+            {GROUP_HINT[g] && (
+              <p className="mb-2 text-xs text-[var(--color-muted-foreground)]">{GROUP_HINT[g]}</p>
+            )}
             <div className="grid gap-2 sm:grid-cols-2">
               {items.map((c) => {
                 if (c.type === "bool") {

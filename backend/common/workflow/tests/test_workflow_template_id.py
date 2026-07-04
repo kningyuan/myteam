@@ -18,8 +18,8 @@ def test_validate_workflow_rejects_unknown_template_id():
                 "id": "t1",
                 "name": "req",
                 "agent": "product",
-                "task_type": "requirements",
-                "template_id": "no-such-template-xyz",
+                "task_type": "research",  # 已注册的 task_type
+                "template_id": "no-such-template-xyz",  # 但 template 不存在
                 "dependencies": [],
             },
         ],

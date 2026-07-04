@@ -27,47 +27,52 @@ def test_outcome_kind_catalog_has_three_forms():
         assert k.get("gate_algorithm")
 
 
-def test_deploy_run_is_action_form():
-    spec = get_spec("deploy-run")
+def test_publish_post_is_action_form():
+    """publish-post 是 action 形态：有 evidence_url 配置。"""
+    spec = get_spec("publish-post")
     assert spec is not None
     assert spec.outcome_kind == "action"
 
 
-def test_code_deployment_is_artifact_form():
-    spec = get_spec("code-deployment")
+def test_research_is_artifact_form():
+    """research 是 artifact 形态。"""
+    spec = get_spec("research")
     assert spec is not None
     assert spec.outcome_kind == "artifact"
-    assert "部署记录" in (spec.display_name or "")
+    assert "竞品调研" in (spec.display_name or "")
 
 
-def test_config_bundle_has_required_extensions():
-    spec = get_spec("config-bundle")
+def test_code_deliverable_has_required_files():
+    """code-deliverable 是 code_project 形态：要求项目文件数与代码文件。"""
+    spec = get_spec("code-deliverable")
     assert spec is not None
     assert spec.outcome_kind == "code_project"
-    assert spec.required_extensions
+    assert spec.require_code_file or spec.min_project_files > 1
 
 
-def test_config_bundle_template_extensions(tmp_path):
-    spec = resolve_format_spec("config-bundle", "config-bundle")
+def test_code_deliverable_project_extensions(tmp_path):
+    """code-deliverable 工程目录通过 check_code_project。"""
+    spec = resolve_format_spec("code-deliverable")
     assert spec is not None
-    assert spec.required_extensions
     proj = tmp_path / "bundle"
     proj.mkdir()
     (proj / "README.md").write_text("# cfg", encoding="utf-8")
-    (proj / "app.yaml").write_text("key: val", encoding="utf-8")
+    (proj / "main.py").write_text("print('hi')", encoding="utf-8")
     res = check_code_project(spec, proj)
     assert res.passed, res.failures
 
 
-def test_deploy_smoke_template_resolves():
-    spec = resolve_format_spec("deploy-run", "deploy-smoke")
+def test_publish_post_evidence_config():
+    """publish-post 的 evidence 配置（host_contains/screenshot_field）。"""
+    spec = resolve_format_spec("publish-post")
     assert spec is not None
-    assert "服务URL" in spec.required_sections
+    assert spec.evidence.get("host_contains") == "zhihu.com"
     assert spec.evidence.get("screenshot_field") == "证据截图"
 
 
 def test_format_task_type_api_includes_form_label():
-    spec = get_spec("deploy-run")
+    """format_task_type_api 返回形态标签和门禁算法名。"""
+    spec = get_spec("publish-post")
     api = format_task_type_api(spec)
     assert api["outcome_form_label"] == "证据态"
     assert api["gate_algorithm"] == "check_action_evidence"
@@ -77,5 +82,5 @@ def test_list_delivery_templates_includes_new_templates():
     from common.delivery.delivery_templates import list_delivery_template_ids
 
     ids = list_delivery_template_ids()
-    assert "deploy-smoke" in ids
-    assert "config-bundle" in ids
+    assert "research-report" in ids
+    assert "review-report" in ids

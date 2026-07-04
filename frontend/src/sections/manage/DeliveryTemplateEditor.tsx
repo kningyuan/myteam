@@ -20,10 +20,12 @@ import { CheckRulesEditor } from "./CheckRulesEditor"
  */
 export function DeliveryTemplateEditor({
   template,
+  outcomeKind,
   onSaved,
   onDelete,
 }: {
   template: DeliveryTemplateSummary
+  outcomeKind?: string
   onSaved?: () => void
   onDelete?: () => void
 }) {
@@ -130,7 +132,7 @@ export function DeliveryTemplateEditor({
 
           <div>
             <h4 className="mb-2 text-sm font-semibold">质量约束（check_rules）</h4>
-            <CheckRulesEditor value={checkRules} onChange={setCheckRules} />
+            <CheckRulesEditor value={checkRules} onChange={setCheckRules} outcomeKind={outcomeKind} />
           </div>
 
           <Separator />

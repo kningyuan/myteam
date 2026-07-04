@@ -201,10 +201,12 @@ class ConstraintMeta:
     label: str
     hint: str
     type: str             # bool / int / str / list
+    applies: tuple[str, ...] = ()   # 适用的 outcome_kind；空=全通用。UI 据此按族过滤
 
 
 CHECK_REGISTRY: dict[str, tuple[callable, ConstraintMeta]] = {
     # 组 A 存在性（由 check_format 老逻辑验，fn=None；此处注册元信息供 UI 渲染全集）
+    # A 组全通用，applies=() 对所有 outcome_kind 显示
     "required_sections": (None, ConstraintMeta("required_sections", "A", "必备章节",
                                                 "章节标题必须存在", "list")),
     "min_length": (None, ConstraintMeta("min_length", "A", "最小字数",
@@ -213,33 +215,33 @@ CHECK_REGISTRY: dict[str, tuple[callable, ConstraintMeta]] = {
                                           "正文必须出现的关键词", "list")),
     "file_exists": (None, ConstraintMeta("file_exists", "A", "引用文件存在",
                                          "交付物引用的文件必须存在", "list")),
-    # 组 B 对比矩阵
+    # 组 B 对比矩阵（仅 artifact：调研/分析类才有结构化对比）
     "require_comparison_matrix": (
         _check_comparison_matrix,
         ConstraintMeta("require_comparison_matrix", "B", "必须含对比矩阵",
-                       "指定章节内含 markdown 表格", "bool"),
+                       "指定章节内含 markdown 表格", "bool", ("artifact",)),
     ),
-    "matrix_min_rows": (None, ConstraintMeta("matrix_min_rows", "B", "矩阵最小行数", "对比对象数下限", "int")),
-    "matrix_min_cols": (None, ConstraintMeta("matrix_min_cols", "B", "矩阵最小列数", "维度数下限", "int")),
+    "matrix_min_rows": (None, ConstraintMeta("matrix_min_rows", "B", "矩阵最小行数", "对比对象数下限", "int", ("artifact",))),
+    "matrix_min_cols": (None, ConstraintMeta("matrix_min_cols", "B", "矩阵最小列数", "维度数下限", "int", ("artifact",))),
     "matrix_no_empty_cell": (None, ConstraintMeta("matrix_no_empty_cell", "B", "矩阵无空格",
-                                                   "每格非空（不对称检测）", "bool")),
-    "matrix_section": (None, ConstraintMeta("matrix_section", "B", "矩阵所在章节", "默认「关键发现」", "str")),
-    # 组 C 数据可信
+                                                   "每格非空（不对称检测）", "bool", ("artifact",))),
+    "matrix_section": (None, ConstraintMeta("matrix_section", "B", "矩阵所在章节", "默认「关键发现」", "str", ("artifact",))),
+    # 组 C 数据可信（仅 artifact：带量化数字的文档态才验来源）
     "source_inline_required": (
         _check_source_inline,
         ConstraintMeta("source_inline_required", "C", "量化数字内联来源",
-                       "数字后跟 [S1]/[来源]/(url)", "bool"),
+                       "数字后跟 [S1]/[来源]/(url)", "bool", ("artifact",)),
     ),
     "no_unsourced_in_findings": (
         _check_no_unsourced_in_findings,
         ConstraintMeta("no_unsourced_in_findings", "C", "关键发现禁推断",
-                       "推断词须标「无公开来源」", "bool"),
+                       "推断词须标「无公开来源」", "bool", ("artifact",)),
     ),
-    # 组 D 维度覆盖
+    # 组 D 维度覆盖（仅 artifact：指定对比维度的调研/分析类）
     "dimension_coverage": (
         _check_dimension_coverage,
         ConstraintMeta("dimension_coverage", "D", "维度全覆盖",
-                       "指定维度词全覆盖且非罗列", "list"),
+                       "指定维度词全覆盖且非罗列", "list", ("artifact",)),
     ),
 }
 

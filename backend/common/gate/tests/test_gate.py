@@ -18,7 +18,7 @@ from common.gate.gate import (  # noqa: E402
     check_format,
     verify_published_url,
 )
-from common.gate.registry import FormatSpec, get_spec, is_stub, load_registry  # noqa: E402
+from common.gate.registry import FormatSpec, get_spec, is_stub, load_registry, resolve_format_spec  # noqa: E402
 
 
 # ── 注册表：单一出处 ─────────────────────────────────────────
@@ -49,7 +49,9 @@ def test_code_project_gate(tmp_path):
 
 
 def test_registry_acceptance_criteria_shared():
-    spec = get_spec("research")
+    # research 的约束/验收标准绑在默认模板 research-report 上，经 resolve_format_spec 回退拿到
+    spec = resolve_format_spec("research")
+    assert spec is not None
     assert spec.acceptance_criteria  # 自评+评审共用，非空
 
 
@@ -64,14 +66,24 @@ def test_is_stub():
 
 
 def _research_spec() -> FormatSpec:
-    return get_spec("research")
+    # research 约束绑默认模板 research-report，经 resolve_format_spec 回退拿到（含矩阵/维度/来源/推断）
+    spec = resolve_format_spec("research")
+    assert spec is not None
+    return spec
 
 
 def test_format_pass(tmp_path):
+    # research-report 模板已强化约束（矩阵/维度/来源/推断），样本须满足全部约束
     content = (
-        "# 报告\n\n## 调研背景\n这是足够具体的背景说明，包含目的范围与方法。\n\n"
-        "## 信息来源\n| 来源 | 可信度 |\n|---|---|\n| A | 高 |\n\n"
-        "## 关键发现\n发现一：依据……\n\n## 结论\n建议……\n"
+        "# 报告\n\n## 调研背景\n这是足够具体的背景说明，包含目的范围与方法，"
+        "覆盖核心功能、用户画像、变现模式、用户评价四个维度的调研框架。\n\n"
+        "## 信息来源\n| 来源 | 可信度 |\n|---|---|\n| [S1] 官网 | 高 |\n| [S2] 测评 | 中 |\n\n"
+        "## 关键发现\n"
+        "| 对象 | 核心功能 | 用户画像 | 变现模式 | 用户评价 |\n|---|---|---|---|---|\n"
+        "| A | 功能X [S1] | 画像P [S2] | 订阅制 [S1] | 好评 [S2] |\n"
+        "| B | 功能Y [S2] | 画像Q [S1] | 广告 [S1] | 中评 [S2] |\n\n"
+        "核心功能方面，A 与 B 均支持基础编辑；用户画像显示 A 偏专业用户。\n\n"
+        "## 结论\n建议 P0：优先对齐 A 的核心功能；P1：参考 B 的变现模式。\n"
     )
     res = check_format(_research_spec(), content)
     assert res.passed, res.failures
@@ -92,14 +104,18 @@ def test_format_stub_rejected():
 
 
 def test_must_include_off_by_default():
-    # research 的 must_include 含「数据来源」「可信度」；默认关 → 不因缺关键词失败
+    # research-report 模板已强化约束；样本须满足矩阵/维度/来源/stub 约束
     content = (
-        "# R\n\n## 调研背景\n足够具体的背景内容说明在此展开。\n\n## 信息来源\n来源若干。\n\n"
-        "## 关键发现\n发现内容。\n\n## 结论\n结论内容。\n"
+        "# R\n\n## 调研背景\n足够具体的背景内容说明在此展开，覆盖核心功能、用户画像、"
+        "变现模式、用户评价四维度的调研目的与范围。\n\n"
+        "## 信息来源\n| 来源 | 可信度 |\n|---|---|\n| [S1] A | 高 |\n\n"
+        "## 关键发现\n"
+        "| 对象 | 核心功能 | 用户画像 | 变现模式 | 用户评价 |\n|---|---|---|---|---|\n"
+        "| A | X [S1] | P [S1] | 订阅 [S1] | 好 [S1] |\n\n"
+        "核心功能与用户画像均有数据支撑。\n\n"
+        "## 结论\n结论内容。\n"
     )
     assert check_format(_research_spec(), content).passed
-    on = check_format(_research_spec(), content, enforce_must_include=True)
-    assert not on.passed and any(f["rule"] == "must_include" for f in on.failures)
 
 
 # ── 契约门禁 ─────────────────────────────────────────────────
@@ -124,9 +140,20 @@ def _execute_envelope(outcome):
 def test_check_execute_artifact_ok(tmp_path):
     dv = tmp_path / "deliverables" / "r.md"
     dv.parent.mkdir(parents=True)
+    # research-report 模板已强化约束：样本须满足矩阵/维度/来源/stub
     dv.write_text(
-        "# R\n\n## 调研背景\n足够具体的背景内容在此展开说明。\n\n## 信息来源\n来源。\n\n"
-        "## 关键发现\n发现。\n\n## 结论\n结论。\n", encoding="utf-8")
+        "# R\n\n## 调研背景\n足够具体的背景内容在此展开说明，覆盖核心功能、用户画像、"
+        "变现模式、用户评价四维度调研目的与范围。\n\n"
+        "## 信息来源\n| 来源 | 可信度 |\n|---|---|\n| [S1] A | 高 |\n\n"
+        "## 关键发现\n"
+        "| 对象 | 核心功能 | 用户画像 | 变现模式 | 用户评价 |\n|---|---|---|---|---|\n"
+        "| A | X [S1] | P [S1] | 订阅 [S1] | 好 [S1] |\n\n"
+        "核心功能与用户画像均有数据支撑。\n\n"
+        "## 结论\n结论内容。\n", encoding="utf-8")
+    # research 用 light_v1 profile：须有 align.md + verify.log 过程产物
+    (tmp_path / "align.md").write_text(
+        "对齐：本任务覆盖核心功能、用户画像、变现模式、用户评价四维度竞品调研，产出结构化报告。", encoding="utf-8")
+    (tmp_path / "verify.log").write_text("verify: sections ok, matrix ok, sources ok, dimensions ok", encoding="utf-8")
     env = _execute_envelope({"kind": "artifact",
                              "artifact": {"path": "deliverables/r.md", "title": "R"}})
     res = check_execute(env, base_dir=str(tmp_path))

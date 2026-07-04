@@ -12,7 +12,8 @@ def test_suggest_github_parallel():
     tasks = out["workflow"]["tasks"]
     assert len(tasks) == 4
     assert out["workflow"]["options"]["parallel_enabled"] is True
-    assert tasks[-1]["task_type"] == "strategy"
+    # 最后一步汇总用 research（原 strategy 已映射为 research）
+    assert tasks[-1]["task_type"] == "research"
 
 
 def test_suggest_smoke():
@@ -42,11 +43,13 @@ def test_suggest_data_analysis():
 def test_suggest_geo():
     out = suggest_workflow_from_description("制定 Perplexity GEO 优化策略并验证")
     assert out["pattern"] == "geo-pipeline"
-    assert any(t["task_type"] == "geo-plan" for t in out["workflow"]["tasks"])
+    # geo-plan 已映射为 research
+    assert any(t["task_type"] == "research" for t in out["workflow"]["tasks"])
 
 
 def test_suggest_delivery_uses_developer_for_impl():
     out = suggest_workflow_from_description("轻量软件交付与实现")
     impl = next(t for t in out["workflow"]["tasks"] if t["id"] == "t-implement")
     assert impl["agent"] == "developer"
-    assert impl["task_type"] == "code-writing"
+    # code-writing 已映射为 code-deliverable
+    assert impl["task_type"] == "code-deliverable"

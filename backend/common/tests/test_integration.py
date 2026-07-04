@@ -44,12 +44,29 @@ class FakeOpencode:
         resp_path = _line_after(msg, "--out ").split(" --file")[0]
         iid = Path(resp_path).stem  # 文件名即 interaction_id（D12 命名约定）
         task_type = "research"
-        spec = get_spec(task_type)
+        from common.gate.registry import resolve_format_spec
+        spec = resolve_format_spec(task_type) or get_spec(task_type)
         content = ["# 标题\n"]
         for s in spec.required_sections:
             content.append(f"## {s}\n「{s}」的足够具体内容，覆盖要点与细节说明充分。\n")
+        body = "\n".join(content)
+        # research-report 强化约束：补矩阵/维度/来源
+        matrix = (
+            "\n| 对象 | 核心功能 | 用户画像 | 变现模式 | 用户评价 |\n"
+            "|---|---|---|---|---|\n"
+            "| A | 功能X [S1] | 画像P [S2] | 订阅 [S1] | 好评 [S2] |\n"
+            "| B | 功能Y [S2] | 画像Q [S1] | 广告 [S1] | 中评 [S2] |\n\n"
+            "核心功能与用户画像均有数据支撑，变现模式涵盖订阅与广告。\n"
+        )
+        body = body.replace("## 关键发现\n", "## 关键发现\n" + matrix, 1)
         Path(dv_abs).parent.mkdir(parents=True, exist_ok=True)
-        Path(dv_abs).write_text("\n".join(content), encoding="utf-8")
+        Path(dv_abs).write_text(body, encoding="utf-8")
+        # light_v1 过程产物（与 deliverable 同目录，覆盖 scaffold 的模板版）
+        dv_dir = Path(dv_abs).parent
+        (dv_dir / "align.md").write_text(
+            "# Align\n\n## 对象\n\n目标\n\n## 输入\n\n输入\n\n## 成功标准\n\n标准\n\n## 非目标\n\n无\n",
+            encoding="utf-8")
+        (dv_dir / "verify.log").write_text("PASS: self-check ok\n", encoding="utf-8")
         rel = Path(dv_abs).name
         submit({
             "interaction_id": iid, "kind": "execute", "status": "ok",

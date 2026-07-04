@@ -109,6 +109,23 @@ def load_delivery_template(template_id: str) -> DeliveryTemplate:
     return tpl
 
 
+def default_template_id_for(task_type: str) -> Optional[str]:
+    """返回 task_type 的默认交付模板 id（default_for == task_type）；无则 None。
+
+    用于 task 未显式选模板时回退到默认模板，使约束/章节随默认模板生效。
+    """
+    tt = (task_type or "").strip()
+    if not tt:
+        return None
+    root = str(delivery_templates_dir())
+    index = _scan_template_index(root)
+    for tid in sorted(index.keys()):
+        tpl = _load_delivery_template_cached(root, tid)
+        if tpl and tpl.default_for == tt:
+            return tid
+    return None
+
+
 @lru_cache(maxsize=128)
 def _load_delivery_template_cached(root_str: str, template_id: str) -> Optional[DeliveryTemplate]:
     index = _scan_template_index(root_str)

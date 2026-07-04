@@ -14,7 +14,9 @@
         "证据整理"
       ],
       "task_types": [
-        "research"
+        "research",
+        "data-analysis",
+        "custom-survey"
       ],
       "skills": [
         "competitive-analysis-methodology",
@@ -36,7 +38,9 @@
         "验收标准定义"
       ],
       "task_types": [
-        "section-review"
+        "section-review",
+        "feature-design",
+        "research"
       ],
       "skills": [
         "product-discovery",
@@ -57,7 +61,8 @@
         "系统架构设计"
       ],
       "task_types": [
-        "section-review"
+        "section-review",
+        "feature-design"
       ],
       "skills": [
         "agent-collaboration-patterns",
@@ -78,7 +83,10 @@
         "代码审查",
         "调试修复"
       ],
-      "task_types": [],
+      "task_types": [
+        "code-deliverable",
+        "feature-design"
+      ],
       "skills": [
         "backend-engineering-methodology",
         "coding",
@@ -99,7 +107,9 @@
         "质量评审",
         "验收报告"
       ],
-      "task_types": [],
+      "task_types": [
+        "section-review"
+      ],
       "skills": [
         "qa-methodology",
         "quality-review",
@@ -136,14 +146,16 @@
         "阶段闸门"
       ],
       "task_types": [
-        "section-review"
+        "section-review",
+        "research"
       ],
       "skills": [
         "agent-collaboration-patterns",
         "coordination-methodology",
         "myteam-user-manual",
         "writing-plans"
-      ]
+      ],
+      "mcp_servers": []
     }
   }
 }

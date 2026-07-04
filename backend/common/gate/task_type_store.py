@@ -45,21 +45,26 @@ def validate_task_type_id(task_type: str) -> str:
 
 
 def _default_config(*, display_name: str, sections: Optional[list[str]] = None) -> dict[str, Any]:
-    names = [s.strip() for s in (sections or ["正文"]) if s and s.strip()] or ["正文"]
-    return {
+    """新建 task_type 的最小骨架：过程属性 + 用户显式传入的章节。
+
+    不再自动塞 min_length 等弱约束（约束绑交付模板，不绑 task_type）。
+    用户显式传 sections 时仍记录到 check_rules.required_sections，供无模板回退使用。
+    """
+    cfg: dict[str, Any] = {
         "display_name": display_name or "未命名类型",
-        "deliverable_template": {
+        "delivery_profile": "none",
+    }
+    names = [s.strip() for s in (sections or []) if s and s.strip()]
+    if names:
+        cfg["deliverable_template"] = {
             "required_heading_level": 2,
             "sections": [
                 {"name": n, "description": f"填写「{n}」章节", "required": True}
                 for n in names
             ],
-        },
-        "check_rules": {
-            "required_sections": names,
-            "min_length": 200,
-        },
-    }
+        }
+        cfg["check_rules"] = {"required_sections": names}
+    return cfg
 
 
 def list_task_type_ids() -> list[str]:
@@ -107,7 +112,6 @@ def upsert_task_type(
             cfg["deliverable_template"] = dt
             cr = dict(cfg.get("check_rules") or {})
             cr["required_sections"] = names or ["正文"]
-            cr.setdefault("min_length", 200)
             cfg["check_rules"] = cr
 
     if body.get("outcome_kind") in ("artifact", "action", "code_project"):

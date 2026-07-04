@@ -82,18 +82,19 @@ def test_prompt_contains_key_constraints():
 
 
 def test_test_plan_prompt_has_literal_heading_examples():
+    # 用 research task_type 验证：prompt 含字面章节标题示例（## 调研背景 等）
     from common.contracts import parse_request
     req = parse_request({
         "interaction_id": "i1", "kind": "execute", "project_id": "pro_x",
-        "task_id": "task_001", "agent_id": "tester", "intent": "写测试计划",
+        "task_id": "task_001", "agent_id": "research", "intent": "写调研报告",
         "input": {"deliverable_path": "task_001_deliverable.md"},
-        "constraints": {"task_type": "test-plan"},
+        "constraints": {"task_type": "research"},
         "response_schema": "execute.result@1.0",
     })
     prompt = build_worker_prompt(req, Path("/tmp/i1.response"), Path("/tmp/deliv"))
-    assert "## 测试范围" in prompt
-    assert "## 测试用例" in prompt
-    assert "说明：" in prompt  # sections.description 已注入
+    assert "## 调研背景" in prompt  # 与 Gate section_level 对齐的字面标题示例
+    assert "## 关键发现" in prompt
+    assert "## 结论" in prompt
 
 
 def test_task_plan_prompt_has_concrete_schema():

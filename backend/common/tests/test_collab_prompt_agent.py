@@ -173,17 +173,16 @@ def test_build_worker_prompt_consumes_prompt_composer_layers(env, tmp_path, monk
     monkeypatch.setattr(paths, "WORKSPACES_DIR", tmp_path / "workspaces")
     monkeypatch.setattr(paths, "PROJECTS_DIR", tmp_path / "project")
 
-    # 构造 execute kind 的 InteractionRequest；product-research 在 fixtures/task_types.yaml
-    # 绑定 delivery_profile=light_v1，build_worker_prompt 会据此调 compose_execute_layers
+    # 构造 execute kind 的 InteractionRequest；research 绑定 delivery_profile=light_v1
     req = InteractionRequest(
         interaction_id="pro_pa:t1:execute:1",
         kind="execute",
         project_id="pro_pa",
         task_id="t1",
         agent_id="research",
-        intent="完成产品调研",
+        intent="完成竞品调研",
         input={"deliverable_path": "t1_deliverable.md"},
-        constraints={"task_type": "product-research"},
+        constraints={"task_type": "research"},
     )
     resp_path = tmp_path / "resp" / "pro_pa_t1.response"
     resp_path.parent.mkdir(parents=True, exist_ok=True)
@@ -194,8 +193,6 @@ def test_build_worker_prompt_consumes_prompt_composer_layers(env, tmp_path, monk
     # 1) prompt_composer 注入的 light_v1 块确实出现在 worker prompt 中（prompt → agent 对接）
     assert "交付过程 · light_v1" in prompt
     assert "align.md" in prompt
-    # task_type 维度的注入也进入（product-research 的 by_task_type 块）
-    assert "task_type 注入 · product-research" in prompt
 
     # 2) build_worker_prompt 自身的 execute 骨架也在（submit_result 命令、交付物路径）
     assert "submit_result" in prompt

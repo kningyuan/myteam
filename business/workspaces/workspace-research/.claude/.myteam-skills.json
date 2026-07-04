@@ -1,0 +1,23 @@
+{
+  "version": 2,
+  "skill_ids": [
+    "competitive-analysis-methodology",
+    "data_analysis_methodology",
+    "product-discovery",
+    "research_methodology"
+  ],
+  "linked": [
+    "competitive-analysis-methodology",
+    "data_analysis_methodology",
+    "product-discovery",
+    "research_methodology"
+  ],
+  "modes": {
+    "competitive-analysis-methodology": "linked",
+    "data_analysis_methodology": "linked",
+    "product-discovery": "linked",
+    "research_methodology": "linked"
+  },
+  "missing": [],
+  "removed": []
+}

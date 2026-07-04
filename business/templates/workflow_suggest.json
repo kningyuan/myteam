@@ -40,8 +40,12 @@
           "id": "t-summary",
           "name": "三视角综合报告",
           "agent": "main",
-          "task_type": "strategy",
-          "dependencies": ["t-product", "t-arch", "t-eng"],
+          "task_type": "research",
+          "dependencies": [
+            "t-product",
+            "t-arch",
+            "t-eng"
+          ],
           "description": "【输入】只读 t-product、t-arch、t-eng 三份交付物"
         }
       ]
@@ -62,8 +66,10 @@
           "id": "t2",
           "name": "汇总",
           "agent": "main",
-          "task_type": "strategy",
-          "dependencies": ["t1"],
+          "task_type": "research",
+          "dependencies": [
+            "t1"
+          ],
           "description": "【输入】只读 t1 交付物"
         }
       ]
@@ -84,16 +90,20 @@
           "id": "t-strategy",
           "name": "策略",
           "agent": "product",
-          "task_type": "strategy",
-          "dependencies": ["t-research"],
+          "task_type": "research",
+          "dependencies": [
+            "t-research"
+          ],
           "description": "【输入】只读 t-research；输出内容策略与排期"
         },
         {
           "id": "t-content",
           "name": "内容产出",
           "agent": "content",
-          "task_type": "content",
-          "dependencies": ["t-strategy"],
+          "task_type": "research",
+          "dependencies": [
+            "t-strategy"
+          ],
           "description": "【输入】只读 t-strategy；按策略撰写正文"
         }
       ]
@@ -114,16 +124,20 @@
           "id": "t-strategy",
           "name": "策略",
           "agent": "product",
-          "task_type": "strategy",
-          "dependencies": ["t-research"],
+          "task_type": "research",
+          "dependencies": [
+            "t-research"
+          ],
           "description": "【输入】只读 t-research；输出内容策略与排期"
         },
         {
           "id": "t-content",
           "name": "内容产出",
           "agent": "content",
-          "task_type": "content",
-          "dependencies": ["t-strategy"],
+          "task_type": "research",
+          "dependencies": [
+            "t-strategy"
+          ],
           "description": "【输入】只读 t-strategy；按策略撰写正文"
         },
         {
@@ -131,7 +145,9 @@
           "name": "发布",
           "agent": "social",
           "task_type": "publish-post",
-          "dependencies": ["t-content"],
+          "dependencies": [
+            "t-content"
+          ],
           "description": "【输入】只读 t-content；在目标平台发布并附 URL/截图证据"
         }
       ]
@@ -144,7 +160,7 @@
           "id": "t-req",
           "name": "分析需求",
           "agent": "product",
-          "task_type": "requirements",
+          "task_type": "feature-design",
           "dependencies": [],
           "description": "【对象】目标见【项目目标】\n【视角】指标口径、分析目标、验收标准"
         },
@@ -153,23 +169,29 @@
           "name": "数据分析报告",
           "agent": "analyst",
           "task_type": "data-analysis",
-          "dependencies": ["t-req"],
+          "dependencies": [
+            "t-req"
+          ],
           "description": "【输入】只读 t-req；输出结构化分析报告（按 task_type 章节）"
         },
         {
           "id": "t-script",
           "name": "分析脚本",
           "agent": "analyst",
-          "task_type": "code-writing",
-          "dependencies": ["t-analysis"],
+          "task_type": "code-deliverable",
+          "dependencies": [
+            "t-analysis"
+          ],
           "description": "【输入】只读 t-analysis；交付可复用分析脚本/Notebook"
         },
         {
           "id": "t-accept",
           "name": "验收",
           "agent": "product",
-          "task_type": "acceptance-report",
-          "dependencies": ["t-script"],
+          "task_type": "section-review",
+          "dependencies": [
+            "t-script"
+          ],
           "description": "【输入】只读 t-analysis、t-script；对照 t-req 验收"
         }
       ]
@@ -190,32 +212,40 @@
           "id": "t-plan",
           "name": "GEO 策略",
           "agent": "geo",
-          "task_type": "geo-plan",
-          "dependencies": ["t-research"],
+          "task_type": "research",
+          "dependencies": [
+            "t-research"
+          ],
           "description": "【输入】只读 t-research；输出 GEO 优化策略"
         },
         {
           "id": "t-audit",
           "name": "页面审计",
           "agent": "geo",
-          "task_type": "geo-audit",
-          "dependencies": ["t-plan"],
+          "task_type": "section-review",
+          "dependencies": [
+            "t-plan"
+          ],
           "description": "【输入】只读 t-plan；审计目标页面可引用性与结构"
         },
         {
           "id": "t-content",
           "name": "内容改稿",
           "agent": "content",
-          "task_type": "content",
-          "dependencies": ["t-audit"],
+          "task_type": "research",
+          "dependencies": [
+            "t-audit"
+          ],
           "description": "【输入】只读 t-audit；按审计意见改稿"
         },
         {
           "id": "t-verify",
           "name": "效果验证",
           "agent": "geo",
-          "task_type": "geo-verification",
-          "dependencies": ["t-content"],
+          "task_type": "section-review",
+          "dependencies": [
+            "t-content"
+          ],
           "description": "【输入】只读 t-content；执行验证动作并附 URL/截图"
         }
       ]
@@ -239,7 +269,9 @@
           "name": "方案正文编制",
           "agent": "product",
           "task_type": "section-authoring",
-          "dependencies": ["t-deck"],
+          "dependencies": [
+            "t-deck"
+          ],
           "description": "【输入】只读 t-deck 架构图；Goal 指定模版与参考稿路径\n【交付】完整 Word/Markdown 方案；按章节拆分执行\n【一致性】正文与架构图术语层次一致"
         },
         {
@@ -247,7 +279,9 @@
           "name": "质量评审",
           "agent": "main",
           "task_type": "section-review",
-          "dependencies": ["t-author"],
+          "dependencies": [
+            "t-author"
+          ],
           "description": "【输入】t-author 交付物 + Goal\n【输出】评审报告；末行 REVIEW: PASS 或 REVIEW: FAIL"
         }
       ]
@@ -268,24 +302,30 @@
           "id": "t-req",
           "name": "需求",
           "agent": "product",
-          "task_type": "requirements",
-          "dependencies": ["t-research"],
+          "task_type": "feature-design",
+          "dependencies": [
+            "t-research"
+          ],
           "description": "【输入】只读 t-research"
         },
         {
           "id": "t-design",
           "name": "方案设计",
           "agent": "arch",
-          "task_type": "system-design",
-          "dependencies": ["t-req"],
+          "task_type": "feature-design",
+          "dependencies": [
+            "t-req"
+          ],
           "description": "【输入】只读 t-req"
         },
         {
           "id": "t-implement",
           "name": "实现",
           "agent": "developer",
-          "task_type": "code-writing",
-          "dependencies": ["t-design"],
+          "task_type": "code-deliverable",
+          "dependencies": [
+            "t-design"
+          ],
           "description": "【输入】只读 t-design"
         }
       ]
@@ -306,8 +346,10 @@
           "id": "t2",
           "name": "分析汇总",
           "agent": "main",
-          "task_type": "strategy",
-          "dependencies": ["t1"],
+          "task_type": "research",
+          "dependencies": [
+            "t1"
+          ],
           "description": "【输入】只读 t1 交付物"
         }
       ]

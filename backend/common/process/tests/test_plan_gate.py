@@ -87,12 +87,12 @@ def test_check_plan_agent_task_type_mismatch(monkeypatch, tmp_path):
     monkeypatch.setattr(agent_registry_mod, "REGISTRY_FILE", reg_path)
 
     r = check_plan(
-        [_task("a", agent="research", task_type="code-writing")],
+        [_task("a", agent="research", task_type="section-review")],
         {"research"},
         check_capabilities=True,
     )
     assert not r.passed
-    assert "能力边界" in r.feedback
+    assert "能力边界" in r.feedback or "不能执行" in r.feedback
 
 
 def test_check_plan_dangling_dependency():

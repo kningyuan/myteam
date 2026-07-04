@@ -3,40 +3,6 @@ research:
   display_name: 竞品调研
   outcome_kind: artifact
   delivery_profile: light_v1
-  required_sections:
-  - 调研背景
-  - 信息来源
-  - 关键发现
-  - 结论
-  deliverable_template:
-    title: 竞品调研报告
-    sections:
-    - name: 调研背景
-      description: 填写「调研背景」
-      required: true
-    - name: 信息来源
-      description: 填写「信息来源」
-      required: true
-    - name: 关键发现
-      description: 填写「关键发现」
-      required: true
-    - name: 结论
-      description: 填写「结论」
-      required: true
-    required_heading_level: 2
-  check_rules:
-    required_sections:
-    - 调研背景
-    - 信息来源
-    - 关键发现
-    - 结论
-    min_length: 500
-  acceptance_criteria:
-  - 完整覆盖调研背景章节且内容具体
-  - 信息来源必须标注（URL/出处），禁止编造数据
-  - 关键发现至少3条，含对比/优势/劣势
-  - 结论含可执行建议（P0/P1/优先级/下一步）
-  - 覆盖异常/边界场景，不能只写正常情况
 section-review:
   task_type: section-review
   display_name: 同行评审
@@ -123,3 +89,219 @@ data-analysis:
     - 关键发现
     - 结论与行动建议
   outcome_kind: artifact
+feature-design:
+  display_name: 功能设计
+  delivery_profile: none
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 需求背景
+      description: 填写「需求背景」章节
+      required: true
+    - name: 方案设计
+      description: 填写「方案设计」章节
+      required: true
+    - name: 架构图
+      description: 填写「架构图」章节
+      required: true
+    - name: 验收标准
+      description: 填写「验收标准」章节
+      required: true
+  check_rules:
+    required_sections:
+    - 需求背景
+    - 方案设计
+    - 架构图
+    - 验收标准
+  task_type: feature-design
+  outcome_kind: artifact
+publish-post:
+  display_name: 内容发布
+  outcome_kind: action
+  delivery_profile: none
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 发布平台
+      description: 填写「发布平台」章节
+      required: true
+    - name: 帖子标题
+      description: 填写「帖子标题」章节
+      required: true
+    - name: 已发布URL
+      description: 填写「已发布URL」章节
+      required: true
+    - name: 证据截图
+      description: 填写「证据截图」章节
+      required: true
+  check_rules:
+    required_sections:
+    - 发布平台
+    - 帖子标题
+    - 已发布URL
+    - 证据截图
+    evidence_url:
+      host_contains: zhihu.com
+      screenshot_field: 证据截图
+      verify_title: true
+    min_length: 50
+  task_type: publish-post
+  acceptance_criteria:
+  - 含合规已发布 URL（zhihu.com 域名）
+  - 含帖子标题，与已发布页一致
+  - 含证据截图文件路径且文件存在
+code-deliverable:
+  display_name: 代码交付
+  outcome_kind: code_project
+  delivery_profile: none
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: README
+      description: 项目说明文档
+      required: true
+    - name: 源代码
+      description: 至少含一个代码/脚本文件
+      required: true
+  check_rules:
+    required_sections:
+    - README
+    - 源代码
+    min_project_files: 2
+    require_code_file: true
+  task_type: code-deliverable
+  acceptance_criteria:
+  - 工程目录存在且至少含 2 个文件
+  - 至少含一个代码/脚本文件（.py/.sh/.js/.ts 等）
+  - 含 README 说明文档
+architecture-review:
+  display_name: 架构评审
+  outcome_kind: artifact
+  delivery_profile: none
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 评审范围
+      description: 填写「评审范围」
+      required: true
+    - name: 问题列表
+      description: 填写「问题列表」
+      required: true
+    - name: 改进建议
+      description: 填写「改进建议」
+      required: true
+    - name: 评审结论
+      description: 填写「评审结论」
+      required: true
+  check_rules:
+    required_sections:
+    - 评审范围
+    - 问题列表
+    - 改进建议
+    - 评审结论
+    min_length: 200
+  task_type: architecture-review
+  acceptance_criteria:
+  - 覆盖评审范围/问题列表/改进建议/评审结论四章节
+  - 问题须可定位（引用原文/章节）
+  - 建议须可执行
+  - '末行必须写 REVIEW: PASS 或 REVIEW: FAIL'
+iteration-assess:
+  display_name: 迭代评估
+  outcome_kind: artifact
+  delivery_profile: none
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 评估结论
+      description: 填写「评估结论」
+      required: true
+    - name: 修订要求
+      description: 填写「修订要求」
+      required: true
+  check_rules:
+    required_sections:
+    - 评估结论
+    - 修订要求
+    min_length: 100
+  task_type: iteration-assess
+  acceptance_criteria:
+  - 含评估结论与修订要求
+  - '末行必须写 ITERATION: PASS 或 ITERATION: CONTINUE 或 ITERATION: STOP'
+strategy:
+  display_name: 策略方案
+  outcome_kind: artifact
+  delivery_profile: none
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 背景
+      description: 填写「背景」
+      required: true
+    - name: 方案
+      description: 填写「方案」
+      required: true
+    - name: 结论
+      description: 填写「结论」
+      required: true
+  check_rules:
+    required_sections:
+    - 背景
+    - 方案
+    - 结论
+    min_length: 200
+  task_type: strategy
+  acceptance_criteria:
+  - 覆盖背景/方案/结论三章节
+decision-record:
+  display_name: 决策记录
+  outcome_kind: artifact
+  delivery_profile: none
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 决策背景
+      description: 填写「决策背景」
+      required: true
+    - name: 备选方案
+      description: 填写「备选方案」
+      required: true
+    - name: 决策结论
+      description: 填写「决策结论」
+      required: true
+  check_rules:
+    required_sections:
+    - 决策背景
+    - 备选方案
+    - 决策结论
+    min_length: 200
+  task_type: decision-record
+  acceptance_criteria:
+  - 覆盖决策背景/备选方案/决策结论三章节
+  - 含明确决策结论与理由
+test-plan:
+  display_name: 测试计划
+  outcome_kind: artifact
+  delivery_profile: none
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 测试范围
+      description: 填写「测试范围」
+      required: true
+    - name: 测试用例
+      description: 填写「测试用例」
+      required: true
+    - name: 验收标准
+      description: 填写「验收标准」
+      required: true
+  check_rules:
+    required_sections:
+    - 测试范围
+    - 测试用例
+    - 验收标准
+    min_length: 200
+  task_type: test-plan
+  acceptance_criteria:
+  - 覆盖测试范围/测试用例/验收标准三章节
+  - 测试用例可执行、可验证

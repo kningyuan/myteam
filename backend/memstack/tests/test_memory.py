@@ -61,11 +61,22 @@ def env(tmp_path, monkeypatch):
 
 
 def _valid(task_type):
-    spec = get_spec(task_type)
+    from common.gate.registry import resolve_format_spec
+    spec = resolve_format_spec(task_type) or get_spec(task_type)
     out = ["# 标题\n"]
     for s in spec.required_sections:
         out.append(f"## {s}\n「{s}」的足够具体内容，覆盖要点与细节说明充分到位。\n")
-    return "\n".join(out)
+    body = "\n".join(out)
+    if task_type == "research":
+        matrix = (
+            "\n| 对象 | 核心功能 | 用户画像 | 变现模式 | 用户评价 |\n"
+            "|---|---|---|---|---|\n"
+            "| A | 功能X [S1] | 画像P [S2] | 订阅 [S1] | 好评 [S2] |\n"
+            "| B | 功能Y [S2] | 画像Q [S1] | 广告 [S1] | 中评 [S2] |\n\n"
+            "核心功能与用户画像均有数据支撑，变现模式涵盖订阅与广告。\n"
+        )
+        body = body.replace("## 关键发现\n", "## 关键发现\n" + matrix, 1)
+    return body
 
 
 def test_downstream_gets_direct_upstream_summary(env):
@@ -79,6 +90,15 @@ def test_downstream_gets_direct_upstream_summary(env):
         if req.kind == "execute":
             seen_contexts[req.task_id] = req.context
         rel = f"{req.task_id}_deliverable.md"
+        # light_v1 过程产物
+        base = paths.deliverables_dir(req.project_id)
+        base.mkdir(parents=True, exist_ok=True)
+        if not (base / "align.md").is_file():
+            (base / "align.md").write_text(
+                "# Align\n\n## 对象\n\n目标\n\n## 输入\n\n输入\n\n## 成功标准\n\n标准\n\n## 非目标\n\n无\n",
+                encoding="utf-8")
+        if not (base / "verify.log").is_file():
+            (base / "verify.log").write_text("PASS: self-check ok\n", encoding="utf-8")
         (paths.deliverables_dir(req.project_id) / rel).write_text(_valid("research"), "utf-8")
         # 上游 agent 在响应里写摘要（notes）
         notes = "上游关键结论：GEO 引用率提升 3 倍" if req.task_id == "t1" else "下游产出"

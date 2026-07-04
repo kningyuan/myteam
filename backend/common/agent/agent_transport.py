@@ -106,6 +106,10 @@ def _ensure_backend_importable() -> None:
     p = str(MYTEAM_ROOT / "backend")
     if p not in sys.path:
         sys.path.insert(0, p)
+    # adapter 模块在 backend/adapter/ 下，需单独加入 sys.path
+    adapter_p = str(MYTEAM_ROOT / "backend" / "adapter")
+    if adapter_p not in sys.path:
+        sys.path.insert(0, adapter_p)
 
 
 def _default_adapter(backend: str = "opencode"):

@@ -1,0 +1,36 @@
+id: feature-design
+version: '1.0'
+display_name: feature-design
+description: 功能设计文档模板
+task_types:
+- feature-design
+default_for: feature-design
+deliverable_template:
+  title: 功能设计文档
+  sections:
+  - name: 需求背景
+    description: 需求来源、用户痛点、业务价值
+    required: true
+  - name: 方案设计
+    description: 整体方案、核心流程、关键决策
+    required: true
+  - name: 架构图
+    description: 系统架构/模块关系图（mermaid 或图片）
+    required: true
+  - name: 验收标准
+    description: 可量化的验收标准与边界场景
+    required: true
+  required_heading_level: 2
+check_rules:
+  required_sections:
+  - 需求背景
+  - 方案设计
+  - 架构图
+  - 验收标准
+  stub_floor: 200
+acceptance_criteria:
+- 完整覆盖需求背景/方案设计/架构图/验收标准四章节
+- 需求背景含用户痛点与业务价值
+- 方案设计含核心流程与关键决策
+- 架构图用 mermaid 或图片，非纯文字描述
+- 验收标准可量化、可测试

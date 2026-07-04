@@ -204,3 +204,45 @@ def test_fully_compliant_report_passes():
     # 推断已标注，不触发 no_unsourced
     # 4.7分[S1] 有来源，不触发 source_inline
     assert res.passed, f"合规报告应放行，失败项：{res.failures}"
+
+
+# ── 默认模板回退 + 约束全集族标记 ────────────────────────────
+
+def test_research_falls_back_to_default_template():
+    """research task_type 不传 template_id → 回退到 default_for=research 的模板，含矩阵约束。
+
+    验证约束绑模板的回退链路：task_type 自带字段已瘦身，约束由默认模板提供。
+    """
+    from common.gate.registry import resolve_format_spec
+
+    spec = resolve_format_spec("research")
+    assert spec is not None, "research task_type 应可解析"
+    assert spec.require_comparison_matrix is True, "应从 research-report 默认模板拿到矩阵约束"
+    assert spec.dimension_coverage, "维度覆盖约束应在"
+    assert "核心功能" in spec.dimension_coverage
+    assert spec.source_inline_required is True
+    assert spec.no_unsourced_in_findings is True
+
+
+def test_explicit_template_without_matrix():
+    """传一个无矩阵的模板 → spec 不含矩阵约束（验证模板覆盖而非硬编码）。"""
+    from common.gate.registry import resolve_format_spec
+
+    # review-report 模板无矩阵约束
+    spec = resolve_format_spec("research", "review-report")
+    assert spec is not None
+    assert spec.require_comparison_matrix is False
+
+
+def test_constraint_meta_has_applies():
+    """每条约束元信息带 applies 字段；B/C/D 组标 artifact 族。"""
+    from common.gate.gate import list_check_constraints
+
+    metas = {m.key: m for m in list_check_constraints()}
+    # A 组全通用（applies 为空）
+    assert not metas["required_sections"].applies, "required_sections 应全通用"
+    assert not metas["file_exists"].applies, "file_exists 应全通用"
+    # B/C/D 组仅 artifact
+    assert "artifact" in metas["require_comparison_matrix"].applies
+    assert "artifact" in metas["source_inline_required"].applies
+    assert "artifact" in metas["dimension_coverage"].applies

@@ -315,6 +315,7 @@ export type CheckConstraintMeta = {
   label: string
   hint: string
   type: string          // bool / int / str / list
+  applies?: string[]    // 适用的 outcome_kind；空/缺省=全通用。UI 据此按族过滤
 }
 
 export async function listCheckConstraints(): Promise<CheckConstraintMeta[]> {

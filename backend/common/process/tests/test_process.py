@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import common.paths as paths  # noqa: E402
 from common.agent.agent_port import AgentPort, WatchdogConfig  # noqa: E402
 from common.process.process import (Process, ProcessConfig, _auto_create_agent, check_plan, topological_order)  # noqa: E402
-from common.gate.registry import get_spec  # noqa: E402
+from common.gate.registry import get_spec, resolve_format_spec  # noqa: E402
 from common.store.store import Store  # noqa: E402
 from common.delivery.submit_result import submit  # noqa: E402
 
@@ -56,20 +56,44 @@ def env(tmp_path, monkeypatch):
 
 
 def valid_content(task_type: str) -> str:
-    spec = get_spec(task_type)
+    spec = resolve_format_spec(task_type) or get_spec(task_type)
     out = ["# 标题\n"]
     for s in spec.required_sections:
         out.append(f"## {s}\n这是「{s}」的足够具体的内容，覆盖要点与细节，便于评审与复用。\n")
+    # research-report 模板强化约束：补矩阵/维度/来源
+    if task_type == "research":
+        # 在「关键发现」章节后插入对比矩阵（覆盖 4 维度 + 来源编号）
+        body = "\n".join(out)
+        matrix = (
+            "\n| 对象 | 核心功能 | 用户画像 | 变现模式 | 用户评价 |\n"
+            "|---|---|---|---|---|\n"
+            "| A | 功能X [S1] | 画像P [S2] | 订阅 [S1] | 好评 [S2] |\n"
+            "| B | 功能Y [S2] | 画像Q [S1] | 广告 [S1] | 中评 [S2] |\n\n"
+            "核心功能与用户画像均有数据支撑，变现模式涵盖订阅与广告。\n"
+        )
+        body = body.replace("## 关键发现\n", "## 关键发现\n" + matrix, 1)
+        return body
     return "\n".join(out)
 
 
 def bad_content(task_type: str) -> str:
-    spec = get_spec(task_type)
+    spec = resolve_format_spec(task_type) or get_spec(task_type)
     secs = spec.required_sections[1:]  # 故意缺第一个必需章节
     out = ["# 标题\n"]
     for s in secs:
         out.append(f"## {s}\n这是「{s}」的足够具体的内容，覆盖要点与细节说明充分。\n")
-    return "\n".join(out)
+    body = "\n".join(out)
+    # research-report 模板强化约束：补矩阵/维度/来源，避免触发非 format_only 失败
+    if task_type == "research":
+        matrix = (
+            "\n| 对象 | 核心功能 | 用户画像 | 变现模式 | 用户评价 |\n"
+            "|---|---|---|---|---|\n"
+            "| A | 功能X [S1] | 画像P [S2] | 订阅 [S1] | 好评 [S2] |\n"
+            "| B | 功能Y [S2] | 画像Q [S1] | 广告 [S1] | 中评 [S2] |\n\n"
+            "核心功能与用户画像均有数据支撑，变现模式涵盖订阅与广告，用户评价正面。\n"
+        )
+        body = body.replace("## 关键发现\n", "## 关键发现\n" + matrix, 1)
+    return body
 
 
 def exec_env(iid, rel_path, quality):
@@ -199,6 +223,8 @@ def test_gate_retry_reuses_session(env):
         rel = "t1_deliverable.md"
         content = bad_content("research") if attempt == 1 else valid_content("research")
         (paths.deliverables_dir("pro_x") / rel).write_text(content, encoding="utf-8")
+        # light_v1 过程产物：避免 process_artifact 失败
+        _ensure_process_artifacts("pro_x")
         submit(exec_env(iid, rel, GOOD_Q),
                paths.response_dir("research") / f"{iid}.response")
 
@@ -712,9 +738,10 @@ def test_check_plan_agent_task_type_mismatch(monkeypatch, tmp_path):
     }, ensure_ascii=False), encoding="utf-8")
     monkeypatch.setattr(agent_registry_mod, "REGISTRY_FILE", reg_path)
 
-    r = check_plan([_task("a", agent="research", task_type="code-writing")], {"research"})
+    # section-review 已注册，但 research agent 未配置该 task_type 能力 → 能力绑定不匹配
+    r = check_plan([_task("a", agent="research", task_type="section-review")], {"research"})
     assert not r.passed
-    assert "code-writing" in r.feedback
+    assert "section-review" in r.feedback
     assert "research" in r.feedback
 
 
