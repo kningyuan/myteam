@@ -1,9 +1,16 @@
 id: review-report
 version: '1.0'
-display_name: 评审报告
-description: 标准评审交付
+display_name: review-report
+description: ''
 task_types:
-- review
+- section-review
+check_rules:
+  required_sections:
+  - 评审范围
+  - 问题列表
+  - 改进建议
+  - 评审结论
+  min_length: 200
 deliverable_template:
   required_heading_level: 2
   sections:
@@ -16,9 +23,6 @@ deliverable_template:
   - name: 改进建议
     description: 填写「改进建议」
     required: true
-check_rules:
-  required_sections:
-  - 评审范围
-  - 问题列表
-  - 改进建议
-  min_length: 200
+  - name: 评审结论
+    description: 填写「评审结论」
+    required: true

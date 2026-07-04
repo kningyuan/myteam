@@ -1,28 +1,37 @@
 id: research-report
 version: '1.0'
-display_name: 调研报告
-description: 调研任务交付模板
+display_name: research-report
+description: ''
 task_types:
 - research
 deliverable_template:
-  required_heading_level: 2
+  title: 竞品调研报告
   sections:
-  - name: 调研目标
-    description: 填写「调研目标」
+  - name: 调研背景
+    description: 调研目的、范围、竞品对象
     required: true
   - name: 信息来源
-    description: 填写「信息来源」
+    description: 每个关键信息的来源标注（URL/出处）
     required: true
   - name: 关键发现
-    description: 填写「关键发现」
+    description: 至少3条，含对比/优势/劣势
     required: true
   - name: 结论
-    description: 填写「结论」
+    description: 可执行建议（P0/P1/优先级/下一步）+ 异常场景应对
     required: true
+  required_heading_level: 2
 check_rules:
   required_sections:
-  - 调研目标
+  - 调研背景
   - 信息来源
   - 关键发现
   - 结论
   min_length: 200
+  require_comparison_matrix: true
+  dimension_coverage:
+  - 核心功能
+  - 用户画像
+  - 变现模式
+  - 用户评价
+  source_inline_required: true
+  no_unsourced_in_findings: true
