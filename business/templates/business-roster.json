@@ -13,7 +13,14 @@
         "部署签发",
         "风险升级"
       ],
-      "task_types": [],
+      "task_types": [
+        "team_config",
+        "task_plan",
+        "plan",
+        "evaluate",
+        "review",
+        "triage"
+      ],
       "skills": [
         "coordination-methodology"
       ],
@@ -83,7 +90,12 @@
         "技术风险识别",
         "架构调研"
       ],
-      "task_types": [],
+      "task_types": [
+        "system-design",
+        "architecture-review",
+        "api-contract",
+        "section-review"
+      ],
       "skills": [
         "system-architecture-methodology"
       ],
@@ -113,7 +125,12 @@
         "代码评审",
         "工程化脚本"
       ],
-      "task_types": [],
+      "task_types": [
+        "code-writing",
+        "code-review",
+        "api-development",
+        "test-plan"
+      ],
       "skills": [
         "backend-engineering-methodology"
       ],

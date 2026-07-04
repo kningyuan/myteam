@@ -1,40 +1,48 @@
 {
   "arch": {
-    "name": "架构师",
     "backend": "opencode",
-    "extra": {}
+    "model": "sensenova/deepseek-v4-flash",
+    "extra": {},
+    "name": "架构师",
+    "workspace": "business/workspaces/workspace-arch"
   },
   "developer": {
-    "name": "后端研发",
-    "backend": "opencode",
-    "extra": {}
-  },
-  "main": {
-    "name": "项目经理",
     "backend": "opencode",
     "model": "",
     "extra": {},
+    "name": "developer"
+  },
+  "main": {
+    "backend": "opencode",
+    "model": "",
+    "extra": {},
+    "name": "main",
     "workspace": "business/workspaces/workspace-main"
   },
   "product": {
-    "name": "产品专家",
     "backend": "opencode",
-    "extra": {}
+    "model": "Agnes/agnes-2.0-flash",
+    "extra": {},
+    "name": "产品专家",
+    "workspace": "business/workspaces/workspace-product"
   },
   "research": {
-    "name": "研究员",
     "backend": "opencode",
     "model": "",
-    "extra": {}
+    "extra": {},
+    "name": "research",
+    "workspace": "business/workspaces/workspace-research"
   },
   "test-harness-agent": {
-    "name": "测试护栏",
     "backend": "opencode",
-    "extra": {}
+    "model": "",
+    "extra": {},
+    "name": "test-harness-agent"
   },
   "tester": {
-    "name": "测试专家",
     "backend": "opencode",
-    "extra": {}
+    "model": "",
+    "extra": {},
+    "name": "tester"
   }
 }

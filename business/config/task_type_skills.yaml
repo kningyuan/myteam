@@ -1,9 +1,17 @@
 # task_type → umbrella methodology skill 映射
 # 用于 execution_harness 在 execute 前注入方法论 Skill 推荐
+# 值支持两种格式：
+#   字符串（旧）：research: research_methodology
+#   dict（新）：research: {skill: research_methodology, skill_sections: [标准流程, 必选章节]}
+# skill_sections 指定按 ## heading 截取的章节名，不配则只注入目录+路径（懒加载）
 defaults:
-  research: research_methodology
+  research:
+    skill: research_methodology
+    skill_sections: [标准流程, 必选章节, 交付前数据质量自检]
   product-research: product-discovery
-  product-planning: product-methodology
+  product-planning:
+    skill: product-methodology
+    skill_sections: [方法论, 检查清单]
   requirements: product-methodology
   strategy: agent-collaboration-patterns
   competitive-analysis: competitive-analysis-methodology

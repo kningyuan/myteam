@@ -96,41 +96,55 @@ templates:
 
   # ── research family: research / product-research / competitive-analysis ──
   research:
+    # 竞品调研质量标准 — 基于"结构完整 / 数据可信 / 场景覆盖 / 可执行 / 专业准确"五维 + 红线否决
     pass_threshold: 0.70
     dimensions:
-      - name: 调研框架
+      - name: 结构完整性
         weight: 0.20
         checks:
           - type: section
-            required: ["结论"]
-          - type: keyword
-            keywords: ["目标", "方法", "来源", "发现", "结论"]
-            min_match: 3
-      - name: 数据来源
-        weight: 0.30
+            required: ["调研背景", "信息来源", "关键发现", "结论"]
+      - name: 数据可信度
+        weight: 0.25
         checks:
           - type: data_source
             markers: ["来源", "数据源", "报告", "官网", "引自", "来源于", "数据来自", "URL", "http"]
-      - name: 分析深度
-        weight: 0.25
+          - type: neg_keyword
+            forbidden: ["据我估计", "大概", "应该", "可能约", "预计约"]
+            max_match: 0
+      - name: 场景覆盖度
+        weight: 0.20
         checks:
           - type: keyword
-            keywords: ["对比", "优势", "劣势", "差异", "趋势", "机会", "风险"]
+            keywords: ["异常", "边界", "空数据", "失败", "限制", "局限", "不足", "风险"]
             min_match: 2
           - type: neg_keyword
-            forbidden: ["提升体验", "更加便捷", "更高效", "更友好"]
+            forbidden: ["仅正常流程", "只考虑正常"]
             max_match: 0
-      - name: 结论可执行
-        weight: 0.25
+      - name: 结论可执行性
+        weight: 0.20
         checks:
           - type: keyword
-            keywords: ["建议", "行动", "下一步", "优先级", "P0", "P1", "P2"]
+            keywords: ["建议", "行动", "下一步", "优先级", "P0", "P1", "P2", "路线图"]
             min_match: 1
           - type: content_length
             min_chars: 500
+      - name: 专业准确
+        weight: 0.15
+        checks:
+          - type: keyword
+            keywords: ["对比", "优势", "劣势", "差异", "趋势", "机会"]
+            min_match: 2
+          - type: neg_keyword
+            forbidden: ["TBD", "TODO", "占位", "placeholder", "待补充", "稍后实现"]
+            max_match: 0
     redlines:
       - "编造数据"
       - "无来源"
+      - "纯文字流程图"
+      - "ASCII流程图"
+      - "仅正常流程"
+      - "不覆盖异常"
 
   # ── architecture family: architecture / system-design / arch-review ──
   architecture:
