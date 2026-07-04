@@ -1,0 +1,28 @@
+# 工程基线: ruff lint 配置(只查真实缺陷,不强制全文 reformat)
+# 规则说明:
+#   F  = pyflakes:未用 import / 未定义名 / 重定义 / 未用变量
+#   E9 = 语法/运行时硬错误(indentation、tab/space 混用等)
+#   B  = bugbear:常见 Python 陷阱(except OSError 过宽、可变默认参数等)
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+extend-exclude = [
+    "venv",
+    "frontend",
+    "docs",
+    "business/workspaces",
+    "business/tasks",
+    "business/skills",
+]
+
+[tool.ruff.lint]
+select = ["F", "E9", "B"]
+ignore = [
+    "B008",   # 函数调用作默认参数(FastAPI Depends 惯用法)
+    "B904",   # raise from(逐项修成本高,先不强制)
+    "F404",   # late future import(现有文件 docstring 后有 __future__,移动有回归风险)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401", "F405"]   # 包导出 + star 重导出
+"*/tests/*" = ["B017", "B011"]  # 测试允许 assert False / assertRaises(Exception)

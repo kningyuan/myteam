@@ -67,3 +67,8 @@ business/regression/artifacts/
 myteam-test-report/
 myteam-user-manual/
 agent-upgrade-report/
+business/experiments/
+
+# understand-anything 缓存
+.understand-anything/intermediate/
+.understand-anything/tmp/
