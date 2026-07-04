@@ -105,7 +105,7 @@ def inject_execute_prompt(ctx: ExecuteHarnessContext) -> None:
         )
         append_l1_block(ctx.lines, hint)
 
-        pref = fetch_preferences(agent_id=ctx.agent_id)
+        pref = fetch_preferences(ctx.owner_id or "default", agent_id=ctx.agent_id)
         append_preference_block(ctx.lines, pref)
 
         if kb_inject_allowed():

@@ -236,27 +236,13 @@ mv "business/workflows/<workflow-id>.yaml.bak.${timestamp}" business/workflows/<
 
 ### Step 5: 验证配置
 
-运行验证命令确保配置有效：
+运行验证脚本（P4a：通过才允许写入）：
 
 ```bash
-PYTHONPATH=backend venv/bin/python3 -c "
-from common.workflow_loader import load_workflow
-from common.registry import get_spec
-
-try:
-    profile = load_workflow('<workflow-id>')
-    print('✅ Workflow 加载成功')
-    print(f'   步骤数: {len(profile.tasks)}')
-    for t in profile.tasks:
-        spec = get_spec(t['task_type'])
-        status = '✓' if spec else '✗'
-        print(f'   {t[\"id\"]}: task_type={t[\"task_type\"]} {status}')
-except Exception as e:
-    print(f'❌ 加载失败: {e}')
-"
+PYTHONPATH=backend venv/bin/python3 business/scripts/validate_workflow.py <workflow-id>
 ```
 
-**验证检查项**：
+脚本会自动跑 `validate_workflow()`，覆盖以下检查项：
 - [ ] Workflow YAML 格式有效
 - [ ] 所有 agent 存在
 - [ ] 所有 task_type 已注册
