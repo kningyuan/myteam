@@ -26,7 +26,7 @@
     "soft_idle_sec": 240,
     "hard_idle_sec": 900,
     "max_cycles": 3,
-    "parallel_enabled": false,
+    "parallel_enabled": true,
     "max_parallel": 3,
     "max_concurrent_projects": 2,
     "default_project_budget": 1000000,

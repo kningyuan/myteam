@@ -2,7 +2,7 @@
   "system": {
     "port": 8765,
     "default_backend": "opencode",
-    "default_model": "SenseNova/sensenova-6.7-flash-lite",
+    "default_model": "sensenova/sensenova-6.7-flash-lite",
     "debug": false,
     "price_per_mtok": 0,
     "default_review": false,
@@ -10,7 +10,7 @@
     "audit_log_max_bytes": 500000,
     "coordinator_agent_id": "main",
     "deputy_agent_id": "deputy",
-    "use_sqlite_project_store": false,
+    "use_sqlite_project_store": true,
     "use_outcome_kind_detection": false,
     "use_strict_must_include_config": false,
     "use_kb_backend_for_observability": false,

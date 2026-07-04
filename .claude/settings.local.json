@@ -7,5 +7,10 @@
       "Bash(rmdir business/skills/_pending/)",
       "Bash(mkdir -p business/skills/_pending)"
     ]
+  },
+  "skillOverrides": {
+    "obsidian-bases": "off",
+    "obsidian-cli": "off",
+    "obsidian-markdown": "off"
   }
 }
