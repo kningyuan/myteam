@@ -59,6 +59,50 @@ def after_chat_turn(
     except Exception as e:
         logger.warning("after_chat_turn failed: %s", e)
 
+    # 私聊沉淀：用户说"记住/记下/remember" → 把对话上下文存入 KB（source=user）
+    try:
+        _maybe_remember_to_kb(scope, user_text, assistant_text)
+    except Exception as e:
+        logger.warning("maybe_remember_to_kb failed: %s", e)
+
+
+_REMEMBER_MARKERS = ("记住", "记下", "remember", "remember this", "存到知识库", "存进知识库")
+
+
+def _maybe_remember_to_kb(
+    scope: MemoryScope,
+    user_text: str,
+    assistant_text: str,
+) -> Optional[str]:
+    """用户在私聊/群聊中说"记住这个" → 自动沉淀到 KB。
+
+    触发条件：用户消息含「记住/记下/remember/存到知识库」等关键词。
+    写入格式：title 取用户消息前 40 字，content 含完整对话上下文，
+    source=user，created_by=agent_id（标识来源 Agent），tags=[remembered]。
+    """
+    if not enabled():
+        return None
+    low = (user_text or "").lower()
+    if not any(m in low for m in _REMEMBER_MARKERS):
+        return None
+    if not (user_text.strip() and assistant_text.strip()):
+        return None
+    kb = get_kb_backend()
+    title = user_text.strip()[:40] or "用户记住的内容"
+    content = (
+        f"【用户消息】\n{user_text.strip()}\n\n"
+        f"【Agent 回复】\n{assistant_text.strip()[:2000]}"
+    )
+    owner = (scope.agent_id or "").strip()
+    return kb.write(
+        project_id="__global__",
+        title=title,
+        content=content,
+        tags=["remembered", "user_kb"],
+        source="user",
+        created_by=owner,
+    )
+
 
 def inject_for_execute(ctx: ExecuteInjectContext) -> None:
     """H3 — 委托 execution_harness（执行质量层）。"""

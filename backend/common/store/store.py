@@ -113,6 +113,8 @@ CREATE TABLE IF NOT EXISTS memory (
     tags        TEXT DEFAULT '[]',
     title       TEXT DEFAULT '',
     content     TEXT DEFAULT '',
+    source      TEXT DEFAULT 'auto',       -- user | agent | auto
+    created_by  TEXT DEFAULT '',           -- 用户 ID 或 Agent ID
     created_at  TEXT
 );
 
@@ -753,12 +755,14 @@ class Store:
     # ── memory（KB SQLite 默认后端，详见 Phase 6）──────────────
 
     def memory_write(self, project_id: str, title: str, content: str, *,
-                    task_id: str = "", tags: Optional[list] = None) -> int:
+                    task_id: str = "", tags: Optional[list] = None,
+                    source: str = "auto", created_by: str = "") -> int:
         with self._conn:
             cur = self._conn.execute(
-                "INSERT INTO memory (project_id, task_id, tags, title, content, created_at) "
-                "VALUES (?,?,?,?,?,?)",
-                (project_id, task_id, _dumps(tags or []), title, content, _now()),
+                "INSERT INTO memory (project_id, task_id, tags, title, content, source, created_by, created_at) "
+                "VALUES (?,?,?,?,?,?,?,?)",
+                (project_id, task_id, _dumps(tags or []), title, content,
+                 source or "auto", created_by or "", _now()),
             )
             mid = cur.lastrowid
             if self._memory_fts:

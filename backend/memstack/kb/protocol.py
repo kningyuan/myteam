@@ -20,8 +20,14 @@ class KnowledgeBackend(Protocol):
         *,
         task_id: str = "",
         tags: Optional[list] = None,
+        source: str = "auto",
+        created_by: str = "",
     ) -> str:
-        """写入条目，返回 ``kb://<backend>/<id>``。"""
+        """写入条目，返回 ``kb://<backend>/<id>``。
+
+        source: "user"（用户手动写）| "agent"（Agent 沉淀）| "auto"（系统复盘）
+        created_by: 创建者标识（用户 ID 或 Agent ID）
+        """
         ...
 
     def get(self, ref: str) -> Optional[dict]:

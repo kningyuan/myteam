@@ -26,19 +26,24 @@ class SqliteKnowledgeBackend:
         task_id: str = "",
         tags: Optional[list] = None,
         structured_content: Optional[dict[str, str]] = None,
+        source: str = "auto",
+        created_by: str = "",
     ) -> str:
         """写入 KB 条目。
 
         content: 纯文本（向后兼容）。
         structured_content: 结构化字典（按 task_type 模板分节），优先级高于 content。
         当 structured_content 不为 None 时，content 参数被忽略。
+        source: "user" | "agent" | "auto"
+        created_by: 创建者（用户 ID 或 Agent ID）
         """
         if structured_content is not None:
             store_content = content_to_json(structured_content)
         else:
             store_content = content
         mid = self.store.memory_write(
-            project_id, title, store_content, task_id=task_id, tags=tags
+            project_id, title, store_content, task_id=task_id, tags=tags,
+            source=source or "auto", created_by=created_by or "",
         )
         return f"{KB_SCHEME}{self.name}/{mid}"
 

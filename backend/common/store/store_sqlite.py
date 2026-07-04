@@ -30,12 +30,21 @@ class SQLiteStoreBackend(AbstractStoreBackend):
     def _bootstrap_schema(self) -> None:
         conn = self._open_connection()
         conn.executescript(self._schema)
+        self._ensure_memory_columns(conn)
         self._message_fts = self._init_message_fts(conn)
         self._memory_fts = self._init_memory_fts(conn)
         if self._memory_fts:
             self._backfill_memory_fts(conn)
         conn.commit()
         conn.close()
+
+    def _ensure_memory_columns(self, conn: sqlite3.Connection) -> None:
+        """memory 表加 source/created_by 列（旧库迁移，幂等）。"""
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(memory)").fetchall()}
+        if "source" not in cols:
+            conn.execute("ALTER TABLE memory ADD COLUMN source TEXT DEFAULT 'auto'")
+        if "created_by" not in cols:
+            conn.execute("ALTER TABLE memory ADD COLUMN created_by TEXT DEFAULT ''")
 
     @property
     def connection(self) -> sqlite3.Connection:

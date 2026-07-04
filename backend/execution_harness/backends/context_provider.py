@@ -68,12 +68,24 @@ def fetch_kb_entries(
         tags = [task_type] if task_type else None
         seen: set[int] = set()
         merged: list[dict] = []
+        # 1) 按 task_type 标签 + 项目域搜索（agent/auto 沉淀的条目）
         for pid in ("__global__", project_id):
             if not pid:
                 continue
             for entry in kb.search(tags=tags, project_id=pid):
                 eid = entry.get("id")
                 if eid in seen:
+                    continue
+                seen.add(eid)
+                merged.append(entry)
+        # 2) 用户手动写入的全局 KB 条目（source=user，不限 project_id）
+        #    用 task_type 作为文本关键词召回相关用户知识
+        if task_type and len(merged) < top_k:
+            for entry in kb.search(text=task_type, project_id="__global__"):
+                eid = entry.get("id")
+                if eid in seen:
+                    continue
+                if entry.get("source") != "user":
                     continue
                 seen.add(eid)
                 merged.append(entry)

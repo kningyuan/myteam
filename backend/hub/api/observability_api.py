@@ -146,6 +146,8 @@ async def list_memory(
             "task_id": r.get("task_id"),
             "title": r.get("title"),
             "tags": r.get("tags") or [],
+            "source": r.get("source") or "auto",
+            "created_by": r.get("created_by") or "",
             "created_at": r.get("created_at"),
             "preview": content[:200],
         })
@@ -160,6 +162,8 @@ def _memory_api_row(row: dict) -> dict:
         "task_id": row.get("task_id"),
         "title": row.get("title"),
         "tags": row.get("tags") or [],
+        "source": row.get("source") or "auto",
+        "created_by": row.get("created_by") or "",
         "created_at": row.get("created_at"),
         "content": content,
         "preview": content[:200],
@@ -205,7 +209,11 @@ async def delete_memory(memory_id: int):
 
 @router.post("/memory")
 async def create_memory(body: dict):
-    """新建 KB 条目（Web 知识库编辑）。"""
+    """新建 KB 条目（Web 知识库编辑）。
+
+    支持 source（user/agent/auto）与 created_by（用户 ID 或 Agent ID）。
+    用户从管理面板写入时 source=user；Agent 沉淀 source=agent；系统复盘 source=auto。
+    """
     project_id = (body.get("project_id") or "").strip()
     title = (body.get("title") or "").strip()
     content = (body.get("content") or "").strip()
@@ -214,6 +222,8 @@ async def create_memory(body: dict):
     tags = body.get("tags") or []
     if not isinstance(tags, list):
         tags = [str(tags)]
+    source = (body.get("source") or "user").strip() or "user"
+    created_by = (body.get("created_by") or "").strip()
     if _use_kb_backend():
         kb = _kb()
         if project_id != "__memstack_l1__":
@@ -222,9 +232,16 @@ async def create_memory(body: dict):
                 store.upsert_project(project_id, title=project_id, status="active")
             finally:
                 store.close()
-        ref = kb.write(project_id, title, content, task_id=str(body.get("task_id") or ""), tags=tags)
+        ref = kb.write(
+            project_id, title, content,
+            task_id=str(body.get("task_id") or ""), tags=tags,
+            source=source, created_by=created_by,
+        )
         ref_id = ref.split("/")[-1] if "/" in ref else ref
-        return {"success": True, "memory": {"id": ref_id, "title": title, "project_id": project_id}}
+        return {"success": True, "memory": {
+            "id": ref_id, "title": title, "project_id": project_id,
+            "source": source, "created_by": created_by,
+        }}
     store = _store()
     try:
         if project_id != "__memstack_l1__":
@@ -235,6 +252,8 @@ async def create_memory(body: dict):
             content,
             task_id=str(body.get("task_id") or ""),
             tags=[str(t) for t in tags if str(t).strip()],
+            source=source,
+            created_by=created_by,
         )
         row = store.memory_get(mid)
         return {"success": True, "memory": _memory_api_row(row or {"id": mid})}

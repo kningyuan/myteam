@@ -91,6 +91,8 @@ export type MemoryEntry = {
   task_id?: string
   title?: string
   tags?: string[]
+  source?: "user" | "agent" | "auto"
+  created_by?: string
   created_at?: string
   preview?: string
   content?: string
@@ -413,11 +415,13 @@ export async function createMemory(body: {
   content?: string
   task_id?: string
   tags?: string[]
+  source?: "user" | "agent" | "auto"
+  created_by?: string
 }): Promise<MemoryEntry> {
   const data = await hubFetch<{ memory?: MemoryEntry }>("/api/obs/memory", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ source: "user", ...body }),
   })
   return data.memory ?? {}
 }
