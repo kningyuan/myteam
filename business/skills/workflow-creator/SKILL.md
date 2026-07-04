@@ -1,4 +1,109 @@
----
+name: 技术评估与选型
+description: 多维度并行技术调研到最终评审定稿
+version: "2.0"
+tasks:
+  - id: research-market
+    name: 市场调研
+    agent: research
+    task_type: research
+    reviewer: product
+    description: 调研目标技术的市场adoption情况，GitHub stars趋势，企业使用案例
+    dependencies: []
+  - id: research-tech
+    name: 技术深度调研
+    agent: arch
+    task_type: system-design
+    reviewer: main
+    description: 调研目标技术核心架构和特性，性能基准，安全性，兼容性
+    dependencies: []
+  - id: research-competing
+    name: 竞品对比调研
+    agent: research
+    task_type: competitive-analysis
+    reviewer: product
+    description: 调研目标技术的主要竞品，从功能性能生态三个维度对比
+    dependencies: []
+  - id: synthesis-compare
+    name: 综合对比分析
+    agent: product
+    task_type: strategy
+    reviewer: main
+    description: 基于三份并行调研报告做综合对比分析，产出技术选型对比矩阵
+    dependencies: [research-market, research-tech, research-competing]
+  - id: plan-iterate
+    name: 方案迭代完善
+    loop: plan_improve_round
+    dependencies: [synthesis-compare]
+  - id: final-review
+    name: 最终评审定稿
+    agent: main
+    task_type: section-review
+    description: 对最终方案做全面评审，输出最终技术评估报告
+    dependencies: [plan-iterate]
+loops:
+  - id: plan_improve_round
+    max_rounds: 3
+    min_rounds: 1
+    default_body: draft
+    bodies:
+      draft:
+        - id: work
+          name: 撰写方案初稿
+          agent: product
+          task_type: strategy
+          description: 基于综合对比分析结果撰写技术选型方案初稿
+          dependencies: []
+        - id: assess
+          name: 评估方案初稿
+          agent: main
+          task_type: section-review
+          description: 评估方案初稿质量，输出标记 ITERATION: PASS 或 ITERATION: CONTINUE 或 ITERATION: STOP
+          dependencies: [work]
+      revise:
+        - id: work
+          name: 修订方案
+          agent: product
+          task_type: strategy
+          description: 根据评审反馈修订方案
+          dependencies: []
+        - id: assess
+          name: 评估修订稿
+          agent: main
+          task_type: section-review
+          description: 评估修订稿是否解决了上一轮问题，输出标记 ITERATION: PASS 或 ITERATION: CONTINUE 或 ITERATION: STOP
+          dependencies: [work]
+    assess:
+      ref: assess
+      inputs:
+        - kind: goal
+        - kind: phase.deliverable
+          phase: work
+    transition:
+      - when: deliverable_marker
+        task: assess
+        marker: "ITERATION: PASS"
+        action: exit
+        outcome: complete
+      - when: deliverable_marker
+        task: assess
+        marker: "ITERATION: STOP"
+        action: exit
+        outcome: needs_review
+      - when: deliverable_marker
+        task: assess
+        marker: "ITERATION: CONTINUE"
+        action: continue
+        next_body: revise
+      - when: exhausted
+        action: exit
+        outcome: needs_review
+    on_pass: complete
+    on_exhaust: needs_review
+options:
+  review_enabled: true
+  split_enabled: true
+  parallel_enabled: true
+  max_parallel: 3---
 name: Workflow 创建器
 description: 将Agentic Workflow YAML转换为myteam完整配置，是sop-to-workflow的后续步骤。
 ---
