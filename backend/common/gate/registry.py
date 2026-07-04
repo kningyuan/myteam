@@ -54,6 +54,16 @@ class FormatSpec:
     delivery_profile: str = "none"
     template_id: str = ""
     template_display_name: str = ""
+    # 质量约束（A 类结构性，机器判）——绑定交付模板 check_rules。
+    # 详见 docs/quality-constraint-design.md 第二章。
+    require_comparison_matrix: bool = False      # 指定章节内含 markdown 对比表格
+    matrix_section: str = "关键发现"              # 矩阵所在章节名
+    matrix_min_rows: int = 0                     # 矩阵最小数据行数（0=不验）
+    matrix_min_cols: int = 0                     # 矩阵最小列数（0=不验）
+    matrix_no_empty_cell: bool = False           # 矩阵每格非空
+    dimension_coverage: list[str] = field(default_factory=list)  # 必须覆盖的维度词
+    source_inline_required: bool = False         # 量化数字后须内联来源编号
+    no_unsourced_in_findings: bool = False       # 关键发现内推断性数据须标注「无公开来源」
 
 
 def _spec_from_delivery_template(task_type: str, base: "FormatSpec", tpl) -> FormatSpec:
@@ -106,6 +116,14 @@ def _spec_from_delivery_template(task_type: str, base: "FormatSpec", tpl) -> For
         delivery_profile=profile_name,
         template_id=tpl.id,
         template_display_name=tpl.display_name or tpl.id,
+        require_comparison_matrix=bool(check_rules.get("require_comparison_matrix", False)),
+        matrix_section=str(check_rules.get("matrix_section") or "关键发现"),
+        matrix_min_rows=int(check_rules.get("matrix_min_rows") or 0),
+        matrix_min_cols=int(check_rules.get("matrix_min_cols") or 0),
+        matrix_no_empty_cell=bool(check_rules.get("matrix_no_empty_cell", False)),
+        dimension_coverage=list(check_rules.get("dimension_coverage") or []),
+        source_inline_required=bool(check_rules.get("source_inline_required", False)),
+        no_unsourced_in_findings=bool(check_rules.get("no_unsourced_in_findings", False)),
     )
 
 

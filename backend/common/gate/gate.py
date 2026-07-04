@@ -56,6 +56,199 @@ def _extract_field(content: str, field_name: str) -> str:
     return ""
 
 
+# ── 质量约束检查（A 类结构性，机器判）────────────────────────────
+# 详见 docs/quality-constraint-design.md。这些是「格式/完整性」的结构性延伸，
+# 不是主观质量判断（B 类仍归 review）。约束绑定交付模板 check_rules。
+
+
+def _extract_section_body(content: str, section_name: str) -> str:
+    """提取某 ## 章节正文：从该标题到下一个同级或更高级标题之间内容。"""
+    pattern = rf"^#+\s*{re.escape(section_name)}\s*\n(.*?)(?=^\#{1,2}\s|\Z)"
+    m = re.search(pattern, content, re.MULTILINE | re.DOTALL)
+    return m.group(1).strip() if m else ""
+
+
+# markdown 表格行：| a | b | c | 或 |---|---|（分隔行）
+_MD_TABLE_ROW = re.compile(r"^\s*\|.*\|\s*$", re.MULTILINE)
+_MD_TABLE_SEP = re.compile(r"^\s*\|[\s:|-]+\|\s*$")
+
+
+def _extract_md_tables(text: str) -> list[list[list[str]]]:
+    """从文本提取所有 markdown 表格，每个表格为 rows（每行 cells）。"""
+    tables: list[list[list[str]]] = []
+    lines = text.splitlines()
+    i = 0
+    while i < len(lines):
+        if _MD_TABLE_ROW.match(lines[i]):
+            rows: list[list[str]] = []
+            while i < len(lines) and _MD_TABLE_ROW.match(lines[i]):
+                cells = [c.strip() for c in lines[i].strip().strip("|").split("|")]
+                rows.append(cells)
+                i += 1
+            if len(rows) >= 2:  # 至少表头+1行才算表格
+                tables.append(rows)
+        else:
+            i += 1
+    return tables
+
+
+def _check_comparison_matrix(spec: FormatSpec, content: str, res: GateResult) -> None:
+    """约束：指定章节内含对比矩阵（markdown 表格）。"""
+    if not spec.require_comparison_matrix:
+        return
+    body = _extract_section_body(content, spec.matrix_section) or content
+    tables = _extract_md_tables(body)
+    if not tables:
+        res.add("require_comparison_matrix", f"{spec.matrix_section} 章节需含对比矩阵表格",
+                "未找到 markdown 表格")
+        return
+    # 取最大的表格作为对比矩阵
+    biggest = max(tables, key=lambda t: len(t) * (len(t[0]) if t else 0))
+    data_rows = [r for r in biggest[1:] if not _MD_TABLE_SEP.match("|".join(r))]
+    if spec.matrix_min_rows and len(data_rows) < spec.matrix_min_rows:
+        res.add("matrix_min_rows", f"矩阵至少 {spec.matrix_min_rows} 行数据",
+                f"实际 {len(data_rows)} 行")
+    if spec.matrix_min_cols and biggest and len(biggest[0]) < spec.matrix_min_cols:
+        res.add("matrix_min_cols", f"矩阵至少 {spec.matrix_min_cols} 列",
+                f"实际 {len(biggest[0])} 列")
+    if spec.matrix_no_empty_cell:
+        for ridx, row in enumerate(data_rows):
+            for cidx, cell in enumerate(row):
+                if not cell or cell in ("-", "—", "无", "N/A", "/"):
+                    res.add("matrix_no_empty_cell", f"矩阵第{ridx+2}行第{cidx+1}列",
+                            "格子为空或占位")
+
+
+def _check_dimension_coverage(spec: FormatSpec, content: str, res: GateResult) -> None:
+    """约束：每个维度词在正文出现且所在段非空（≥2句）。"""
+    if not spec.dimension_coverage:
+        return
+    for dim in spec.dimension_coverage:
+        if dim not in content:
+            res.add("dimension_coverage", dim, "该维度在全文未出现")
+            continue
+        # 找该维度所在段落，验非空
+        m = re.search(rf"([^\n]*{re.escape(dim)}[^\n]*)", content)
+        if m:
+            ctx = m.group(1).strip()
+            if len(ctx) < 10:  # 维度词出现但上下文过短，疑似罗列
+                res.add("dimension_coverage", dim, "该维度仅出现关键词，无实质论述")
+
+
+# 量化数字（≥3位或带单位/百分号/亿/万）后须跟来源编号 [S1]/[来源]/(url)
+_NUM_WITH_SOURCE = re.compile(r"(\d[\d,]*\.\d+|\d{2,}[\d,]*|\d+\s*(?:%|亿|万|万美元|元|美元|岁|个|条|分钟|小时|天|月|年))")
+_SOURCE_TAG = re.compile(r"\[S?\d+\]|\[来源\d*\]|\(https?://|（https?://")
+
+
+def _check_source_inline(spec: FormatSpec, content: str, res: GateResult) -> None:
+    """约束：量化数字后须内联来源编号或 URL。
+
+    窗口放宽到 60 字符，覆盖「数字（注释/口径说明）[Sn]」的常见形态。
+    排除「信息来源」章节整体（含其下的 markdown 表格——来源表天然带 url/编号），
+    以及对比矩阵表格行（矩阵格子里的数字由 matrix 约束管，不在此重复验来源位置）。
+    """
+    if not spec.source_inline_required:
+        return
+    # 去掉信息来源章节（标题到下一个同级/更高级标题）
+    body = re.sub(r"^#+\s*信息来源\s*\n.*?(?=^\#{1,2}\s|\Z)", "", content,
+                  flags=re.MULTILINE | re.DOTALL)
+    # 去掉 markdown 表格行（| ... |）——表格内数字的来源由表格结构保证，不验位置
+    body = re.sub(r"^\s*\|.*\|\s*$", "", body, flags=re.MULTILINE)
+    misses: list[str] = []
+    for m in _NUM_WITH_SOURCE.finditer(body):
+        # 数字后 60 字符内有无来源标记（覆盖「数字（注释）[Sn]」形态）
+        tail = body[m.end():m.end() + 60]
+        if not _SOURCE_TAG.search(tail):
+            misses.append(m.group(0)[:15])
+    if misses:
+        res.add("source_inline_required", f"{len(misses)} 处量化数据缺少来源编号",
+                f"样例：{misses[0]}")
+
+
+_INFER_WORDS = ("推断", "推测", "可能", "预计", "估计", "猜测")
+
+
+def _check_no_unsourced_in_findings(spec: FormatSpec, content: str, res: GateResult) -> None:
+    """约束：关键发现章节内推断性词后须标「无公开来源」，否则报警。"""
+    if not spec.no_unsourced_in_findings:
+        return
+    body = _extract_section_body(content, "关键发现")
+    if not body:
+        return
+    reported = False
+    for word in _INFER_WORDS:
+        if reported:
+            break
+        for m in re.finditer(re.escape(word), body):
+            tail = body[m.end():m.end() + 20]
+            if "无公开来源" not in tail:
+                res.add("no_unsourced_in_findings", f"「{word}」后须标注（无公开来源）",
+                        "推断性数据不得混入关键发现")
+                reported = True
+                break
+
+
+# ── 质量约束注册表 ────────────────────────────────────────────
+# 详见 docs/quality-constraint-design.md 第七章。
+# 注册表化：新增约束 = 注册一个函数 + 元信息，不改 check_format 主流程。
+# UI 从该注册表（或前端镜像）渲染全集，做到「所见即所验」。
+# 元信息：group（组）/ label（中文名）/ hint（说明）/ type（bool/int/str/list）/ applies（适用场景）
+
+@dataclass
+class ConstraintMeta:
+    key: str
+    group: str            # A 存在性 / B 对比矩阵 / C 数据可信 / D 维度覆盖
+    label: str
+    hint: str
+    type: str             # bool / int / str / list
+
+
+CHECK_REGISTRY: dict[str, tuple[callable, ConstraintMeta]] = {
+    # 组 A 存在性（由 check_format 老逻辑验，fn=None；此处注册元信息供 UI 渲染全集）
+    "required_sections": (None, ConstraintMeta("required_sections", "A", "必备章节",
+                                                "章节标题必须存在", "list")),
+    "min_length": (None, ConstraintMeta("min_length", "A", "最小字数",
+                                        "防 stub/占位空文", "int")),
+    "must_include": (None, ConstraintMeta("must_include", "A", "必含关键词",
+                                          "正文必须出现的关键词", "list")),
+    "file_exists": (None, ConstraintMeta("file_exists", "A", "引用文件存在",
+                                         "交付物引用的文件必须存在", "list")),
+    # 组 B 对比矩阵
+    "require_comparison_matrix": (
+        _check_comparison_matrix,
+        ConstraintMeta("require_comparison_matrix", "B", "必须含对比矩阵",
+                       "指定章节内含 markdown 表格", "bool"),
+    ),
+    "matrix_min_rows": (None, ConstraintMeta("matrix_min_rows", "B", "矩阵最小行数", "对比对象数下限", "int")),
+    "matrix_min_cols": (None, ConstraintMeta("matrix_min_cols", "B", "矩阵最小列数", "维度数下限", "int")),
+    "matrix_no_empty_cell": (None, ConstraintMeta("matrix_no_empty_cell", "B", "矩阵无空格",
+                                                   "每格非空（不对称检测）", "bool")),
+    "matrix_section": (None, ConstraintMeta("matrix_section", "B", "矩阵所在章节", "默认「关键发现」", "str")),
+    # 组 C 数据可信
+    "source_inline_required": (
+        _check_source_inline,
+        ConstraintMeta("source_inline_required", "C", "量化数字内联来源",
+                       "数字后跟 [S1]/[来源]/(url)", "bool"),
+    ),
+    "no_unsourced_in_findings": (
+        _check_no_unsourced_in_findings,
+        ConstraintMeta("no_unsourced_in_findings", "C", "关键发现禁推断",
+                       "推断词须标「无公开来源」", "bool"),
+    ),
+    # 组 D 维度覆盖
+    "dimension_coverage": (
+        _check_dimension_coverage,
+        ConstraintMeta("dimension_coverage", "D", "维度全覆盖",
+                       "指定维度词全覆盖且非罗列", "list"),
+    ),
+}
+
+
+def list_check_constraints() -> list[ConstraintMeta]:
+    """返回全部可用约束元信息（供 UI 渲染全集）。"""
+    return [meta for _, meta in CHECK_REGISTRY.values()]
+
+
 def verify_published_url(url: str, title: str) -> tuple[bool, bool, str]:
     """真实访问已发布 URL，尽力核对页面含帖子标题。
 
@@ -170,6 +363,12 @@ def check_format(spec: FormatSpec, content: str, deliverable_path: Optional[str]
         for kw in spec.must_include:
             if kw not in content:
                 res.add("must_include", kw, "未找到此关键词")
+
+    # 质量约束（A 类结构性，绑交付模板 check_rules）——见 docs/quality-constraint-design.md
+    # 注册表化：遍历 CHECK_REGISTRY，调对应检查函数。新增约束不改此处。
+    for _key, (fn, _meta) in CHECK_REGISTRY.items():
+        if fn is not None:
+            fn(spec, content, res)
 
     if not res.passed:
         res.feedback = _feedback(spec.task_type, res.failures)
