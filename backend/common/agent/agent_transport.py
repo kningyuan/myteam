@@ -64,22 +64,26 @@ def parallel_execute_workspace(agent_id: str, req) -> Path:
         return base
     iso = base / "_parallel" / pid / tid
     iso.mkdir(parents=True, exist_ok=True)
-    for name in _IDENTITY_FILES:
+    # identity 文件 + CLI 配置目录（.opencode/.claude）软链到隔离 workspace，
+    # 确保 CLI 能找到 skill/mcp/model 配置（否则报 Unexpected server error）。
+    for name in (*_IDENTITY_FILES, ".opencode", ".claude"):
         src = base / name
         dst = iso / name
-        if not src.is_file() or dst.exists():
+        if not src.exists() or dst.exists() or dst.is_symlink():
             continue
         try:
             os.symlink(src, dst)
         except OSError:
-            shutil.copy2(src, dst)
+            try:
+                shutil.copytree(src, dst)
+            except OSError:
+                pass
     return iso
 
 
 # 决策类 kind 的 result 具体骨架（弱模型靠 response_schema 名字猜不出结构，须给样例，D11）。
 _RESULT_SKELETON = {
-    "team_config": '{"agents": ["<agent_id>", "..."]}',
-    "task_plan": ('{"tasks": [{"id": "t1", "name": "任务名", "agent": "<agent_id>", '
+    "team_config": '{"agents": ["<agent_id>", "..."]}',    "task_plan": ('{"tasks": [{"id": "t1", "name": "任务名", "agent": "<agent_id>", '
                   '"task_type": "<task_type>", "description": "做什么", '
                   '"reviewer": "", "dependencies": []}]}'),
     "evaluate": ('{"should_split": false, "reason": "为何拆/不拆", "sub_tasks": '

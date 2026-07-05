@@ -39,11 +39,13 @@ def normalize_team(team: Iterable[str]) -> set[str]:
 
 
 def normalize_plan_tasks(tasks: list[dict]) -> list[dict]:
+    """归一化 task 列表中的 agent id 字段（兼容 ``agent_id`` / ``agent`` 两种写法）。"""
     out: list[dict] = []
     for t in tasks:
         item = dict(t)
-        if item.get("agent"):
-            item["agent"] = normalize_agent_id(str(item["agent"]))
+        raw = str(item.get("agent") or item.get("agent_id") or "").strip()
+        if raw:
+            item["agent"] = normalize_agent_id(raw)
         out.append(item)
     return out
 

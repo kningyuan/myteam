@@ -14,9 +14,9 @@
         "证据整理"
       ],
       "task_types": [
-        "research",
+        "custom-survey",
         "data-analysis",
-        "custom-survey"
+        "research"
       ],
       "skills": [
         "competitive-analysis-methodology",
