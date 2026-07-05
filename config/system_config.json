@@ -2,7 +2,7 @@
   "system": {
     "port": 8765,
     "default_backend": "opencode",
-    "default_model": "opencode/deepseek-v4-flash-free",
+    "default_model": "Agnes/agnes-2.0-flash",
     "debug": false,
     "price_per_mtok": 0,
     "default_review": false,
@@ -61,7 +61,8 @@
     "opencode": {
       "enabled": true,
       "cli_path": "",
-      "model_aliases": {}
+      "model_aliases": {},
+      "default_model": "Agnes/agnes-2.0-flash"
     },
     "claude": {
       "enabled": true,
