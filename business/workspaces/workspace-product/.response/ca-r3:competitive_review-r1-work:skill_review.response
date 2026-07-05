@@ -1,0 +1,11 @@
+{
+  "interaction_id": "ca-r3:competitive_review-r1-work:skill_review",
+  "kind": "skill_review",
+  "status": "ok",
+  "result": {
+    "action": "noop",
+    "skill_id": "competitive-analysis-methodology",
+    "notes": "本次会话中 Agent 在查找 submit_result.py 时多次使用 glob 失败，最终通过 find + grep 成功。此教训属于通用 Agent 工具使用模式（backend Python 文件用 find/grep 而非 glob），不属于竞品分析方法论 Skill 的覆盖范围。如需记录，应创建通用的 agent-operations skill 或在现有 umbrella 的 references/ 下补充，但不建议 patch competitive-analysis-methodology SKILL.md。"
+  },
+  "notes": "复盘：competitive_review 任务顺利完成，交付物通过 Gate。唯一教训是工具选择（glob vs find/grep），与竞品分析方法论无关。"
+}

@@ -39,10 +39,10 @@
         "验收标准定义"
       ],
       "task_types": [
-        "section-review",
+        "competitive-analysis",
         "feature-design",
         "research",
-        "competitive-analysis"
+        "section-review"
       ],
       "skills": [
         "product-discovery",

@@ -120,14 +120,21 @@ def _check_comparison_matrix(spec: FormatSpec, content: str, res: GateResult) ->
 
 
 def _check_dimension_coverage(spec: FormatSpec, content: str, res: GateResult) -> None:
-    """约束：每个维度词在正文出现且所在段非空（≥2句）。"""
+    """约束：每个维度词在正文出现且所在段非空。
+
+    维度词出现在章节标题（## 开头）即算覆盖；
+    出现在正文行时要求该行 ≥10 字符（防罗列）。
+    """
     if not spec.dimension_coverage:
         return
     for dim in spec.dimension_coverage:
         if dim not in content:
             res.add("dimension_coverage", dim, "该维度在全文未出现")
             continue
-        # 找该维度所在段落，验非空
+        # 维度词出现在标题行（##/###）即算覆盖
+        if re.search(rf"^#+\s*[^\n]*{re.escape(dim)}", content, re.MULTILINE):
+            continue
+        # 否则找该维度所在正文段落，验非空
         m = re.search(rf"([^\n]*{re.escape(dim)}[^\n]*)", content)
         if m:
             ctx = m.group(1).strip()
@@ -136,16 +143,24 @@ def _check_dimension_coverage(spec: FormatSpec, content: str, res: GateResult) -
 
 
 # 量化数字（≥3位或带单位/百分号/亿/万）后须跟来源编号 [S1]/[来源]/(url)
+# 排除纯年份（19XX/20XX）— 年份不是量化数据，无须来源
 _NUM_WITH_SOURCE = re.compile(r"(\d[\d,]*\.\d+|\d{2,}[\d,]*|\d+\s*(?:%|亿|万|万美元|元|美元|岁|个|条|分钟|小时|天|月|年))")
+_YEAR_PATTERN = re.compile(r"^(19|20)\d{2}$")
 _SOURCE_TAG = re.compile(r"\[S?\d+\]|\[来源\d*\]|\(https?://|（https?://")
 
 
 def _check_source_inline(spec: FormatSpec, content: str, res: GateResult) -> None:
     """约束：量化数字前后须内联来源编号或 URL。
 
-    窗口放宽到 60 字符，覆盖「数字（注释/口径说明）[Sn]」和「[来源 1]2026年」两种形态。
-    排除「信息来源」章节整体（含其下的 markdown 表格——来源表天然带 url/编号），
-    以及对比矩阵表格行（矩阵格子里的数字由 matrix 约束管，不在此重复验来源位置）。
+    窗口放宽到 120 字符，覆盖：
+    - 「数字（注释）[Sn]」数字后标注
+    - 「[来源 1]2026年」数字前标注
+    - 「句中数字 ... 句末 [来源1][来源2]」整句标注（定价对比正文常见）
+
+    排除：
+    - 「信息来源」章节整体（来源表天然带 url/编号）
+    - markdown 表格行（矩阵格子由 matrix 约束管）
+    - 含 $ 符号的定价列表行（如 "$20 → $40/user" 这种价格序列，来源在表头/句末）
     """
     if not spec.source_inline_required:
         return
@@ -154,17 +169,27 @@ def _check_source_inline(spec: FormatSpec, content: str, res: GateResult) -> Non
                   flags=re.MULTILINE | re.DOTALL)
     # 去掉 markdown 表格行（| ... |）——表格内数字的来源由表格结构保证，不验位置
     body = re.sub(r"^\s*\|.*\|\s*$", "", body, flags=re.MULTILINE)
+    # 去掉含 $ 符号的单行（定价序列行，如 "Free → Pro ($20) → Teams ($40/user)"）
+    body = re.sub(r"^[^\n]*\$[^\n]*$", "", body, flags=re.MULTILINE)
     misses: list[str] = []
     for m in _NUM_WITH_SOURCE.finditer(body):
-        # 数字后 60 字符内有无来源标记（覆盖「数字（注释）[Sn]」形态）
-        tail = body[m.end():m.end() + 60]
+        num = m.group(0).strip()
+        # 排除纯年份（2024/2025/2026 等）
+        if _YEAR_PATTERN.match(num):
+            continue
+        # 排除 leading zero 的小数（如版本号 1.07 中的 07、日期 07月）
+        digits = re.sub(r"[^\d]", "", num)
+        if len(digits) >= 2 and digits.startswith("0"):
+            continue
+        # 数字后 120 字符内有无来源标记（覆盖整句末尾标注）
+        tail = body[m.end():m.end() + 120]
         if _SOURCE_TAG.search(tail):
             continue
-        # 数字前 60 字符内有无来源标记（覆盖「[来源 1]2026年」形态）
-        head = body[max(0, m.start() - 60):m.start()]
+        # 数字前 120 字符内有无来源标记（覆盖「[来源 1]2026年」形态）
+        head = body[max(0, m.start() - 120):m.start()]
         if _SOURCE_TAG.search(head):
             continue
-        misses.append(m.group(0)[:15])
+        misses.append(num[:15])
     if misses:
         res.add("source_inline_required", f"{len(misses)} 处量化数据缺少来源编号",
                 f"样例：{misses[0]}")

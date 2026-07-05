@@ -1,0 +1,52 @@
+{
+  "interaction_id": "ca-r3:competitive_review-r1-review:execute:1",
+  "schema_version": "1.0",
+  "kind": "execute",
+  "project_id": "ca-r3",
+  "task_id": "competitive_review-r1-review",
+  "agent_id": "main",
+  "intent": "【任务类型】section-review 章节/方案**内容质量**审计（评「是否合理」，不评字数）\n【本任务】\n【上游任务 competitive_review-r1-work 交付物摘要】\n# 竞品分析执行：Cursor vs Windsurf（Devin Desktop）\n\n## 分析目标与范围\n\n### 调研目标\n\n本报告旨在对比 Cursor（Anysphere）与 Windsurf/Devin Desktop（Cognition）两款 AI 原生代码编辑器的产品定位、核心功能与定价策略，识别差异化竞争机会，为产品决策提供参考。属于**决策支持**类型分析[来源1]。\n\n### 分析框架\n\n采用竞品分析方法论六步闭环流程：明确目标→选择竞品→确定维度→收集信息→数据整理分析→输出结论报告[来源2]。分析维度涵盖产品定位、用户体验五层框架、核心功能矩阵、定价策略与商业模式。\n\n### 竞品选择依据\n\n| 竞品 | 公司 | 类别 | 选择理由 |\n|------|------|------|----------|\n| Cursor | Anysphere | 直接竞品 | AI 代码编辑器赛道市场份额领先者，开发者社区采用率最高[来源3] |\n| Windsurf (Devin Desktop) | Cognition | 直接竞品 | Codeium 旗下产品，2026年6月更名为 Devin Desktop，背靠 Devin Cloud 生态[来源4] |\n\n两款产品均定位为\"AI 原生代码编辑器\"，面向个体开发者和团队，提供从代码补全到自主代理编程的全链路 AI 辅助能力，用户群体高度重合，属于直接竞品关系[来源3][来源4]。\n\n### 信息来源\n\n| 信息源 | URL | 采集时间 | 可信度 |\n|--------|-----|----------|--------|\n| Cursor 定价页 | https://www.cursor.com/pricing | 2026-07-06 | 高（官方） |\n| Cursor 产品页 | http\n...(截断)\n\n【项目目标】\n对比 Cursor 与 Windsurf 两款 AI 代码编辑器的产品定位、核心功能与定价策略\n\n【work 交付物】（尚未生成，task_id=competitive_review-r1-work）\n\n【项目目标】对比 Cursor 与 Windsurf 两款 AI 代码编辑器的产品定位、核心功能与定价策略\n\n每轮：product 产出竞品分析报告 → main 评审 → 不通过则修订\n\n【范围】评审竞品分析报告质量，输出 REVIEW: PASS 或 REVIEW: FAIL\n【输入】work 交付物 + 项目目标\n【交付】deliverables/review_deliverable.md（评审范围/问题列表/改进建议/评审结论）\n【质量】问题须可定位（引用原文/章节）；建议须可执行；末行 REVIEW: PASS 或 REVIEW: FAIL\n【Gate 章节】评审范围、问题列表、改进建议、评审结论\n【评审重心 — 按优先级】\n1. **合理性**：论述自洽吗？产品/功能架构、流程、规划是否说得通？\n2. **准确性**：与 Goal、第一/二章只读材料是否一致？竞品、工期、术语有无错误？\n3. **完整性**：关键节是否有**实质内容**（非占位、非套话）？架构图与文字是否匹配？\n4. **可交付性**：读者能否据此改 docx/交付客户？\n【明确禁止】\n- 不得以字数、篇幅、超过 min_length/3000 字作为放行主要依据（字数最多 🟢 备注）\n- 不得仅核对「章节齐不齐」而放行；须抽样深读并引用原文说明质量判断\n- 禁止重写 work 正文替代评审报告\n【PASS / FAIL】\n- 无 🔴 且上述质量维度达标 → 审计结论「放行」+ REVIEW: PASS\n- 存在 🔴 或关键论述明显不合理 → 「需修订」+ REVIEW: FAIL；修订要求须可定点 PATCH\n【发现与分级】🔴阻塞 🟡建议 🟢可选；无阻塞写「无阻塞项」\n【交卷】先编辑 deliverable 再 submit_result",
+  "input": {
+    "task": {
+      "name": "评审竞品分析",
+      "agent_id": "main",
+      "task_type": "section-review",
+      "template_id": "review-report",
+      "agent": "main",
+      "id": "competitive_review-r1-review",
+      "dependencies": [
+        "competitive_review-r1-work"
+      ],
+      "description": "【上游任务 competitive_review-r1-work 交付物摘要】\n# 竞品分析执行：Cursor vs Windsurf（Devin Desktop）\n\n## 分析目标与范围\n\n### 调研目标\n\n本报告旨在对比 Cursor（Anysphere）与 Windsurf/Devin Desktop（Cognition）两款 AI 原生代码编辑器的产品定位、核心功能与定价策略，识别差异化竞争机会，为产品决策提供参考。属于**决策支持**类型分析[来源1]。\n\n### 分析框架\n\n采用竞品分析方法论六步闭环流程：明确目标→选择竞品→确定维度→收集信息→数据整理分析→输出结论报告[来源2]。分析维度涵盖产品定位、用户体验五层框架、核心功能矩阵、定价策略与商业模式。\n\n### 竞品选择依据\n\n| 竞品 | 公司 | 类别 | 选择理由 |\n|------|------|------|----------|\n| Cursor | Anysphere | 直接竞品 | AI 代码编辑器赛道市场份额领先者，开发者社区采用率最高[来源3] |\n| Windsurf (Devin Desktop) | Cognition | 直接竞品 | Codeium 旗下产品，2026年6月更名为 Devin Desktop，背靠 Devin Cloud 生态[来源4] |\n\n两款产品均定位为\"AI 原生代码编辑器\"，面向个体开发者和团队，提供从代码补全到自主代理编程的全链路 AI 辅助能力，用户群体高度重合，属于直接竞品关系[来源3][来源4]。\n\n### 信息来源\n\n| 信息源 | URL | 采集时间 | 可信度 |\n|--------|-----|----------|--------|\n| Cursor 定价页 | https://www.cursor.com/pricing | 2026-07-06 | 高（官方） |\n| Cursor 产品页 | http\n...(截断)\n\n【项目目标】\n对比 Cursor 与 Windsurf 两款 AI 代码编辑器的产品定位、核心功能与定价策略\n\n【work 交付物】（尚未生成，task_id=competitive_review-r1-work）\n\n【项目目标】对比 Cursor 与 Windsurf 两款 AI 代码编辑器的产品定位、核心功能与定价策略\n\n每轮：product 产出竞品分析报告 → main 评审 → 不通过则修订\n\n【范围】评审竞品分析报告质量，输出 REVIEW: PASS 或 REVIEW: FAIL\n【输入】work 交付物 + 项目目标\n【交付】deliverables/review_deliverable.md（评审范围/问题列表/改进建议/评审结论）\n【质量】问题须可定位（引用原文/章节）；建议须可执行；末行 REVIEW: PASS 或 REVIEW: FAIL",
+      "_loop_id": "competitive_review",
+      "_loop_round": 1,
+      "_loop_body_id": "review"
+    },
+    "deliverable_path": "competitive_review-r1-review_deliverable.md",
+    "deliverable_base": "/Users/kuanghualong/myteam/business/tasks/project/ca-r3/deliverables",
+    "acceptance_criteria": [
+      "完整覆盖「评审范围」章节且内容具体可执行",
+      "完整覆盖「问题列表」章节且内容具体可执行",
+      "完整覆盖「改进建议」章节且内容具体可执行",
+      "完整覆盖「评审结论」章节且内容具体可执行"
+    ]
+  },
+  "context": {
+    "upstream": [
+      {
+        "task_id": "competitive_review-r1-work",
+        "summary": "完成 Cursor vs Windsurf(Devin Desktop)竞品分析报告。核心发现：1)P0 产品定位分化——Cursor 走编辑器渐进进化路线，Windsurf 走代理指挥中心路线；2)P0 定价个人版同质化($20/月)，团队/企业层分化显著；3)P1 开放协议竞争——MCP vs ACP 生态博弈；4)P1 Windsurf 品牌升级带来短期不确定性。提出 3 条策略建议：聚焦代理编排定位、编辑器中立 SaaS 订阅、优先支持 ACP 协议。",
+        "ref": "competitive_review-r1-work_deliverable.md"
+      }
+    ],
+    "self_improve_constraints": "【本次执行约束 — 由前置资产合并生成】\n\n【用户偏好】\n# Rules\n- foo\n\n【关联 Skill】\n  - 评审执行指南 (review): 对交付物做结构化评审，输出问题列表与改进建议\n    路径: business/skills/review/SKILL.md\n  - 竞品分析方法论 (competitive-analysis-methodology): 竞品分析方法论：按交付物四章节（目标/用户体验/功能定价/关键发现）的实操指引，含每节写什么、矩阵怎么建、来源怎么标。\n    路径: business/skills/competitive-analysis-methodology/SKILL.md\n  - 质量评审 (quality-review): 按探针逐条审查交付物质量，覆盖结构、逻辑、证据与可执行性四个层级。\n    路径: business/skills/quality-review/SKILL.md\n  - 产品方法论 (product-methodology): 产品交付方法论：问题空间、用户场景、范围边界、可验证验收与优先级排序。\n    路径: business/skills/product-methodology/SKILL.md\n  - evaluation-rubric (evaluation-rubric): 通过交互式对话，为你的 goal prompt 生成一份高质量的 evaluation rubric（评分标准），让 AI 评审者准确判断\"做得好不好\"。\n    路径: business/skills/evaluation-rubric/SKILL.md\n\n【质量标准 — 红线】\n  - 禁止编造无来源数据（行业数据须标注报告/官网来源）\n  - 流程图须用结构化 DSL（Mermaid/PlantUML/Graphviz），纯 ASCII → 缺陷\n  - 重复检索阈值 N 按偏好配置，仅语义无新增信息算冗余\n  - 必须覆盖异常场景和边界条件\n",
+    "plan": "【执行前计划】\n  总体思路：基于交付物摘要与项目目标，逐维度对照评审竞品分析质量\n  执行步骤：\n    1. 1. 加载 work 交付物 deliverables/review_deliverable.md，确认其存在且结构完整（评审范围/问题列表/改进建议/评审结论四部分）\n    2. 2. 对照项目目标（对比 Cursor 与 Windsurf 的产品定位、核心功能、定价策略），检查评审范围是否覆盖这三项核心维度\n    3. 3. 逐项验证评审质量：问题是否可定位（引用了原文/章节）、建议是否可执行、结论是否有充分依据\n    4. 4. 检查末行是否明确给出 REVIEW: PASS 或 REVIEW: FAIL\n    5. 5. 综合判断：若四项均满足则 PASS，任一关键项缺失则 FAIL 并给出修订方向\n  已识别风险：work 交付物尚未生成，需等待 upstream task competitive_review-r1-work 完成后才能执行实际评审；若 work 交付物质量极低或缺失关键章节（如问题不可定位），评审结论可能为 FAIL 且无法给出有效改进建议\n  自评信心：0.85"
+  },
+  "response_schema": "execute.result@1.0",
+  "constraints": {
+    "task_type": "section-review",
+    "template_id": "review-report"
+  },
+  "deadline_sec": null,
+  "retry_feedback": []
+}

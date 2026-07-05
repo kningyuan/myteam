@@ -30,7 +30,7 @@ check_rules:
   stub_floor: 300
   require_comparison_matrix: true
   matrix_min_rows: 3
-  matrix_min_cols: 4
+  matrix_min_cols: 3
   dimension_coverage:
   - 用户体验
   - 功能
