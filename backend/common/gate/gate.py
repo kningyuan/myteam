@@ -141,9 +141,9 @@ _SOURCE_TAG = re.compile(r"\[S?\d+\]|\[来源\d*\]|\(https?://|（https?://")
 
 
 def _check_source_inline(spec: FormatSpec, content: str, res: GateResult) -> None:
-    """约束：量化数字后须内联来源编号或 URL。
+    """约束：量化数字前后须内联来源编号或 URL。
 
-    窗口放宽到 60 字符，覆盖「数字（注释/口径说明）[Sn]」的常见形态。
+    窗口放宽到 60 字符，覆盖「数字（注释/口径说明）[Sn]」和「[来源 1]2026年」两种形态。
     排除「信息来源」章节整体（含其下的 markdown 表格——来源表天然带 url/编号），
     以及对比矩阵表格行（矩阵格子里的数字由 matrix 约束管，不在此重复验来源位置）。
     """
@@ -158,11 +158,17 @@ def _check_source_inline(spec: FormatSpec, content: str, res: GateResult) -> Non
     for m in _NUM_WITH_SOURCE.finditer(body):
         # 数字后 60 字符内有无来源标记（覆盖「数字（注释）[Sn]」形态）
         tail = body[m.end():m.end() + 60]
-        if not _SOURCE_TAG.search(tail):
-            misses.append(m.group(0)[:15])
+        if _SOURCE_TAG.search(tail):
+            continue
+        # 数字前 60 字符内有无来源标记（覆盖「[来源 1]2026年」形态）
+        head = body[max(0, m.start() - 60):m.start()]
+        if _SOURCE_TAG.search(head):
+            continue
+        misses.append(m.group(0)[:15])
     if misses:
         res.add("source_inline_required", f"{len(misses)} 处量化数据缺少来源编号",
                 f"样例：{misses[0]}")
+        return
 
 
 _INFER_WORDS = ("推断", "推测", "可能", "预计", "估计", "猜测")

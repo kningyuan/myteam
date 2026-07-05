@@ -429,6 +429,17 @@ class Process:
             )
             return TaskExecuteResult(outcome, decision, triage.sub_tasks)
         if decision == "retry" and meta.get("fail_reason") == "gate_exhausted":
+            # gate_exhausted 后再次 retry 无意义（门禁重试已耗尽），直接返回失败
+            self._notify_task_done(project_id, task, outcome)
+            return TaskExecuteResult(outcome, decision)
+        decision = triage.decision
+        if decision == "split" and triage.sub_tasks:
+            self.store.append_run_event(
+                f"{project_id}:{task['id']}:triage", "triage_split",
+                {"children": [s["id"] for s in triage.sub_tasks]},
+            )
+            return TaskExecuteResult(outcome, decision, triage.sub_tasks)
+        if decision == "retry" and meta.get("fail_reason") == "gate_exhausted":
             self._notify_task_done(project_id, task, outcome)
             return TaskExecuteResult(outcome, decision)
         if decision == "retry":
