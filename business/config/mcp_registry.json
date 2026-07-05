@@ -6,12 +6,60 @@
       "description": "本地 stdio MCP 示例；可在 MCP 页关闭 enabled 或从 Agent 取消挂载。",
       "enabled": false,
       "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "example-mcp-server"
-      ],
+      "command": ["npx", "-y", "example-mcp-server"],
       "environment": {}
+    },
+    "filesystem": {
+      "name": "文件系统",
+      "description": "读写本地文件（@modelcontextprotocol/server-filesystem）",
+      "enabled": false,
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "."],
+      "environment": {}
+    },
+    "brave-search": {
+      "name": "Brave 搜索",
+      "description": "实时网络搜索（@modelcontextprotocol/server-brave-search），需 BRAVE_API_KEY",
+      "enabled": false,
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-brave-search"],
+      "environment": {
+        "BRAVE_API_KEY": ""
+      }
+    },
+    "puppeteer": {
+      "name": "浏览器自动化",
+      "description": "Puppeteer 浏览器抓取与 E2E（@modelcontextprotocol/server-puppeteer）",
+      "enabled": false,
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-puppeteer"],
+      "environment": {}
+    },
+    "fetch": {
+      "name": "URL 抓取",
+      "description": "抓取网页内容（@modelcontextprotocol/server-fetch）",
+      "enabled": false,
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-fetch"],
+      "environment": {}
+    },
+    "sqlite": {
+      "name": "SQLite 查询",
+      "description": "查询 SQLite 数据库（@modelcontextprotocol/server-sqlite）",
+      "enabled": false,
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-sqlite", "--db-path", "./data.db"],
+      "environment": {}
+    },
+    "github": {
+      "name": "GitHub API",
+      "description": "GitHub 仓库操作（@modelcontextprotocol/server-github），需 GITHUB_TOKEN",
+      "enabled": false,
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-github"],
+      "environment": {
+        "GITHUB_TOKEN": ""
+      }
     }
   }
 }
