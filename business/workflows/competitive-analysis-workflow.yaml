@@ -1,0 +1,81 @@
+id: competitive-analysis-workflow
+name: 产品竞品分析
+description: 产品视角竞品分析 — product 执行竞品调研 → main 评审 → 不通过则修订再评
+version: '1.0'
+options:
+  review_enabled: false
+  split_enabled: false
+  collaboration:
+    project_group:
+      enabled: true
+    notifications:
+      enabled: true
+    group_discussion:
+      enabled: true
+      profile: work-review-alignment
+tasks:
+- id: competitive-research
+  name: 产品竞品分析
+  loop: competitive_review
+  dependencies: []
+  description: 每轮：product 产出竞品分析报告 → main 评审 → 不通过则修订
+loops:
+- id: competitive_review
+  max_rounds: 3
+  min_rounds: 1
+  default_body: default
+  on_pass: complete
+  on_exhaust: needs_review
+  bodies:
+    default:
+    - id: work
+      name: 竞品分析执行
+      agent_id: product
+      task_type: competitive-analysis
+      template_id: competitive-analysis-product
+      dependencies: []
+      description: '【范围】对指定竞品做系统性竞品分析，产出产品视角的结构化报告
+
+        【输入】项目目标（竞品列表与分析维度）
+
+        【交付】deliverables/work_deliverable.md（含分析目标/用户体验对比/功能定价/关键发现四章节）
+
+        【质量】每章有实质内容；用户体验含对比矩阵（≥3行×4列）；关键发现≥3条含P0/P1优先级'
+    - id: review
+      name: 评审竞品分析
+      agent_id: main
+      task_type: section-review
+      template_id: review-report
+      dependencies:
+      - work
+      description: '【范围】评审竞品分析报告质量，输出 REVIEW: PASS 或 REVIEW: FAIL
+
+        【输入】work 交付物 + 项目目标
+
+        【交付】deliverables/review_deliverable.md（评审范围/问题列表/改进建议/评审结论）
+
+        【质量】问题须可定位（引用原文/章节）；建议须可执行；末行 REVIEW: PASS 或 REVIEW: FAIL'
+  assess:
+    ref: review
+    inputs:
+    - kind: goal
+    - kind: phase.deliverable
+      phase: work
+  transition:
+  - when: deliverable_marker
+    task: review
+    marker: 'REVIEW: PASS'
+    action: exit
+    outcome: complete
+  - when: deliverable_marker
+    task: review
+    marker: 'REVIEW: FAIL'
+    action: continue
+    next_body: default
+  - when: exhausted
+    action: exit
+    outcome: needs_review
+  fallback_until:
+  - type: deliverable_marker
+    task: review
+    marker: 'REVIEW: PASS'

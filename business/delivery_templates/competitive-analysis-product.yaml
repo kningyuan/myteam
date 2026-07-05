@@ -1,0 +1,46 @@
+id: competitive-analysis-product
+version: '1.0'
+display_name: 产品竞品分析报告
+description: 面向产品视角的竞品分析交付模板 — 用户体验五层框架 + 功能对比矩阵 + 策略建议
+task_types:
+- competitive-analysis
+default_for: competitive-analysis
+deliverable_template:
+  title: 产品竞品分析报告
+  sections:
+  - name: 分析目标与范围
+    description: 调研目标、分析框架、竞品选择依据（直接/间接/替代三类竞品）
+    required: true
+  - name: 用户体验对比
+    description: 五层框架（战略/范围/结构/框架/表现）逐层对比，含对比矩阵表格
+    required: true
+  - name: 功能与定价
+    description: 核心功能对比表 + 定价方案对比（含各方案关键差异分析）
+    required: true
+  - name: 关键发现与策略建议
+    description: 至少 3 条关键发现（P0/P1 优先级），含可执行的差异化和定位建议
+    required: true
+  required_heading_level: 2
+check_rules:
+  required_sections:
+  - 分析目标与范围
+  - 用户体验对比
+  - 功能与定价
+  - 关键发现与策略建议
+  stub_floor: 300
+  require_comparison_matrix: true
+  matrix_min_rows: 3
+  matrix_min_cols: 4
+  dimension_coverage:
+  - 用户体验
+  - 功能
+  - 定价
+  - 策略
+  source_inline_required: true
+acceptance_criteria:
+- 完整覆盖分析目标/用户体验/功能定价/关键发现四章节
+- 用户体验章节含对比矩阵表格（至少 3 行 × 4 列）
+- 每个量化数据标注来源（[来源N] 或 URL）
+- 功能定价含核心功能对比表
+- 关键发现至少 3 条，每条含对比维度与数据支撑
+- 结论含 P0/P1 优先级建议

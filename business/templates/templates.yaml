@@ -305,3 +305,40 @@ test-plan:
   acceptance_criteria:
   - 覆盖测试范围/测试用例/验收标准三章节
   - 测试用例可执行、可验证
+competitive-analysis:
+  display_name: 产品竞品分析
+  outcome_kind: artifact
+  delivery_profile: light_v1
+  deliverable_template:
+    required_heading_level: 2
+    sections:
+    - name: 分析目标与范围
+      description: 调研目标、分析框架、竞品选择依据
+      required: true
+    - name: 用户体验对比
+      description: 五层框架逐层对比，含对比矩阵
+      required: true
+    - name: 功能与定价
+      description: 核心功能对比表 + 定价方案对比
+      required: true
+    - name: 关键发现与策略建议
+      description: 至少 3 条关键发现，含 P0/P1 优先级
+      required: true
+  check_rules:
+    required_sections:
+    - 分析目标与范围
+    - 用户体验对比
+    - 功能与定价
+    - 关键发现与策略建议
+    stub_floor: 300
+    require_comparison_matrix: true
+    dimension_coverage:
+    - 用户体验
+    - 功能
+    - 定价
+    - 策略
+  task_type: competitive-analysis
+  acceptance_criteria:
+  - 完整覆盖分析目标/用户体验/功能定价/关键发现四章节
+  - 关键发现至少 3 条，每条含对比维度与数据支撑
+  - 结论含 P0/P1 优先级建议

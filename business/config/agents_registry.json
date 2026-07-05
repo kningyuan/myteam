@@ -16,7 +16,8 @@
       "task_types": [
         "custom-survey",
         "data-analysis",
-        "research"
+        "research",
+        "competitive-analysis"
       ],
       "skills": [
         "competitive-analysis-methodology",
@@ -40,12 +41,14 @@
       "task_types": [
         "section-review",
         "feature-design",
-        "research"
+        "research",
+        "competitive-analysis"
       ],
       "skills": [
         "product-discovery",
         "product-methodology",
-        "proposal-writing-methodology"
+        "proposal-writing-methodology",
+        "competitive-analysis-methodology"
       ],
       "mcp_servers": []
     },
