@@ -501,19 +501,20 @@ def build_worker_prompt(req, resp_path: Path, deliv_dir: Path,
 
     lines += [
         "",
-        "【提交结果（必须这样做）】",
-        "把结果 JSON 写入临时文件后，运行以下命令提交（会做契约校验并原子写回）：",
-        f"  {sys.executable} {submit_script} --out {resp_path} --file <你的结果json文件>",
-        "结果 JSON 必须形如：",
+        "【提交结果（最后一步 — 必须执行）】",
+        f"交付物写完后，写临时文件并运行 submit_result：",
+        f"  1. 写 /tmp/result.json（内容见下方模板）",
+        f"  2. 运行 {sys.executable} {submit_script} --out {resp_path} --file /tmp/result.json",
+        "结果 JSON 模板：",
         "{",
         f'  "interaction_id": "{req.interaction_id}",',
         f'  "kind": "{kind}", "status": "ok",',
-        ('  "quality": {"score": 0.x, "known_gaps": [], "notes": "自评"},'
+        ('  "quality": {"score": 0.9, "known_gaps": [], "notes": "自评"},'
          if kind in ("execute", "review") else "  "),
         f"  {result_hint},",
         '  "notes": "100 字内的成果摘要（将作为下游上下文）"',
         "}",
-        "不要在聊天里直接返回 JSON；聊天内容会被忽略。只有写入 .response 的合法结果才被采纳。",
+        "不要在聊天里返回 JSON；聊天内容会被忽略。只有写入 .response 的合法结果才被采纳。",
     ]
     return "\n".join(lines)
 

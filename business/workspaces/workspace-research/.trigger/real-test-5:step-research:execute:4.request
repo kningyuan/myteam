@@ -1,0 +1,49 @@
+{
+  "interaction_id": "real-test-5:step-research:execute:4",
+  "schema_version": "1.0",
+  "kind": "execute",
+  "project_id": "real-test-5",
+  "task_id": "step-research",
+  "agent_id": "research",
+  "intent": "【任务类型】research 调研报告（与 agent 角色无关，按本章节约束写即可）\n【本任务】\n【项目目标】调研 Cursor 与 Windsurf 的核心功能差异，300 字简要对比\n\n【范围】调研指定竞品的功能、定价、用户评价，交叉验证后产出结构化报告\n【输入】竞品列表\n【交付】竞品调研报告（Markdown，含调研背景/信息来源/关键发现/结论四章节）\n【质量】每个关键信息标注来源；关键发现至少3条含对比；结论含P0/P1优先级；覆盖异常场景\n【通用约束】\n- 范围以本任务【范围】为准；仅读 README、docs/、Releases、构建清单等公开材料\n- 禁止全仓扫描、禁止深入逐文件读源码树、禁止执行安装命令\n- 每章 5–8 句，全文 1000–1500 字（除非本任务另有篇幅说明）\n- 信息来源须列至少 3 条可追溯来源（README/docs/Release 链接）\n- 行首二级标题须与注册表一致：## 调研背景、## 信息来源、## 关键发现、## 结论\n- 无公开来源不写；不确定写在结论，勿编造\n【交卷】先编辑框架预写的 deliverable 文件，再运行 submit_result（仅聊天不算交卷）\n【自评】信息已充分覆盖各章时 quality.known_gaps 填 []；仅真实缺口才列举",
+  "input": {
+    "task": {
+      "id": "step-research",
+      "agent_id": "research",
+      "task_type": "research",
+      "template_id": "research-report",
+      "name": "竞品调研执行",
+      "description": "【项目目标】调研 Cursor 与 Windsurf 的核心功能差异，300 字简要对比\n\n【范围】调研指定竞品的功能、定价、用户评价，交叉验证后产出结构化报告\n【输入】竞品列表\n【交付】竞品调研报告（Markdown，含调研背景/信息来源/关键发现/结论四章节）\n【质量】每个关键信息标注来源；关键发现至少3条含对比；结论含P0/P1优先级；覆盖异常场景",
+      "dependencies": [],
+      "agent": "research"
+    },
+    "deliverable_path": "step-research_deliverable.md",
+    "deliverable_base": "/Users/kuanghualong/myteam/business/tasks/project/real-test-5/deliverables",
+    "acceptance_criteria": [
+      "完整覆盖调研背景章节且内容具体",
+      "信息来源必须标注（URL/出处），禁止编造数据",
+      "关键发现至少3条，含对比/优势/劣势",
+      "结论含可执行建议（P0/P1/优先级/下一步）",
+      "覆盖异常/边界场景，不能只写正常情况"
+    ],
+    "session_id": "ses_0cdd48798ffeeJf8NDxcoRsBPi"
+  },
+  "context": {
+    "self_improve_constraints": "【本次执行约束 — 由前置资产合并生成】\n\n【用户偏好】\n# Rules\n- foo\n\n【关联 Skill】\n  - 调研方法论 (research_methodology): 调研方法论：目标明确、多渠道信息收集、交叉验证、分析综合与结论提炼。通用调研能力，不绑定特定交付模板。\n    路径: business/skills/research_methodology/SKILL.md\n  - 竞品分析方法论 (competitive-analysis-methodology): 竞品分析方法论：六步闭环流程（目标→选品→维度→采集→分析→结论），定性+定量结合。通用竞品分析能力，不绑定特定交付模板。\n    路径: business/skills/competitive-analysis-methodology/SKILL.md\n  - 自定义调研指南 (custom-survey): 根据指定主题做桌面调研，输出背景分析和结论\n    路径: business/skills/custom-survey/SKILL.md\n  - 产品方法论 (product-methodology): 产品交付方法论：问题空间、用户场景、范围边界、可验证验收与优先级排序。\n    路径: business/skills/product-methodology/SKILL.md\n  - 质量评审 (quality-review): 按探针逐条审查交付物质量，覆盖结构、逻辑、证据与可执行性四个层级。\n    路径: business/skills/quality-review/SKILL.md\n\n【参考知识库】\n  - rubric:main/research:step-research: agent: main task_type: research task_id: step-research project_id: real-test-3 rubric_score: 95.00 rubric_passed: yes 维度问题：场景覆盖度:缺少关键词：边界, 空数据, 失败 评分明细： 模板: research 阈值: 0.70 加权得分: 0.9500   结构完整性: 1.0\n  - rubric:research/research:t2: agent: research task_type: research task_id: t2 project_id: team-eval-1782906471 rubric_score: 93.80 rubric_passed: yes 维度问题：分析深度:缺少关键词：对比, 劣势, 差异 评分明细： 模板: research 阈值: 0.70 加权得分: 0.9375   调研框架: 1.00\n  - rubric:research/competitive-analysis:t1: agent: research task_type: competitive-analysis task_id: t1 project_id: team-eval-1782906471 rubric_score: 100.00 rubric_passed: yes 评分明细： 模板: research 阈值: 0.70 加权得分: 1.0000   调研框架: 1.000   数据来源: 1.00\n  - rubric:/research:step-collect: agent:  task_type: research task_id: step-collect project_id: ui_团队协作端到端测试3_20260701_061241 rubric_score: 87.50 rubric_passed: yes 维度问题：结论可执行:缺少关键词：建议, 行动, 下一步 评分明细： 模板: research 阈值: 0.70 加权得分: 0.8750\n  - quality:main/research:step-research: agent: main task_type: research task_id: step-research project_id: real-test-3 attempts: 3 quality_score: 0.95 gate_passed: yes review: skipped status: completed suggestion: 经过 3 次重试才完成，效率偏低\n  - quality:research/research:t2: agent: research task_type: research task_id: t2 project_id: team-eval-1782906471 attempts: 1 quality_score: 0.92 gate_passed: yes review: skipped status: needs_review\n  - quality:research/competitive-analysis:t1: agent: research task_type: competitive-analysis task_id: t1 project_id: team-eval-1782906471 attempts: 1 quality_score: 0.93 gate_passed: yes review: skipped status: needs_review\n  - quality:/research:step-collect: agent:  task_type: research task_id: step-collect project_id: ui_团队协作端到端测试3_20260701_061241 attempts: 1 quality_score: 0.92 gate_passed: yes review: skipped status: completed\n  - review:main/research_methodology:step-research: 【reference】research_methodology  research_methodology 尚未创建，待今后创建时可写入 references/numeric-data-annotation.md\n  - 用户的调研心得: 做竞品调研时要注重数据来源的可靠性，优先官方文档和权威报告。\n\n【质量标准 — 红线】\n  - 禁止编造无来源数据（行业数据须标注报告/官网来源）\n  - 流程图须用结构化 DSL（Mermaid/PlantUML/Graphviz），纯 ASCII → 缺陷\n  - 重复检索阈值 N 按偏好配置，仅语义无新增信息算冗余\n  - 必须覆盖异常场景和边界条件\n",
+    "plan": "【执行前计划】\n  总体思路：采用竞品分析六步闭环流程，聚焦 Cursor 与 Windsurf 两款 AI 代码编辑器的核心功能、定价与用户体验差异。通过多源信息采集（官网定价页、用户评价社区、第三方评测平台），建立功能-定价-体验三维对比矩阵，交叉验证关键数据，提炼差异化机会。\n  执行步骤：\n    1. Step1-信息采集：访问 Cursor 与 Windsurf 官网/定价页，抓取核心功能列表、定价方案；检索用户评价（Reddit、X、GitHub Discussions）及第三方评测（如 TechRadar、The Verge、Capterra 等），每项信息标注 URL+采集时间+可信度级别\n    2. Step2-数据整理：构建对比矩阵（功能维度：AI 补全/Chat/Copilot 集成/IDE 基础能力；定价维度：免费版/付费版价格与功能差异；体验维度：UI 流畅度/响应速度/多语言支持），定性+定量结合\n    3. Step3-交叉验证：关键数据（价格、功能是否可用）至少两个独立来源确认；信息缺口明确列出，不编造\n    4. Step4-深度分析：从矩阵中提炼至少 3 条有数据支撑的关键发现（如 Cursor 的 Codebase Indexing 独占、Windsurf 的 Flow 连续操作优势、定价策略差异），每条标注对比维度\n    5. Step5-产出报告：按四章节结构（调研背景/信息来源/关键发现/结论）撰写 300 字左右对比报告，结论含 P0/P1 优先级建议，覆盖异常场景（如数据缺失、来源受限等）\n    6. Step6-自检提交：检查来源标注完整性、发现条数、结论可执行性，确认无遗漏后提交\n  已识别风险：Cursor 与 Windsurf 定价/功能变动频繁，官网信息可能存在时效性问题，需标注采集时间；第三方评测可能存在主观倾向或过时内容，需交叉验证；部分关键功能细节可能在文档中不够明确（如 API 集成程度），可能形成信息缺口；两款产品均在快速迭代中，Beta 功能与正式发布功能边界可能模糊\n  自评信心：0.85"
+  },
+  "response_schema": "execute.result@1.0",
+  "constraints": {
+    "task_type": "research",
+    "template_id": "research-report"
+  },
+  "deadline_sec": null,
+  "retry_feedback": [
+    "【失败根因分类】\n  🔧 格式错误：涉及 no_unsourced_in_findings、source_inline_required\n",
+    "  🔧 格式错误",
+    "    → 章节标题层级或格式不符合模板要求。请确保每个章节的标题层级（# 数）与模板一致，章节名逐字匹配。注意不要在代码块或引用中隐藏章节标题。",
+    "【失败详情】",
+    "  ❌ [source_inline_required] 期望：9 处量化数据缺少来源编号；实际：样例：2026",
+    "  ❌ [no_unsourced_in_findings] 期望：「推断」后须标注（无公开来源）；实际：推断性数据不得混入关键发现"
+  ]
+}
