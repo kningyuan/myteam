@@ -42,13 +42,23 @@
         "competitive-analysis",
         "feature-design",
         "research",
-        "section-review"
+        "section-review",
+        "strategy"
       ],
       "skills": [
         "product-discovery",
         "product-methodology",
         "proposal-writing-methodology",
-        "competitive-analysis-methodology"
+        "competitive-analysis-methodology",
+        "competitive-analysis-book",
+        "requirement-analysis",
+        "user-research",
+        "product-planning",
+        "data-analysis",
+        "product-strategy",
+        "pm-project-management",
+        "ux-methodology",
+        "product-growth"
       ],
       "mcp_servers": []
     },
@@ -156,7 +166,8 @@
         "agent-collaboration-patterns",
         "coordination-methodology",
         "myteam-user-manual",
-        "writing-plans"
+        "writing-plans",
+        "book-to-skill"
       ],
       "mcp_servers": []
     }
