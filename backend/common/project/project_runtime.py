@@ -69,6 +69,21 @@ class ProjectRuntime:
             finally:
                 self._slot.release()
                 cancel_registry.clear(project_id)
+                # 兜底：无论 runner 成功/失败/异常，都清除 hub_kernel_run.running 标记
+                try:
+                    import common.store.store as _store_mod
+                    _s = _store_mod.Store()
+                    try:
+                        _p = _s.get_project(project_id)
+                        if _p:
+                            _s.update_project_meta(
+                                project_id,
+                                hub_kernel_run={"running": False, "error": None},
+                            )
+                    finally:
+                        _s.close()
+                except Exception:
+                    pass
                 if on_end:
                     on_end(project_id, err)
 
